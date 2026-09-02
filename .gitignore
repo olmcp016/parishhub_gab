@@ -1,0 +1,15 @@
+# Uploaded files (keep folder, ignore contents)
+public/uploads/*
+!public/uploads/.gitkeep
+!public/uploads/.htaccess
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+
+# Local overrides (if you copy config.php to keep secrets out of git)
+config/config.local.php

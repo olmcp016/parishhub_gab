@@ -1,0 +1,9 @@
+{
+  "recommendations": [
+    "bmewburn.vscode-intelephense-client",
+    "xdebug.php-debug",
+    "bierner.markdown-mermaid",
+    "ecmel.vscode-html-css",
+    "formulahendry.auto-rename-tag"
+  ]
+}
