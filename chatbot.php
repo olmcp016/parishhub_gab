@@ -12,6 +12,11 @@ $userId = isLoggedIn() ? currentUser()['user_id'] : null;
 
 $input = json_decode(file_get_contents('php://input'), true);
 $message = trim($input['message'] ?? '');
+// The chat widget answers instantly on the client from hydrated data
+// (window.PARISH_DATA) and calls this endpoint in the background only to
+// log the exchange. When it hands us the reply it already showed, log that
+// verbatim instead of recomputing it, so the log matches what the visitor saw.
+$clientReply = trim($input['reply'] ?? '');
 
 function getSetting(string $key): ?string
 {
@@ -37,7 +42,8 @@ $intents = [
         },
     ],
     'requirements' => [
-        'keywords' => ['requirement', 'requirements', 'what do i need', 'documents needed'],
+        // baptism/binyag, confirmation/kumpil, matrimony/kasal, burial/libing, etc.
+        'keywords' => ['requirement', 'requirements', 'what do i need', 'documents needed', 'binyag', 'kumpil', 'kasal', 'libing'],
         'respond' => function () {
             $rows = db()->query('SELECT service_name, requirements FROM services WHERE is_active=TRUE')->fetchAll();
             $lines = array_map(fn($r) => "• {$r['service_name']}: " . ($r['requirements'] ?: 'No specific requirements'), $rows);
@@ -45,7 +51,7 @@ $intents = [
         },
     ],
     'fees' => [
-        'keywords' => ['fee', 'fees', 'price', 'cost', 'how much'],
+        'keywords' => ['fee', 'fees', 'price', 'cost', 'how much', 'magkano'],
         'respond' => function () {
             $rows = db()->query('SELECT service_name, fee FROM services WHERE is_active=TRUE ORDER BY category')->fetchAll();
             $lines = array_map(fn($r) => "• {$r['service_name']}: " . money((float)$r['fee']), $rows);
@@ -53,7 +59,7 @@ $intents = [
         },
     ],
     'priests' => [
-        'keywords' => ['priest', 'father', 'who are the priests'],
+        'keywords' => ['priest', 'father', 'who are the priests', 'anointing', 'last rites'],
         'respond' => function () {
             $rows = db()->query("SELECT full_name, title, specialization FROM priests WHERE status='active'")->fetchAll();
             $lines = array_map(fn($r) => "• {$r['title']} {$r['full_name']} (" . ($r['specialization'] ?: 'General Ministry') . ")", $rows);
@@ -95,12 +101,15 @@ function matchIntent(string $text, array $intents): ?array
 }
 
 $matched = matchIntent($message, $intents);
+$intentKey = $matched ? $matched[0] : null;
 
-if ($matched) {
-    [$intentKey, $intent] = $matched;
-    $reply = $intent['respond']();
+if ($clientReply !== '') {
+    // Client already answered instantly from hydrated PARISH_DATA — log that
+    // exact text rather than recomputing (possibly divergent) copy here.
+    $reply = $clientReply;
+} elseif ($matched) {
+    $reply = $matched[1]['respond']();
 } else {
-    $intentKey = null;
     $reply = "I'm not sure about that yet. You can ask me about: Mass Schedule, Office Hours, Requirements, Fees, Priests, Directions, Contact Information, or How to Book an Appointment. For anything else, please contact the parish office directly.";
 }
 

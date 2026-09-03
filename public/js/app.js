@@ -11,49 +11,8 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => { el.style.transition = 'opacity .4s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 400); }, 4500);
   });
 
-  // Chatbot widget
-  const fab = document.getElementById('chatFab');
-  const win = document.getElementById('chatWindow');
-  const closeBtn = document.getElementById('chatClose');
-  const form = document.getElementById('chatForm');
-  const input = document.getElementById('chatInput');
-  const body = document.getElementById('chatBody');
-  const base = window.PARISHHUB_BASE_URL || '/';
-
-  if (fab && win) {
-    fab.addEventListener('click', () => win.classList.toggle('open'));
-    if (closeBtn) closeBtn.addEventListener('click', () => win.classList.remove('open'));
-
-    if (form) {
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const text = input.value.trim();
-        if (!text) return;
-        appendMessage(text, 'user');
-        input.value = '';
-
-        try {
-          const res = await fetch(base.replace(/\/$/, '') + '/chatbot.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: text }),
-          });
-          const data = await res.json();
-          appendMessage(data.reply, 'bot');
-        } catch (err) {
-          appendMessage('Sorry, something went wrong. Please try again.', 'bot');
-        }
-      });
-    }
-  }
-
-  function appendMessage(text, sender) {
-    const div = document.createElement('div');
-    div.className = `chat-msg ${sender}`;
-    div.textContent = text;
-    body.appendChild(div);
-    body.scrollTop = body.scrollHeight;
-  }
+  // Note: the chatbot widget (FAB, panel, suggestions) is handled by
+  // public/js/chatbot.js, loaded separately in includes/footer.php.
 
   // Reveal-on-scroll for landing-page cards (.reveal), staggered like the
   // rest of the site's entrance animations. Falls back gracefully — if
