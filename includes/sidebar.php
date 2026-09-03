@@ -32,12 +32,14 @@ $__active = $active ?? '';
     <?php elseif ($__user['role_name'] === 'Treasurer'): ?>
       <li><a href="<?= url('treasurer/dashboard.php') ?>" class="<?= $__active==='dashboard'?'active':'' ?>"><span class="nav-icon">🏠</span> Dashboard</a></li>
       <li><a href="<?= url('treasurer/payments.php') ?>" class="<?= $__active==='payments'?'active':'' ?>"><span class="nav-icon">💰</span> Payments</a></li>
+      <li><a href="<?= url('secretary/calendar.php') ?>" class="<?= $__active==='calendar'?'active':'' ?>"><span class="nav-icon">🗓️</span> Calendar</a></li>
       <li><a href="<?= url('treasurer/reports.php') ?>" class="<?= $__active==='reports'?'active':'' ?>"><span class="nav-icon">📊</span> Financial Reports</a></li>
     <?php elseif ($__user['role_name'] === 'Admin'): ?>
       <li><a href="<?= url('admin/dashboard.php') ?>" class="<?= $__active==='dashboard'?'active':'' ?>"><span class="nav-icon">🏠</span> Dashboard</a></li>
       <li><a href="<?= url('admin/users.php') ?>" class="<?= $__active==='users'?'active':'' ?>"><span class="nav-icon">👥</span> Users & Roles</a></li>
       <li><a href="<?= url('admin/priests.php') ?>" class="<?= $__active==='priests'?'active':'' ?>"><span class="nav-icon">✝️</span> Priests</a></li>
       <li><a href="<?= url('admin/services.php') ?>" class="<?= $__active==='services'?'active':'' ?>"><span class="nav-icon">🕊️</span> Services</a></li>
+      <li><a href="<?= url('secretary/calendar.php') ?>" class="<?= $__active==='calendar'?'active':'' ?>"><span class="nav-icon">🗓️</span> Calendar</a></li>
       <li><a href="<?= url('secretary/appointments.php') ?>" class="<?= $__active==='appointments'?'active':'' ?>"><span class="nav-icon">📋</span> Appointments</a></li>
       <li><a href="<?= url('treasurer/payments.php') ?>" class="<?= $__active==='payments'?'active':'' ?>"><span class="nav-icon">💰</span> Payments</a></li>
       <li><a href="<?= url('admin/reports.php') ?>" class="<?= $__active==='reports'?'active':'' ?>"><span class="nav-icon">📊</span> System Reports</a></li>
