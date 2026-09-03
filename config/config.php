@@ -5,11 +5,12 @@
  * Default values match a typical XAMPP/WAMP/MAMP installation.
  */
 
-define('DB_HOST', 'aws-0-ap-southeast-1.pooler.supabase.com');
-define('DB_PORT', '6543');
-define('DB_NAME', 'postgres');
-define('DB_USER', 'postgres.gzyupwzalamtnehaywwh');
-define('DB_PASS', 'ourladyofmountcarmel');
+define('DB_HOST', getenv('DB_HOST') ?: 'aws-0-ap-southeast-1.pooler.supabase.com');
+define('DB_PORT', getenv('DB_PORT') ?: '6543');
+define('DB_NAME', getenv('DB_NAME') ?: 'postgres');
+define('DB_USER', getenv('DB_USER') ?: 'postgres.gzyupwzalamtnehaywwh');
+// The password must be provided via the environment variable DB_PASS.
+define('DB_PASS', getenv('DB_PASS') ?: '');
 
 define('APP_NAME', 'PARISHHUB');
 define('APP_URL', 'http://localhost/parishhub'); // change to match your local path
