@@ -199,10 +199,6 @@ include __DIR__ . '/../includes/dash-start.php';
               <option value="5">Credit/Debit Card</option>
             </select>
           </div>
-          <div class="form-group">
-            <label>Reference Number</label>
-            <input type="text" name="reference_number" placeholder="Transaction reference" required>
-          </div>
           <button type="submit" class="btn btn-primary btn-block">Submit Payment</button>
           <p class="helper-text mt-2">After paying, please wait for our treasurer to verify it, then wait for your schedule to be confirmed.</p>
         </form>

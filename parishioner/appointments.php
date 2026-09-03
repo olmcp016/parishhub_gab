@@ -50,7 +50,13 @@ include __DIR__ . '/../includes/dash-start.php';
               <td><?= e($a['priest_name'] ?? '—') ?></td>
               <td><?= money($a['fee']) ?></td>
               <td><span class="badge badge-<?= badgeClass($a['status_name']) ?>"><?= e($a['status_name']) ?></span></td>
-              <td><a href="<?= url('parishioner/appointment-detail.php?id=' . $a['appointment_id']) ?>" class="btn btn-outline btn-sm">View</a></td>
+              <td>
+                <?php if ($a['status_name'] === 'Approved'): ?>
+                  <a href="<?= url('parishioner/appointment-detail.php?id=' . $a['appointment_id']) ?>" class="btn btn-primary btn-sm">Proceed to Payment</a>
+                <?php else: ?>
+                  <a href="<?= url('parishioner/appointment-detail.php?id=' . $a['appointment_id']) ?>" class="btn btn-outline btn-sm">View</a>
+                <?php endif; ?>
+              </td>
             </tr>
           <?php endforeach; ?>
         </tbody>

@@ -11,14 +11,13 @@ verifyCsrf();
 $userId = currentUser()['user_id'];
 $appointmentId = (int) ($_POST['appointment_id'] ?? 0);
 $methodId = $_POST['method_id'] ?? 1;
-$referenceNumber = trim($_POST['reference_number'] ?? '');
 $amount = $_POST['amount'] ?? 0;
 
 $stmt = db()->prepare(
     "INSERT INTO payments (appointment_id, reference_number, amount, method_id, payment_status, payment_date)
-     VALUES (?, ?, ?, ?, 'pending', NOW())"
+     VALUES (?, NULL, ?, ?, 'pending', NOW())"
 );
-$stmt->execute([$appointmentId, $referenceNumber, $amount, $methodId]);
+$stmt->execute([$appointmentId, $amount, $methodId]);
 
 logActivity($userId, "Submitted payment for appointment #$appointmentId", 'Payments');
 flash('success', 'Payment submitted! It will be verified by our treasurer shortly.');

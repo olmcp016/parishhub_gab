@@ -11,8 +11,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'verif
     $pdo = db();
     $pdo->beginTransaction();
     try {
-        $pdo->prepare("UPDATE payments SET payment_status='verified', verified_by=?, verified_at=NOW() WHERE payment_id=?")
-            ->execute([$userId, $id]);
+        $referenceNumber = trim($_POST['reference_number'] ?? '');
+        $pdo->prepare("UPDATE payments SET payment_status='verified', reference_number=?, verified_by=?, verified_at=NOW() WHERE payment_id=?")
+            ->execute([$referenceNumber, $userId, $id]);
 
         $stmt = $pdo->prepare('SELECT * FROM payments WHERE payment_id = ?');
         $stmt->execute([$id]);
@@ -90,6 +91,7 @@ include __DIR__ . '/../includes/dash-start.php';
       <form method="POST" action="<?= url('treasurer/payment-detail.php?id=' . $id) ?>" class="mt-3" onsubmit="return confirm('Verify this payment and issue an official receipt?');">
         <?= csrfField() ?>
         <input type="hidden" name="action" value="verify">
+        <div class="form-group"><label>Official Reference Number</label><input type="text" name="reference_number" placeholder="Enter Reference/OR Number" required style="padding:8px; width:100%; max-width:300px; border:1px solid #ccc; border-radius:6px;"></div>
         <button type="submit" class="btn btn-success">✔ Verify Payment & Issue Receipt</button>
       </form>
     <?php endif; ?>
