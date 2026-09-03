@@ -93,6 +93,14 @@ include __DIR__ . '/../includes/header.php';
       <div class="auth-footer">
         Don't have an account? <a href="<?= url('auth/register.php') ?>">Register here</a>
       </div>
+
+      <div class="demo-creds" style="background:var(--cream); padding:12px; border-radius:8px; margin-top:16px; font-size:12px; border:1px solid var(--border);">
+        <strong>Demo Accounts (Password: Password@123):</strong><br>
+        👑 Admin: <code>admin@parishhub.local</code><br>
+        📋 Secretary: <code>secretary@parishhub.local</code><br>
+        💰 Treasurer: <code>treasurer@parishhub.local</code><br>
+        🙏 Parishioner: <code>parishioner@parishhub.local</code>
+      </div>
     </div>
   </div>
 </div>
