@@ -112,7 +112,7 @@ include __DIR__ . '/../includes/header.php';
         <div class="form-group">
           <label>Email Address</label>
           <div class="input-wrap">
-            <span class="input-icon">📧</span>
+            <span class="input-icon"><i data-lucide="mail"></i></span>
             <input type="email" name="email" required autocomplete="email">
           </div>
         </div>
@@ -121,17 +121,17 @@ include __DIR__ . '/../includes/header.php';
           <div class="form-group">
             <label>Password</label>
             <div class="input-wrap">
-              <span class="input-icon">🔒</span>
+              <span class="input-icon"><i data-lucide="lock"></i></span>
               <input type="password" name="password" id="pwField" required minlength="8">
-              <button type="button" class="toggle-pw" onclick="parishToggle('pwField', this)">👁️</button>
+              <button type="button" class="toggle-pw" onclick="parishToggle('pwField', this)"><i data-lucide="eye"></i></button>
             </div>
           </div>
           <div class="form-group">
             <label>Confirm Password</label>
             <div class="input-wrap">
-              <span class="input-icon">🔒</span>
+              <span class="input-icon"><i data-lucide="lock"></i></span>
               <input type="password" name="confirm_password" id="cpwField" required minlength="8">
-              <button type="button" class="toggle-pw" onclick="parishToggle('cpwField', this)">👁️</button>
+              <button type="button" class="toggle-pw" onclick="parishToggle('cpwField', this)"><i data-lucide="eye"></i></button>
             </div>
           </div>
         </div>
@@ -185,7 +185,8 @@ include __DIR__ . '/../includes/header.php';
 function parishToggle(id, btn) {
   const input = document.getElementById(id);
   input.type = input.type === 'password' ? 'text' : 'password';
-  btn.textContent = input.type === 'password' ? '👁️' : '🙈';
+  btn.innerHTML = input.type === 'password' ? '<i data-lucide="eye"></i>' : '<i data-lucide="eye-off"></i>';
+  if(window.lucide) { lucide.createIcons(); }
 }
 </script>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

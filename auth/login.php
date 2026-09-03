@@ -75,16 +75,16 @@ include __DIR__ . '/../includes/header.php';
         <div class="form-group">
           <label>Email Address</label>
           <div class="input-wrap">
-            <span class="input-icon">📧</span>
+            <span class="input-icon"><i data-lucide="mail"></i></span>
             <input type="email" name="email" required placeholder="you@example.com" autocomplete="email" autofocus>
           </div>
         </div>
         <div class="form-group">
           <label>Password</label>
           <div class="input-wrap">
-            <span class="input-icon">🔒</span>
+            <span class="input-icon"><i data-lucide="lock"></i></span>
             <input type="password" name="password" id="pwInput" required placeholder="••••••••" autocomplete="current-password">
-            <button type="button" class="toggle-pw" onclick="parishToggle('pwInput', this)">👁️</button>
+            <button type="button" class="toggle-pw" onclick="parishToggle('pwInput', this)"><i data-lucide="eye"></i></button>
           </div>
         </div>
         <button type="submit" class="btn btn-primary btn-block">Sign In →</button>
@@ -96,10 +96,10 @@ include __DIR__ . '/../includes/header.php';
 
       <div class="demo-creds" style="background:var(--cream); padding:12px; border-radius:8px; margin-top:16px; font-size:12px; border:1px solid var(--border);">
         <strong>Demo Accounts (Password: Password@123):</strong><br>
-        👑 Admin: <code>admin@parishhub.local</code><br>
-        📋 Secretary: <code>secretary@parishhub.local</code><br>
-        💰 Treasurer: <code>treasurer@parishhub.local</code><br>
-        🙏 Parishioner: <code>parishioner@parishhub.local</code>
+        <i data-lucide="crown" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;"></i> Admin: <code>admin@parishhub.local</code><br>
+        <i data-lucide="clipboard" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;"></i> Secretary: <code>secretary@parishhub.local</code><br>
+        <i data-lucide="banknote" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;"></i> Treasurer: <code>treasurer@parishhub.local</code><br>
+        <i data-lucide="user" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;"></i> Parishioner: <code>parishioner@parishhub.local</code>
       </div>
     </div>
   </div>
@@ -108,7 +108,8 @@ include __DIR__ . '/../includes/header.php';
 function parishToggle(id, btn) {
   const input = document.getElementById(id);
   input.type = input.type === 'password' ? 'text' : 'password';
-  btn.textContent = input.type === 'password' ? '👁️' : '🙈';
+  btn.innerHTML = input.type === 'password' ? '<i data-lucide="eye"></i>' : '<i data-lucide="eye-off"></i>';
+  if(window.lucide) { lucide.createIcons(); }
 }
 </script>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

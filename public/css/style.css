@@ -643,8 +643,8 @@ tbody tr:hover { background: #faf8f0; }
   color: var(--gold-light); font-family: var(--font-heading); font-weight: 700; font-size: 30px;
   flex-shrink: 0; overflow: hidden;
 }
-.auth-split-panel .panel-brand-text { font-family: var(--font-heading); font-size: 18px; color: #fff; font-weight: 700; }
-.auth-split-panel .panel-brand-sub { font-size: 10px; color: var(--gold-light); letter-spacing: 2px; text-transform: uppercase; margin-top: 2px; }
+.auth-split-panel .panel-brand-text { font-family: var(--font-heading); font-size: 28px; color: #fff; font-weight: 700; }
+.auth-split-panel .panel-brand-sub { font-size: 12px; color: var(--gold-light); letter-spacing: 2px; text-transform: uppercase; margin-top: 2px; }
 .auth-split-panel .panel-pills { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .auth-split-panel .pill {
   display: inline-flex; align-items: center; gap: 10px;
@@ -654,7 +654,7 @@ tbody tr:hover { background: #faf8f0; }
 }
 .auth-split-panel .panel-quote {
   font-family: var(--font-heading); font-style: italic; font-weight: 500;
-  font-size: 22px; line-height: 1.55; color: var(--ivory); max-width: 420px;
+  font-size: 17px; line-height: 1.55; color: var(--ivory); max-width: 420px;
   padding-left: 18px; border-left: 3px solid var(--gold);
 }
 .auth-split-panel .panel-quote cite { display: block; margin-top: 14px; font-style: normal; font-size: 12px; color: var(--gold-light); letter-spacing: 1px; text-transform: uppercase; }
@@ -683,6 +683,9 @@ tbody tr:hover { background: #faf8f0; }
 .input-wrap .input-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 14px; pointer-events: none; }
 .input-wrap input, .input-wrap select { padding-left: 42px; }
 .input-wrap .toggle-pw { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px; line-height: 1; }
+.input-wrap .input-icon svg, .input-wrap .toggle-pw svg {
+  width: 16px; height: 16px; stroke-width: 2; color: #666;
+}
 
 @media (max-width: 860px) {
   .auth-split { grid-template-columns: 1fr; }
