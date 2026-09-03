@@ -164,22 +164,21 @@ include __DIR__ . '/../includes/header.php';
           </div>
         </div>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label>Gender</label>
-            <select name="gender">
-              <option value="">Select</option>
-              <option>Male</option>
-              <option>Female</option>
-              <option>Other</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Address</label>
-            <div class="input-wrap">
-              <span class="input-icon">🏠</span>
-              <input type="text" name="address">
-            </div>
+        <div class="form-group">
+          <label>Gender</label>
+          <select name="gender">
+            <option value="">Select</option>
+            <option>Male</option>
+            <option>Female</option>
+            <option>Other</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Address</label>
+          <div class="input-wrap">
+            <span class="input-icon"><i data-lucide="map-pin"></i></span>
+            <input type="text" name="address">
           </div>
         </div>
 
