@@ -52,6 +52,7 @@ include __DIR__ . '/../includes/header.php';
     <div class="panel-brand">
       <span class="crest"><?= crestMarkup() ?></span>
       <span class="panel-brand-text">PARISHHUB</span>
+      <span class="panel-brand-sub">Parish Service Portal</span>
     </div>
     <blockquote class="panel-quote">
       "Ask, and it will be given to you; seek, and you will find; knock, and it will be opened to you."
@@ -62,8 +63,10 @@ include __DIR__ . '/../includes/header.php';
 
   <div class="auth-split-form">
     <div class="auth-card">
-      <h1 style="text-align:left; font-size: 28px;">Welcome back</h1>
-      <p class="subtitle" style="text-align:left; margin-bottom: 28px;">Sign in to manage your parish requests</p>
+      <div class="form-heading">
+        <h1>Welcome back</h1>
+        <p class="subtitle">Sign in to manage your parish requests</p>
+      </div>
 
       <?php $__flash = getFlash(); include __DIR__ . '/../includes/flash.php'; ?>
 
@@ -71,21 +74,33 @@ include __DIR__ . '/../includes/header.php';
         <?= csrfField() ?>
         <div class="form-group">
           <label>Email Address</label>
-          <input type="email" name="email" required placeholder="you@example.com">
+          <div class="input-wrap">
+            <span class="input-icon">📧</span>
+            <input type="email" name="email" required placeholder="you@example.com" autocomplete="email" autofocus>
+          </div>
         </div>
         <div class="form-group">
           <label>Password</label>
-          <input type="password" name="password" required placeholder="••••••••">
+          <div class="input-wrap">
+            <span class="input-icon">🔒</span>
+            <input type="password" name="password" id="pwInput" required placeholder="••••••••" autocomplete="current-password">
+            <button type="button" class="toggle-pw" onclick="parishToggle('pwInput', this)">👁️</button>
+          </div>
         </div>
-        <button type="submit" class="btn btn-primary btn-block">Log In</button>
+        <button type="submit" class="btn btn-primary btn-block">Sign In →</button>
       </form>
 
       <div class="auth-footer">
         Don't have an account? <a href="<?= url('auth/register.php') ?>">Register here</a>
       </div>
-
-     
     </div>
   </div>
 </div>
+<script>
+function parishToggle(id, btn) {
+  const input = document.getElementById(id);
+  input.type = input.type === 'password' ? 'text' : 'password';
+  btn.textContent = input.type === 'password' ? '👁️' : '🙈';
+}
+</script>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

@@ -64,6 +64,15 @@ include __DIR__ . '/../includes/header.php';
     <div class="panel-brand">
       <span class="crest"><?= crestMarkup() ?></span>
       <span class="panel-brand-text">PARISHHUB</span>
+      <span class="panel-brand-sub">Parish Service Portal</span>
+    </div>
+    <div class="panel-pills">
+      <span class="pill">🕯️ Mass Intentions</span>
+      <span class="pill">💧 Baptism</span>
+      <span class="pill">💍 Wedding</span>
+      <span class="pill">🙏 Blessing</span>
+      <span class="pill">✝️ Funeral</span>
+      <span class="pill">☁️ Confirmation</span>
     </div>
     <blockquote class="panel-quote">
       "Where two or three gather in my name, there am I with them."
@@ -73,75 +82,110 @@ include __DIR__ . '/../includes/header.php';
   </div>
 
   <div class="auth-split-form">
-    <div class="auth-card" style="max-width: 480px;">
-      <h1 style="text-align:left; font-size: 28px;">Create your account</h1>
-      <p class="subtitle" style="text-align:left; margin-bottom: 28px;">Register as a parishioner to book services online</p>
-
-    <?php $__flash = getFlash(); include __DIR__ . '/../includes/flash.php'; ?>
-
-    <form method="POST" action="<?= url('auth/register.php') ?>">
-      <?= csrfField() ?>
-      <div class="form-row">
-        <div class="form-group">
-          <label>First Name</label>
-          <input type="text" name="firstname" required>
-        </div>
-        <div class="form-group">
-          <label>Last Name</label>
-          <input type="text" name="lastname" required>
-        </div>
+    <div class="auth-card wide">
+      <div class="form-heading">
+        <h1>Create your account</h1>
+        <p class="subtitle">Register as a parishioner to book services online</p>
       </div>
 
-      <div class="form-group">
-        <label>Email Address</label>
-        <input type="email" name="email" required>
+      <?php $__flash = getFlash(); include __DIR__ . '/../includes/flash.php'; ?>
+
+      <form method="POST" action="<?= url('auth/register.php') ?>">
+        <?= csrfField() ?>
+        <div class="form-row">
+          <div class="form-group">
+            <label>First Name</label>
+            <div class="input-wrap">
+              <span class="input-icon">👤</span>
+              <input type="text" name="firstname" required autofocus>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Last Name</label>
+            <div class="input-wrap">
+              <span class="input-icon">👤</span>
+              <input type="text" name="lastname" required>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Email Address</label>
+          <div class="input-wrap">
+            <span class="input-icon">📧</span>
+            <input type="email" name="email" required autocomplete="email">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Password</label>
+            <div class="input-wrap">
+              <span class="input-icon">🔒</span>
+              <input type="password" name="password" id="pwField" required minlength="8">
+              <button type="button" class="toggle-pw" onclick="parishToggle('pwField', this)">👁️</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Confirm Password</label>
+            <div class="input-wrap">
+              <span class="input-icon">🔒</span>
+              <input type="password" name="confirm_password" id="cpwField" required minlength="8">
+              <button type="button" class="toggle-pw" onclick="parishToggle('cpwField', this)">👁️</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Phone Number</label>
+            <div class="input-wrap">
+              <span class="input-icon">📱</span>
+              <input type="tel" name="phone">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Birthdate</label>
+            <div class="input-wrap">
+              <span class="input-icon">🎂</span>
+              <input type="date" name="birthdate" max="<?= date('Y-m-d') ?>">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Gender</label>
+            <select name="gender">
+              <option value="">Select</option>
+              <option>Male</option>
+              <option>Female</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Address</label>
+            <div class="input-wrap">
+              <span class="input-icon">🏠</span>
+              <input type="text" name="address">
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block">✝ Create My Account</button>
+      </form>
+
+      <div class="auth-footer">
+        Already have an account? <a href="<?= url('auth/login.php') ?>">Log in here</a>
       </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label>Password</label>
-          <input type="password" name="password" required minlength="8">
-        </div>
-        <div class="form-group">
-          <label>Confirm Password</label>
-          <input type="password" name="confirm_password" required minlength="8">
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label>Phone Number</label>
-          <input type="tel" name="phone">
-        </div>
-        <div class="form-group">
-          <label>Birthdate</label>
-          <input type="date" name="birthdate">
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label>Gender</label>
-          <select name="gender">
-            <option value="">Select</option>
-            <option>Male</option>
-            <option>Female</option>
-            <option>Other</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Address</label>
-          <input type="text" name="address">
-        </div>
-      </div>
-
-      <button type="submit" class="btn btn-primary btn-block">Create Account</button>
-    </form>
-
-    <div class="auth-footer">
-      Already have an account? <a href="<?= url('auth/login.php') ?>">Log in here</a>
-    </div>
     </div>
   </div>
 </div>
+<script>
+function parishToggle(id, btn) {
+  const input = document.getElementById(id);
+  input.type = input.type === 'password' ? 'text' : 'password';
+  btn.textContent = input.type === 'password' ? '👁️' : '🙈';
+}
+</script>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

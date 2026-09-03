@@ -39,7 +39,7 @@ $intents = [
     'requirements' => [
         'keywords' => ['requirement', 'requirements', 'what do i need', 'documents needed'],
         'respond' => function () {
-            $rows = db()->query('SELECT service_name, requirements FROM services WHERE is_active=1')->fetchAll();
+            $rows = db()->query('SELECT service_name, requirements FROM services WHERE is_active=TRUE')->fetchAll();
             $lines = array_map(fn($r) => "• {$r['service_name']}: " . ($r['requirements'] ?: 'No specific requirements'), $rows);
             return "Here are the requirements per service:\n" . implode("\n", $lines);
         },
@@ -47,7 +47,7 @@ $intents = [
     'fees' => [
         'keywords' => ['fee', 'fees', 'price', 'cost', 'how much'],
         'respond' => function () {
-            $rows = db()->query('SELECT service_name, fee FROM services WHERE is_active=1 ORDER BY category')->fetchAll();
+            $rows = db()->query('SELECT service_name, fee FROM services WHERE is_active=TRUE ORDER BY category')->fetchAll();
             $lines = array_map(fn($r) => "• {$r['service_name']}: " . money((float)$r['fee']), $rows);
             return "Here are our current service fees:\n" . implode("\n", $lines);
         },

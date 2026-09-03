@@ -8,8 +8,8 @@
  * (dark = gold lines on the dark hero background; light = brown lines on cream).
  */
 $__archTone = $archTone ?? 'dark';
-$__archStroke = $__archTone === 'dark' ? '#c99b2f' : '#a5791f';
-$__archBg = $__archTone === 'dark' ? '#241611' : '#faf3e6';
+$__archStroke = $__archTone === 'dark' ? '#c9a84c' : '#9e7c2a';
+$__archBg = $__archTone === 'dark' ? '#1e1a0a' : '#f7f4ea';
 
 $__archCount = 9;
 $__archWidth = 1200 / $__archCount;

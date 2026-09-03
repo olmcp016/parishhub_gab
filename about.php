@@ -26,10 +26,13 @@ include __DIR__ . '/includes/header.php';
   </div>
 </nav>
 
-<section class="hero" style="padding: 72px 32px 56px;">
-  <span class="hero-eyebrow">About</span>
-  <h1 style="font-size: 42px;">A parish office, <em>brought online.</em></h1>
-  <p><?= e($settings['parish_name'] ?? 'Our parish') ?> built PARISHHUB to replace paper logbooks and repeat trips to the office with a clear, trackable way to request Sacraments and parish services.</p>
+<section class="hero" style="min-height: auto;">
+  <div class="hero-pattern"></div>
+  <div class="hero-content">
+    <span class="hero-eyebrow">About</span>
+    <h1 class="hero-title" style="font-size: clamp(34px, 4.5vw, 52px);">A parish office, <em>brought online.</em></h1>
+    <p class="hero-subtitle"><?= e($settings['parish_name'] ?? 'Our parish') ?> built PARISHHUB to replace paper logbooks and repeat trips to the office with a clear, trackable way to request Sacraments and parish services.</p>
+  </div>
 </section>
 <?php $archTone = 'dark'; include __DIR__ . '/includes/arch-divider.php'; ?>
 

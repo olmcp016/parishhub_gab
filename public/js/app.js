@@ -54,4 +54,24 @@ document.addEventListener('DOMContentLoaded', () => {
     body.appendChild(div);
     body.scrollTop = body.scrollHeight;
   }
+
+  // Reveal-on-scroll for landing-page cards (.reveal), staggered like the
+  // rest of the site's entrance animations. Falls back gracefully — if
+  // IntersectionObserver isn't supported, just show everything immediately.
+  const revealEls = document.querySelectorAll('.reveal');
+  if (revealEls.length) {
+    if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry, i) => {
+          if (entry.isIntersecting) {
+            setTimeout(() => entry.target.classList.add('visible'), i * 80);
+            observer.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.1 });
+      revealEls.forEach((el) => observer.observe(el));
+    } else {
+      revealEls.forEach((el) => el.classList.add('visible'));
+    }
+  }
 });
