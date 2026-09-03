@@ -15,6 +15,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $birthdate = $_POST['birthdate'] ?: null;
     $gender = $_POST['gender'] ?: null;
 
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        flash('error', 'Invalid email address format.');
+        redirect(url('auth/register.php'));
+    }
+    if ($phone && !preg_match('/^09[0-9]{9}$/', $phone)) {
+        flash('error', 'Phone number must be exactly 11 digits starting with 09.');
+        redirect(url('auth/register.php'));
+    }
+
     if ($password !== $confirm) {
         flash('error', 'Passwords do not match.');
         redirect(url('auth/register.php'));
@@ -66,19 +75,21 @@ include __DIR__ . '/../includes/header.php';
       <span class="panel-brand-text">PARISHHUB</span>
       <span class="panel-brand-sub">Parish Service Portal</span>
     </div>
-    <div class="panel-pills">
-      <span class="pill">🕯️ Mass Intentions</span>
-      <span class="pill">💧 Baptism</span>
-      <span class="pill">💍 Wedding</span>
-      <span class="pill">🙏 Blessing</span>
-      <span class="pill">✝️ Funeral</span>
-      <span class="pill">☁️ Confirmation</span>
+    <div class="panel-bottom">
+      <div class="panel-pills">
+        <span class="pill"><i data-lucide="flame"></i> Mass Intentions</span>
+        <span class="pill"><i data-lucide="droplet"></i> Baptism</span>
+        <span class="pill"><i data-lucide="heart"></i> Wedding</span>
+        <span class="pill"><i data-lucide="heart-handshake"></i> Blessing</span>
+        <span class="pill"><i data-lucide="cross"></i> Funeral</span>
+        <span class="pill">☁️ Confirmation</span>
+      </div>
+      <blockquote class="panel-quote">
+        "Where two or three gather in my name, there am I with them."
+        <cite>Matthew 18:20</cite>
+      </blockquote>
+      <p class="panel-foot">Create an account to book Sacraments, submit requirements, and pay online — all from home.</p>
     </div>
-    <blockquote class="panel-quote">
-      "Where two or three gather in my name, there am I with them."
-      <cite>Matthew 18:20</cite>
-    </blockquote>
-    <p class="panel-foot">Create an account to book Sacraments, submit requirements, and pay online — all from home.</p>
   </div>
 
   <div class="auth-split-form">
@@ -96,14 +107,14 @@ include __DIR__ . '/../includes/header.php';
           <div class="form-group">
             <label>First Name</label>
             <div class="input-wrap">
-              <span class="input-icon">👤</span>
+              <span class="input-icon"><i data-lucide="user"></i></span>
               <input type="text" name="firstname" required autofocus>
             </div>
           </div>
           <div class="form-group">
             <label>Last Name</label>
             <div class="input-wrap">
-              <span class="input-icon">👤</span>
+              <span class="input-icon"><i data-lucide="user"></i></span>
               <input type="text" name="lastname" required>
             </div>
           </div>
@@ -113,7 +124,7 @@ include __DIR__ . '/../includes/header.php';
           <label>Email Address</label>
           <div class="input-wrap">
             <span class="input-icon"><i data-lucide="mail"></i></span>
-            <input type="email" name="email" required autocomplete="email">
+            <input type="email" name="email" required autocomplete="off">
           </div>
         </div>
 
@@ -122,7 +133,7 @@ include __DIR__ . '/../includes/header.php';
             <label>Password</label>
             <div class="input-wrap">
               <span class="input-icon"><i data-lucide="lock"></i></span>
-              <input type="password" name="password" id="pwField" required minlength="8">
+              <input type="password" name="password" id="pwField" required minlength="8" autocomplete="new-password">
               <button type="button" class="toggle-pw" onclick="parishToggle('pwField', this)"><i data-lucide="eye"></i></button>
             </div>
           </div>
@@ -130,7 +141,7 @@ include __DIR__ . '/../includes/header.php';
             <label>Confirm Password</label>
             <div class="input-wrap">
               <span class="input-icon"><i data-lucide="lock"></i></span>
-              <input type="password" name="confirm_password" id="cpwField" required minlength="8">
+              <input type="password" name="confirm_password" id="cpwField" required minlength="8" autocomplete="new-password">
               <button type="button" class="toggle-pw" onclick="parishToggle('cpwField', this)"><i data-lucide="eye"></i></button>
             </div>
           </div>
@@ -140,14 +151,14 @@ include __DIR__ . '/../includes/header.php';
           <div class="form-group">
             <label>Phone Number</label>
             <div class="input-wrap">
-              <span class="input-icon">📱</span>
-              <input type="tel" name="phone">
+              <span class="input-icon"><i data-lucide="smartphone"></i></span>
+              <input type="tel" name="phone" pattern="09[0-9]{9}" maxlength="11" minlength="11" placeholder="09XXXXXXXXX" title="Must be exactly 11 digits starting with 09">
             </div>
           </div>
           <div class="form-group">
             <label>Birthdate</label>
             <div class="input-wrap">
-              <span class="input-icon">🎂</span>
+              <span class="input-icon"><i data-lucide="calendar-heart"></i></span>
               <input type="date" name="birthdate" max="<?= date('Y-m-d') ?>">
             </div>
           </div>
@@ -172,7 +183,7 @@ include __DIR__ . '/../includes/header.php';
           </div>
         </div>
 
-        <button type="submit" class="btn btn-primary btn-block">✝ Create My Account</button>
+        <button type="submit" class="btn btn-primary btn-block"><i data-lucide="user-plus" style="width:18px;height:18px;vertical-align:text-bottom;margin-right:6px;"></i> Create My Account</button>
       </form>
 
       <div class="auth-footer">

@@ -54,11 +54,13 @@ include __DIR__ . '/../includes/header.php';
       <span class="panel-brand-text">PARISHHUB</span>
       <span class="panel-brand-sub">Parish Service Portal</span>
     </div>
-    <blockquote class="panel-quote">
-      "Ask, and it will be given to you; seek, and you will find; knock, and it will be opened to you."
-      <cite>Matthew 7:7</cite>
-    </blockquote>
-    <p class="panel-foot">Sign in to submit requests, track appointments, and manage your parish services.</p>
+    <div class="panel-bottom">
+      <blockquote class="panel-quote">
+        "Ask, and it will be given to you; seek, and you will find; knock, and it will be opened to you."
+        <cite>Matthew 7:7</cite>
+      </blockquote>
+      <p class="panel-foot">Sign in to submit requests, track appointments, and manage your parish services.</p>
+    </div>
   </div>
 
   <div class="auth-split-form">
