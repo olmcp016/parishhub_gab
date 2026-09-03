@@ -50,7 +50,12 @@ $__active = $active ?? '';
   </ul>
 
   <div class="sidebar-footer">
-    <a href="<?= url('auth/logout.php') ?>" style="color: var(--gold-light);"><i data-lucide="log-out" style="width:16px; height:16px;"></i> Logout</a>
+    <form method="POST" action="<?= url('auth/logout.php') ?>">
+      <?= csrfField() ?>
+      <button type="submit" class="link-btn" style="background:none; border:none; padding:0; cursor:pointer; color: var(--gold-light); font: inherit; display:inline-flex; align-items:center; gap:6px;">
+        <i data-lucide="log-out" style="width:16px; height:16px;"></i> Logout
+      </button>
+    </form>
     <div style="margin-top:6px;">© <?= date('Y') ?> PARISHHUB</div>
   </div>
 </aside>

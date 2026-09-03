@@ -1,0 +1,21 @@
+# Version control history — must never end up in a served image
+.git
+.gitignore
+
+# Database dumps / schema / seed data — not needed at runtime, and
+# seed.sql contains default account emails + bcrypt hashes
+database/*.sql
+database/hash-password.php
+
+# Docs and editor config — no runtime purpose
+docs/
+.vscode/
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Anything already excluded from git shouldn't ship either
+public/uploads/*
+!public/uploads/.gitkeep
+!public/uploads/.htaccess

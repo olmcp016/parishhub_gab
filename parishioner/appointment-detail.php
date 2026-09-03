@@ -187,7 +187,7 @@ include __DIR__ . '/../includes/dash-start.php';
           <input type="hidden" name="appointment_id" value="<?= $id ?>">
           <div class="form-group">
             <label>Amount</label>
-            <input type="number" name="amount" value="<?= e((string)$appointment['fee']) ?>" step="0.01" required>
+            <input type="number" value="<?= e((string)$appointment['fee']) ?>" step="0.01" readonly disabled>
           </div>
           <div class="form-group">
             <label>Payment Method</label>

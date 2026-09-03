@@ -12,8 +12,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'verif
     $pdo->beginTransaction();
     try {
         $referenceNumber = trim($_POST['reference_number'] ?? '');
-        $pdo->prepare("UPDATE payments SET payment_status='verified', reference_number=?, verified_by=?, verified_at=NOW() WHERE payment_id=?")
-            ->execute([$referenceNumber, $userId, $id]);
+        $updateStmt = $pdo->prepare(
+            "UPDATE payments SET payment_status='verified', reference_number=?, verified_by=?, verified_at=NOW()
+             WHERE payment_id=? AND payment_status='pending'"
+        );
+        $updateStmt->execute([$referenceNumber, $userId, $id]);
+        if ($updateStmt->rowCount() === 0) {
+            throw new RuntimeException('Payment already processed or not found.');
+        }
 
         $stmt = $pdo->prepare('SELECT * FROM payments WHERE payment_id = ?');
         $stmt->execute([$id]);
