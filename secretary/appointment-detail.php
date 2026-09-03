@@ -12,7 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'verify_document') {
-        db()->prepare('UPDATE uploaded_documents SET verified = 1 WHERE document_id = ? AND appointment_id = ?')
+        db()->prepare('UPDATE uploaded_documents SET verified = TRUE WHERE document_id = ? AND appointment_id = ?')
             ->execute([$_POST['document_id'], $id]);
         logActivity($userId, "Verified a document for appointment #$id", 'Appointments');
         flash('success', 'Document marked as verified.');
@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $requirements = $stmt->fetchColumn();
 
         if (!empty($requirements)) {
-            $stmt = db()->prepare('SELECT COUNT(*) FROM uploaded_documents WHERE appointment_id = ? AND verified = 1');
+            $stmt = db()->prepare('SELECT COUNT(*) FROM uploaded_documents WHERE appointment_id = ? AND verified = TRUE');
             $stmt->execute([$id]);
             $verifiedCount = (int) $stmt->fetchColumn();
 

@@ -9,7 +9,7 @@ $stmt = db()->prepare('SELECT * FROM notifications WHERE user_id = ? ORDER BY cr
 $stmt->execute([$userId]);
 $notifications = $stmt->fetchAll();
 
-db()->prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ?')->execute([$userId]);
+db()->prepare('UPDATE notifications SET is_read = TRUE WHERE user_id = ?')->execute([$userId]);
 
 $active = 'notifications';
 $pageTitle = 'Notifications';
