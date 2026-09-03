@@ -70,11 +70,13 @@ include __DIR__ . '/../includes/header.php';
 ?>
 <div class="auth-split">
   <div class="auth-split-panel">
-    <div class="panel-brand">
-      <span class="crest"><?= crestMarkup() ?></span>
-      <span class="panel-brand-text">PARISHHUB</span>
-      <span class="panel-brand-sub">Parish Service Portal</span>
-    </div>
+    <a href="<?= url('index.php') ?>" style="display:contents; text-decoration:none; color:inherit;" title="Back to Home">
+      <div class="panel-brand">
+        <span class="crest"><?= crestMarkup() ?></span>
+        <span class="panel-brand-text">PARISHHUB</span>
+        <span class="panel-brand-sub">Parish Service Portal</span>
+      </div>
+    </a>
     <div class="panel-bottom">
       <div class="panel-pills">
         <span class="pill"><i data-lucide="flame"></i> Mass Intentions</span>

@@ -15,8 +15,23 @@ function isLoggedIn(): bool
     return isset($_SESSION['user']);
 }
 
+/**
+ * Tells the browser (and any intermediate proxy) never to cache this
+ * response or serve it from the back/forward cache. Without this, hitting
+ * Back after logout can redisplay a page that was rendered while the user
+ * was still authenticated — the server never gets a chance to re-check the
+ * (now-dead) session, because the browser never re-requests the page.
+ */
+function sendNoCacheHeaders(): void
+{
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+}
+
 function requireLogin(): void
 {
+    sendNoCacheHeaders();
     if (!isLoggedIn()) {
         flash('error', 'Please log in to continue.');
         redirect(url('auth/login.php'));
