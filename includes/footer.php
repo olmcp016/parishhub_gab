@@ -79,5 +79,7 @@ $__chatData = [
 </script>
 <script src="<?= url('public/js/app.js') ?>"></script>
 <script src="<?= url('public/js/chatbot.js') ?>"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>lucide.createIcons();</script>
 </body>
 </html>
