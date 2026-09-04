@@ -98,7 +98,6 @@ include __DIR__ . '/../includes/header.php';
 
   <div class="auth-split-form">
     <div class="auth-card wide">
-      <a href="<?= url('index.php') ?>" class="auth-back-link">← Back to Homepage</a>
       <div class="form-heading">
         <h1>Create your account</h1>
         <p class="subtitle">Register as a parishioner to book services online</p>
