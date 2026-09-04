@@ -614,6 +614,14 @@ tbody tr:hover { background: #faf8f0; }
 }
 .auth-card h1 { text-align: center; font-size: 26px; }
 .auth-card .subtitle { text-align: center; color: var(--brown-muted); font-size: 13px; margin-bottom: 24px; }
+.auth-back-link {
+  position: absolute; top: 40px; left: 40px;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 600; color: var(--brown-muted);
+  text-decoration: none; transition: color 0.2s var(--ease);
+}
+.auth-back-link:hover { color: var(--gold-dark); }
+
 .demo-creds { background: var(--cream); border-radius: 8px; padding: 12px 14px; font-size: 12px; color: var(--brown-mid); margin-top: 18px; }
 
 /* Split-screen editorial layout for login/register */
