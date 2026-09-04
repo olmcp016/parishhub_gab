@@ -70,7 +70,6 @@ include __DIR__ . '/../includes/header.php';
   </div>
 
   <div class="auth-split-form">
-    <a href="<?= url('index.php') ?>" class="auth-back-link">← Back to Homepage</a>
 
     <div class="auth-card">
       <div class="form-heading">
