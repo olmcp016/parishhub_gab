@@ -54,8 +54,10 @@ include __DIR__ . '/../includes/header.php';
     <a href="<?= url('index.php') ?>" style="display:contents; text-decoration:none; color:inherit;" title="Back to Home">
       <div class="panel-brand">
         <span class="crest"><?= crestMarkup() ?></span>
-        <span class="panel-brand-text">PARISHHUB</span>
-        <span class="panel-brand-sub">Parish Service Portal</span>
+        <span class="panel-brand-titles">
+          <span class="panel-brand-text">Our Lady of Mt. Carmel Parish</span>
+          <span class="panel-brand-sub">Parish Service Portal</span>
+        </span>
       </div>
     </a>
     <div class="panel-bottom">
