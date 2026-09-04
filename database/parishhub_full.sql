@@ -100,7 +100,6 @@ CREATE TABLE priests (
     user_id INT DEFAULT NULL, -- nullable: priest may or may not have a login account
     full_name VARCHAR(150) NOT NULL,
     title VARCHAR(50) DEFAULT 'Rev. Fr.',
-    specialization VARCHAR(150), -- e.g. weddings, healing mass
     contact_number VARCHAR(20),
     email VARCHAR(150),
     status ENUM('active','on_leave','inactive') DEFAULT 'active',
@@ -436,9 +435,9 @@ INSERT INTO users (user_id, role_id, firstname, lastname, email, password, phone
 VALUES (3, 3, 'Jose', 'Reyes', 'treasurer@parishhub.local', '$2y$10$iTPk50S3LQnM4V5ZTM8K1O83xaEGTZk4lpT109fKuon3QqNrCAT.S', '09191234567', 'active');
 
 -- Sample Priests
-INSERT INTO priests (priest_id, full_name, title, specialization, contact_number, email, status) VALUES
-(1, 'Fr. Antonio Villanueva', 'Rev. Fr.', 'Weddings, Baptisms', '09201234567', 'frantonio@parishhub.local', 'active'),
-(2, 'Fr. Michael Ramos', 'Rev. Fr.', 'Healing Mass, Funerals', '09211234567', 'frmichael@parishhub.local', 'active');
+INSERT INTO priests (priest_id, full_name, title, contact_number, email, status) VALUES
+(1, 'Fr. Antonio Villanueva', 'Rev. Fr.', '09201234567', 'frantonio@parishhub.local', 'active'),
+(2, 'Fr. Michael Ramos', 'Rev. Fr.', '09211234567', 'frmichael@parishhub.local', 'active');
 
 -- Services
 INSERT INTO services (service_id, service_name, category, description, fee, requirements, duration_minutes) VALUES

@@ -61,8 +61,8 @@ $intents = [
     'priests' => [
         'keywords' => ['priest', 'father', 'who are the priests', 'anointing', 'last rites'],
         'respond' => function () {
-            $rows = db()->query("SELECT full_name, title, specialization FROM priests WHERE status='active'")->fetchAll();
-            $lines = array_map(fn($r) => "• {$r['title']} {$r['full_name']} (" . ($r['specialization'] ?: 'General Ministry') . ")", $rows);
+            $rows = db()->query("SELECT full_name, title FROM priests WHERE status='active'")->fetchAll();
+            $lines = array_map(fn($r) => "• {$r['title']} {$r['full_name']}", $rows);
             return "Our parish priests:\n" . implode("\n", $lines);
         },
     ],

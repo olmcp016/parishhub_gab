@@ -20,7 +20,7 @@ try {
         'SELECT service_name, category, fee, requirements FROM services WHERE is_active=TRUE ORDER BY category, service_name'
     )->fetchAll();
     $__chatPriestRows = db()->query(
-        "SELECT full_name, title, specialization FROM priests WHERE status='active'"
+        "SELECT full_name, title FROM priests WHERE status='active'"
     )->fetchAll();
 } catch (Throwable $e) {
     error_log('Chatbot hydration error: ' . $e->getMessage());
@@ -42,8 +42,7 @@ $__chatData = [
         'requirements' => $s['requirements'],
     ], $__chatServiceRows),
     'priests' => array_map(static fn($p) => [
-        'name'           => trim(($p['title'] ?: 'Rev. Fr.') . ' ' . $p['full_name']),
-        'specialization' => $p['specialization'],
+        'name' => trim(($p['title'] ?: 'Rev. Fr.') . ' ' . $p['full_name']),
     ], $__chatPriestRows),
 ];
 ?>

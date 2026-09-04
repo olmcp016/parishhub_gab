@@ -43,9 +43,9 @@ INSERT INTO users (user_id, role_id, firstname, lastname, email, password, phone
 VALUES (3, 3, 'Jose', 'Reyes', 'treasurer@parishhub.local', '$2a$10$4Q6c1w0J0m1G0d1zZ2wZ6.6iZ7m9n0G8mF7d1s0d2f3g4h5j6k7l8', '09191234567', 'active');
 
 -- Sample Priests
-INSERT INTO priests (priest_id, full_name, title, specialization, contact_number, email, status) VALUES
-(1, 'Fr. Antonio Villanueva', 'Rev. Fr.', 'Weddings, Baptisms', '09201234567', 'frantonio@parishhub.local', 'active'),
-(2, 'Fr. Michael Ramos', 'Rev. Fr.', 'Healing Mass, Funerals', '09211234567', 'frmichael@parishhub.local', 'active');
+INSERT INTO priests (priest_id, full_name, title, contact_number, email, status) VALUES
+(1, 'Fr. Antonio Villanueva', 'Rev. Fr.', '09201234567', 'frantonio@parishhub.local', 'active'),
+(2, 'Fr. Michael Ramos', 'Rev. Fr.', '09211234567', 'frmichael@parishhub.local', 'active');
 
 -- Services
 INSERT INTO services (service_id, service_name, category, description, fee, requirements, duration_minutes) VALUES

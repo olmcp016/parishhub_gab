@@ -50,7 +50,6 @@ erDiagram
         int priest_id PK
         int user_id FK
         varchar full_name
-        varchar specialization
         enum status
     }
     SERVICES {

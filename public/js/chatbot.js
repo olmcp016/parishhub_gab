@@ -139,7 +139,7 @@
     if (/\bfather\b|\bfr\.|priest available|who are the priests/.test(text)) {
       const priests = data.priests || [];
       if (priests.length) {
-        return 'Our parish priests: ' + priests.map((pr) => `${pr.name}${pr.specialization ? ` (${pr.specialization})` : ''}`).join(', ') +
+        return 'Our parish priests: ' + priests.map((pr) => pr.name).join(', ') +
           `. They're generally available during office hours for consultations; for confessions or urgent sick calls, contact the office at ${p.phone || 'the parish office'}.`;
       }
       return `Our parish priests are generally available during office hours for consultations. For confessions or urgent sick calls, please contact the office directly at ${p.phone || 'the parish office'}.`;

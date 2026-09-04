@@ -88,7 +88,6 @@ CREATE TABLE priests (
     user_id INT DEFAULT NULL, -- nullable: priest may or may not have a login account
     full_name VARCHAR(150) NOT NULL,
     title VARCHAR(50) DEFAULT 'Rev. Fr.',
-    specialization VARCHAR(150), -- e.g. weddings, healing mass
     contact_number VARCHAR(20),
     email VARCHAR(150),
     status ENUM('active','on_leave','inactive') DEFAULT 'active',

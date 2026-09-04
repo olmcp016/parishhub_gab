@@ -146,7 +146,6 @@ CREATE TABLE IF NOT EXISTS priests (
     user_id INT DEFAULT NULL REFERENCES users(user_id) ON DELETE SET NULL,
     full_name VARCHAR(150) NOT NULL,
     title VARCHAR(50) DEFAULT 'Rev. Fr.',
-    specialization VARCHAR(150),
     contact_number VARCHAR(20),
     email VARCHAR(150),
     status priest_status DEFAULT 'active',
