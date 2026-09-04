@@ -45,6 +45,10 @@ include __DIR__ . '/includes/header.php';
     <a href="#how">How It Works</a>
     <?php if ($__user): ?>
       <a href="<?= redirectForRole($__user['role_name']) ?>" class="btn btn-primary btn-sm">Dashboard</a>
+      <form method="POST" action="<?= url('auth/logout.php') ?>" style="display:contents;">
+        <?= csrfField() ?>
+        <button type="submit" class="nav-logout-btn">Logout</button>
+      </form>
     <?php else: ?>
       <a href="<?= url('auth/login.php') ?>">Sign In</a>
       <a href="<?= url('auth/register.php') ?>" class="btn btn-primary btn-sm">Get Started</a>
@@ -64,6 +68,10 @@ include __DIR__ . '/includes/header.php';
         <a href="<?= url('auth/login.php') ?>" class="btn-hero-ghost">Sign In</a>
       <?php else: ?>
         <a href="<?= redirectForRole($__user['role_name']) ?>" class="btn-hero-primary">Go to your dashboard →</a>
+        <form method="POST" action="<?= url('auth/logout.php') ?>" style="display:contents;">
+          <?= csrfField() ?>
+          <button type="submit" class="btn-hero-ghost">Logout</button>
+        </form>
       <?php endif; ?>
     </div>
   </div>

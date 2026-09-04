@@ -71,6 +71,7 @@ include __DIR__ . '/../includes/header.php';
 
   <div class="auth-split-form">
     <div class="auth-card">
+      <a href="<?= url('index.php') ?>" class="auth-back-link">← Back to Homepage</a>
       <div class="form-heading">
         <h1>Welcome back</h1>
         <p class="subtitle">Sign in to manage your parish requests</p>
