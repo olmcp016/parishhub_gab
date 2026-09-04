@@ -69,7 +69,7 @@ $pageTitle = 'Create an Account';
 include __DIR__ . '/../includes/header.php';
 ?>
 <div class="auth-split">
-  <div class="auth-split-panel">
+  <div class="auth-split-panel" style="background-image: url('<?= url('public/img/register_bg.jpg') ?>');">
     <a href="<?= url('index.php') ?>" style="display:contents; text-decoration:none; color:inherit;" title="Back to Home">
       <div class="panel-brand">
         <span class="crest"><?= crestMarkup() ?></span>

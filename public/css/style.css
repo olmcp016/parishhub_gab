@@ -613,10 +613,9 @@ tbody tr:hover { background: #faf8f0; }
 /* Split-screen editorial layout for login/register */
 .auth-split { min-height: 100vh; display: grid; grid-template-columns: 1fr 1fr; }
 .auth-split-panel {
-  background:
-    radial-gradient(circle at 20% 15%, rgba(201, 168, 76, 0.16), transparent 45%),
-    radial-gradient(circle at 85% 85%, rgba(201, 168, 76, 0.1), transparent 50%),
-    linear-gradient(165deg, var(--brown-mid) 0%, var(--brown-darkest) 80%);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   color: var(--cream);
   display: flex; flex-direction: column; justify-content: space-between;
   padding: 48px 52px;
@@ -627,10 +626,7 @@ tbody tr:hover { background: #faf8f0; }
 .auth-split-panel::before {
   content: '';
   position: absolute; inset: 0;
-  opacity: 0.05;
-  background-image:
-    repeating-linear-gradient(0deg, transparent, transparent 46px, rgba(255,255,255,.5) 46px, rgba(255,255,255,.5) 48px),
-    repeating-linear-gradient(90deg, transparent, transparent 46px, rgba(255,255,255,.5) 46px, rgba(255,255,255,.5) 48px);
+  background: linear-gradient(to bottom, rgba(15, 12, 5, 0.55) 0%, rgba(15, 12, 5, 0.2) 40%, rgba(15, 12, 5, 0.7) 100%);
   pointer-events: none;
 }
 .auth-split-panel > * { position: relative; z-index: 1; }
