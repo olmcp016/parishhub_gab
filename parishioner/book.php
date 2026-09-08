@@ -24,10 +24,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     verifyCsrf();
     $serviceId = $_POST['service_id'] ?? '';
-    $priestId = $_POST['priest_id'] ?: null;
+    $priestId = ($_POST['priest_id'] ?? '') ?: null;
     $date = $_POST['appointment_date'] ?? '';
     $time = $_POST['appointment_time'] ?? '';
-    $dateOfDeath = $_POST['date_of_death'] ?: null;
+    $dateOfDeath = ($_POST['date_of_death'] ?? '') ?: null;
     $remarks = trim($_POST['remarks'] ?? '') ?: null;
 
     $stmt = db()->prepare('SELECT category FROM services WHERE service_id = ?');
@@ -108,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_POST['intention_type'],
                 $_POST['offerer_name'] ?? '',
                 $_POST['intention_for'] ?? '',
-                $_POST['message'] ?: null,
+                ($_POST['message'] ?? '') ?: null,
             ]);
         }
 
