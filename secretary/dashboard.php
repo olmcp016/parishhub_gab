@@ -3,9 +3,9 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 requireRole('Secretary', 'Admin');
 
-$pendingCount = db()->query("SELECT COUNT(*) FROM appointments WHERE status_id = 1")->fetchColumn();
-$todayCount = db()->query("SELECT COUNT(*) FROM appointments WHERE appointment_date = CURDATE()")->fetchColumn();
-$weekCount = db()->query("SELECT COUNT(*) FROM appointments WHERE YEARWEEK(appointment_date, 1) = YEARWEEK(CURDATE(), 1)")->fetchColumn();
+$pendingCount = db()->query("SELECT COUNT(*) FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.status_id = 1 AND s.category != 'Donation'")->fetchColumn();
+$todayCount = db()->query("SELECT COUNT(*) FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_date = CURDATE() AND s.category != 'Donation'")->fetchColumn();
+$weekCount = db()->query("SELECT COUNT(*) FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE YEARWEEK(a.appointment_date, 1) = YEARWEEK(CURDATE(), 1) AND s.category != 'Donation'")->fetchColumn();
 
 $recent = db()->query(
     "SELECT a.*, s.service_name, u.firstname, u.lastname, st.status_name
@@ -14,6 +14,7 @@ $recent = db()->query(
      JOIN parishioners par ON a.parishioner_id = par.parishioner_id
      JOIN users u ON par.user_id = u.user_id
      JOIN appointment_status st ON a.status_id = st.status_id
+     WHERE s.category != 'Donation'
      ORDER BY a.created_at DESC LIMIT 8"
 )->fetchAll();
 

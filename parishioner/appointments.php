@@ -14,8 +14,8 @@ $stmt = db()->prepare(
      JOIN services s ON a.service_id = s.service_id
      JOIN appointment_status st ON a.status_id = st.status_id
      LEFT JOIN priests p ON a.priest_id = p.priest_id
-     WHERE a.parishioner_id = ?
-     ORDER BY a.appointment_date DESC"
+     WHERE a.parishioner_id = ? AND s.category != 'Donation'
+     ORDER BY a.created_at DESC"
 );
 $stmt->execute([$parishionerId]);
 $appointments = $stmt->fetchAll();

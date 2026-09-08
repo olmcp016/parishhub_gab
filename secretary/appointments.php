@@ -13,7 +13,7 @@ $sql = "SELECT a.*, s.service_name, s.category, u.firstname, u.lastname, u.email
         JOIN users u ON par.user_id = u.user_id
         JOIN appointment_status st ON a.status_id = st.status_id
         LEFT JOIN priests p ON a.priest_id = p.priest_id
-        WHERE 1=1";
+        WHERE s.category != 'Donation'";
 $params = [];
 
 if ($statusFilter) {

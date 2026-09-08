@@ -4,9 +4,9 @@ require_once __DIR__ . '/../includes/functions.php';
 requireRole('Admin');
 
 $userCount = db()->query('SELECT COUNT(*) FROM users')->fetchColumn();
-$appointmentCount = db()->query('SELECT COUNT(*) FROM appointments')->fetchColumn();
+$appointmentCount = db()->query("SELECT COUNT(*) FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE s.category != 'Donation'")->fetchColumn();
 $yearlyRevenue = db()->query("SELECT COALESCE(SUM(amount),0) FROM payments WHERE payment_status='verified' AND YEAR(payment_date)=YEAR(CURDATE())")->fetchColumn();
-$pendingCount = db()->query('SELECT COUNT(*) FROM appointments WHERE status_id = 1')->fetchColumn();
+$pendingCount = db()->query("SELECT COUNT(*) FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.status_id = 1 AND s.category != 'Donation'")->fetchColumn();
 
 $byRole = db()->query(
     "SELECT r.role_name, COUNT(*) AS total FROM users u JOIN roles r ON u.role_id = r.role_id GROUP BY r.role_name"

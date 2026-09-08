@@ -19,7 +19,7 @@ $stmt = db()->prepare(
      JOIN services s ON a.service_id = s.service_id
      JOIN appointment_status st ON a.status_id = st.status_id
      LEFT JOIN priests p ON a.priest_id = p.priest_id
-     WHERE a.parishioner_id = ? AND a.appointment_date >= CURDATE()
+     WHERE a.parishioner_id = ? AND a.appointment_date >= CURDATE() AND s.category != 'Donation'
      ORDER BY a.appointment_date ASC LIMIT 5"
 );
 $stmt->execute([$parishionerId]);
@@ -30,7 +30,8 @@ $stmt = db()->prepare(
        SUM(CASE WHEN status_id = 1 THEN 1 ELSE 0 END) AS pending,
        SUM(CASE WHEN status_id IN (2,4,5) THEN 1 ELSE 0 END) AS active,
        SUM(CASE WHEN status_id = 6 THEN 1 ELSE 0 END) AS completed
-     FROM appointments WHERE parishioner_id = ?"
+     FROM appointments a JOIN services s ON a.service_id = s.service_id
+     WHERE a.parishioner_id = ? AND s.category != 'Donation'"
 );
 $stmt->execute([$parishionerId]);
 $stats = $stmt->fetch() ?: ['pending' => 0, 'active' => 0, 'completed' => 0];
