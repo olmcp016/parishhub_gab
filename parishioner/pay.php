@@ -40,7 +40,7 @@ if (!$appointment) {
 // server-derived from the service record, never trusted from the client.
 if ($appointment['category'] === 'Mass Intention') {
     $amount = (float) ($_POST['amount'] ?? 0);
-    if ($amount <= 0) {
+    if ($amount < 0) {
         flash('error', 'Please enter a valid offering amount.');
         redirect(url('parishioner/appointment-detail.php?id=' . $appointmentId));
     }

@@ -205,8 +205,8 @@ include __DIR__ . '/../includes/dash-start.php';
           <?php if ($appointment['category'] === 'Mass Intention'): ?>
             <div class="form-group">
               <label>Amount (voluntary offering)</label>
-              <input type="number" name="amount" min="1" step="0.01" placeholder="Enter your offering amount" required>
-              <p class="helper-text">There's no fixed fee for Mass Intentions — enter whatever amount you'd like to offer.</p>
+              <input type="number" name="amount" min="0" step="0.01" placeholder="Enter your offering amount (0 is okay)" required>
+              <p class="helper-text">There's no fixed fee for Mass Intentions — enter whatever amount you'd like to offer, or 0 if you have nothing to give right now.</p>
             </div>
           <?php else: ?>
             <div class="form-group">
@@ -232,6 +232,7 @@ include __DIR__ . '/../includes/dash-start.php';
       <?php endif; ?>
     </div>
 
+    <?php if (!in_array($appointment['category'], ['Mass Intention', 'Donation'], true)): ?>
     <div class="card">
       <div class="card-header"><h3>Uploaded Documents</h3></div>
       <?php if (empty($documents)): ?>
@@ -266,6 +267,7 @@ include __DIR__ . '/../includes/dash-start.php';
         </form>
       <?php endif; ?>
     </div>
+    <?php endif; ?>
   </div>
 </div>
 

@@ -224,6 +224,7 @@ include __DIR__ . '/../includes/dash-start.php';
       <?php if ($donation['message']): ?><p><strong>Message:</strong> <?= e($donation['message']) ?></p><?php endif; ?>
     <?php endif; ?>
 
+    <?php if (!in_array($appointment['category'], ['Mass Intention', 'Donation'], true)): ?>
     <hr style="border-color: var(--cream-dark); margin: 18px 0;">
     <h4>Uploaded Documents</h4>
     <?php if (empty($documents)): ?><p class="text-muted">No documents uploaded yet.</p>
@@ -260,6 +261,7 @@ include __DIR__ . '/../includes/dash-start.php';
           </tbody>
         </table>
       </div>
+    <?php endif; ?>
     <?php endif; ?>
   </div>
 
