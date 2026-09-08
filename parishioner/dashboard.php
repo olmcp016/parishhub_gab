@@ -91,16 +91,18 @@ include __DIR__ . '/../includes/dash-start.php';
           <p>No announcements yet.</p>
         </div>
       <?php else: ?>
-        <?php foreach ($announcements as $i => $a): ?>
-          <div style="padding: 14px 0; <?= $i > 0 ? 'border-top: 1px solid var(--cream-dark);' : 'padding-top: 0;' ?>">
-            <div class="flex-between" style="align-items:flex-start; gap:8px;">
-              <strong style="font-size:14px; line-height:1.3;"><?= e($a['title']) ?></strong>
-              <?php if ($a['is_pinned']): ?><span class="badge badge-pending" style="flex-shrink:0;">Pinned</span><?php endif; ?>
+        <div class="flex" style="flex-direction:column; gap:12px;">
+          <?php foreach ($announcements as $a): ?>
+            <div style="background: var(--cream); border: 1px solid var(--cream-dark); border-radius: 10px; padding: 14px 16px;">
+              <div class="flex-between" style="align-items:flex-start; gap:8px;">
+                <strong style="font-size:14px; line-height:1.3;"><?= e($a['title']) ?></strong>
+                <?php if ($a['is_pinned']): ?><span class="badge badge-pending" style="flex-shrink:0;">Pinned</span><?php endif; ?>
+              </div>
+              <p class="text-muted" style="font-size:12px; margin: 4px 0 6px;"><?= formatDate($a['created_at']) ?></p>
+              <p style="font-size:13.5px; line-height:1.5; color: var(--brown-mid); margin:0;"><?= e(mb_strlen($a['content']) > 110 ? mb_substr($a['content'],0,110).'…' : $a['content']) ?></p>
             </div>
-            <p class="text-muted" style="font-size:12px; margin: 4px 0 6px;"><?= formatDate($a['created_at']) ?></p>
-            <p style="font-size:13.5px; line-height:1.5; color: var(--brown-mid); margin:0;"><?= e(mb_strlen($a['content']) > 110 ? mb_substr($a['content'],0,110).'…' : $a['content']) ?></p>
-          </div>
-        <?php endforeach; ?>
+          <?php endforeach; ?>
+        </div>
       <?php endif; ?>
     </div>
 

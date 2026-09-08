@@ -13,18 +13,21 @@ include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/dash-start.php';
 ?>
 
-<?php foreach ($announcements as $a): ?>
-  <div class="card">
-    <div class="card-header">
-      <h3><?= e($a['title']) ?> <?php if ($a['is_pinned']): ?><span class="badge badge-pending">Pinned</span><?php endif; ?></h3>
-      <span class="text-muted" style="font-size:13px;"><?= formatDate($a['created_at']) ?></span>
-    </div>
-    <p><?= e($a['content']) ?></p>
-  </div>
-<?php endforeach; ?>
-
 <?php if (empty($announcements)): ?>
   <div class="empty-state"><div class="icon">📢</div><p>No announcements yet.</p></div>
+<?php else: ?>
+  <div class="grid-3">
+    <?php foreach ($announcements as $a): ?>
+      <div class="card" style="display:flex; flex-direction:column;">
+        <div class="flex-between" style="align-items:flex-start; gap:8px; margin-bottom:4px;">
+          <h3 style="margin:0;"><?= e($a['title']) ?></h3>
+          <?php if ($a['is_pinned']): ?><span class="badge badge-pending" style="flex-shrink:0;">Pinned</span><?php endif; ?>
+        </div>
+        <span class="text-muted" style="font-size:13px; margin-bottom:12px;"><?= formatDate($a['created_at']) ?></span>
+        <p style="margin:0;"><?= e($a['content']) ?></p>
+      </div>
+    <?php endforeach; ?>
+  </div>
 <?php endif; ?>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>

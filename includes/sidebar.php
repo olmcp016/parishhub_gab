@@ -17,6 +17,7 @@ $__active = $active ?? '';
       <li><a href="<?= url('parishioner/services.php') ?>" class="<?= $__active==='services'?'active':'' ?>"><span class="nav-icon"><i data-lucide="heart-handshake"></i></span> Services</a></li>
       <li><a href="<?= url('parishioner/book.php') ?>" class="<?= $__active==='book'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-plus"></i></span> Book Appointment</a></li>
       <li><a href="<?= url('parishioner/appointments.php') ?>" class="<?= $__active==='appointments'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-check"></i></span> My Appointments</a></li>
+      <li><a href="<?= url('parishioner/donations.php') ?>" class="<?= $__active==='donations'?'active':'' ?>"><span class="nav-icon"><i data-lucide="hand-heart"></i></span> My Donations</a></li>
       <li><a href="<?= url('parishioner/calendar.php') ?>" class="<?= $__active==='calendar'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-days"></i></span> Parish Calendar</a></li>
       <li><a href="<?= url('parishioner/announcements.php') ?>" class="<?= $__active==='announcements'?'active':'' ?>"><span class="nav-icon"><i data-lucide="megaphone"></i></span> Announcements</a></li>
       <li><a href="<?= url('parishioner/notifications.php') ?>" class="<?= $__active==='notifications'?'active':'' ?>"><span class="nav-icon"><i data-lucide="bell"></i></span> Notifications</a></li>
