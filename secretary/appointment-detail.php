@@ -21,8 +21,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'approve') {
         // Require that any required documents have been verified before approving.
-        // Mass Intentions never require documents — they're auto-approved on
-        // submission anyway, but this also covers any legacy pending records.
+        // Mass Intentions and Donations never require documents — they're
+        // auto-approved on submission anyway, but this also covers any
+        // legacy pending records.
         $stmt = db()->prepare(
             "SELECT s.requirements, s.category FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_id = ?"
         );
@@ -30,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $svc = $stmt->fetch();
         $requirements = $svc['requirements'];
 
-        if ($svc['category'] !== 'Mass Intention' && !empty($requirements)) {
+        if (!in_array($svc['category'], ['Mass Intention', 'Donation'], true) && !empty($requirements)) {
             $stmt = db()->prepare('SELECT COUNT(*) FROM uploaded_documents WHERE appointment_id = ? AND verified = TRUE');
             $stmt->execute([$id]);
             $verifiedCount = (int) $stmt->fetchColumn();
@@ -146,6 +147,9 @@ $priests = db()->query("SELECT * FROM priests WHERE status = 'active'")->fetchAl
 $stmt = db()->prepare('SELECT * FROM mass_intentions WHERE appointment_id = ?');
 $stmt->execute([$id]);
 $intention = $stmt->fetch() ?: null;
+$stmt = db()->prepare('SELECT * FROM donations WHERE appointment_id = ?');
+$stmt->execute([$id]);
+$donation = $stmt->fetch() ?: null;
 $stmt = db()->prepare('SELECT * FROM uploaded_documents WHERE appointment_id = ?');
 $stmt->execute([$id]);
 $documents = $stmt->fetchAll();
@@ -182,7 +186,7 @@ include __DIR__ . '/../includes/dash-start.php';
     <?php if ($appointment['category'] === 'Funeral' && $appointment['date_of_death']): ?>
       <p><strong>Date of Death:</strong> <?= formatDate($appointment['date_of_death']) ?> <span class="text-muted">(9-day mourning period ends <?= formatDate(date('Y-m-d', strtotime($appointment['date_of_death'] . ' +9 days'))) ?>)</span></p>
     <?php endif; ?>
-    <?php if ($appointment['category'] !== 'Mass Intention' && $appointment['requirements']): ?>
+    <?php if (!in_array($appointment['category'], ['Mass Intention', 'Donation'], true) && $appointment['requirements']): ?>
       <p><strong>Required Documents:</strong> <?= e($appointment['requirements']) ?></p>
     <?php endif; ?>
     <?php if ($appointment['remarks']): ?><p><strong>Remarks:</strong> <?= e($appointment['remarks']) ?></p><?php endif; ?>
@@ -193,6 +197,15 @@ include __DIR__ . '/../includes/dash-start.php';
       <p><strong>Type:</strong> <?= e($intention['intention_type']) ?></p>
       <p><strong>Offerer:</strong> <?= e($intention['offerer_name']) ?></p>
       <p><strong>Intention For:</strong> <?= e($intention['intention_for']) ?></p>
+    <?php endif; ?>
+
+    <?php if ($donation): ?>
+      <hr style="border-color: var(--cream-dark); margin: 18px 0;">
+      <h4>Donation Details</h4>
+      <p><strong>Donor:</strong> <?= e($donation['donor_name'] ?: 'Anonymous') ?></p>
+      <?php if ($donation['donor_email']): ?><p><strong>Email:</strong> <?= e($donation['donor_email']) ?></p><?php endif; ?>
+      <p><strong>Purpose:</strong> <?= e($donation['purpose']) ?></p>
+      <?php if ($donation['message']): ?><p><strong>Message:</strong> <?= e($donation['message']) ?></p><?php endif; ?>
     <?php endif; ?>
 
     <hr style="border-color: var(--cream-dark); margin: 18px 0;">
@@ -266,7 +279,7 @@ include __DIR__ . '/../includes/dash-start.php';
       <?php endif; ?>
     </div>
 
-    <?php if ($appointment['category'] !== 'Mass Intention'): ?>
+    <?php if (!in_array($appointment['category'], ['Mass Intention', 'Donation'], true)): ?>
     <div class="card">
       <div class="card-header"><h3>Assign Priest</h3></div>
       <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>" class="mb-3">

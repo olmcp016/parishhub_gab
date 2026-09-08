@@ -11,6 +11,8 @@ $parishionerId = $stmt->fetchColumn();
 $stmt = db()->query("SELECT * FROM announcements WHERE status='published' ORDER BY is_pinned DESC, created_at DESC LIMIT 5");
 $announcements = $stmt->fetchAll();
 
+$donationEnabled = db()->query("SELECT setting_value FROM settings WHERE setting_key = 'donation_enabled'")->fetchColumn() !== '0';
+
 $stmt = db()->prepare(
     "SELECT a.*, s.service_name, st.status_name, p.full_name AS priest_name
      FROM appointments a
@@ -76,18 +78,45 @@ include __DIR__ . '/../includes/dash-start.php';
     <?php endif; ?>
   </div>
 
-  <div class="card">
-    <div class="card-header"><h3>Announcements</h3></div>
-    <?php if (empty($announcements)): ?>
-      <p class="text-muted">No announcements yet.</p>
-    <?php endif; ?>
-    <?php foreach ($announcements as $a): ?>
-      <div class="mb-3">
-        <strong><?= e($a['title']) ?></strong>
-        <p class="text-muted" style="font-size:13px; margin: 4px 0;"><?= formatDate($a['created_at']) ?></p>
-        <p style="font-size:13.5px;"><?= e(mb_strlen($a['content']) > 100 ? mb_substr($a['content'],0,100).'…' : $a['content']) ?></p>
+  <div style="display:flex; flex-direction:column; gap:22px;">
+    <div class="card">
+      <div class="card-header">
+        <h3>Announcements</h3>
+        <a href="<?= url('parishioner/announcements.php') ?>" class="btn btn-outline btn-sm">View All</a>
       </div>
-    <?php endforeach; ?>
+      <?php if (empty($announcements)): ?>
+        <div class="empty-state">
+          <div class="icon">📢</div>
+          <p>No announcements yet.</p>
+        </div>
+      <?php else: ?>
+        <?php foreach ($announcements as $i => $a): ?>
+          <div style="padding: 14px 0; <?= $i > 0 ? 'border-top: 1px solid var(--cream-dark);' : 'padding-top: 0;' ?>">
+            <div class="flex-between" style="align-items:flex-start; gap:8px;">
+              <strong style="font-size:14px; line-height:1.3;"><?= e($a['title']) ?></strong>
+              <?php if ($a['is_pinned']): ?><span class="badge badge-pending" style="flex-shrink:0;">Pinned</span><?php endif; ?>
+            </div>
+            <p class="text-muted" style="font-size:12px; margin: 4px 0 6px;"><?= formatDate($a['created_at']) ?></p>
+            <p style="font-size:13.5px; line-height:1.5; color: var(--brown-mid); margin:0;"><?= e(mb_strlen($a['content']) > 110 ? mb_substr($a['content'],0,110).'…' : $a['content']) ?></p>
+          </div>
+        <?php endforeach; ?>
+      <?php endif; ?>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h3>Services</h3></div>
+      <p style="font-size:13.5px; color: var(--brown-mid); margin: 0 0 14px;">Browse our sacraments and parish offerings, or book an appointment anytime.</p>
+      <a href="<?= url('parishioner/services.php') ?>" class="btn btn-outline btn-block mb-3">View All Services</a>
+
+      <?php if ($donationEnabled): ?>
+        <div style="background: linear-gradient(135deg, var(--cream-dark), #faf0d0); border-radius: 10px; padding: 18px; text-align:center;">
+          <div style="font-size:26px; margin-bottom:6px;">🤲</div>
+          <h4 style="margin:0 0 4px;">Donate to Our Parish</h4>
+          <p style="font-size:12.5px; color: var(--brown-mid); margin:0 0 14px;">Support our ministries with a voluntary offering.</p>
+          <a href="<?= url('parishioner/donate.php') ?>" class="btn btn-primary btn-block">Donate Now</a>
+        </div>
+      <?php endif; ?>
+    </div>
   </div>
 </div>
 

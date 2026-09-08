@@ -29,6 +29,7 @@ $__active = $active ?? '';
       <li><a href="<?= url('secretary/parishioners.php') ?>" class="<?= $__active==='parishioners'?'active':'' ?>"><span class="nav-icon"><i data-lucide="users"></i></span> Parishioners</a></li>
       <li><a href="<?= url('secretary/services.php') ?>" class="<?= $__active==='services'?'active':'' ?>"><span class="nav-icon"><i data-lucide="heart-handshake"></i></span> Services</a></li>
       <li><a href="<?= url('secretary/reports.php') ?>" class="<?= $__active==='reports'?'active':'' ?>"><span class="nav-icon"><i data-lucide="bar-chart-3"></i></span> Reports</a></li>
+      <li><a href="<?= url('secretary/settings.php') ?>" class="<?= $__active==='settings'?'active':'' ?>"><span class="nav-icon"><i data-lucide="settings"></i></span> Settings</a></li>
     <?php elseif ($__user['role_name'] === 'Treasurer'): ?>
       <li><a href="<?= url('treasurer/dashboard.php') ?>" class="<?= $__active==='dashboard'?'active':'' ?>"><span class="nav-icon"><i data-lucide="layout-dashboard"></i></span> Dashboard</a></li>
       <li><a href="<?= url('treasurer/payments.php') ?>" class="<?= $__active==='payments'?'active':'' ?>"><span class="nav-icon"><i data-lucide="banknote"></i></span> Payments</a></li>

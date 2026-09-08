@@ -5,7 +5,7 @@ require_once __DIR__ . '/includes/functions.php';
 $stmt = db()->query("SELECT * FROM announcements WHERE status='published' ORDER BY is_pinned DESC, created_at DESC LIMIT 3");
 $announcements = $stmt->fetchAll();
 
-$stmt = db()->query("SELECT * FROM services WHERE is_active=TRUE ORDER BY category, service_name LIMIT 6");
+$stmt = db()->query("SELECT * FROM services WHERE is_active=TRUE AND category != 'Donation' ORDER BY category, service_name LIMIT 6");
 $services = $stmt->fetchAll();
 
 $serviceCount = (int) db()->query("SELECT COUNT(*) FROM services WHERE is_active=TRUE")->fetchColumn();

@@ -3,7 +3,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 requireRole('Parishioner');
 
-$services = db()->query("SELECT * FROM services WHERE is_active = 1 ORDER BY category, service_name")->fetchAll();
+$services = db()->query("SELECT * FROM services WHERE is_active = 1 AND category != 'Donation' ORDER BY category, service_name")->fetchAll();
 
 $active = 'services';
 $pageTitle = 'Available Services';

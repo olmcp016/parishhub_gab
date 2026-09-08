@@ -100,6 +100,10 @@ $stmt = db()->prepare('SELECT * FROM mass_intentions WHERE appointment_id = ?');
 $stmt->execute([$id]);
 $intention = $stmt->fetch() ?: null;
 
+$stmt = db()->prepare('SELECT * FROM donations WHERE appointment_id = ?');
+$stmt->execute([$id]);
+$donation = $stmt->fetch() ?: null;
+
 $stmt = db()->prepare(
     "SELECT p.*, pm.method_name FROM payments p JOIN payment_methods pm ON p.method_id = pm.method_id WHERE p.appointment_id = ?"
 );
@@ -156,6 +160,14 @@ include __DIR__ . '/../includes/dash-start.php';
       <p><strong>Offerer:</strong> <?= e($intention['offerer_name']) ?></p>
       <p><strong>Intention For:</strong> <?= e($intention['intention_for']) ?></p>
       <?php if ($intention['message']): ?><p><strong>Message:</strong> <?= e($intention['message']) ?></p><?php endif; ?>
+    <?php endif; ?>
+
+    <?php if ($donation): ?>
+      <hr style="border-color: var(--cream-dark); margin: 18px 0;">
+      <h4>Donation Details</h4>
+      <p><strong>Donor:</strong> <?= e($donation['donor_name'] ?: 'Anonymous') ?></p>
+      <p><strong>Purpose:</strong> <?= e($donation['purpose']) ?></p>
+      <?php if ($donation['message']): ?><p><strong>Message:</strong> <?= e($donation['message']) ?></p><?php endif; ?>
     <?php endif; ?>
 
     <?php if (in_array($appointment['status_name'], ['Pending', 'Approved'], true)): ?>
