@@ -76,7 +76,7 @@ $__chatData = [
   window.PARISHHUB_BASE_URL = "<?= url('') ?>";
   window.PARISH_DATA = <?php echo json_encode($__chatData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
 </script>
-<script src="<?= url('public/js/app.js') ?>"></script>
+<script src="<?= url('public/js/app.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/app.js') ?>"></script>
 <script src="<?= url('public/js/chatbot.js') ?>"></script>
 <script src="https://unpkg.com/lucide@latest"></script>
 <script>lucide.createIcons();</script>
