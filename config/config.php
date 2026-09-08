@@ -5,6 +5,12 @@
  * Default values match a typical XAMPP/WAMP/MAMP installation.
  */
 
+// Optional local override (gitignored) — put putenv('DB_PASS=...') etc. in
+// config/config.local.php to supply secrets without editing this tracked file.
+if (file_exists(__DIR__ . '/config.local.php')) {
+    require __DIR__ . '/config.local.php';
+}
+
 define('DB_HOST', getenv('DB_HOST') ?: 'aws-0-ap-southeast-1.pooler.supabase.com');
 define('DB_PORT', getenv('DB_PORT') ?: '6543');
 define('DB_NAME', getenv('DB_NAME') ?: 'postgres');

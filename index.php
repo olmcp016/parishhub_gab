@@ -60,7 +60,7 @@ include __DIR__ . '/includes/header.php';
   <div class="hero-pattern"></div>
   <div class="hero-content">
     <span class="hero-eyebrow">✝ <?= e($settings['parish_address'] ?? $settings['parish_name'] ?? 'Our Parish Office') ?></span>
-    <h1 class="hero-title">Your Parish, <em>Reimagined</em><br>for the Digital Age</h1>
+    <h1 class="hero-title">Your Parish, <em>Reimagined</em><br>for the Digital Age. test change</h1>
     <p class="hero-subtitle">Submit sacrament requests, track your parish services, and connect with <?= e($settings['parish_name'] ?? 'our parish') ?> — all from one simple platform. No more lining up at the office for a form you could have filed from home.</p>
     <div class="hero-actions">
       <?php if (!$__user): ?>
