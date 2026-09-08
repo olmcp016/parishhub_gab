@@ -133,11 +133,16 @@ include __DIR__ . '/../includes/dash-start.php';
       <p><strong>Date of Death:</strong> <?= formatDate($appointment['date_of_death']) ?></p>
     <?php endif; ?>
     <?php if ($appointment['remarks']): ?><p><strong>Remarks:</strong> <?= e($appointment['remarks']) ?></p><?php endif; ?>
+    <?php if ($appointment['rejection_reason']): ?><p><strong>Rejection Reason:</strong> <?= e($appointment['rejection_reason']) ?></p><?php endif; ?>
     <?php if ($appointment['cancelled_reason']): ?><p><strong>Cancellation Reason:</strong> <?= e($appointment['cancelled_reason']) ?></p><?php endif; ?>
 
     <?php if ($appointment['status_name'] === 'Pending'): ?>
       <div class="alert" style="background: var(--cream); color: var(--brown-mid); border: 1px solid var(--cream-dark);">
         Our secretary is reviewing your request and required documents. You'll be notified once it's approved.
+      </div>
+    <?php elseif ($appointment['status_name'] === 'Rejected'): ?>
+      <div class="alert" style="background: var(--danger-bg); color: var(--danger); border: 1px solid #f5c2c2;">
+        This request was not approved<?= $appointment['rejection_reason'] ? ' — see the reason above.' : '.' ?>
       </div>
     <?php elseif ($appointment['status_name'] === 'Approved' && $payment && $payment['payment_status'] === 'pending'): ?>
       <div class="alert" style="background: var(--cream); color: var(--brown-mid); border: 1px solid var(--cream-dark);">

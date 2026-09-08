@@ -55,8 +55,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         logActivity($userId, "Approved appointment #$id", 'Appointments');
         flash('success', 'Appointment approved. The parishioner may now proceed to payment.');
     } elseif ($action === 'reject') {
-        db()->prepare("UPDATE appointments SET status_id = 3, remarks = ? WHERE appointment_id = ?")
-            ->execute([$_POST['reason'] ?? 'Rejected by secretary', $id]);
+        $reason = trim($_POST['reason'] ?? '');
+        if ($reason === '') {
+            flash('error', 'Please provide a reason for rejecting this appointment.');
+            redirect(url('secretary/appointment-detail.php?id=' . $id));
+        }
+
+        db()->prepare("UPDATE appointments SET status_id = 3, rejection_reason = ? WHERE appointment_id = ?")
+            ->execute([$reason, $id]);
+        $stmt = db()->prepare("SELECT parishioner_id FROM appointments WHERE appointment_id = ?");
+        $stmt->execute([$id]);
+        $parId = $stmt->fetchColumn();
+        $stmt = db()->prepare("SELECT user_id FROM parishioners WHERE parishioner_id = ?");
+        $stmt->execute([$parId]);
+        $puid = $stmt->fetchColumn();
+        db()->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Appointment Rejected', ?)")
+            ->execute([$puid, "Your appointment #$id was not approved. Reason: $reason"]);
         logActivity($userId, "Rejected appointment #$id", 'Appointments');
         flash('success', 'Appointment rejected.');
     } elseif ($action === 'assign_priest') {
@@ -190,6 +204,8 @@ include __DIR__ . '/../includes/dash-start.php';
       <p><strong>Required Documents:</strong> <?= e($appointment['requirements']) ?></p>
     <?php endif; ?>
     <?php if ($appointment['remarks']): ?><p><strong>Remarks:</strong> <?= e($appointment['remarks']) ?></p><?php endif; ?>
+    <?php if ($appointment['rejection_reason']): ?><p><strong>Rejection Reason:</strong> <?= e($appointment['rejection_reason']) ?></p><?php endif; ?>
+    <?php if ($appointment['cancelled_reason']): ?><p><strong>Cancellation Reason:</strong> <?= e($appointment['cancelled_reason']) ?></p><?php endif; ?>
 
     <?php if ($intention): ?>
       <hr style="border-color: var(--cream-dark); margin: 18px 0;">
@@ -250,8 +266,10 @@ include __DIR__ . '/../includes/dash-start.php';
   <div>
     <div class="card">
       <div class="card-header"><h3>Actions</h3></div>
-      <?php if ($appointment['status_name'] === 'Pending'): ?>
-        <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>" class="mb-2">
+      <?php if ($appointment['status_name'] === 'Pending' && in_array($appointment['category'], ['Mass Intention', 'Donation'], true)): ?>
+        <p class="text-muted">This request is approved automatically — no action needed.</p>
+      <?php elseif ($appointment['status_name'] === 'Pending'): ?>
+        <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>" class="mb-3">
           <?= csrfField() ?>
           <input type="hidden" name="action" value="approve">
           <button type="submit" class="btn btn-success btn-block">✔ Approve</button>
@@ -259,7 +277,10 @@ include __DIR__ . '/../includes/dash-start.php';
         <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>" onsubmit="return confirm('Reject this appointment?');">
           <?= csrfField() ?>
           <input type="hidden" name="action" value="reject">
-          <input type="hidden" name="reason" value="Does not meet requirements">
+          <div class="form-group">
+            <label>Reason for Rejection</label>
+            <textarea name="reason" rows="2" placeholder="Explain why this request is being rejected..." required></textarea>
+          </div>
           <button type="submit" class="btn btn-danger btn-block">✖ Reject</button>
         </form>
       <?php elseif ($appointment['status_name'] === 'Payment Verified'): ?>
