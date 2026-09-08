@@ -378,6 +378,17 @@ tbody tr:hover { background: #faf8f0; }
   position: relative;
   overflow: hidden;
 }
+/* Landing page only — the parish photo replaces the flat gradient, and the
+   faint grid texture (.hero-pattern) is dropped since it clashes with a
+   real photo instead of a plain background. */
+.hero-landing {
+  background:
+    linear-gradient(135deg, rgba(36, 22, 17, 0.70) 0%, rgba(62, 39, 35, 0.35) 50%, rgba(93, 64, 55, 0.20) 100%),
+    url('../img/landing-page-background.jpeg') center / cover no-repeat;
+}
+.hero-landing .hero-pattern {
+  display: none;
+}
 .hero::before {
   content: '';
   position: absolute; inset: 0;
