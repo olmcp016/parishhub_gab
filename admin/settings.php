@@ -11,7 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($key === 'csrf_token') continue;
         $stmt = db()->prepare(
             "INSERT INTO settings (setting_key, setting_value) VALUES (?, ?)
-             ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)"
+             ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value"
         );
         $stmt->execute([$key, $value]);
     }
