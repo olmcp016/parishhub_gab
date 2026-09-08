@@ -18,7 +18,12 @@ include __DIR__ . '/../includes/dash-start.php';
       <h3><?= e($s['service_name']) ?></h3>
       <p class="text-muted" style="font-size:12.5px; text-transform:uppercase; letter-spacing:.4px;"><?= e($s['category']) ?></p>
       <p style="font-size:14px;"><?= e($s['description']) ?></p>
-      <p class="text-muted" style="font-size:13px;"><strong>Requirements:</strong> <?= e($s['requirements'] ?: 'None') ?></p>
+      <?php if ($s['requirements']): ?>
+        <details class="requirements-toggle">
+          <summary>Requirements</summary>
+          <p><?= e($s['requirements']) ?></p>
+        </details>
+      <?php endif; ?>
       <div class="flex-between mt-3">
         <span class="text-gold" style="font-weight:700; font-size:18px;"><?= feeLabel((float) $s['fee']) ?></span>
         <a href="<?= url('parishioner/book.php?service_id=' . $s['service_id']) ?>" class="btn btn-primary btn-sm">Book Now</a>
