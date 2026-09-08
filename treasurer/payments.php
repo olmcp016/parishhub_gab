@@ -20,6 +20,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'manua
 }
 
 $statusFilter = $_GET['status'] ?? '';
+$methodFilter = $_GET['method_id'] ?? '';
+$dateFrom = $_GET['date_from'] ?? '';
+$dateTo = $_GET['date_to'] ?? '';
 $search = $_GET['search'] ?? '';
 
 $sql = "SELECT p.*, pm.method_name, u.firstname, u.lastname, s.service_name, a.appointment_date
@@ -32,6 +35,9 @@ $sql = "SELECT p.*, pm.method_name, u.firstname, u.lastname, s.service_name, a.a
         WHERE 1=1";
 $params = [];
 if ($statusFilter) { $sql .= ' AND p.payment_status = ?'; $params[] = $statusFilter; }
+if ($methodFilter) { $sql .= ' AND p.method_id = ?'; $params[] = $methodFilter; }
+if ($dateFrom) { $sql .= ' AND p.created_at >= ?'; $params[] = $dateFrom . ' 00:00:00'; }
+if ($dateTo) { $sql .= ' AND p.created_at <= ?'; $params[] = $dateTo . ' 23:59:59'; }
 if ($search) {
     $sql .= ' AND (u.firstname LIKE ? OR u.lastname LIKE ? OR p.reference_number LIKE ?)';
     $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%";
@@ -41,8 +47,10 @@ $stmt = db()->prepare($sql);
 $stmt->execute($params);
 $payments = $stmt->fetchAll();
 
+$paymentMethods = db()->query('SELECT * FROM payment_methods ORDER BY method_id')->fetchAll();
+
 $active = 'payments';
-$pageTitle = 'Payments';
+$pageTitle = 'Payment & Transaction Overview';
 include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/dash-start.php';
 ?>
@@ -62,6 +70,7 @@ include __DIR__ . '/../includes/dash-start.php';
         <option value="3">Maya</option>
         <option value="4">Bank Transfer</option>
         <option value="5">Credit/Debit Card</option>
+        <option value="6">PayPal</option>
       </select>
     </div>
     <div class="form-group"><label>Reference # (optional)</label><input type="text" name="reference_number"></div>
@@ -83,6 +92,17 @@ include __DIR__ . '/../includes/dash-start.php';
         <option value="refunded" <?= $statusFilter==='refunded'?'selected':'' ?>>Refunded</option>
       </select>
     </div>
+    <div class="form-group">
+      <label>Payment Method</label>
+      <select name="method_id" onchange="this.form.submit()">
+        <option value="">All Methods</option>
+        <?php foreach ($paymentMethods as $m): ?>
+          <option value="<?= $m['method_id'] ?>" <?= (string)$methodFilter===(string)$m['method_id']?'selected':'' ?>><?= e($m['method_name']) ?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div class="form-group"><label>From Date</label><input type="date" name="date_from" value="<?= e($dateFrom) ?>"></div>
+    <div class="form-group"><label>To Date</label><input type="date" name="date_to" value="<?= e($dateTo) ?>"></div>
     <div class="form-group"><label>Search</label><input type="text" name="search" value="<?= e($search) ?>" placeholder="Name or reference #"></div>
     <div class="form-group" style="align-self:end;"><button class="btn btn-primary">Search</button></div>
   </form>

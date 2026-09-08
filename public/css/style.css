@@ -974,3 +974,13 @@ tbody tr:hover { background: #faf8f0; }
 @media (max-width: 700px) {
   .public-nav .links a:not(.btn) { display: none; }
 }
+
+/* ---------- Print (reports "Print / Export" button) ---------- */
+.no-print { display: block; }
+@media print {
+  .sidebar, .topbar, .chat-fab, .chat-panel, .no-print { display: none !important; }
+  .main-content { margin-left: 0 !important; }
+  .page-body { padding: 0 !important; }
+  .card { box-shadow: none !important; border: 1px solid #ccc !important; break-inside: avoid; }
+  body { background: #fff !important; }
+}

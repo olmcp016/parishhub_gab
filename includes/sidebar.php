@@ -38,12 +38,13 @@ $__active = $active ?? '';
     <?php elseif ($__user['role_name'] === 'Admin'): ?>
       <li><a href="<?= url('admin/dashboard.php') ?>" class="<?= $__active==='dashboard'?'active':'' ?>"><span class="nav-icon"><i data-lucide="layout-dashboard"></i></span> Dashboard</a></li>
       <li><a href="<?= url('admin/users.php') ?>" class="<?= $__active==='users'?'active':'' ?>"><span class="nav-icon"><i data-lucide="users"></i></span> Users & Roles</a></li>
+      <li><a href="<?= url('secretary/parishioners.php') ?>" class="<?= $__active==='parishioners'?'active':'' ?>"><span class="nav-icon"><i data-lucide="user-cog"></i></span> Parishioner Management</a></li>
       <li><a href="<?= url('admin/priests.php') ?>" class="<?= $__active==='priests'?'active':'' ?>"><span class="nav-icon"><i data-lucide="contact"></i></span> Priests</a></li>
       <li><a href="<?= url('admin/services.php') ?>" class="<?= $__active==='services'?'active':'' ?>"><span class="nav-icon"><i data-lucide="heart-handshake"></i></span> Services</a></li>
       <li><a href="<?= url('secretary/calendar.php') ?>" class="<?= $__active==='calendar'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-days"></i></span> Calendar</a></li>
       <li><a href="<?= url('secretary/appointments.php') ?>" class="<?= $__active==='appointments'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-check"></i></span> Appointments</a></li>
-      <li><a href="<?= url('treasurer/payments.php') ?>" class="<?= $__active==='payments'?'active':'' ?>"><span class="nav-icon"><i data-lucide="banknote"></i></span> Payments</a></li>
-      <li><a href="<?= url('admin/reports.php') ?>" class="<?= $__active==='reports'?'active':'' ?>"><span class="nav-icon"><i data-lucide="bar-chart-3"></i></span> System Reports</a></li>
+      <li><a href="<?= url('treasurer/payments.php') ?>" class="<?= $__active==='payments'?'active':'' ?>"><span class="nav-icon"><i data-lucide="banknote"></i></span> Payment & Transaction Overview</a></li>
+      <li><a href="<?= url('admin/reports.php') ?>" class="<?= $__active==='reports'?'active':'' ?>"><span class="nav-icon"><i data-lucide="bar-chart-3"></i></span> Financial Reports</a></li>
       <li><a href="<?= url('admin/activity-logs.php') ?>" class="<?= $__active==='logs'?'active':'' ?>"><span class="nav-icon"><i data-lucide="history"></i></span> Activity Logs</a></li>
       <li><a href="<?= url('admin/settings.php') ?>" class="<?= $__active==='settings'?'active':'' ?>"><span class="nav-icon"><i data-lucide="settings"></i></span> Settings</a></li>
       <li><a href="<?= url('admin/backup.php') ?>" class="<?= $__active==='backup'?'active':'' ?>"><span class="nav-icon"><i data-lucide="database-backup"></i></span> Backup & Restore</a></li>
