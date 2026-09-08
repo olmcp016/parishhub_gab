@@ -124,7 +124,7 @@ include __DIR__ . '/../includes/dash-start.php';
     </div>
     <p><strong>Date:</strong> <?= formatDate($appointment['appointment_date']) ?> at <?= date('g:i A', strtotime($appointment['appointment_time'])) ?></p>
     <p><strong>Priest:</strong> <?= e($appointment['priest_name'] ?? 'Not yet assigned') ?></p>
-    <p><strong>Fee:</strong> <?= money($appointment['fee']) ?></p>
+    <p><strong>Fee:</strong> <?= feeLabel((float) $appointment['fee']) ?></p>
     <?php if ($appointment['category'] === 'Funeral' && $appointment['date_of_death']): ?>
       <p><strong>Date of Death:</strong> <?= formatDate($appointment['date_of_death']) ?></p>
     <?php endif; ?>
@@ -185,10 +185,18 @@ include __DIR__ . '/../includes/dash-start.php';
         <form method="POST" action="<?= url('parishioner/pay.php') ?>">
           <?= csrfField() ?>
           <input type="hidden" name="appointment_id" value="<?= $id ?>">
-          <div class="form-group">
-            <label>Amount</label>
-            <input type="number" value="<?= e((string)$appointment['fee']) ?>" step="0.01" readonly disabled>
-          </div>
+          <?php if ($appointment['category'] === 'Mass Intention'): ?>
+            <div class="form-group">
+              <label>Amount (voluntary offering)</label>
+              <input type="number" name="amount" min="1" step="0.01" placeholder="Enter your offering amount" required>
+              <p class="helper-text">There's no fixed fee for Mass Intentions — enter whatever amount you'd like to offer.</p>
+            </div>
+          <?php else: ?>
+            <div class="form-group">
+              <label>Amount</label>
+              <input type="number" value="<?= e((string)$appointment['fee']) ?>" step="0.01" readonly disabled>
+            </div>
+          <?php endif; ?>
           <div class="form-group">
             <label>Payment Method</label>
             <select name="method_id" required>

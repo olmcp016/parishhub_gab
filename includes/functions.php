@@ -31,6 +31,12 @@ function money(float $amount): string
     return '₱' . number_format($amount, 2);
 }
 
+/** Services with no fixed fee (e.g. Mass Intentions) are a voluntary offering, not ₱0.00. */
+function feeLabel(float $fee): string
+{
+    return $fee > 0 ? money($fee) : 'Voluntary Offering';
+}
+
 function formatDate(?string $date): string
 {
     if (!$date) return '—';

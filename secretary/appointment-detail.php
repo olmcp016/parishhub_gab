@@ -21,13 +21,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'approve') {
         // Require that any required documents have been verified before approving.
+        // Mass Intentions never require documents — they're auto-approved on
+        // submission anyway, but this also covers any legacy pending records.
         $stmt = db()->prepare(
-            "SELECT s.requirements FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_id = ?"
+            "SELECT s.requirements, s.category FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_id = ?"
         );
         $stmt->execute([$id]);
-        $requirements = $stmt->fetchColumn();
+        $svc = $stmt->fetch();
+        $requirements = $svc['requirements'];
 
-        if (!empty($requirements)) {
+        if ($svc['category'] !== 'Mass Intention' && !empty($requirements)) {
             $stmt = db()->prepare('SELECT COUNT(*) FROM uploaded_documents WHERE appointment_id = ? AND verified = TRUE');
             $stmt->execute([$id]);
             $verifiedCount = (int) $stmt->fetchColumn();
@@ -175,11 +178,11 @@ include __DIR__ . '/../includes/dash-start.php';
     </div>
     <p><strong>Parishioner:</strong> <?= e($appointment['firstname']) ?> <?= e($appointment['lastname']) ?> (<?= e($appointment['email']) ?>, <?= e($appointment['phone']) ?>)</p>
     <p><strong>Date:</strong> <?= formatDate($appointment['appointment_date']) ?> at <?= date('g:i A', strtotime($appointment['appointment_time'])) ?></p>
-    <p><strong>Fee:</strong> <?= money($appointment['fee']) ?></p>
+    <p><strong>Fee:</strong> <?= feeLabel((float) $appointment['fee']) ?></p>
     <?php if ($appointment['category'] === 'Funeral' && $appointment['date_of_death']): ?>
       <p><strong>Date of Death:</strong> <?= formatDate($appointment['date_of_death']) ?> <span class="text-muted">(9-day mourning period ends <?= formatDate(date('Y-m-d', strtotime($appointment['date_of_death'] . ' +9 days'))) ?>)</span></p>
     <?php endif; ?>
-    <?php if ($appointment['requirements']): ?>
+    <?php if ($appointment['category'] !== 'Mass Intention' && $appointment['requirements']): ?>
       <p><strong>Required Documents:</strong> <?= e($appointment['requirements']) ?></p>
     <?php endif; ?>
     <?php if ($appointment['remarks']): ?><p><strong>Remarks:</strong> <?= e($appointment['remarks']) ?></p><?php endif; ?>
@@ -263,6 +266,7 @@ include __DIR__ . '/../includes/dash-start.php';
       <?php endif; ?>
     </div>
 
+    <?php if ($appointment['category'] !== 'Mass Intention'): ?>
     <div class="card">
       <div class="card-header"><h3>Assign Priest</h3></div>
       <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>" class="mb-3">
@@ -295,6 +299,7 @@ include __DIR__ . '/../includes/dash-start.php';
         </div>
       <?php endforeach; ?>
     </div>
+    <?php endif; ?>
 
     <div class="card">
       <div class="card-header"><h3>Reschedule</h3></div>

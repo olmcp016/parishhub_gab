@@ -21,7 +21,7 @@ $methodId = (int) ($_POST['method_id'] ?? 1);
 // while Approved, and only once (fee is derived server-side, never trusted
 // from the client, to prevent price tampering).
 $stmt = db()->prepare(
-    "SELECT a.appointment_id, s.fee
+    "SELECT a.appointment_id, s.fee, s.category
      FROM appointments a
      JOIN services s ON a.service_id = s.service_id
      JOIN appointment_status st ON a.status_id = st.status_id
@@ -33,6 +33,19 @@ $appointment = $stmt->fetch();
 if (!$appointment) {
     flash('error', 'Appointment not found or not eligible for payment.');
     redirect(url('parishioner/appointments.php'));
+}
+
+// Mass Intentions have no fixed fee — it's a voluntary offering the
+// parishioner sets themselves. Every other service keeps the fee
+// server-derived from the service record, never trusted from the client.
+if ($appointment['category'] === 'Mass Intention') {
+    $amount = (float) ($_POST['amount'] ?? 0);
+    if ($amount <= 0) {
+        flash('error', 'Please enter a valid offering amount.');
+        redirect(url('parishioner/appointment-detail.php?id=' . $appointmentId));
+    }
+} else {
+    $amount = (float) $appointment['fee'];
 }
 
 $stmt = db()->prepare('SELECT 1 FROM payments WHERE appointment_id = ?');
@@ -51,7 +64,7 @@ $stmt = db()->prepare(
     "INSERT INTO payments (appointment_id, reference_number, amount, method_id, payment_status, payment_date)
      VALUES (?, NULL, ?, ?, 'pending', NOW())"
 );
-$stmt->execute([$appointmentId, $appointment['fee'], $methodId]);
+$stmt->execute([$appointmentId, $amount, $methodId]);
 
 logActivity($userId, "Submitted payment for appointment #$appointmentId", 'Payments');
 flash('success', 'Payment submitted! It will be verified by our treasurer shortly.');

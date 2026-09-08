@@ -39,6 +39,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(url('parishioner/book.php'));
     }
 
+    $isMassIntention = ($category === 'Mass Intention');
+    if ($isMassIntention) {
+        // Priests do not personally read Mass Intentions, and the time is
+        // assigned automatically from the Mass schedule — never client-chosen.
+        $priestId = null;
+        $massTimes = massTimesFor($date);
+        $time = $massTimes[0] ?? $time;
+    }
+
     // ---- Enforce the parish's fixed scheduling rules ----
     $check = validateBooking($category, $date, $time, $dateOfDeath);
     if (!$check['valid']) {
@@ -76,11 +85,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        // Mass Intentions skip manual secretary review entirely — approved on
+        // submission so the parishioner can go straight to payment.
+        $initialStatusId = $isMassIntention ? 2 : 1;
+        $approvedAtColumn = $isMassIntention ? ', approved_at' : '';
+        $approvedAtValue = $isMassIntention ? ', NOW()' : '';
+
         $stmt = $pdo->prepare(
-            "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, date_of_death)
-             VALUES (?, ?, ?, ?, ?, 1, ?, ?)"
+            "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, date_of_death{$approvedAtColumn})
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?{$approvedAtValue})"
         );
-        $stmt->execute([$parishionerId, $serviceId, $priestId, $date, $finalTime, $remarks, $dateOfDeath]);
+        $stmt->execute([$parishionerId, $serviceId, $priestId, $date, $finalTime, $initialStatusId, $remarks, $dateOfDeath]);
         $appointmentId = $pdo->lastInsertId();
 
         if ($category === 'Mass Intention' && !empty($_POST['intention_type'])) {
@@ -98,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $skippedFiles = [];
-        if (!empty($_FILES['documents']['name'][0])) {
+        if (!$isMassIntention && !empty($_FILES['documents']['name'][0])) {
             $uploadDir = __DIR__ . '/../public/uploads/';
             foreach ($_FILES['documents']['name'] as $i => $name) {
                 $err = $_FILES['documents']['error'][$i];
@@ -119,15 +134,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        $stmt = $pdo->prepare(
-            "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Appointment Submitted', ?)"
-        );
-        $stmt->execute([$userId, "Your appointment request (#$appointmentId) has been submitted and is pending review. Our secretary will check your requirements next."]);
+        if ($isMassIntention) {
+            $stmt = $pdo->prepare(
+                "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Mass Intention Approved', ?)"
+            );
+            $stmt->execute([$userId, "Your Mass Intention request (#$appointmentId) has been automatically approved. You may now proceed to payment."]);
+        } else {
+            $stmt = $pdo->prepare(
+                "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Appointment Submitted', ?)"
+            );
+            $stmt->execute([$userId, "Your appointment request (#$appointmentId) has been submitted and is pending review. Our secretary will check your requirements next."]);
+        }
 
         $pdo->commit();
         logActivity($userId, "Booked appointment #$appointmentId", 'Appointments');
 
-        flash('success', 'Appointment request submitted! Our secretary will review your requirements before approving.');
+        if ($isMassIntention) {
+            flash('success', 'Your Mass Intention request has been automatically approved! You can proceed to payment right away — no documents needed.');
+        } else {
+            flash('success', 'Appointment request submitted! Our secretary will review your requirements before approving.');
+        }
         if (!empty($skippedFiles)) {
             $limit = ini_get('upload_max_filesize');
             flash('error', 'Note: the following file(s) were too large (max ' . $limit . ' each) and were NOT uploaded: ' . implode(', ', $skippedFiles) . '. You can upload them separately from your appointment page.');
@@ -172,7 +198,7 @@ include __DIR__ . '/../includes/dash-start.php';
         <option value="">-- Choose a service --</option>
         <?php foreach ($services as $s): ?>
           <option value="<?= $s['service_id'] ?>" data-category="<?= e($s['category']) ?>" <?= (string)$preselected === (string)$s['service_id'] ? 'selected' : '' ?>>
-            <?= e($s['service_name']) ?> (<?= money($s['fee']) ?>)
+            <?= e($s['service_name']) ?> (<?= feeLabel((float) $s['fee']) ?>)
           </option>
         <?php endforeach; ?>
       </select>
@@ -206,16 +232,16 @@ include __DIR__ . '/../includes/dash-start.php';
         </div>
 
         <div id="massTimeGroup" style="display:none;">
-          <select name="appointment_time" id="massTimeSelect">
-            <option value="">-- Select date first --</option>
-          </select>
+          <input type="text" id="massTimeDisplay" disabled>
+          <input type="hidden" name="appointment_time" id="massTimeInput">
+          <p class="helper-text" id="massTimeHint">Select a date to see the assigned Mass time.</p>
         </div>
       </div>
     </div>
 
-    <div class="form-group">
+    <div class="form-group" id="priestFieldGroup">
       <label>Preferred Priest (optional)</label>
-      <select name="priest_id">
+      <select name="priest_id" id="priestSelect">
         <option value="">No preference</option>
         <?php foreach ($priests as $p): ?>
           <option value="<?= $p['priest_id'] ?>"><?= e($p['title']) ?> <?= e($p['full_name']) ?></option>
@@ -226,6 +252,7 @@ include __DIR__ . '/../includes/dash-start.php';
 
     <div id="intentionFields" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px; margin-bottom: 16px;">
       <h4 style="margin-top:0;">Mass Intention Details</h4>
+      <p class="helper-text" style="margin-top:-4px;">Mass Intention requests are approved instantly — no documents needed, and no fixed fee. You'll choose your own offering amount at payment.</p>
       <div class="form-group">
         <label>Intention Type</label>
         <select name="intention_type">
@@ -255,9 +282,9 @@ include __DIR__ . '/../includes/dash-start.php';
       <textarea name="remarks" rows="2" placeholder="Any special requests..."></textarea>
     </div>
 
-    <div class="form-group">
+    <div class="form-group" id="uploadGroup">
       <label>Upload Requirements (optional — PDF/JPG/PNG, up to 5 files)</label>
-      <input type="file" name="documents[]" multiple accept=".pdf,.jpg,.jpeg,.png">
+      <input type="file" name="documents[]" id="documentsInput" multiple accept=".pdf,.jpg,.jpeg,.png">
       <p class="helper-text">Max <?= e(ini_get('upload_max_filesize')) ?> per file, <?= e(ini_get('post_max_size')) ?> total for the whole form. If your photos are larger than that (common for phone camera photos), you can also upload requirements later from the appointment detail page instead. Our secretary will review these before your appointment is approved.</p>
     </div>
 
@@ -275,9 +302,23 @@ function toggleServiceUI() {
   var select = document.getElementById('serviceSelect');
   var category = select.options[select.selectedIndex]?.dataset.category || '';
 
-  document.getElementById('intentionFields').style.display = category === 'Mass Intention' ? 'block' : 'none';
+  var isMassIntention = category === 'Mass Intention';
+
+  document.getElementById('intentionFields').style.display = isMassIntention ? 'block' : 'none';
   document.getElementById('dateOfDeathGroup').style.display = category === 'Funeral' ? 'block' : 'none';
   document.getElementById('dateOfDeathInput').required = (category === 'Funeral');
+
+  // Priests do not personally read Mass Intentions, so there's nothing to prefer.
+  var priestGroup = document.getElementById('priestFieldGroup');
+  var priestSelect = document.getElementById('priestSelect');
+  priestGroup.style.display = isMassIntention ? 'none' : 'block';
+  priestSelect.disabled = isMassIntention;
+  if (isMassIntention) priestSelect.value = '';
+
+  // No documents are required for Mass Intentions — they're approved instantly.
+  var uploadGroup = document.getElementById('uploadGroup');
+  uploadGroup.style.display = isMassIntention ? 'none' : 'block';
+  document.getElementById('documentsInput').disabled = isMassIntention;
 
   var policyBox = document.getElementById('policyBox');
   if (POLICIES[category]) {
@@ -292,11 +333,11 @@ function toggleServiceUI() {
   var massGroup = document.getElementById('massTimeGroup');
   var freeInput = document.getElementById('freeTimeInput');
   var fixedHidden = document.getElementById('fixedTimeInput');
-  var massSelect = document.getElementById('massTimeSelect');
+  var massHidden = document.getElementById('massTimeInput');
 
   freeGroup.style.display = 'none'; freeInput.disabled = true;
   fixedGroup.style.display = 'none'; fixedHidden.disabled = true;
-  massGroup.style.display = 'none'; massSelect.disabled = true;
+  massGroup.style.display = 'none'; massHidden.disabled = true;
 
   if (category === 'Baptism' || category === 'Wedding' || category === 'Funeral') {
     fixedGroup.style.display = 'block';
@@ -304,10 +345,10 @@ function toggleServiceUI() {
     var fixedTime = category === 'Baptism' ? '09:00' : (category === 'Wedding' ? '08:00' : '13:00');
     document.getElementById('fixedTimeDisplay').value = formatTimeLabel(fixedTime) + ' (fixed)';
     fixedHidden.value = fixedTime;
-  } else if (category === 'Mass Intention') {
+  } else if (isMassIntention) {
     massGroup.style.display = 'block';
-    massSelect.disabled = false;
-    populateMassTimes();
+    massHidden.disabled = false;
+    autoAssignMassTime();
   } else {
     freeGroup.style.display = 'block';
     freeInput.disabled = false;
@@ -317,21 +358,27 @@ function toggleServiceUI() {
   rebuildMiniCalendar();
 }
 
-function populateMassTimes() {
+/**
+ * Mass Intention times are never chosen by the parishioner — the time is
+ * assigned automatically from the parish's Mass schedule for the selected
+ * date (the earliest/only official Mass time that day).
+ */
+function autoAssignMassTime() {
   var dateInput = document.getElementById('appointmentDateInput');
-  var select = document.getElementById('massTimeSelect');
-  select.innerHTML = '';
+  var display = document.getElementById('massTimeDisplay');
+  var hidden = document.getElementById('massTimeInput');
+  var hint = document.getElementById('massTimeHint');
+
   if (!dateInput.value) {
-    select.innerHTML = '<option value="">-- Select date first --</option>';
+    display.value = '';
+    hidden.value = '';
+    hint.textContent = 'Select a date to see the assigned Mass time.';
     return;
   }
-  var times = massTimesForJS(dateInput.value);
-  times.forEach(function (t) {
-    var opt = document.createElement('option');
-    opt.value = t;
-    opt.textContent = formatTimeLabel(t);
-    select.appendChild(opt);
-  });
+  var t = massTimesForJS(dateInput.value)[0];
+  display.value = formatTimeLabel(t) + ' (assigned automatically)';
+  hidden.value = t;
+  hint.textContent = 'This Mass Intention will be offered during the ' + formatTimeLabel(t) + ' Mass on the selected date.';
 }
 
 function updateEarliestFuneralHint() {
@@ -387,7 +434,7 @@ function buildMiniCalendarNow() {
       dateInput.value = dateStr;
       document.getElementById('miniCalendarWrap').style.display = 'none';
       document.getElementById('togglePickerBtn').textContent = '📅 Pick from calendar';
-      if (category === 'Mass Intention') populateMassTimes();
+      if (category === 'Mass Intention') autoAssignMassTime();
     }
   });
 }
@@ -403,7 +450,7 @@ document.addEventListener('DOMContentLoaded', function () {
   document.getElementById('appointmentDateInput').addEventListener('change', function () {
     var select = document.getElementById('serviceSelect');
     var category = select.options[select.selectedIndex]?.dataset.category || '';
-    if (category === 'Mass Intention') populateMassTimes();
+    if (category === 'Mass Intention') autoAssignMassTime();
   });
 
   var toggleBtn = document.getElementById('togglePickerBtn');

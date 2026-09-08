@@ -189,7 +189,7 @@ function schedulingPolicyText(string $category): string
         case 'Blessing':
             return 'House Blessing schedules are arranged directly between you and the priest. Propose a preferred date and time below.';
         case 'Mass Intention':
-            return 'Mass Intentions are offered during an actual Mass: daily at 6:00 AM (5:15 PM on Wednesdays), or on Sundays at 6:00 AM, 9:00 AM, or 4:30 PM.';
+            return 'Mass Intentions are offered during the regular 6:00 AM Mass (5:15 PM on Wednesdays). The time is assigned automatically based on your chosen date — no need to pick a time. Your request is approved instantly, with no documents required, and you can proceed straight to payment.';
         default:
             return '';
     }
