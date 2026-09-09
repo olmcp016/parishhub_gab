@@ -41,7 +41,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'verif
         $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'payment', 'Payment Verified', ?)")
             ->execute([$puid, "Your payment (Ref: {$payment['reference_number']}) has been verified. Official Receipt $receiptNumber issued."]);
 
+        $stmt = $pdo->prepare(
+            "SELECT s.category FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_id = ?"
+        );
+        $stmt->execute([$payment['appointment_id']]);
+        $isDonation = $stmt->fetchColumn() === 'Donation';
+
         $pdo->commit();
+        if ($isDonation) {
+            syncWeeklyDonationAnnouncement($userId);
+        }
         logActivity($userId, "Verified payment #$id, issued receipt $receiptNumber", 'Payments');
         flash('success', "Payment verified. Receipt $receiptNumber generated.");
     } catch (Throwable $e) {

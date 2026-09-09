@@ -1,7 +1,104 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
-requireRole('Treasurer', 'Admin');
+requireRole('Treasurer', 'Secretary', 'Admin');
+
+$userId = currentUser()['user_id'];
+$purposes = ['General Donation', 'Church Maintenance', 'Charity', 'Mass / Parish Activities'];
+$methods = [1 => 'Cash', 2 => 'GCash', 3 => 'Maya', 4 => 'Bank Transfer', 5 => 'Credit/Debit Card', 6 => 'PayPal'];
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'manual') {
+    verifyCsrf();
+
+    $amount = (float) ($_POST['amount'] ?? 0);
+    $methodId = (int) ($_POST['method_id'] ?? 0);
+    $purpose = in_array($_POST['purpose'] ?? '', $purposes, true) ? $_POST['purpose'] : $purposes[0];
+    $donorName = trim($_POST['donor_name'] ?? '') ?: null;
+    $donorEmail = trim($_POST['donor_email'] ?? '') ?: null;
+    $reference = trim($_POST['reference_number'] ?? '') ?: null;
+    $selectedParishionerId = (int) ($_POST['parishioner_id'] ?? 0);
+
+    if ($amount < 0) {
+        flash('error', 'Please enter a valid donation amount.');
+        redirect(url('treasurer/donations.php'));
+    }
+    if (!isset($methods[$methodId])) {
+        flash('error', 'Please choose a payment method.');
+        redirect(url('treasurer/donations.php'));
+    }
+
+    if ($selectedParishionerId) {
+        $parishionerId = $selectedParishionerId;
+    } else {
+        $parishionerId = db()->query(
+            "SELECT p.parishioner_id FROM parishioners p JOIN users u ON p.user_id = u.user_id WHERE u.email = 'walkin-donor@parishhub.internal'"
+        )->fetchColumn();
+    }
+
+    $donationServiceId = db()->query("SELECT service_id FROM services WHERE category = 'Donation' AND is_active = TRUE LIMIT 1")->fetchColumn();
+
+    if (!$parishionerId || !$donationServiceId) {
+        flash('error', 'Unable to record donation right now — please contact the developer.');
+        redirect(url('treasurer/donations.php'));
+    }
+
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        // Staff recorded this in person — it's already confirmed, so it's
+        // inserted straight to Payment Verified with a real receipt, no
+        // separate verification step needed.
+        $stmt = $pdo->prepare(
+            "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, approved_by, approved_at)
+             VALUES (?, ?, NULL, CURRENT_DATE, CURRENT_TIME, 4, ?, NOW())"
+        );
+        $stmt->execute([$parishionerId, $donationServiceId, $userId]);
+        $appointmentId = $pdo->lastInsertId();
+
+        $stmt = $pdo->prepare(
+            "INSERT INTO donations (appointment_id, donor_name, donor_email, purpose) VALUES (?, ?, ?, ?)"
+        );
+        $stmt->execute([$appointmentId, $donorName, $donorEmail, $purpose]);
+
+        $stmt = $pdo->prepare(
+            "INSERT INTO payments (appointment_id, reference_number, amount, method_id, payment_status, payment_date, verified_by, verified_at)
+             VALUES (?, ?, ?, ?, 'verified', NOW(), ?, NOW())"
+        );
+        $stmt->execute([$appointmentId, $reference, $amount, $methodId, $userId]);
+        $paymentId = $pdo->lastInsertId();
+
+        $receiptNumber = 'OR-' . date('Y') . '-' . str_pad((string) $paymentId, 6, '0', STR_PAD_LEFT);
+        $pdo->prepare("INSERT INTO official_receipts (payment_id, receipt_number, issued_by) VALUES (?, ?, ?)")
+            ->execute([$paymentId, $receiptNumber, $userId]);
+
+        if ($selectedParishionerId) {
+            $puid = $pdo->prepare('SELECT user_id FROM parishioners WHERE parishioner_id = ?');
+            $puid->execute([$selectedParishionerId]);
+            $puid = $puid->fetchColumn();
+            if ($puid) {
+                $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'payment', 'Donation Recorded', ?)")
+                    ->execute([$puid, "A donation of " . money($amount) . " was recorded on your behalf by our parish office. Receipt $receiptNumber issued. Thank you!"]);
+            }
+        }
+
+        $pdo->commit();
+        syncWeeklyDonationAnnouncement($userId);
+        logActivity($userId, "Recorded manual donation #$appointmentId ($receiptNumber)", 'Donations');
+        flash('success', "Donation recorded. Receipt $receiptNumber generated.");
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        error_log($e->getMessage());
+        flash('error', 'Failed to record donation. Please try again.');
+    }
+    redirect(url('treasurer/donations.php'));
+}
+
+$parishioners = db()->query(
+    "SELECT p.parishioner_id, u.firstname, u.lastname FROM parishioners p
+     JOIN users u ON p.user_id = u.user_id
+     WHERE u.email != 'walkin-donor@parishhub.internal'
+     ORDER BY u.lastname, u.firstname"
+)->fetchAll();
 
 $statusFilter = $_GET['status'] ?? '';
 $search = $_GET['search'] ?? '';
@@ -41,6 +138,42 @@ include __DIR__ . '/../includes/dash-start.php';
 <div class="stat-grid">
   <div class="stat-card light"><div class="stat-label">Total Verified Donations</div><div class="stat-value"><?= money((float) $totalVerified) ?></div></div>
   <div class="stat-card light"><div class="stat-label">Total Donations Received</div><div class="stat-value"><?= count($donations) ?></div></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>Record a Donation</h3></div>
+  <p class="helper-text" style="margin-top:-6px; margin-bottom:16px;">For cash or in-person donations, or any offering received outside the website. This is recorded as already verified — no separate confirmation step needed.</p>
+  <form method="POST" action="<?= url('treasurer/donations.php') ?>" class="form-row" style="align-items:end;">
+    <?= csrfField() ?>
+    <input type="hidden" name="action" value="manual">
+    <div class="form-group">
+      <label>Registered Parishioner (optional)</label>
+      <select name="parishioner_id">
+        <option value="">-- Walk-in / Not a member --</option>
+        <?php foreach ($parishioners as $p): ?>
+          <option value="<?= $p['parishioner_id'] ?>"><?= e($p['lastname']) ?>, <?= e($p['firstname']) ?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div class="form-group"><label>Donor Name (optional)</label><input type="text" name="donor_name" placeholder="Leave blank for Anonymous"></div>
+    <div class="form-group"><label>Email (optional)</label><input type="email" name="donor_email"></div>
+    <div class="form-group"><label>Amount</label><input type="number" name="amount" min="0" step="0.01" required></div>
+    <div class="form-group">
+      <label>Purpose</label>
+      <select name="purpose">
+        <?php foreach ($purposes as $p): ?><option value="<?= e($p) ?>"><?= e($p) ?></option><?php endforeach; ?>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Payment Method</label>
+      <select name="method_id" required>
+        <option value="">-- Select --</option>
+        <?php foreach ($methods as $id => $label): ?><option value="<?= $id ?>"><?= e($label) ?></option><?php endforeach; ?>
+      </select>
+    </div>
+    <div class="form-group"><label>Reference # (optional)</label><input type="text" name="reference_number"></div>
+    <div class="form-group"><button type="submit" class="btn btn-primary">Record Donation</button></div>
+  </form>
 </div>
 
 <div class="card">

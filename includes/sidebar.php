@@ -25,6 +25,7 @@ $__active = $active ?? '';
     <?php elseif ($__user['role_name'] === 'Secretary'): ?>
       <li><a href="<?= url('secretary/dashboard.php') ?>" class="<?= $__active==='dashboard'?'active':'' ?>"><span class="nav-icon"><i data-lucide="layout-dashboard"></i></span> Dashboard</a></li>
       <li><a href="<?= url('secretary/appointments.php') ?>" class="<?= $__active==='appointments'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-check"></i></span> Appointments</a></li>
+      <li><a href="<?= url('treasurer/donations.php') ?>" class="<?= $__active==='donations'?'active':'' ?>"><span class="nav-icon"><i data-lucide="hand-heart"></i></span> Donations</a></li>
       <li><a href="<?= url('secretary/calendar.php') ?>" class="<?= $__active==='calendar'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-days"></i></span> Calendar</a></li>
       <li><a href="<?= url('secretary/announcements.php') ?>" class="<?= $__active==='announcements'?'active':'' ?>"><span class="nav-icon"><i data-lucide="megaphone"></i></span> Announcements</a></li>
       <li><a href="<?= url('secretary/parishioners.php') ?>" class="<?= $__active==='parishioners'?'active':'' ?>"><span class="nav-icon"><i data-lucide="users"></i></span> Parishioners</a></li>
