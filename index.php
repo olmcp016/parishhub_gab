@@ -112,7 +112,7 @@ include __DIR__ . '/includes/header.php';
       <div class="card">
         <h3><?= e($a['title']) ?></h3>
         <p class="text-muted" style="font-size: 13px;"><?= formatDate($a['created_at']) ?></p>
-        <p style="font-size: 14.5px;"><?= e(mb_strlen($a['content']) > 140 ? mb_substr($a['content'],0,140) . '…' : $a['content']) ?></p>
+        <p style="font-size: 14.5px; white-space: pre-line;"><?= e(mb_strlen($a['content']) > 140 ? mb_substr($a['content'],0,140) . '…' : $a['content']) ?></p>
       </div>
     <?php endforeach; ?>
   </div>

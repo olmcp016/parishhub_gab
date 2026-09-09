@@ -975,6 +975,32 @@ tbody tr:hover { background: #faf8f0; }
   .public-nav .links a:not(.btn) { display: none; }
 }
 
+/* ---------- Clickable card (e.g. weekly donor announcement) ---------- */
+.card-clickable { cursor: pointer; transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease), border-color 0.2s var(--ease); }
+.card-clickable:hover { transform: translateY(-2px); border-color: var(--gold); box-shadow: var(--shadow-lg); }
+.card-click-hint { font-size: 12px; color: var(--gold-dark); font-weight: 700; margin-top: 10px; }
+
+/* ---------- Modal (native <dialog>) ---------- */
+dialog.modal {
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: var(--shadow-lg);
+  padding: 0;
+  width: 480px;
+  max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 80px);
+  background: var(--cream);
+}
+dialog.modal::backdrop { background: rgba(36, 22, 17, 0.55); }
+.modal-head {
+  background: var(--brown-dark); color: var(--gold-light);
+  padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.modal-head h3 { margin: 0; font-size: 16px; color: var(--ivory); }
+.modal-close { background: none; border: none; color: var(--gold-light); opacity: .75; cursor: pointer; font-size: 20px; padding: 4px; line-height: 1; }
+.modal-close:hover { opacity: 1; }
+.modal-body { padding: 18px 20px; overflow-y: auto; max-height: calc(100vh - 160px); }
+
 /* ---------- Print (reports "Print / Export" button) ---------- */
 .no-print { display: block; }
 @media print {

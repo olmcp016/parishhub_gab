@@ -12,6 +12,7 @@ $stmt = db()->query("SELECT * FROM announcements WHERE status='published' ORDER 
 $announcements = $stmt->fetchAll();
 
 $donationEnabled = db()->query("SELECT setting_value FROM settings WHERE setting_key = 'donation_enabled'")->fetchColumn() !== '0';
+$weekDonors = getCurrentWeekDonors();
 
 $stmt = db()->prepare(
     "SELECT a.*, s.service_name, st.status_name, p.full_name AS priest_name
@@ -93,13 +94,16 @@ include __DIR__ . '/../includes/dash-start.php';
       <?php else: ?>
         <div class="flex" style="flex-direction:column; gap:12px;">
           <?php foreach ($announcements as $a): ?>
-            <div style="background: var(--cream); border: 1px solid var(--cream-dark); border-radius: 10px; padding: 14px 16px;">
+            <?php $isDonorCard = isWeeklyDonorAnnouncementTitle($a['title']); ?>
+            <div class="<?= $isDonorCard ? 'card-clickable' : '' ?>" style="background: var(--cream); border: 1px solid var(--cream-dark); border-radius: 10px; padding: 14px 16px;"
+                 <?php if ($isDonorCard): ?>onclick="document.getElementById('donorModalDash').showModal()"<?php endif; ?>>
               <div class="flex-between" style="align-items:flex-start; gap:8px;">
                 <strong style="font-size:14px; line-height:1.3;"><?= e($a['title']) ?></strong>
                 <?php if ($a['is_pinned']): ?><span class="badge badge-pending" style="flex-shrink:0;">Pinned</span><?php endif; ?>
               </div>
               <p class="text-muted" style="font-size:12px; margin: 4px 0 6px;"><?= formatDate($a['created_at']) ?></p>
-              <p style="font-size:13.5px; line-height:1.5; color: var(--brown-mid); margin:0;"><?= e(mb_strlen($a['content']) > 110 ? mb_substr($a['content'],0,110).'…' : $a['content']) ?></p>
+              <p style="font-size:13.5px; line-height:1.5; color: var(--brown-mid); margin:0; white-space: pre-line;"><?= e(mb_strlen($a['content']) > 110 ? mb_substr($a['content'],0,110).'…' : $a['content']) ?></p>
+              <?php if ($isDonorCard): ?><div class="card-click-hint" style="margin-top:6px;">🤲 Click to view the donor list →</div><?php endif; ?>
             </div>
           <?php endforeach; ?>
         </div>
@@ -132,6 +136,32 @@ include __DIR__ . '/../includes/dash-start.php';
     <a href="<?= url('parishioner/profile.php') ?>" class="btn btn-outline">👤 Edit Profile</a>
   </div>
 </div>
+
+<?php if (!empty($weekDonors)): ?>
+<dialog class="modal" id="donorModalDash">
+  <div class="modal-head">
+    <h3>This Week's Donors</h3>
+    <button type="button" class="modal-close" onclick="document.getElementById('donorModalDash').close()">✕</button>
+  </div>
+  <div class="modal-body">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Donor</th><th>Purpose</th><th>Amount</th><th>Date</th></tr></thead>
+        <tbody>
+          <?php foreach ($weekDonors as $d): ?>
+            <tr>
+              <td><?= e($d['donor_name'] ?: 'Anonymous') ?></td>
+              <td><?= e($d['purpose']) ?></td>
+              <td><?= money((float) $d['amount']) ?></td>
+              <td><?= formatDate($d['verified_at']) ?></td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</dialog>
+<?php endif; ?>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

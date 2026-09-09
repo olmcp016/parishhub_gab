@@ -93,3 +93,92 @@ function isImageFile(string $filename): bool
     $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
     return in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true);
 }
+
+/** The current calendar week's Monday and Sunday dates (Y-m-d), Monday-start. */
+function currentWeekBounds(): array
+{
+    $dow = (int) date('N'); // 1 (Mon) .. 7 (Sun)
+    $monday = date('Y-m-d', strtotime('-' . ($dow - 1) . ' days'));
+    $sunday = date('Y-m-d', strtotime($monday . ' +6 days'));
+    return ['monday' => $monday, 'sunday' => $sunday];
+}
+
+/** The title of the current week's auto-generated donor announcement, and a helper to recognize it. */
+function weeklyDonorAnnouncementTitle(): string
+{
+    $week = currentWeekBounds();
+    $mondayTs = strtotime($week['monday']);
+    $sundayTs = strtotime($week['sunday']);
+    $from = date('M j', $mondayTs);
+    $to = date('M', $mondayTs) === date('M', $sundayTs) ? date('j, Y', $sundayTs) : date('M j, Y', $sundayTs);
+    return "Thank You, This Week's Donors! ({$from}–{$to})";
+}
+
+function isWeeklyDonorAnnouncementTitle(string $title): bool
+{
+    return str_starts_with($title, "Thank You, This Week's Donors!");
+}
+
+/** Every Donation payment verified during the current (Monday-start) week, most recent first. */
+function getCurrentWeekDonors(): array
+{
+    $week = currentWeekBounds();
+    $stmt = db()->prepare(
+        "SELECT d.donor_name, d.purpose, p.amount, p.verified_at
+         FROM payments p
+         JOIN appointments a ON p.appointment_id = a.appointment_id
+         JOIN services s ON a.service_id = s.service_id
+         JOIN donations d ON d.appointment_id = a.appointment_id
+         WHERE s.category = 'Donation' AND p.payment_status = 'verified'
+           AND DATE(p.verified_at) BETWEEN ? AND ?
+         ORDER BY p.verified_at DESC"
+    );
+    $stmt->execute([$week['monday'], $week['sunday']]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Creates or refreshes this week's "Thank You, This Week's Donors!"
+ * announcement from every Donation payment verified since Monday (online
+ * or staff-recorded). Called right after a donation payment is verified —
+ * no cron needed, it's event-driven and idempotent. The title carries the
+ * week's date range, so a new Monday naturally starts a fresh title/card
+ * instead of appending to last week's.
+ *
+ * Deliberately a compact count + total, not a per-donor itemized list —
+ * a growing list inside one announcement card doesn't scale (a busy week
+ * would read like a mall receipt). The full itemized list is available
+ * on click (see getCurrentWeekDonors()) via a modal on the announcements
+ * page, and has a permanent home in the Donations tab / My Donations page.
+ */
+function syncWeeklyDonationAnnouncement(int $postedByUserId): void
+{
+    try {
+        $donors = getCurrentWeekDonors();
+        if (empty($donors)) {
+            return;
+        }
+
+        $title = weeklyDonorAnnouncementTitle();
+        $count = count($donors);
+        $total = array_sum(array_map(fn($d) => (float) $d['amount'], $donors));
+        $giftWord = $count === 1 ? 'gift was' : 'gifts were';
+        $content = "🤲 $count $giftWord received this week, totaling " . money($total)
+            . ". Thank you to everyone who gave! Click to see the full list.";
+
+        $stmt = db()->prepare('SELECT announcement_id FROM announcements WHERE title = ?');
+        $stmt->execute([$title]);
+        $existingId = $stmt->fetchColumn();
+
+        if ($existingId) {
+            db()->prepare('UPDATE announcements SET content = ? WHERE announcement_id = ?')
+                ->execute([$content, $existingId]);
+        } else {
+            db()->prepare(
+                "INSERT INTO announcements (title, content, posted_by, is_pinned, status) VALUES (?, ?, ?, FALSE, 'published')"
+            )->execute([$title, $content, $postedByUserId]);
+        }
+    } catch (Throwable $e) {
+        error_log('Weekly donation announcement sync error: ' . $e->getMessage());
+    }
+}
