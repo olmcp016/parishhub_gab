@@ -265,11 +265,11 @@ include __DIR__ . '/../includes/dash-start.php';
       </div>
       <div class="form-group">
         <label>Offerer Name</label>
-        <input type="text" name="offerer_name" placeholder="Your full name">
+        <input type="text" name="offerer_name" id="offererNameInput" placeholder="Your full name">
       </div>
       <div class="form-group">
         <label>Intention For</label>
-        <input type="text" name="intention_for" placeholder="Name(s) the mass is offered for">
+        <input type="text" name="intention_for" id="intentionForInput" placeholder="Name(s) the mass is offered for">
       </div>
       <div class="form-group">
         <label>Prayer Message (optional)</label>
@@ -305,6 +305,8 @@ function toggleServiceUI() {
   var isMassIntention = category === 'Mass Intention';
 
   document.getElementById('intentionFields').style.display = isMassIntention ? 'block' : 'none';
+  document.getElementById('offererNameInput').required = isMassIntention;
+  document.getElementById('intentionForInput').required = isMassIntention;
   document.getElementById('dateOfDeathGroup').style.display = category === 'Funeral' ? 'block' : 'none';
   document.getElementById('dateOfDeathInput').required = (category === 'Funeral');
 

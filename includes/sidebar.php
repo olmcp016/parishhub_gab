@@ -25,6 +25,7 @@ $__active = $active ?? '';
     <?php elseif ($__user['role_name'] === 'Secretary'): ?>
       <li><a href="<?= url('secretary/dashboard.php') ?>" class="<?= $__active==='dashboard'?'active':'' ?>"><span class="nav-icon"><i data-lucide="layout-dashboard"></i></span> Dashboard</a></li>
       <li><a href="<?= url('secretary/appointments.php') ?>" class="<?= $__active==='appointments'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-check"></i></span> Appointments</a></li>
+      <li><a href="<?= url('secretary/mass-intentions.php') ?>" class="<?= $__active==='mass-intentions'?'active':'' ?>"><span class="nav-icon"><i data-lucide="flame"></i></span> Mass Intentions</a></li>
       <li><a href="<?= url('treasurer/donations.php') ?>" class="<?= $__active==='donations'?'active':'' ?>"><span class="nav-icon"><i data-lucide="hand-heart"></i></span> Donations</a></li>
       <li><a href="<?= url('secretary/calendar.php') ?>" class="<?= $__active==='calendar'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-days"></i></span> Calendar</a></li>
       <li><a href="<?= url('secretary/announcements.php') ?>" class="<?= $__active==='announcements'?'active':'' ?>"><span class="nav-icon"><i data-lucide="megaphone"></i></span> Announcements</a></li>
@@ -34,7 +35,7 @@ $__active = $active ?? '';
       <li><a href="<?= url('secretary/settings.php') ?>" class="<?= $__active==='settings'?'active':'' ?>"><span class="nav-icon"><i data-lucide="settings"></i></span> Settings</a></li>
     <?php elseif ($__user['role_name'] === 'Treasurer'): ?>
       <li><a href="<?= url('treasurer/dashboard.php') ?>" class="<?= $__active==='dashboard'?'active':'' ?>"><span class="nav-icon"><i data-lucide="layout-dashboard"></i></span> Dashboard</a></li>
-      <li><a href="<?= url('treasurer/payments.php') ?>" class="<?= $__active==='payments'?'active':'' ?>"><span class="nav-icon"><i data-lucide="banknote"></i></span> Payments</a></li>
+      <li><a href="<?= url('treasurer/payments.php') ?>" class="<?= $__active==='payments'?'active':'' ?>"><span class="nav-icon"><i data-lucide="history"></i></span> Transaction History</a></li>
       <li><a href="<?= url('treasurer/donations.php') ?>" class="<?= $__active==='donations'?'active':'' ?>"><span class="nav-icon"><i data-lucide="hand-heart"></i></span> Donations</a></li>
       <li><a href="<?= url('secretary/calendar.php') ?>" class="<?= $__active==='calendar'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-days"></i></span> Calendar</a></li>
       <li><a href="<?= url('treasurer/reports.php') ?>" class="<?= $__active==='reports'?'active':'' ?>"><span class="nav-icon"><i data-lucide="bar-chart-3"></i></span> Financial Reports</a></li>
@@ -46,6 +47,7 @@ $__active = $active ?? '';
       <li><a href="<?= url('admin/services.php') ?>" class="<?= $__active==='services'?'active':'' ?>"><span class="nav-icon"><i data-lucide="heart-handshake"></i></span> Services</a></li>
       <li><a href="<?= url('secretary/calendar.php') ?>" class="<?= $__active==='calendar'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-days"></i></span> Calendar</a></li>
       <li><a href="<?= url('secretary/appointments.php') ?>" class="<?= $__active==='appointments'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-check"></i></span> Appointments</a></li>
+      <li><a href="<?= url('secretary/mass-intentions.php') ?>" class="<?= $__active==='mass-intentions'?'active':'' ?>"><span class="nav-icon"><i data-lucide="flame"></i></span> Mass Intentions</a></li>
       <li><a href="<?= url('treasurer/payments.php') ?>" class="<?= $__active==='payments'?'active':'' ?>"><span class="nav-icon"><i data-lucide="banknote"></i></span> Payment & Transaction Overview</a></li>
       <li><a href="<?= url('treasurer/donations.php') ?>" class="<?= $__active==='donations'?'active':'' ?>"><span class="nav-icon"><i data-lucide="hand-heart"></i></span> Donations</a></li>
       <li><a href="<?= url('admin/reports.php') ?>" class="<?= $__active==='reports'?'active':'' ?>"><span class="nav-icon"><i data-lucide="bar-chart-3"></i></span> Financial Reports</a></li>

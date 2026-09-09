@@ -21,9 +21,46 @@ function logActivity(?int $userId, string $action, string $module = 'General'): 
     }
 }
 
+/** YEARWEEK() returns a YYYYWW integer (e.g. 202637) — make it readable for report tables. */
+function formatReportPeriod(string $period, $value): string
+{
+    $value = (string) $value;
+    if ($period === 'weekly' && strlen($value) >= 5) {
+        return 'Week ' . substr($value, -2) . ', ' . substr($value, 0, 4);
+    }
+    return $value;
+}
+
+/** Phrases a Mass Intention as a natural read-aloud line for the printed Mass list. */
+function massIntentionReadingLine(string $type, string $offerer, string $for): string
+{
+    $for = trim($for) ?: 'the intention submitted';
+    $offerer = trim($offerer) ?: 'the parish community';
+    $line = match ($type) {
+        'Living' => "For the health and well-being of {$for}",
+        'Dead' => "For the eternal repose of the soul of {$for}",
+        'Thanksgiving' => "In thanksgiving for the blessings received by {$for}",
+        'Healing' => "For the healing and recovery of {$for}",
+        'Birthday' => "For the birthday blessing of {$for}",
+        default => "For the intention of {$for}",
+    };
+    return "{$line}, requested by {$offerer}.";
+}
+
 function badgeClass(string $statusName): string
 {
     return strtolower(str_replace(' ', '-', $statusName));
+}
+
+/**
+ * Display label for a role name. The "Treasurer" role is now branded as
+ * "Cashier" everywhere a human sees it, without touching the underlying
+ * role_name value (used throughout for requireRole()/login/URLs) — safer
+ * than renaming a live-authenticated role across a deployed site.
+ */
+function roleLabel(string $roleName): string
+{
+    return $roleName === 'Treasurer' ? 'Cashier' : $roleName;
 }
 
 function money(float $amount): string

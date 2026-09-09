@@ -1003,10 +1003,21 @@ dialog.modal::backdrop { background: rgba(36, 22, 17, 0.55); }
 
 /* ---------- Print (reports "Print / Export" button) ---------- */
 .no-print { display: block; }
+.print-only { display: none; }
 @media print {
   .sidebar, .topbar, .chat-fab, .chat-panel, .no-print { display: none !important; }
   .main-content { margin-left: 0 !important; }
   .page-body { padding: 0 !important; }
   .card { box-shadow: none !important; border: 1px solid #ccc !important; break-inside: avoid; }
   body { background: #fff !important; }
+  .print-only { display: block !important; }
 }
+
+/* ---------- Mass Intentions — read-aloud print sheet ---------- */
+.mass-print-block { margin-bottom: 36px; break-inside: avoid; }
+.mass-print-title {
+  font-family: var(--font-heading); font-size: 20px; color: var(--brown-darkest);
+  border-bottom: 2px solid var(--gold); padding-bottom: 8px; margin-bottom: 16px;
+}
+.mass-print-list { font-size: 16px; line-height: 2; padding-left: 28px; color: var(--brown-darkest); }
+.mass-print-list li { margin-bottom: 10px; }
