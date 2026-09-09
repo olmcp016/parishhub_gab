@@ -62,7 +62,7 @@ include __DIR__ . '/../includes/dash-start.php';
     <div class="form-group">
       <label>Role</label>
       <select name="role_id" required>
-        <?php foreach ($roles as $r): ?><option value="<?= $r['role_id'] ?>"><?= e($r['role_name']) ?></option><?php endforeach; ?>
+        <?php foreach ($roles as $r): ?><option value="<?= $r['role_id'] ?>"><?= e(roleLabel($r['role_name'])) ?></option><?php endforeach; ?>
       </select>
     </div>
     <div class="form-group"><label>Phone</label><input type="tel" name="phone"></div>
@@ -87,7 +87,7 @@ include __DIR__ . '/../includes/dash-start.php';
                 <input type="hidden" name="user_id" value="<?= $u['user_id'] ?>">
                 <select name="role_id" onchange="this.form.submit()">
                   <?php foreach ($roles as $r): ?>
-                    <option value="<?= $r['role_id'] ?>" <?= $r['role_id']==$u['role_id']?'selected':'' ?>><?= e($r['role_name']) ?></option>
+                    <option value="<?= $r['role_id'] ?>" <?= $r['role_id']==$u['role_id']?'selected':'' ?>><?= e(roleLabel($r['role_name'])) ?></option>
                   <?php endforeach; ?>
                 </select>
               </form>

@@ -50,7 +50,7 @@ $payments = $stmt->fetchAll();
 $paymentMethods = db()->query('SELECT * FROM payment_methods ORDER BY method_id')->fetchAll();
 
 $active = 'payments';
-$pageTitle = 'Payment & Transaction Overview';
+$pageTitle = currentUser()['role_name'] === 'Admin' ? 'Payment & Transaction Overview' : 'Transaction History';
 include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/dash-start.php';
 ?>

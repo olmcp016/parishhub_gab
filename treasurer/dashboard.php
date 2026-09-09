@@ -20,7 +20,7 @@ $recent = db()->query(
 )->fetchAll();
 
 $active = 'dashboard';
-$pageTitle = 'Treasurer Dashboard';
+$pageTitle = 'Cashier Dashboard';
 include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/dash-start.php';
 ?>

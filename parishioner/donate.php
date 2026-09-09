@@ -71,12 +71,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare(
             "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Thank You for Your Donation', ?)"
         );
-        $stmt->execute([$userId, "Thank you for your generous donation (#$appointmentId). It will be verified by our treasurer shortly."]);
+        $stmt->execute([$userId, "Thank you for your generous donation (#$appointmentId). It will be verified by our cashier shortly."]);
 
         $pdo->commit();
         logActivity($userId, "Submitted a donation (#$appointmentId)", 'Donations');
 
-        flash('success', 'Thank you for your donation! It will be verified by our treasurer shortly.');
+        flash('success', 'Thank you for your donation! It will be verified by our cashier shortly.');
         redirect(url('parishioner/appointment-detail.php?id=' . $appointmentId));
     } catch (Throwable $e) {
         $pdo->rollBack();
@@ -145,7 +145,7 @@ include __DIR__ . '/../includes/dash-start.php';
     </div>
 
     <button type="submit" class="btn btn-primary btn-block">Donate Now</button>
-    <p class="helper-text mt-2">After submitting, please wait for our treasurer to verify your payment.</p>
+    <p class="helper-text mt-2">After submitting, please wait for our cashier to verify your payment.</p>
   </form>
 </div>
 

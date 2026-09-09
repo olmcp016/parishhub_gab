@@ -146,7 +146,7 @@ include __DIR__ . '/../includes/dash-start.php';
       </div>
     <?php elseif ($appointment['status_name'] === 'Approved' && $payment && $payment['payment_status'] === 'pending'): ?>
       <div class="alert" style="background: var(--cream); color: var(--brown-mid); border: 1px solid var(--cream-dark);">
-        Your payment has been submitted and is awaiting verification by our treasurer. Once verified, please wait for your appointment to be confirmed — you'll receive a notification.
+        Your payment has been submitted and is awaiting verification by our cashier. Once verified, please wait for your appointment to be confirmed — you'll receive a notification.
       </div>
     <?php elseif ($appointment['status_name'] === 'Approved' && !$payment): ?>
       <div class="alert" style="background: var(--cream); color: var(--brown-mid); border: 1px solid var(--cream-dark);">
@@ -194,7 +194,7 @@ include __DIR__ . '/../includes/dash-start.php';
         <p><strong>Reference #:</strong> <?= e($payment['reference_number']) ?></p>
         <p><strong>Status:</strong> <span class="badge badge-<?= e($payment['payment_status']) ?>"><?= e($payment['payment_status']) ?></span></p>
         <?php if ($payment['payment_status'] === 'pending'): ?>
-          <p class="text-muted" style="font-size:13px;">Awaiting verification by our treasurer.</p>
+          <p class="text-muted" style="font-size:13px;">Awaiting verification by our cashier.</p>
         <?php elseif ($payment['payment_status'] === 'verified'): ?>
           <p class="text-muted" style="font-size:13px;">✔ Verified — please wait for your schedule to be confirmed.</p>
         <?php endif; ?>
@@ -225,7 +225,7 @@ include __DIR__ . '/../includes/dash-start.php';
             </select>
           </div>
           <button type="submit" class="btn btn-primary btn-block">Submit Payment</button>
-          <p class="helper-text mt-2">After paying, please wait for our treasurer to verify it, then wait for your schedule to be confirmed.</p>
+          <p class="helper-text mt-2">After paying, please wait for our cashier to verify it, then wait for your schedule to be confirmed.</p>
         </form>
       <?php else: ?>
         <p class="text-muted">Payment will be available once your appointment is approved.</p>

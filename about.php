@@ -55,7 +55,7 @@ include __DIR__ . '/includes/header.php';
     </div>
     <div class="step-item">
       <div class="step-num">T</div>
-      <h4>The Treasurer</h4>
+      <h4>The Cashier</h4>
       <p>Verifies your payment once your request is approved and issues an official receipt. From there, you simply wait for your confirmed appointment.</p>
     </div>
     <div class="step-item">

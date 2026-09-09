@@ -8,7 +8,7 @@
     <div class="avatar"><?= e(mb_substr($__user['firstname'],0,1)) ?><?= e(mb_substr($__user['lastname'],0,1)) ?></div>
     <div>
       <div style="font-size:13.5px; font-weight:600;"><?= e($__user['firstname']) ?> <?= e($__user['lastname']) ?></div>
-      <span class="role-badge"><?= e($__user['role_name']) ?></span>
+      <span class="role-badge"><?= e(roleLabel($__user['role_name'])) ?></span>
     </div>
   </div>
 </header>

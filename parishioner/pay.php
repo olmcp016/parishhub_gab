@@ -67,5 +67,5 @@ $stmt = db()->prepare(
 $stmt->execute([$appointmentId, $amount, $methodId]);
 
 logActivity($userId, "Submitted payment for appointment #$appointmentId", 'Payments');
-flash('success', 'Payment submitted! It will be verified by our treasurer shortly.');
+flash('success', 'Payment submitted! It will be verified by our cashier shortly.');
 redirect(url('parishioner/appointment-detail.php?id=' . $appointmentId));

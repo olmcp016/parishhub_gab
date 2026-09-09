@@ -38,7 +38,7 @@ include __DIR__ . '/../includes/dash-start.php';
         <thead><tr><th>Role</th><th>Count</th></tr></thead>
         <tbody>
           <?php foreach ($byRole as $r): ?>
-            <tr><td><?= e($r['role_name']) ?></td><td><?= $r['total'] ?></td></tr>
+            <tr><td><?= e(roleLabel($r['role_name'])) ?></td><td><?= $r['total'] ?></td></tr>
           <?php endforeach; ?>
         </tbody>
       </table>
