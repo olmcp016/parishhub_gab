@@ -7,6 +7,14 @@ $announcements = db()->query(
     "SELECT * FROM announcements WHERE status = 'published' ORDER BY is_pinned DESC, created_at DESC"
 )->fetchAll();
 
+// A prior week's auto-generated donor digest is stale once a new week starts —
+// its modal only ever holds the CURRENT week's donors, so keeping it visible
+// would show a card that either opens the wrong data or can't open at all.
+$announcements = array_values(array_filter(
+    $announcements,
+    fn($a) => !isWeeklyDonorAnnouncementTitle($a['title']) || isCurrentWeeklyDonorAnnouncement($a['title'])
+));
+
 $weekDonors = getCurrentWeekDonors();
 
 $active = 'announcements';
@@ -20,7 +28,7 @@ include __DIR__ . '/../includes/dash-start.php';
 <?php else: ?>
   <div class="grid-3">
     <?php foreach ($announcements as $a): ?>
-      <?php $isDonorCard = isWeeklyDonorAnnouncementTitle($a['title']); ?>
+      <?php $isDonorCard = isCurrentWeeklyDonorAnnouncement($a['title']); ?>
       <div class="card <?= $isDonorCard ? 'card-clickable' : '' ?>" style="display:flex; flex-direction:column;"
            <?php if ($isDonorCard): ?>onclick="document.getElementById('donorModal').showModal()"<?php endif; ?>>
         <div class="flex-between" style="align-items:flex-start; gap:8px; margin-bottom:4px;">

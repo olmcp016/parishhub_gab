@@ -11,6 +11,13 @@ $parishionerId = $stmt->fetchColumn();
 $stmt = db()->query("SELECT * FROM announcements WHERE status='published' ORDER BY is_pinned DESC, created_at DESC LIMIT 5");
 $announcements = $stmt->fetchAll();
 
+// Hide a prior week's auto-generated donor digest once a new week starts —
+// its modal only ever holds the CURRENT week's donors.
+$announcements = array_values(array_filter(
+    $announcements,
+    fn($a) => !isWeeklyDonorAnnouncementTitle($a['title']) || isCurrentWeeklyDonorAnnouncement($a['title'])
+));
+
 $donationEnabled = db()->query("SELECT setting_value FROM settings WHERE setting_key = 'donation_enabled'")->fetchColumn() !== '0';
 $weekDonors = getCurrentWeekDonors();
 
@@ -94,7 +101,7 @@ include __DIR__ . '/../includes/dash-start.php';
       <?php else: ?>
         <div class="flex" style="flex-direction:column; gap:12px;">
           <?php foreach ($announcements as $a): ?>
-            <?php $isDonorCard = isWeeklyDonorAnnouncementTitle($a['title']); ?>
+            <?php $isDonorCard = isCurrentWeeklyDonorAnnouncement($a['title']); ?>
             <div class="<?= $isDonorCard ? 'card-clickable' : '' ?>" style="background: var(--cream); border: 1px solid var(--cream-dark); border-radius: 10px; padding: 14px 16px;"
                  <?php if ($isDonorCard): ?>onclick="document.getElementById('donorModalDash').showModal()"<?php endif; ?>>
               <div class="flex-between" style="align-items:flex-start; gap:8px;">

@@ -156,10 +156,25 @@ function isWeeklyDonorAnnouncementTitle(string $title): bool
     return str_starts_with($title, "Thank You, This Week's Donors!");
 }
 
+/**
+ * True only for THIS week's donor announcement (exact date range match),
+ * as opposed to a prior week's leftover row. Only the current week's card
+ * should be clickable — its donor-list modal is only ever built from
+ * getCurrentWeekDonors(), so an older card would open an empty/wrong modal.
+ */
+function isCurrentWeeklyDonorAnnouncement(string $title): bool
+{
+    return $title === weeklyDonorAnnouncementTitle();
+}
+
 /** Every Donation payment verified during the current (Monday-start) week, most recent first. */
 function getCurrentWeekDonors(): array
 {
     $week = currentWeekBounds();
+    // verified_at is stored as a UTC timestamptz, but "this week" is computed
+    // in PHP's Asia/Manila clock (see config.php) — convert before taking the
+    // date, or a payment verified after midnight Manila time but before the
+    // UTC day rolls over would still look like it belongs to the prior week.
     $stmt = db()->prepare(
         "SELECT d.donor_name, d.purpose, p.amount, p.verified_at
          FROM payments p
@@ -167,7 +182,7 @@ function getCurrentWeekDonors(): array
          JOIN services s ON a.service_id = s.service_id
          JOIN donations d ON d.appointment_id = a.appointment_id
          WHERE s.category = 'Donation' AND p.payment_status = 'verified'
-           AND DATE(p.verified_at) BETWEEN ? AND ?
+           AND DATE(p.verified_at AT TIME ZONE 'Asia/Manila') BETWEEN ? AND ?
          ORDER BY p.verified_at DESC"
     );
     $stmt->execute([$week['monday'], $week['sunday']]);
