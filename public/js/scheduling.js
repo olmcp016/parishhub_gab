@@ -32,7 +32,7 @@ function isFourthSaturdayJS(dateStr) {
 /** Valid Mass time slots (24h "HH:MM") for a given date, per the daily Mass schedule. */
 function massTimesForJS(dateStr) {
   var dow = new Date(dateStr + 'T00:00:00').getDay();
-  if (dow === 0) return ['06:00', '09:00', '16:30']; // Sunday: 3 Masses
+  if (dow === 0) return ['06:30', '09:30', '16:30']; // Sunday: 1st, 2nd, 3rd Mass
   if (dow === 3) return ['17:15'];                    // Wednesday: afternoon only
   return ['06:00'];                                    // every other day
 }

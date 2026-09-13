@@ -74,7 +74,7 @@ function isStaffDayOff(string $dateStr, ?string $timeStr = null): bool
 function massTimesFor(string $dateStr): array
 {
     $dow = dowOf($dateStr);
-    if ($dow === 0) return ['06:00', '09:00', '16:30']; // Sunday: 3 Masses
+    if ($dow === 0) return ['06:30', '09:30', '16:30']; // Sunday: 1st, 2nd, 3rd Mass
     if ($dow === 3) return ['17:15'];                    // Wednesday: afternoon only
     return ['06:00'];                                    // Every other day: 6:00 AM
 }
@@ -107,50 +107,59 @@ function validateBooking(string $category, string $date, string $time, ?string $
     switch ($category) {
         case 'Baptism':
             if (!isFirstOrThirdSaturday($date)) {
-                return [
+                $result = [
                     'valid' => false,
                     'message' => 'Baptisms are only scheduled on the 1st and 3rd Saturday of the month, at 9:00 AM.',
                     'forcedTime' => null,
                 ];
+                break;
             }
-            return ['valid' => true, 'message' => '', 'forcedTime' => '09:00:00'];
+            $result = ['valid' => true, 'message' => '', 'forcedTime' => '09:00:00'];
+            break;
 
         case 'Wedding':
             if (!isFourthSaturday($date)) {
-                return [
+                $result = [
                     'valid' => false,
                     'message' => 'Weddings are only scheduled on the 4th Saturday of the month, at 8:00 AM.',
                     'forcedTime' => null,
                 ];
+                break;
             }
-            return ['valid' => true, 'message' => '', 'forcedTime' => '08:00:00'];
+            $result = ['valid' => true, 'message' => '', 'forcedTime' => '08:00:00'];
+            break;
 
         case 'Funeral':
             if (!$dateOfDeath) {
-                return [
+                $result = [
                     'valid' => false,
                     'message' => 'Please provide the date of death so we can schedule the funeral Mass after the 9-day mourning period.',
                     'forcedTime' => null,
                 ];
+                break;
             }
             $earliest = date('Y-m-d', strtotime($dateOfDeath . ' +9 days'));
             if ($date < $earliest) {
-                return [
+                $result = [
                     'valid' => false,
                     'message' => "Funeral Masses take place after the 9-day mourning period. The earliest available date based on the date of death is $earliest, at 1:00 PM.",
                     'forcedTime' => null,
                 ];
+                break;
             }
-            return ['valid' => true, 'message' => '', 'forcedTime' => '13:00:00'];
+            $result = ['valid' => true, 'message' => '', 'forcedTime' => '13:00:00'];
+            break;
 
         case 'Confirmation':
             // No fixed rule — schedule depends on the Bishop's availability.
             // The secretary/admin coordinates this manually; any date is accepted here.
-            return ['valid' => true, 'message' => '', 'forcedTime' => null];
+            $result = ['valid' => true, 'message' => '', 'forcedTime' => null];
+            break;
 
         case 'Blessing':
             // No fixed rule — arranged directly between parishioner and priest.
-            return ['valid' => true, 'message' => '', 'forcedTime' => null];
+            $result = ['valid' => true, 'message' => '', 'forcedTime' => null];
+            break;
 
         case 'Mass Intention':
             $validTimes = massTimesFor($date);
@@ -162,13 +171,31 @@ function validateBooking(string $category, string $date, string $time, ?string $
                     'forcedTime' => null,
                 ];
             }
+            // Mass Intentions ARE the Mass — they never conflict with themselves,
+            // so return directly, skipping the "occupied by a Mass" check below.
             return ['valid' => true, 'message' => '', 'forcedTime' => null];
 
         case 'First Communion':
         default:
             // No specific fixed rule beyond the staff day-off, already checked above.
-            return ['valid' => true, 'message' => '', 'forcedTime' => null];
+            $result = ['valid' => true, 'message' => '', 'forcedTime' => null];
+            break;
     }
+
+    // Every other service must not land on a time already occupied by a
+    // scheduled Mass — the priest and church are already committed then.
+    if ($result['valid']) {
+        $effectiveTime = substr($result['forcedTime'] ?? $time, 0, 5);
+        if (in_array($effectiveTime, massTimesFor($date), true)) {
+            return [
+                'valid' => false,
+                'message' => 'That time is occupied by a scheduled Mass. Please choose another time outside Mass hours.',
+                'forcedTime' => null,
+            ];
+        }
+    }
+
+    return $result;
 }
 
 /**
@@ -183,13 +210,15 @@ function schedulingPolicyText(string $category): string
         case 'Wedding':
             return 'Weddings are scheduled on the 4th Saturday of the month, fixed at 8:00 AM.';
         case 'Confirmation':
-            return 'Confirmation schedules depend on the Bishop\'s availability. The parish office will coordinate the exact date with you.';
+            return 'Confirmation schedules depend on the Bishop\'s availability. The parish office will coordinate the exact date with you — just not during a scheduled Mass.';
         case 'Funeral':
             return 'Funeral Masses are held after the 9-day mourning period from the date of death, fixed at 1:00 PM.';
         case 'Blessing':
-            return 'House Blessing schedules are arranged directly between you and the priest. Propose a preferred date and time below.';
+            return 'House Blessing schedules are arranged directly between you and the priest. Propose a preferred date and time below — just not during a scheduled Mass.';
         case 'Mass Intention':
-            return 'Mass Intentions are offered during the regular 6:00 AM Mass (5:15 PM on Wednesdays). The time is assigned automatically based on your chosen date — no need to pick a time. Your request is approved instantly, with no documents required, and you can proceed straight to payment.';
+            return 'Mass Intentions are offered during the daily 6:00 AM Mass (5:15 PM on Wednesdays; 6:30 AM, 9:30 AM, or 4:30 PM on Sundays). The time is assigned automatically based on your chosen date — no need to pick a time. Your request is approved instantly, with no documents required, and you can proceed straight to payment.';
+        case 'First Communion':
+            return 'Propose a preferred date and time below — just not during a scheduled Mass.';
         default:
             return '';
     }
