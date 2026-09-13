@@ -66,7 +66,7 @@ include __DIR__ . '/../includes/dash-start.php';
       <div class="empty-state">
         <div class="icon">📅</div>
         <p>No upcoming appointments.</p>
-        <a href="<?= url('parishioner/book.php') ?>" class="btn btn-primary btn-sm">Book a Service</a>
+        <a href="<?= url('parishioner/services.php') ?>" class="btn btn-primary btn-sm">Book a Service</a>
       </div>
     <?php else: ?>
       <div class="table-wrap">
@@ -137,8 +137,7 @@ include __DIR__ . '/../includes/dash-start.php';
 <div class="card">
   <div class="card-header"><h3>Quick Actions</h3></div>
   <div class="flex gap-3" style="flex-wrap:wrap;">
-    <a href="<?= url('parishioner/book.php') ?>" class="btn btn-primary">📝 Book Appointment</a>
-    <a href="<?= url('parishioner/services.php') ?>" class="btn btn-outline">🕊️ View Services</a>
+    <a href="<?= url('parishioner/services.php') ?>" class="btn btn-primary">📝 Book Appointment</a>
     <a href="<?= url('parishioner/calendar.php') ?>" class="btn btn-outline">🗓️ Parish Calendar</a>
     <a href="<?= url('parishioner/profile.php') ?>" class="btn btn-outline">👤 Edit Profile</a>
   </div>

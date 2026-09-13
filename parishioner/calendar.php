@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', function () {
         alert('This date is not available for booking' + (info.blockedInfo.notes ? ':\n' + info.blockedInfo.notes : '.'));
         return;
       }
-      window.location.href = '<?= url('parishioner/book.php') ?>?date=' + dateStr;
+      window.location.href = '<?= url('parishioner/services.php') ?>?date=' + dateStr;
     }
   });
 });

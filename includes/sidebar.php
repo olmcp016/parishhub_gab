@@ -15,7 +15,6 @@ $__active = $active ?? '';
     <?php if ($__user['role_name'] === 'Parishioner'): ?>
       <li><a href="<?= url('parishioner/dashboard.php') ?>" class="<?= $__active==='dashboard'?'active':'' ?>"><span class="nav-icon"><i data-lucide="layout-dashboard"></i></span> Dashboard</a></li>
       <li><a href="<?= url('parishioner/services.php') ?>" class="<?= $__active==='services'?'active':'' ?>"><span class="nav-icon"><i data-lucide="heart-handshake"></i></span> Services</a></li>
-      <li><a href="<?= url('parishioner/book.php') ?>" class="<?= $__active==='book'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-plus"></i></span> Book Appointment</a></li>
       <li><a href="<?= url('parishioner/appointments.php') ?>" class="<?= $__active==='appointments'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-check"></i></span> My Appointments</a></li>
       <li><a href="<?= url('parishioner/donations.php') ?>" class="<?= $__active==='donations'?'active':'' ?>"><span class="nav-icon"><i data-lucide="hand-heart"></i></span> My Donations</a></li>
       <li><a href="<?= url('parishioner/calendar.php') ?>" class="<?= $__active==='calendar'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-days"></i></span> Parish Calendar</a></li>

@@ -29,7 +29,7 @@ include __DIR__ . '/../includes/dash-start.php';
 <div class="card">
   <div class="card-header">
     <h3>My Appointments</h3>
-    <a href="<?= url('parishioner/book.php') ?>" class="btn btn-primary btn-sm">+ New Booking</a>
+    <a href="<?= url('parishioner/services.php') ?>" class="btn btn-primary btn-sm">+ New Booking</a>
   </div>
 
   <?php if (empty($appointments)): ?>

@@ -991,6 +991,7 @@ dialog.modal {
   max-height: calc(100vh - 80px);
   background: var(--cream);
 }
+dialog.modal.modal-lg { width: 680px; }
 dialog.modal::backdrop { background: rgba(36, 22, 17, 0.55); }
 .modal-head {
   background: var(--brown-dark); color: var(--gold-light);
