@@ -215,6 +215,77 @@ function announcementStatus(?string $startDate, ?string $endDate): string
     return 'Active';
 }
 
+/**
+ * Marks a pending payment verified, issues an official receipt, confirms
+ * the appointment, notifies the parishioner, and (for donations) refreshes
+ * the weekly donor announcement — the single canonical "a payment just
+ * cleared" path, used by both the treasurer's manual verification action
+ * and the automated PayMongo reconciliation, so an online payment flows
+ * into the exact same transaction/reporting trail as a manually-verified one.
+ *
+ * @param int|null $verifiedByUserId NULL for a system/gateway-driven verification (no human staff involved).
+ * @return array{ok: bool, message: string, receipt_number: ?string}
+ */
+function verifyPaymentAndIssueReceipt(int $paymentId, ?int $verifiedByUserId, string $referenceNumber = ''): array
+{
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        $updateStmt = $pdo->prepare(
+            "UPDATE payments SET payment_status='verified', reference_number=?, verified_by=?, verified_at=NOW()
+             WHERE payment_id=? AND payment_status='pending'"
+        );
+        $updateStmt->execute([$referenceNumber, $verifiedByUserId, $paymentId]);
+        if ($updateStmt->rowCount() === 0) {
+            $pdo->rollBack();
+            return ['ok' => false, 'message' => 'Payment already processed or not found.', 'receipt_number' => null];
+        }
+
+        $stmt = $pdo->prepare('SELECT * FROM payments WHERE payment_id = ?');
+        $stmt->execute([$paymentId]);
+        $payment = $stmt->fetch();
+
+        $pdo->prepare("UPDATE appointments SET status_id = 4 WHERE appointment_id = ?")->execute([$payment['appointment_id']]);
+
+        $receiptNumber = 'OR-' . date('Y') . '-' . str_pad((string) $paymentId, 6, '0', STR_PAD_LEFT);
+        $pdo->prepare("INSERT INTO official_receipts (payment_id, receipt_number, issued_by) VALUES (?, ?, ?)")
+            ->execute([$paymentId, $receiptNumber, $verifiedByUserId]);
+
+        $stmt = $pdo->prepare('SELECT parishioner_id FROM appointments WHERE appointment_id = ?');
+        $stmt->execute([$payment['appointment_id']]);
+        $parId = $stmt->fetchColumn();
+        $stmt = $pdo->prepare('SELECT user_id FROM parishioners WHERE parishioner_id = ?');
+        $stmt->execute([$parId]);
+        $puid = $stmt->fetchColumn();
+
+        $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'payment', 'Payment Verified', ?)")
+            ->execute([$puid, "Your payment (Ref: {$payment['reference_number']}) has been verified. Official Receipt $receiptNumber issued."]);
+
+        $stmt = $pdo->prepare(
+            "SELECT s.category FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_id = ?"
+        );
+        $stmt->execute([$payment['appointment_id']]);
+        $isDonation = $stmt->fetchColumn() === 'Donation';
+
+        $pdo->commit();
+        if ($isDonation) {
+            syncWeeklyDonationAnnouncement($verifiedByUserId ?? $puid);
+        }
+        return ['ok' => true, 'message' => "Payment verified. Receipt $receiptNumber generated.", 'receipt_number' => $receiptNumber];
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        error_log($e->getMessage());
+        return ['ok' => false, 'message' => 'Failed to verify payment.', 'receipt_number' => null];
+    }
+}
+
+/** Marks a still-pending payment as failed or cancelled (e.g. a PayMongo checkout that didn't complete). No-op if already resolved. */
+function markPaymentUnsuccessful(int $paymentId, string $status): void
+{
+    db()->prepare("UPDATE payments SET payment_status = ? WHERE payment_id = ? AND payment_status = 'pending'")
+        ->execute([$status, $paymentId]);
+}
+
 /** The current calendar week's Monday and Sunday dates (Y-m-d), Monday-start. */
 function currentWeekBounds(): array
 {

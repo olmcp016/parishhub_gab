@@ -131,7 +131,7 @@ include __DIR__ . '/../includes/dash-start.php';
           <div style="font-size:26px; margin-bottom:6px;">🤲</div>
           <h4 style="margin:0 0 4px;">Donate to Our Parish</h4>
           <p style="font-size:12.5px; color: var(--brown-mid); margin:0 0 14px;">Support our ministries with a voluntary offering.</p>
-          <a href="<?= url('parishioner/donate.php') ?>" class="btn btn-primary btn-block">Donate Now</a>
+          <a href="<?= url('parishioner/donations.php?donate=1') ?>" class="btn btn-primary btn-block">Donate Now</a>
         </div>
       <?php endif; ?>
     </div>

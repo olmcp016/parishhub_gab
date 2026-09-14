@@ -8,55 +8,13 @@ $userId = currentUser()['user_id'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'verify') {
     verifyCsrf();
-    $pdo = db();
-    $pdo->beginTransaction();
-    try {
-        $referenceNumber = trim($_POST['reference_number'] ?? '');
-        $updateStmt = $pdo->prepare(
-            "UPDATE payments SET payment_status='verified', reference_number=?, verified_by=?, verified_at=NOW()
-             WHERE payment_id=? AND payment_status='pending'"
-        );
-        $updateStmt->execute([$referenceNumber, $userId, $id]);
-        if ($updateStmt->rowCount() === 0) {
-            throw new RuntimeException('Payment already processed or not found.');
-        }
-
-        $stmt = $pdo->prepare('SELECT * FROM payments WHERE payment_id = ?');
-        $stmt->execute([$id]);
-        $payment = $stmt->fetch();
-
-        $pdo->prepare("UPDATE appointments SET status_id = 4 WHERE appointment_id = ?")->execute([$payment['appointment_id']]);
-
-        $receiptNumber = 'OR-' . date('Y') . '-' . str_pad((string)$id, 6, '0', STR_PAD_LEFT);
-        $pdo->prepare("INSERT INTO official_receipts (payment_id, receipt_number, issued_by) VALUES (?, ?, ?)")
-            ->execute([$id, $receiptNumber, $userId]);
-
-        $stmt = $pdo->prepare('SELECT parishioner_id FROM appointments WHERE appointment_id = ?');
-        $stmt->execute([$payment['appointment_id']]);
-        $parId = $stmt->fetchColumn();
-        $stmt = $pdo->prepare('SELECT user_id FROM parishioners WHERE parishioner_id = ?');
-        $stmt->execute([$parId]);
-        $puid = $stmt->fetchColumn();
-
-        $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'payment', 'Payment Verified', ?)")
-            ->execute([$puid, "Your payment (Ref: {$payment['reference_number']}) has been verified. Official Receipt $receiptNumber issued."]);
-
-        $stmt = $pdo->prepare(
-            "SELECT s.category FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_id = ?"
-        );
-        $stmt->execute([$payment['appointment_id']]);
-        $isDonation = $stmt->fetchColumn() === 'Donation';
-
-        $pdo->commit();
-        if ($isDonation) {
-            syncWeeklyDonationAnnouncement($userId);
-        }
-        logActivity($userId, "Verified payment #$id, issued receipt $receiptNumber", 'Payments');
-        flash('success', "Payment verified. Receipt $receiptNumber generated.");
-    } catch (Throwable $e) {
-        $pdo->rollBack();
-        error_log($e->getMessage());
-        flash('error', 'Failed to verify payment.');
+    $referenceNumber = trim($_POST['reference_number'] ?? '');
+    $result = verifyPaymentAndIssueReceipt($id, $userId, $referenceNumber);
+    if ($result['ok']) {
+        logActivity($userId, "Verified payment #$id, issued receipt {$result['receipt_number']}", 'Payments');
+        flash('success', $result['message']);
+    } else {
+        flash('error', $result['message']);
     }
     redirect(url('treasurer/payment-detail.php?id=' . $id));
 }

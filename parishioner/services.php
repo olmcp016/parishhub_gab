@@ -60,7 +60,7 @@ include __DIR__ . '/../includes/dash-start.php';
       <p style="font-size:14px;">Support our ministries and services with a voluntary offering — any amount is welcome.</p>
       <div class="flex-between mt-3" style="margin-top:auto;">
         <span class="text-gold" style="font-weight:700; font-size:18px;">Voluntary</span>
-        <a href="<?= url('parishioner/donate.php') ?>" class="btn btn-primary btn-sm">Donate Now</a>
+        <a href="<?= url('parishioner/donations.php?donate=1') ?>" class="btn btn-primary btn-sm">Donate Now</a>
       </div>
     </div>
   <?php endif; ?>

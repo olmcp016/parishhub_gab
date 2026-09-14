@@ -1,7 +1,32 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/paymongo.php';
 requireRole('Parishioner');
+
+/**
+ * The donation form now lives in a modal on My Donations (parishioner/donations.php),
+ * submitted via fetch() (hidden "ajax=1" field), same pattern as book.php. GET
+ * requests just redirect there — no standalone donate page anymore.
+ */
+$isAjax = ($_POST['ajax'] ?? '') === '1';
+
+function donateRespondError(bool $isAjax, string $message): void
+{
+    if ($isAjax) {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'message' => $message]);
+        exit;
+    }
+    flash('error', $message);
+    redirect(url('parishioner/donations.php'));
+}
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    redirect(url('parishioner/donations.php'));
+}
+
+verifyCsrf();
 
 $userId = currentUser()['user_id'];
 $stmt = db()->prepare('SELECT parishioner_id FROM parishioners WHERE user_id = ?');
@@ -10,144 +35,114 @@ $parishionerId = $stmt->fetchColumn();
 
 $donationSetting = db()->query("SELECT setting_value FROM settings WHERE setting_key = 'donation_enabled'")->fetchColumn();
 if ($donationSetting === '0') {
-    flash('error', 'Online donations are currently unavailable. Please check back later.');
-    redirect(url('parishioner/dashboard.php'));
+    donateRespondError($isAjax, 'Online donations are currently unavailable. Please check back later.');
 }
 
 $stmt = db()->prepare("SELECT service_id FROM services WHERE category = 'Donation' AND is_active = TRUE LIMIT 1");
 $stmt->execute();
 $donationServiceId = $stmt->fetchColumn();
 if (!$donationServiceId) {
-    flash('error', 'Online donations are currently unavailable. Please check back later.');
-    redirect(url('parishioner/dashboard.php'));
+    donateRespondError($isAjax, 'Online donations are currently unavailable. Please check back later.');
 }
 
 $purposes = ['General Donation', 'Church Maintenance', 'Charity', 'Mass / Parish Activities'];
-$methods = [2 => 'GCash', 3 => 'Maya', 6 => 'PayPal', 5 => 'Credit / Debit Card'];
+$manualMethods = [1 => 'Cash', 2 => 'GCash', 3 => 'Maya', 4 => 'Bank Transfer', 6 => 'PayPal'];
+const PAYMONGO_METHOD_ID = 7;
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    verifyCsrf();
+$donorName = trim($_POST['donor_name'] ?? '') ?: null;
+$donorEmail = trim($_POST['donor_email'] ?? '') ?: null;
+$amount = (float) ($_POST['amount'] ?? 0);
+$purpose = in_array($_POST['purpose'] ?? '', $purposes, true) ? $_POST['purpose'] : $purposes[0];
+$message = trim($_POST['message'] ?? '') ?: null;
+$projectId = (int) ($_POST['project_id'] ?? 0) ?: null;
+$payOnline = ($_POST['pay_online'] ?? '') === '1';
+$methodId = $payOnline ? PAYMONGO_METHOD_ID : (int) ($_POST['method_id'] ?? 0);
 
-    $donorName = trim($_POST['donor_name'] ?? '') ?: null;
-    $donorEmail = trim($_POST['donor_email'] ?? '') ?: null;
-    $amount = (float) ($_POST['amount'] ?? 0);
-    $purpose = in_array($_POST['purpose'] ?? '', $purposes, true) ? $_POST['purpose'] : $purposes[0];
-    $methodId = (int) ($_POST['method_id'] ?? 0);
-    $message = trim($_POST['message'] ?? '') ?: null;
-
-    if ($amount <= 0) {
-        flash('error', 'Please enter a valid donation amount.');
-        redirect(url('parishioner/donate.php'));
-    }
-    if (!isset($methods[$methodId])) {
-        flash('error', 'Please choose a payment method.');
-        redirect(url('parishioner/donate.php'));
-    }
-
-    $pdo = db();
-    $pdo->beginTransaction();
-    try {
-        // Donations are approved and payable immediately — no secretary
-        // review, no priest, no scheduled time. appointment_date/time just
-        // record when the donation was made.
-        $stmt = $pdo->prepare(
-            "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, approved_at)
-             VALUES (?, ?, NULL, CURRENT_DATE, CURRENT_TIME, 2, NOW())"
-        );
-        $stmt->execute([$parishionerId, $donationServiceId]);
-        $appointmentId = $pdo->lastInsertId();
-
-        $stmt = $pdo->prepare(
-            "INSERT INTO donations (appointment_id, donor_name, donor_email, purpose, message) VALUES (?, ?, ?, ?, ?)"
-        );
-        $stmt->execute([$appointmentId, $donorName, $donorEmail, $purpose, $message]);
-
-        $stmt = $pdo->prepare(
-            "INSERT INTO payments (appointment_id, reference_number, amount, method_id, payment_status, payment_date)
-             VALUES (?, NULL, ?, ?, 'pending', NOW())"
-        );
-        $stmt->execute([$appointmentId, $amount, $methodId]);
-
-        $stmt = $pdo->prepare(
-            "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Thank You for Your Donation', ?)"
-        );
-        $stmt->execute([$userId, "Thank you for your generous donation (#$appointmentId). It will be verified by our cashier shortly."]);
-
-        $pdo->commit();
-        logActivity($userId, "Submitted a donation (#$appointmentId)", 'Donations');
-
-        flash('success', 'Thank you for your donation! It will be verified by our cashier shortly.');
-        redirect(url('parishioner/appointment-detail.php?id=' . $appointmentId));
-    } catch (Throwable $e) {
-        $pdo->rollBack();
-        error_log($e->getMessage());
-        flash('error', 'Failed to submit your donation. Please try again.');
-        redirect(url('parishioner/donate.php'));
-    }
+if ($amount <= 0) {
+    donateRespondError($isAjax, 'Please enter a valid donation amount.');
+}
+if (!$payOnline && !isset($manualMethods[$methodId])) {
+    donateRespondError($isAjax, 'Please choose a payment method.');
 }
 
-$active = 'donations';
-$pageTitle = 'Donate to Our Parish';
-include __DIR__ . '/../includes/header.php';
-include __DIR__ . '/../includes/dash-start.php';
-?>
+$pdo = db();
+$pdo->beginTransaction();
+try {
+    // Donations are approved and payable immediately — no secretary
+    // review, no priest, no scheduled time. appointment_date/time just
+    // record when the donation was made.
+    $stmt = $pdo->prepare(
+        "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, approved_at)
+         VALUES (?, ?, NULL, CURRENT_DATE, CURRENT_TIME, 2, NOW())"
+    );
+    $stmt->execute([$parishionerId, $donationServiceId]);
+    $appointmentId = $pdo->lastInsertId();
 
-<div class="card" style="max-width: 620px;">
-  <div class="card-header"><h3>Donate to Our Parish</h3></div>
-  <p class="helper-text" style="margin-top:-6px; margin-bottom:18px;">Your generosity helps sustain our parish's ministries and services. Every offering, big or small, is deeply appreciated.</p>
+    $stmt = $pdo->prepare(
+        "INSERT INTO donations (appointment_id, donor_name, donor_email, purpose, message, project_id) VALUES (?, ?, ?, ?, ?, ?)"
+    );
+    $stmt->execute([$appointmentId, $donorName, $donorEmail, $purpose, $message, $projectId]);
 
-  <form method="POST" action="<?= url('parishioner/donate.php') ?>">
-    <?= csrfField() ?>
+    $stmt = $pdo->prepare(
+        "INSERT INTO payments (appointment_id, reference_number, amount, method_id, payment_status, payment_date)
+         VALUES (?, NULL, ?, ?, 'pending', NOW())"
+    );
+    $stmt->execute([$appointmentId, $amount, $methodId]);
+    $paymentId = $pdo->lastInsertId();
 
-    <div class="form-row">
-      <div class="form-group">
-        <label>Donor Name (optional)</label>
-        <input type="text" name="donor_name" placeholder="Leave blank to donate anonymously">
-      </div>
-      <div class="form-group">
-        <label>Email Address (optional)</label>
-        <input type="email" name="donor_email" placeholder="you@example.com">
-      </div>
-    </div>
+    if ($payOnline) {
+        // Real-time PayMongo checkout — the browser gets redirected to
+        // PayMongo's own hosted payment page (required by the provider for
+        // card/e-wallet entry; card numbers never touch our server). The
+        // donor lands back on My Donations, which reconciles the result.
+        $successUrl = absoluteUrl('parishioner/donations.php') . '?paymongo_return=1&appointment_id=' . $appointmentId;
+        $cancelUrl = absoluteUrl('parishioner/donations.php') . '?paymongo_cancelled=1&appointment_id=' . $appointmentId;
+        $checkout = paymongoCreateCheckoutSession($amount, 'Donation — ' . $purpose, $successUrl, $cancelUrl, $donorEmail);
 
-    <div class="form-group">
-      <label>Donation Amount</label>
-      <input type="number" name="amount" min="1" step="0.01" placeholder="e.g. 500" required>
-    </div>
+        if (!$checkout['ok']) {
+            $pdo->rollBack();
+            error_log('PayMongo checkout session creation failed: ' . json_encode($checkout['raw']));
+            donateRespondError($isAjax, 'Could not start the online payment right now (' . $checkout['error'] . '). Please try again or choose "Pay Later" instead.');
+        }
 
-    <div class="form-group">
-      <label>Purpose of Donation</label>
-      <div class="radio-group">
-        <?php foreach ($purposes as $i => $p): ?>
-          <label class="radio-option">
-            <input type="radio" name="purpose" value="<?= e($p) ?>" <?= $i === 0 ? 'checked' : '' ?>>
-            <?= e($p) ?>
-          </label>
-        <?php endforeach; ?>
-      </div>
-    </div>
+        $stmt = $pdo->prepare(
+            "INSERT INTO transactions (payment_id, gateway, gateway_transaction_id, status, raw_response) VALUES (?, 'paymongo', ?, 'pending', ?)"
+        );
+        $stmt->execute([$paymentId, $checkout['session_id'], json_encode($checkout['raw'])]);
 
-    <div class="form-group">
-      <label>Payment Method</label>
-      <div class="radio-group">
-        <?php foreach ($methods as $id => $label): ?>
-          <label class="radio-option">
-            <input type="radio" name="method_id" value="<?= $id ?>" required>
-            <?= e($label) ?>
-          </label>
-        <?php endforeach; ?>
-      </div>
-    </div>
+        $pdo->commit();
+        logActivity($userId, "Started an online donation (#$appointmentId) via PayMongo", 'Donations');
 
-    <div class="form-group">
-      <label>Message (optional)</label>
-      <textarea name="message" rows="3" placeholder="Anything you'd like to share with the parish..."></textarea>
-    </div>
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true, 'redirect' => $checkout['checkout_url']]);
+            exit;
+        }
+        redirect($checkout['checkout_url']);
+    }
 
-    <button type="submit" class="btn btn-primary btn-block">Donate Now</button>
-    <p class="helper-text mt-2">After submitting, please wait for our cashier to verify your payment.</p>
-  </form>
-</div>
+    $stmt = $pdo->prepare(
+        "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Thank You for Your Donation', ?)"
+    );
+    $stmt->execute([$userId, "Thank you for your generous donation (#$appointmentId). It will be verified by our cashier shortly."]);
 
-<?php include __DIR__ . '/../includes/dash-end.php'; ?>
-<?php include __DIR__ . '/../includes/footer.php'; ?>
+    $pdo->commit();
+    logActivity($userId, "Submitted a donation (#$appointmentId)", 'Donations');
+
+    $successMessage = 'Thank you for your donation! It will be verified by our cashier shortly.';
+    if ($isAjax) {
+        header('Content-Type: application/json');
+        echo json_encode([
+            'success' => true,
+            'message' => $successMessage,
+            'detail_url' => url('parishioner/appointment-detail.php?id=' . $appointmentId),
+        ]);
+        exit;
+    }
+    flash('success', $successMessage);
+    redirect(url('parishioner/appointment-detail.php?id=' . $appointmentId));
+} catch (Throwable $e) {
+    $pdo->rollBack();
+    error_log($e->getMessage());
+    donateRespondError($isAjax, 'Failed to submit your donation. Please try again.');
+}

@@ -188,6 +188,7 @@ include __DIR__ . '/../includes/dash-start.php';
         <option value="verified" <?= $statusFilter==='verified'?'selected':'' ?>>Verified</option>
         <option value="failed" <?= $statusFilter==='failed'?'selected':'' ?>>Failed</option>
         <option value="refunded" <?= $statusFilter==='refunded'?'selected':'' ?>>Refunded</option>
+        <option value="cancelled" <?= $statusFilter==='cancelled'?'selected':'' ?>>Cancelled</option>
       </select>
     </div>
     <div class="form-group"><label>Search</label><input type="text" name="search" value="<?= e($search) ?>" placeholder="Donor name, email, or purpose"></div>

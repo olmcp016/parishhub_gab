@@ -72,6 +72,21 @@ function url(string $path = ''): string
     return rtrim(baseUrl(), '/') . '/' . ltrim($path, '/');
 }
 
+/**
+ * A fully-qualified (scheme+host) version of url() — needed whenever a URL
+ * is handed to an external party (e.g. a payment gateway's success/cancel
+ * redirect) rather than used in our own HTML, where a path-relative url()
+ * is fine because the browser resolves it against our own origin. Handing
+ * an external site a bare path breaks: it resolves against THEIR origin
+ * instead of ours.
+ */
+function absoluteUrl(string $path = ''): string
+{
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https'
+        ? 'https' : 'http';
+    return $scheme . '://' . $_SERVER['HTTP_HOST'] . url($path);
+}
+
 /** Detects the base path PARISHHUB is served from (works whether it's at / or /parishhub/) */
 function baseUrl(): string
 {

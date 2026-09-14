@@ -41,7 +41,15 @@ function db(): PDO
         $pdo = new PDO($dsn, DB_USER, DB_PASS, [
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES   => false,
+            // Supabase's connection string here uses port 6543 — PgBouncer in
+            // transaction-pooling mode, which does not reliably support native
+            // (server-side) prepared statements once a transaction issues
+            // enough distinct prepares: it fails with a generic "current
+            // transaction is aborted" error with no useful diagnostic. Emulated
+            // (client-side) prepares avoid this entirely and are the standard,
+            // safe (still fully parameterized, no SQL-injection risk) setting
+            // for PDO against a transaction pooler.
+            PDO::ATTR_EMULATE_PREPARES   => true,
         ]);
     }
     return $pdo;
