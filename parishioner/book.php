@@ -3,12 +3,10 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/scheduling.php';
 require_once __DIR__ . '/../includes/document-validation.php';
-requireRole('Parishioner');
-
-$userId = currentUser()['user_id'];
-$stmt = db()->prepare('SELECT parishioner_id FROM parishioners WHERE user_id = ?');
-$stmt->execute([$userId]);
-$parishionerId = $stmt->fetchColumn();
+$identity = requireParishionerOrGuest();
+$userId = $identity['user_id'];
+$parishionerId = $identity['parishioner_id'];
+$isGuest = $identity['is_guest'];
 
 const SCHEDULE_TOGGLE_CATEGORIES = ['Baptism', 'Wedding', 'Blessing', 'Confirmation'];
 
@@ -51,6 +49,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $dateOfDeath = ($_POST['date_of_death'] ?? '') ?: null;
     $remarks = trim($_POST['remarks'] ?? '') ?: null;
     $scheduleType = in_array($_POST['schedule_type'] ?? '', ['Regular', 'Special'], true) ? $_POST['schedule_type'] : null;
+
+    $guestName = null;
+    $guestEmail = null;
+    $guestPhone = null;
+    $guestReference = null;
+    if ($isGuest) {
+        $guestName = trim($_POST['guest_name'] ?? '');
+        $guestPhone = trim($_POST['guest_phone'] ?? '');
+        $guestEmail = trim($_POST['guest_email'] ?? '') ?: null;
+        if ($guestName === '' || $guestPhone === '') {
+            bookRespondError($isAjax, 'Please provide your name and phone number.', url('parishioner/services.php'));
+        }
+        $guestReference = generateGuestReference();
+    }
 
     $stmt = db()->prepare('SELECT category, requirements FROM services WHERE service_id = ?');
     $stmt->execute([$serviceId]);
@@ -160,10 +172,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $approvedAtValue = $isMassIntention ? ', NOW()' : '';
 
         $stmt = $pdo->prepare(
-            "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, date_of_death, schedule_type{$approvedAtColumn})
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?{$approvedAtValue})"
+            "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, date_of_death, schedule_type, guest_name, guest_email, guest_phone, guest_reference{$approvedAtColumn})
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$approvedAtValue})"
         );
-        $stmt->execute([$parishionerId, $serviceId, $priestId, $date, $finalTime, $initialStatusId, $remarks, $dateOfDeath, $scheduleTypeToSave]);
+        $stmt->execute([$parishionerId, $serviceId, $priestId, $date, $finalTime, $initialStatusId, $remarks, $dateOfDeath, $scheduleTypeToSave, $guestName, $guestEmail, $guestPhone, $guestReference]);
         $appointmentId = $pdo->lastInsertId();
 
         if ($category === 'Mass Intention' && !empty($_POST['intention_type'])) {
@@ -198,26 +210,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $documentsReminder = 'Reminder: this service requires documents (' . implode(', ', $requirementsList) . '). You can upload them now or later from your appointment page — your request just won\'t be approved until they\'re submitted and verified.';
         }
 
-        if ($isMassIntention) {
-            $stmt = $pdo->prepare(
-                "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Mass Intention Approved', ?)"
-            );
-            $stmt->execute([$userId, "Your Mass Intention request (#$appointmentId) has been automatically approved. You may now proceed to payment."]);
-        } else {
-            $stmt = $pdo->prepare(
-                "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Appointment Submitted', ?)"
-            );
-            $stmt->execute([$userId, "Your appointment request (#$appointmentId) has been submitted and is pending review. Our secretary will check your requirements next."]);
+        // Guests have no account to receive an in-app notification —
+        // their reference code (shown on confirmation) is how they check
+        // status instead.
+        if (!$isGuest) {
+            if ($isMassIntention) {
+                $stmt = $pdo->prepare(
+                    "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Mass Intention Approved', ?)"
+                );
+                $stmt->execute([$userId, "Your Mass Intention request (#$appointmentId) has been automatically approved. You may now proceed to payment."]);
+            } else {
+                $stmt = $pdo->prepare(
+                    "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Appointment Submitted', ?)"
+                );
+                $stmt->execute([$userId, "Your appointment request (#$appointmentId) has been submitted and is pending review. Our secretary will check your requirements next."]);
+            }
         }
 
         $pdo->commit();
-        logActivity($userId, "Booked appointment #$appointmentId", 'Appointments');
+        logActivity($userId, "Booked appointment #$appointmentId" . ($isGuest ? ' (guest)' : ''), 'Appointments');
 
         if ($isMassIntention) {
             $successMessage = 'Your Mass Intention request has been automatically approved! You can proceed to payment right away — no documents needed.';
         } else {
             $successMessage = 'Appointment request submitted! Our secretary will review your requirements before approving.';
         }
+        if ($isGuest) {
+            $successMessage .= " Your reference code is $guestReference — save it to check your request's status anytime.";
+        }
+
+        $detailUrl = $isGuest
+            ? url('status.php?ref=' . urlencode($guestReference))
+            : url('parishioner/appointment-detail.php?id=' . $appointmentId);
 
         if ($isAjax) {
             header('Content-Type: application/json');
@@ -228,7 +252,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'skipped_files' => $skippedFiles,
                 'documents_reminder' => $documentsReminder,
                 'schedule_type' => $scheduleTypeToSave,
-                'detail_url' => url('parishioner/appointment-detail.php?id=' . $appointmentId),
+                'guest_reference' => $guestReference,
+                'detail_url' => $detailUrl,
             ]);
             exit;
         }
@@ -238,7 +263,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $limit = ini_get('upload_max_filesize');
             flash('error', 'Note: the following file(s) were too large (max ' . $limit . ' each) and were NOT uploaded: ' . implode(', ', $skippedFiles) . '. You can upload them separately from your appointment page.');
         }
-        redirect(url('parishioner/appointment-detail.php?id=' . $appointmentId));
+        redirect($detailUrl);
     } catch (Throwable $e) {
         $pdo->rollBack();
         error_log($e->getMessage());

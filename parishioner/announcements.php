@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
-requireRole('Parishioner');
+// Fully public — anyone can view parish announcements without an account.
 
 // Compare against PHP's Asia/Manila "today" (config/config.php), not
 // Postgres's own CURRENT_DATE — the DB session's timezone isn't guaranteed
@@ -28,7 +28,7 @@ $weekDonors = getCurrentWeekDonors();
 $active = 'announcements';
 $pageTitle = 'Announcements';
 include __DIR__ . '/../includes/header.php';
-include __DIR__ . '/../includes/dash-start.php';
+include __DIR__ . '/../includes/' . (usesParishionerShell() ? 'dash-start.php' : 'public-shell-start.php');
 ?>
 
 <?php if (empty($announcements)): ?>
@@ -84,5 +84,5 @@ include __DIR__ . '/../includes/dash-start.php';
 </dialog>
 <?php endif; ?>
 
-<?php include __DIR__ . '/../includes/dash-end.php'; ?>
+<?php include __DIR__ . '/../includes/' . (usesParishionerShell() ? 'dash-end.php' : 'public-shell-end.php'); ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

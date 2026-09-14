@@ -11,7 +11,7 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/scheduling.php';
-requireRole('Parishioner');
+requireParishionerOrGuest();
 
 header('Content-Type: application/json');
 

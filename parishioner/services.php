@@ -2,7 +2,7 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/scheduling.php';
-requireRole('Parishioner');
+$identity = requireParishionerOrGuest();
 
 $services = db()->query("SELECT * FROM services WHERE is_active = 1 AND category != 'Donation' ORDER BY category, service_name")->fetchAll();
 $donationEnabled = db()->query("SELECT setting_value FROM settings WHERE setting_key = 'donation_enabled'")->fetchColumn() !== '0';
@@ -30,8 +30,14 @@ $scheduleToggleCategories = ['Baptism', 'Wedding', 'Blessing', 'Confirmation'];
 $active = 'services';
 $pageTitle = 'Available Services';
 include __DIR__ . '/../includes/header.php';
-include __DIR__ . '/../includes/dash-start.php';
+include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start.php' : 'dash-start.php');
 ?>
+
+<?php if ($identity['is_guest']): ?>
+  <div class="alert" style="background: var(--cream); color: var(--brown-mid); border: 1px solid var(--cream-dark); margin-bottom:18px;">
+    You're browsing as a guest — no account needed to book. <a href="<?= url('auth/register.php') ?>">Create a free account</a> to track your requests in one place, or continue below and save your confirmation reference code.
+  </div>
+<?php endif; ?>
 
 <div class="grid-3">
   <?php foreach ($services as $s): ?>
@@ -80,6 +86,25 @@ include __DIR__ . '/../includes/dash-start.php';
       <form method="POST" action="<?= url('parishioner/book.php') ?>" enctype="multipart/form-data" id="bookForm">
         <?= csrfField() ?>
         <input type="hidden" name="ajax" value="1">
+
+        <?php if ($identity['is_guest']): ?>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Your Full Name</label>
+            <input type="text" name="guest_name" required placeholder="Juan Dela Cruz">
+          </div>
+          <div class="form-group">
+            <label>Phone Number</label>
+            <input type="tel" name="guest_phone" required placeholder="09XX XXX XXXX">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Email Address (optional)</label>
+          <input type="email" name="guest_email" placeholder="you@example.com">
+          <p class="helper-text">We'll use this and your phone number to identify your request — you'll get a reference code to check its status anytime.</p>
+        </div>
+        <?php endif; ?>
+
         <div class="form-group">
           <label>Select Service</label>
           <select name="service_id" id="serviceSelect" required>
@@ -229,6 +254,10 @@ include __DIR__ . '/../includes/dash-start.php';
       <h3 style="margin:0 0 10px;">Request Submitted!</h3>
       <p id="bookConfirmScheduleType" style="display:none; margin: -4px 0 10px;"></p>
       <p id="bookConfirmMessage" style="color: var(--brown-mid); margin-bottom:20px;"></p>
+      <div id="bookConfirmReferenceBox" style="display:none; background: var(--cream); border: 1px solid var(--cream-dark); border-radius: 10px; padding: 14px; margin-bottom:20px;">
+        <p class="helper-text" style="margin:0 0 6px;">Your reference code — save this to check your request's status anytime:</p>
+        <p style="font-size:22px; font-weight:700; letter-spacing:1px; color: var(--brown-dark); margin:0;" id="bookConfirmReferenceCode"></p>
+      </div>
       <div class="flex gap-3" style="justify-content:center; flex-wrap:wrap;">
         <a href="#" id="bookConfirmDetailLink" class="btn btn-outline">View Appointment</a>
         <button type="button" class="btn btn-primary" onclick="closeBookModal()">Done</button>
@@ -718,7 +747,17 @@ document.addEventListener('DOMContentLoaded', function () {
           document.getElementById('bookFormView').style.display = 'none';
           document.getElementById('bookConfirmView').style.display = 'block';
           document.getElementById('bookConfirmMessage').textContent = data.message + (data.documents_reminder ? ' ' + data.documents_reminder : '');
-          document.getElementById('bookConfirmDetailLink').href = data.detail_url;
+          var detailLink = document.getElementById('bookConfirmDetailLink');
+          var referenceBox = document.getElementById('bookConfirmReferenceBox');
+          if (data.guest_reference) {
+            detailLink.style.display = 'none';
+            document.getElementById('bookConfirmReferenceCode').textContent = data.guest_reference;
+            referenceBox.style.display = 'block';
+          } else {
+            detailLink.style.display = '';
+            detailLink.href = data.detail_url;
+            referenceBox.style.display = 'none';
+          }
           var typeLine = document.getElementById('bookConfirmScheduleType');
           if (data.schedule_type) {
             typeLine.textContent = data.schedule_type + ' Schedule';
@@ -743,5 +782,5 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 
-<?php include __DIR__ . '/../includes/dash-end.php'; ?>
+<?php include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-end.php' : 'dash-end.php'); ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
