@@ -8,7 +8,11 @@ $stmt = db()->prepare('SELECT parishioner_id FROM parishioners WHERE user_id = ?
 $stmt->execute([$userId]);
 $parishionerId = $stmt->fetchColumn();
 
-$stmt = db()->query("SELECT * FROM announcements WHERE status='published' ORDER BY is_pinned DESC, created_at DESC LIMIT 5");
+$stmt = db()->prepare(
+    "SELECT * FROM announcements WHERE status='published' AND (end_date IS NULL OR end_date >= ?)
+     ORDER BY is_pinned DESC, created_at DESC LIMIT 5"
+);
+$stmt->execute([date('Y-m-d')]);
 $announcements = $stmt->fetchAll();
 
 // Hide a prior week's auto-generated donor digest once a new week starts —

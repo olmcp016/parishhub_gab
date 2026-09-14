@@ -2,7 +2,11 @@
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/functions.php';
 
-$stmt = db()->query("SELECT * FROM announcements WHERE status='published' ORDER BY is_pinned DESC, created_at DESC LIMIT 3");
+$stmt = db()->prepare(
+    "SELECT * FROM announcements WHERE status='published' AND (end_date IS NULL OR end_date >= ?)
+     ORDER BY is_pinned DESC, created_at DESC LIMIT 3"
+);
+$stmt->execute([date('Y-m-d')]);
 $announcements = $stmt->fetchAll();
 
 $stmt = db()->query("SELECT * FROM services WHERE is_active=TRUE AND category != 'Donation' ORDER BY category, service_name LIMIT 6");

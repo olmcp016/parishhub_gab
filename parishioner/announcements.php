@@ -3,9 +3,17 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 requireRole('Parishioner');
 
-$announcements = db()->query(
-    "SELECT * FROM announcements WHERE status = 'published' ORDER BY is_pinned DESC, created_at DESC"
-)->fetchAll();
+// Compare against PHP's Asia/Manila "today" (config/config.php), not
+// Postgres's own CURRENT_DATE — the DB session's timezone isn't guaranteed
+// to match the parish's local time, which caused a real bug earlier this
+// session for a different date comparison.
+$stmt = db()->prepare(
+    "SELECT * FROM announcements WHERE status = 'published'
+       AND (end_date IS NULL OR end_date >= ?)
+     ORDER BY is_pinned DESC, created_at DESC"
+);
+$stmt->execute([date('Y-m-d')]);
+$announcements = $stmt->fetchAll();
 
 // A prior week's auto-generated donor digest is stale once a new week starts —
 // its modal only ever holds the CURRENT week's donors, so keeping it visible
@@ -29,11 +37,18 @@ include __DIR__ . '/../includes/dash-start.php';
   <div class="grid-3">
     <?php foreach ($announcements as $a): ?>
       <?php $isDonorCard = isCurrentWeeklyDonorAnnouncement($a['title']); ?>
+      <?php $annStatus = announcementStatus($a['start_date'], $a['end_date']); ?>
       <div class="card <?= $isDonorCard ? 'card-clickable' : '' ?>" style="display:flex; flex-direction:column;"
            <?php if ($isDonorCard): ?>onclick="document.getElementById('donorModal').showModal()"<?php endif; ?>>
+        <?php if ($a['image']): ?>
+          <img src="<?= documentUrl($a['image']) ?>" alt="" style="width:100%; max-height:180px; object-fit:cover; border-radius:10px; margin-bottom:10px;">
+        <?php endif; ?>
         <div class="flex-between" style="align-items:flex-start; gap:8px; margin-bottom:4px;">
           <h3 style="margin:0;"><?= e($a['title']) ?></h3>
-          <?php if ($a['is_pinned']): ?><span class="badge badge-pending" style="flex-shrink:0;">Pinned</span><?php endif; ?>
+          <div class="flex gap-2" style="flex-shrink:0;">
+            <?php if ($annStatus === 'Upcoming'): ?><span class="badge badge-regular">Upcoming</span><?php endif; ?>
+            <?php if ($a['is_pinned']): ?><span class="badge badge-pending">Pinned</span><?php endif; ?>
+          </div>
         </div>
         <span class="text-muted" style="font-size:13px; margin-bottom:12px;"><?= formatDate($a['created_at']) ?></span>
         <p style="margin:0; white-space: pre-line;"><?= e($a['content']) ?></p>

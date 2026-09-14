@@ -196,6 +196,25 @@ function renderPagination(int $page, int $totalPages, string $baseUrl): string
     HTML;
 }
 
+/**
+ * Upcoming / Active / Expired status for an announcement, derived from its
+ * start_date/end_date rather than stored — always correct, never stale.
+ * An announcement with no dates set (legacy rows, or "no expiry") is always
+ * Active, preserving today's behavior for anything not using the new
+ * duration feature.
+ */
+function announcementStatus(?string $startDate, ?string $endDate): string
+{
+    $today = date('Y-m-d');
+    if ($startDate && $startDate > $today) {
+        return 'Upcoming';
+    }
+    if ($endDate && $endDate < $today) {
+        return 'Expired';
+    }
+    return 'Active';
+}
+
 /** The current calendar week's Monday and Sunday dates (Y-m-d), Monday-start. */
 function currentWeekBounds(): array
 {

@@ -1,0 +1,11 @@
+CREATE TABLE IF NOT EXISTS projects (
+    project_id SERIAL PRIMARY KEY,
+    project_name VARCHAR(150) NOT NULL,
+    description TEXT,
+    target_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_by INT DEFAULT NULL REFERENCES users(user_id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE donations ADD COLUMN IF NOT EXISTS project_id INT REFERENCES projects(project_id) ON DELETE SET NULL;
