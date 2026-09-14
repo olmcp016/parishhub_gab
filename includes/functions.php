@@ -145,6 +145,57 @@ function parseRequirementsList(?string $requirementsText): array
     return array_values(array_filter($items, fn($item) => $item !== ''));
 }
 
+/**
+ * Simple page-number pagination from $_GET['page']. Returns the page/offset/
+ * limit to use in a LIMIT/OFFSET query plus the total page count, clamped to
+ * a valid range so an out-of-range ?page= never errors or shows nothing.
+ */
+function paginate(int $totalRows, int $perPage = 10): array
+{
+    $totalPages = max(1, (int) ceil($totalRows / $perPage));
+    $page = max(1, min($totalPages, (int) ($_GET['page'] ?? 1)));
+    return [
+        'page' => $page,
+        'totalPages' => $totalPages,
+        'offset' => ($page - 1) * $perPage,
+        'limit' => $perPage,
+    ];
+}
+
+/**
+ * Renders a simple Prev/Next pagination bar. $baseUrl is the current page's
+ * URL without a `page` query param (other filters, if any, should already
+ * be included) — `page=N` is appended to it for each control.
+ */
+function renderPagination(int $page, int $totalPages, string $baseUrl): string
+{
+    if ($totalPages <= 1) {
+        return '';
+    }
+    $sep = str_contains($baseUrl, '?') ? '&' : '?';
+    $disabledStyle = 'opacity:.4; pointer-events:none;';
+
+    if ($page <= 1) {
+        $prevTag = '<span class="btn btn-outline btn-sm" style="' . $disabledStyle . '">&laquo; Previous</span>';
+    } else {
+        $prevTag = '<a href="' . e($baseUrl . $sep . 'page=' . ($page - 1)) . '" class="btn btn-outline btn-sm">&laquo; Previous</a>';
+    }
+
+    if ($page >= $totalPages) {
+        $nextTag = '<span class="btn btn-outline btn-sm" style="' . $disabledStyle . '">Next &raquo;</span>';
+    } else {
+        $nextTag = '<a href="' . e($baseUrl . $sep . 'page=' . ($page + 1)) . '" class="btn btn-outline btn-sm">Next &raquo;</a>';
+    }
+
+    return <<<HTML
+    <div class="flex gap-2" style="justify-content:center; align-items:center; margin-top:14px;">
+      {$prevTag}
+      <span class="text-muted" style="font-size:13px;">Page {$page} of {$totalPages}</span>
+      {$nextTag}
+    </div>
+    HTML;
+}
+
 /** The current calendar week's Monday and Sunday dates (Y-m-d), Monday-start. */
 function currentWeekBounds(): array
 {

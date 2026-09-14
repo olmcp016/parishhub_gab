@@ -10,10 +10,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     if ($action === 'add_event') {
         db()->prepare(
-            "INSERT INTO events (title, description, event_date, event_time, location, created_by) VALUES (?, ?, ?, ?, ?, ?)"
+            "INSERT INTO events (title, description, event_date, event_time, location_id, priest_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)"
         )->execute([
             $_POST['title'], $_POST['description'] ?: null, $_POST['event_date'],
-            $_POST['event_time'] ?: null, $_POST['location'] ?: null, $userId,
+            $_POST['event_time'] ?: null, $_POST['location_id'] ?: null, $_POST['priest_id'] ?: null, $userId,
         ]);
         flash('success', 'Event added to calendar.');
     } elseif ($action === 'block_date') {
@@ -31,11 +31,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect(url('secretary/calendar.php'));
 }
 
-$events = db()->query('SELECT * FROM events ORDER BY event_date ASC')->fetchAll();
+// The mini calendar widget needs every event for month-navigation dots;
+// the "Upcoming Events" table below is paginated separately.
+$allEvents = db()->query('SELECT * FROM events ORDER BY event_date ASC')->fetchAll();
 $blocks = db()->query('SELECT * FROM calendar ORDER BY calendar_date ASC')->fetchAll();
 
-$calendarEvents = array_map(fn($e) => ['date' => $e['event_date'], 'title' => $e['title']], $events);
+$today = date('Y-m-d');
+$stmt = db()->prepare('SELECT COUNT(*) FROM events WHERE event_date >= ?');
+$stmt->execute([$today]);
+$eventPagination = paginate((int) $stmt->fetchColumn(), 10);
+
+$calendarEvents = array_map(fn($e) => ['date' => $e['event_date'], 'title' => $e['title']], $allEvents);
 $calendarBlocked = array_map(fn($b) => ['date' => $b['calendar_date'], 'notes' => $b['notes']], $blocks);
+
+$locations = db()->query('SELECT * FROM locations WHERE is_active = TRUE ORDER BY name')->fetchAll();
+$priests = db()->query("SELECT * FROM priests WHERE status = 'active' ORDER BY full_name")->fetchAll();
+
+$stmt = db()->prepare(
+    "SELECT e.*, l.name AS location_name, p.title AS priest_title, p.full_name AS priest_name
+     FROM events e
+     LEFT JOIN locations l ON e.location_id = l.location_id
+     LEFT JOIN priests p ON e.priest_id = p.priest_id
+     WHERE e.event_date >= ? ORDER BY e.event_date ASC, e.event_time ASC LIMIT ? OFFSET ?"
+);
+$stmt->bindValue(1, $today);
+$stmt->bindValue(2, $eventPagination['limit'], PDO::PARAM_INT);
+$stmt->bindValue(3, $eventPagination['offset'], PDO::PARAM_INT);
+$stmt->execute();
+$events = $stmt->fetchAll();
 
 $active = 'calendar';
 $pageTitle = 'Manage Calendar';
@@ -67,7 +90,25 @@ include __DIR__ . '/../includes/dash-start.php';
           <div class="form-group"><label>Date</label><input type="date" name="event_date" id="eventDateInput" required></div>
           <div class="form-group"><label>Time</label><input type="time" name="event_time"></div>
         </div>
-        <div class="form-group"><label>Location</label><input type="text" name="location"></div>
+        <div class="form-group">
+          <label>Location</label>
+          <select name="location_id">
+            <option value="">-- Select location --</option>
+            <?php foreach ($locations as $loc): ?>
+              <option value="<?= $loc['location_id'] ?>"><?= e($loc['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+          <?php if (empty($locations)): ?><p class="helper-text">No locations yet — <a href="<?= url('secretary/locations.php') ?>">add one first</a>.</p><?php endif; ?>
+        </div>
+        <div class="form-group">
+          <label>Priest (optional)</label>
+          <select name="priest_id">
+            <option value="">No preference</option>
+            <?php foreach ($priests as $p): ?>
+              <option value="<?= $p['priest_id'] ?>"><?= e($p['title']) ?> <?= e($p['full_name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
         <button type="submit" class="btn btn-primary btn-block">Add Event</button>
       </form>
     </div>
@@ -89,14 +130,15 @@ include __DIR__ . '/../includes/dash-start.php';
   <div class="card-header"><h3>Upcoming Events</h3></div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Title</th><th>Date</th><th>Time</th><th>Location</th><th></th></tr></thead>
+      <thead><tr><th>Title</th><th>Date</th><th>Time</th><th>Location</th><th>Priest</th><th></th></tr></thead>
       <tbody>
         <?php foreach ($events as $ev): ?>
           <tr>
             <td><?= e($ev['title']) ?></td>
             <td><?= formatDate($ev['event_date']) ?></td>
             <td><?= e($ev['event_time'] ?? '—') ?></td>
-            <td><?= e($ev['location'] ?? '—') ?></td>
+            <td><?= e($ev['location_name'] ?? $ev['location'] ?? '—') ?></td>
+            <td><?= $ev['priest_name'] ? e($ev['priest_title'] . ' ' . $ev['priest_name']) : '—' ?></td>
             <td>
               <form method="POST" action="<?= url('secretary/calendar.php') ?>" onsubmit="return confirm('Remove this event?');" style="display:inline;">
                 <?= csrfField() ?>
@@ -110,7 +152,11 @@ include __DIR__ . '/../includes/dash-start.php';
       </tbody>
     </table>
   </div>
-  <?php if (empty($events)): ?><p class="text-muted text-center mt-3">No events scheduled.</p><?php endif; ?>
+  <?php if (empty($events)): ?>
+    <p class="text-muted text-center mt-3">No upcoming events scheduled.</p>
+  <?php else: ?>
+    <?= renderPagination($eventPagination['page'], $eventPagination['totalPages'], url('secretary/calendar.php')) ?>
+  <?php endif; ?>
 </div>
 
 <div class="card">

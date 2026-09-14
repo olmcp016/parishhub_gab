@@ -3,11 +3,32 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 requireRole('Parishioner');
 
-$events = db()->query('SELECT * FROM events ORDER BY event_date ASC')->fetchAll();
+// The mini calendar widget needs every event (so month navigation always
+// shows the right dots), but the "Upcoming Parish Events" table below it is
+// paginated separately — a long unbounded list isn't useful there.
+$allEvents = db()->query('SELECT * FROM events ORDER BY event_date ASC')->fetchAll();
 $blocked = db()->query('SELECT * FROM calendar WHERE is_blocked = 1 ORDER BY calendar_date ASC')->fetchAll();
 
+$today = date('Y-m-d');
+$stmt = db()->prepare('SELECT COUNT(*) FROM events WHERE event_date >= ?');
+$stmt->execute([$today]);
+$totalUpcoming = (int) $stmt->fetchColumn();
+$pagination = paginate($totalUpcoming, 10);
+$stmt = db()->prepare(
+    "SELECT e.*, l.name AS location_name, p.title AS priest_title, p.full_name AS priest_name
+     FROM events e
+     LEFT JOIN locations l ON e.location_id = l.location_id
+     LEFT JOIN priests p ON e.priest_id = p.priest_id
+     WHERE e.event_date >= ? ORDER BY e.event_date ASC, e.event_time ASC LIMIT ? OFFSET ?"
+);
+$stmt->bindValue(1, $today);
+$stmt->bindValue(2, $pagination['limit'], PDO::PARAM_INT);
+$stmt->bindValue(3, $pagination['offset'], PDO::PARAM_INT);
+$stmt->execute();
+$events = $stmt->fetchAll();
+
 // Data for the JS calendar widget — dates come back from MySQL as 'YYYY-MM-DD' strings already
-$calendarEvents = array_map(fn($e) => ['date' => $e['event_date'], 'title' => $e['title']], $events);
+$calendarEvents = array_map(fn($e) => ['date' => $e['event_date'], 'title' => $e['title']], $allEvents);
 $calendarBlocked = array_map(fn($b) => ['date' => $b['calendar_date'], 'notes' => $b['notes']], $blocked);
 
 $active = 'calendar';
@@ -31,23 +52,25 @@ include __DIR__ . '/../includes/dash-start.php';
     <div class="card">
       <div class="card-header"><h3>Upcoming Parish Events</h3></div>
       <?php if (empty($events)): ?>
-        <p class="text-muted">No events scheduled.</p>
+        <p class="text-muted">No upcoming events scheduled.</p>
       <?php else: ?>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Event</th><th>Date</th><th>Time</th><th>Location</th></tr></thead>
+            <thead><tr><th>Event</th><th>Date</th><th>Time</th><th>Location</th><th>Priest</th></tr></thead>
             <tbody>
               <?php foreach ($events as $ev): ?>
                 <tr>
                   <td><?= e($ev['title']) ?></td>
                   <td><?= formatDate($ev['event_date']) ?></td>
                   <td><?= e($ev['event_time'] ?? '—') ?></td>
-                  <td><?= e($ev['location'] ?? '—') ?></td>
+                  <td><?= e($ev['location_name'] ?? $ev['location'] ?? '—') ?></td>
+                  <td><?= $ev['priest_name'] ? e($ev['priest_title'] . ' ' . $ev['priest_name']) : '—' ?></td>
                 </tr>
               <?php endforeach; ?>
             </tbody>
           </table>
         </div>
+        <?= renderPagination($pagination['page'], $pagination['totalPages'], url('parishioner/calendar.php')) ?>
       <?php endif; ?>
     </div>
 
