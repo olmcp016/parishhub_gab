@@ -46,7 +46,7 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
-    CREATE TYPE payment_status_type AS ENUM ('pending', 'verified', 'failed', 'refunded');
+    CREATE TYPE payment_status_type AS ENUM ('pending', 'verified', 'failed', 'refunded', 'cancelled');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
@@ -152,6 +152,18 @@ CREATE TABLE IF NOT EXISTS priests (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS priest_unavailability (
+    unavailability_id SERIAL PRIMARY KEY,
+    priest_id INT NOT NULL REFERENCES priests(priest_id) ON DELETE CASCADE,
+    unavailable_date DATE NOT NULL,
+    start_time TIME DEFAULT NULL,
+    end_time TIME DEFAULT NULL,
+    reason VARCHAR(255) DEFAULT NULL,
+    created_by INT DEFAULT NULL REFERENCES users(user_id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_priest_unavail_priest_date ON priest_unavailability(priest_id, unavailable_date);
+
 -- ==========================================================
 -- 6. SERVICES
 -- ==========================================================
@@ -183,6 +195,18 @@ CREATE TABLE IF NOT EXISTS requirements (
     is_mandatory BOOLEAN DEFAULT TRUE
 );
 
+CREATE TABLE IF NOT EXISTS service_schedules (
+    schedule_id SERIAL PRIMARY KEY,
+    service_id INT NOT NULL REFERENCES services(service_id) ON DELETE CASCADE,
+    weekday SMALLINT NOT NULL CHECK (weekday BETWEEN 0 AND 6),
+    occurrence SMALLINT DEFAULT NULL CHECK (occurrence BETWEEN 1 AND 5),
+    slot_time TIME NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_by INT DEFAULT NULL REFERENCES users(user_id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_service_schedules_service ON service_schedules(service_id);
+
 -- ==========================================================
 -- 8. APPOINTMENT STATUS
 -- ==========================================================
@@ -209,6 +233,7 @@ CREATE TABLE IF NOT EXISTS appointments (
     confirmed_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     cancelled_reason VARCHAR(255) DEFAULT NULL,
     date_of_death DATE DEFAULT NULL,
+    schedule_type VARCHAR(10) DEFAULT NULL CHECK (schedule_type IN ('Regular', 'Special')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -240,6 +265,7 @@ CREATE TABLE IF NOT EXISTS uploaded_documents (
     document_id SERIAL PRIMARY KEY,
     appointment_id INT NOT NULL REFERENCES appointments(appointment_id) ON DELETE CASCADE,
     requirement_id INT DEFAULT NULL REFERENCES requirements(requirement_id) ON DELETE SET NULL,
+    requirement_label VARCHAR(255) DEFAULT NULL,
     file_name VARCHAR(255) NOT NULL,
     file_path VARCHAR(255) NOT NULL,
     file_type VARCHAR(50),
@@ -260,6 +286,14 @@ CREATE TABLE IF NOT EXISTS calendar (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS locations (
+    location_id SERIAL PRIMARY KEY,
+    name VARCHAR(150) NOT NULL,
+    notes VARCHAR(255),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS events (
     event_id SERIAL PRIMARY KEY,
     calendar_id INT DEFAULT NULL REFERENCES calendar(calendar_id) ON DELETE SET NULL,
@@ -268,6 +302,8 @@ CREATE TABLE IF NOT EXISTS events (
     event_date DATE NOT NULL,
     event_time TIME,
     location VARCHAR(150),
+    location_id INT DEFAULT NULL REFERENCES locations(location_id) ON DELETE SET NULL,
+    priest_id INT DEFAULT NULL REFERENCES priests(priest_id) ON DELETE SET NULL,
     created_by INT DEFAULT NULL REFERENCES users(user_id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -283,6 +319,9 @@ CREATE TABLE IF NOT EXISTS announcements (
     posted_by INT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     is_pinned BOOLEAN DEFAULT FALSE,
     status announcement_status DEFAULT 'published',
+    start_date DATE DEFAULT NULL,
+    end_date DATE DEFAULT NULL,
+    duration_type VARCHAR(20) DEFAULT NULL CHECK (duration_type IN ('specific_date','month','year','custom_range')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -330,6 +369,16 @@ CREATE TABLE IF NOT EXISTS transactions (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS projects (
+    project_id SERIAL PRIMARY KEY,
+    project_name VARCHAR(150) NOT NULL,
+    description TEXT,
+    target_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_by INT DEFAULT NULL REFERENCES users(user_id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- ==========================================================
 -- 17. OFFICIAL RECEIPTS
 -- ==========================================================
@@ -337,7 +386,7 @@ CREATE TABLE IF NOT EXISTS official_receipts (
     receipt_id SERIAL PRIMARY KEY,
     payment_id INT NOT NULL UNIQUE REFERENCES payments(payment_id) ON DELETE CASCADE,
     receipt_number VARCHAR(50) NOT NULL UNIQUE,
-    issued_by INT NOT NULL REFERENCES users(user_id),
+    issued_by INT DEFAULT NULL REFERENCES users(user_id), -- NULL for a gateway/system-verified payment (no human issuer)
     issue_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     pdf_path VARCHAR(255) DEFAULT NULL
 );
@@ -434,7 +483,9 @@ INSERT INTO payment_methods (method_id, method_name) VALUES
 (2, 'GCash'),
 (3, 'PayMaya'),
 (4, 'Bank Transfer'),
-(5, 'Credit/Debit Card')
+(5, 'Credit/Debit Card'),
+(6, 'PayPal'),
+(7, 'PayMongo (Online)')
 ON CONFLICT (method_id) DO NOTHING;
 
 -- Reset sequence to prevent ID collisions on new inserts

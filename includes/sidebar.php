@@ -17,6 +17,7 @@ $__active = $active ?? '';
       <li><a href="<?= url('parishioner/services.php') ?>" class="<?= $__active==='services'?'active':'' ?>"><span class="nav-icon"><i data-lucide="heart-handshake"></i></span> Services</a></li>
       <li><a href="<?= url('parishioner/appointments.php') ?>" class="<?= $__active==='appointments'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-check"></i></span> My Appointments</a></li>
       <li><a href="<?= url('parishioner/donations.php') ?>" class="<?= $__active==='donations'?'active':'' ?>"><span class="nav-icon"><i data-lucide="hand-heart"></i></span> My Donations</a></li>
+      <li><a href="<?= url('parishioner/projects.php') ?>" class="<?= $__active==='projects'?'active':'' ?>"><span class="nav-icon"><i data-lucide="hard-hat"></i></span> Ongoing Projects</a></li>
       <li><a href="<?= url('parishioner/calendar.php') ?>" class="<?= $__active==='calendar'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-days"></i></span> Parish Calendar</a></li>
       <li><a href="<?= url('parishioner/announcements.php') ?>" class="<?= $__active==='announcements'?'active':'' ?>"><span class="nav-icon"><i data-lucide="megaphone"></i></span> Announcements</a></li>
       <li><a href="<?= url('parishioner/notifications.php') ?>" class="<?= $__active==='notifications'?'active':'' ?>"><span class="nav-icon"><i data-lucide="bell"></i></span> Notifications</a></li>
@@ -26,7 +27,10 @@ $__active = $active ?? '';
       <li><a href="<?= url('secretary/appointments.php') ?>" class="<?= $__active==='appointments'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-check"></i></span> Appointments</a></li>
       <li><a href="<?= url('secretary/mass-intentions.php') ?>" class="<?= $__active==='mass-intentions'?'active':'' ?>"><span class="nav-icon"><i data-lucide="flame"></i></span> Mass Intentions</a></li>
       <li><a href="<?= url('treasurer/donations.php') ?>" class="<?= $__active==='donations'?'active':'' ?>"><span class="nav-icon"><i data-lucide="hand-heart"></i></span> Donations</a></li>
+      <li><a href="<?= url('secretary/projects.php') ?>" class="<?= $__active==='projects'?'active':'' ?>"><span class="nav-icon"><i data-lucide="hard-hat"></i></span> Ongoing Projects</a></li>
       <li><a href="<?= url('secretary/calendar.php') ?>" class="<?= $__active==='calendar'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-days"></i></span> Calendar</a></li>
+      <li><a href="<?= url('secretary/priest-unavailability.php') ?>" class="<?= $__active==='priest-unavailability'?'active':'' ?>"><span class="nav-icon"><i data-lucide="user-x"></i></span> Priest Unavailability</a></li>
+      <li><a href="<?= url('secretary/locations.php') ?>" class="<?= $__active==='locations'?'active':'' ?>"><span class="nav-icon"><i data-lucide="map-pin"></i></span> Locations</a></li>
       <li><a href="<?= url('secretary/announcements.php') ?>" class="<?= $__active==='announcements'?'active':'' ?>"><span class="nav-icon"><i data-lucide="megaphone"></i></span> Announcements</a></li>
       <li><a href="<?= url('secretary/parishioners.php') ?>" class="<?= $__active==='parishioners'?'active':'' ?>"><span class="nav-icon"><i data-lucide="users"></i></span> Parishioners</a></li>
       <li><a href="<?= url('secretary/services.php') ?>" class="<?= $__active==='services'?'active':'' ?>"><span class="nav-icon"><i data-lucide="heart-handshake"></i></span> Services</a></li>
@@ -43,7 +47,10 @@ $__active = $active ?? '';
       <li><a href="<?= url('admin/users.php') ?>" class="<?= $__active==='users'?'active':'' ?>"><span class="nav-icon"><i data-lucide="users"></i></span> Users & Roles</a></li>
       <li><a href="<?= url('secretary/parishioners.php') ?>" class="<?= $__active==='parishioners'?'active':'' ?>"><span class="nav-icon"><i data-lucide="user-cog"></i></span> Parishioner Management</a></li>
       <li><a href="<?= url('admin/priests.php') ?>" class="<?= $__active==='priests'?'active':'' ?>"><span class="nav-icon"><i data-lucide="contact"></i></span> Priests</a></li>
+      <li><a href="<?= url('secretary/priest-unavailability.php') ?>" class="<?= $__active==='priest-unavailability'?'active':'' ?>"><span class="nav-icon"><i data-lucide="user-x"></i></span> Priest Unavailability</a></li>
+      <li><a href="<?= url('secretary/locations.php') ?>" class="<?= $__active==='locations'?'active':'' ?>"><span class="nav-icon"><i data-lucide="map-pin"></i></span> Locations</a></li>
       <li><a href="<?= url('admin/services.php') ?>" class="<?= $__active==='services'?'active':'' ?>"><span class="nav-icon"><i data-lucide="heart-handshake"></i></span> Services</a></li>
+      <li><a href="<?= url('admin/service-schedules.php') ?>" class="<?= $__active==='service-schedules'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-clock"></i></span> Regular Schedules</a></li>
       <li><a href="<?= url('secretary/calendar.php') ?>" class="<?= $__active==='calendar'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-days"></i></span> Calendar</a></li>
       <li><a href="<?= url('secretary/appointments.php') ?>" class="<?= $__active==='appointments'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-check"></i></span> Appointments</a></li>
       <li><a href="<?= url('secretary/mass-intentions.php') ?>" class="<?= $__active==='mass-intentions'?'active':'' ?>"><span class="nav-icon"><i data-lucide="flame"></i></span> Mass Intentions</a></li>
@@ -57,12 +64,26 @@ $__active = $active ?? '';
   </ul>
 
   <div class="sidebar-footer">
-    <form method="POST" action="<?= url('auth/logout.php') ?>">
+    <form method="POST" action="<?= url('auth/logout.php') ?>" id="logoutForm">
       <?= csrfField() ?>
-      <button type="submit" class="link-btn" style="background:none; border:none; padding:0; cursor:pointer; color: var(--gold-light); font: inherit; display:inline-flex; align-items:center; gap:6px;">
+      <button type="button" class="link-btn" onclick="document.getElementById('logoutModal').showModal()" style="background:none; border:none; padding:0; cursor:pointer; color: var(--gold-light); font: inherit; display:inline-flex; align-items:center; gap:6px;">
         <i data-lucide="log-out" style="width:16px; height:16px;"></i> Logout
       </button>
     </form>
     <div style="margin-top:6px;">© <?= date('Y') ?> PARISHHUB</div>
   </div>
 </aside>
+
+<dialog class="modal" id="logoutModal">
+  <div class="modal-head">
+    <h3>Log Out</h3>
+    <button type="button" class="modal-close" onclick="document.getElementById('logoutModal').close()">✕</button>
+  </div>
+  <div class="modal-body">
+    <p style="margin-top:0;">Are you sure you want to log out?</p>
+    <div class="flex gap-3" style="justify-content:flex-end;">
+      <button type="button" class="btn btn-outline" onclick="document.getElementById('logoutModal').close()">Cancel</button>
+      <button type="button" class="btn btn-danger" onclick="document.getElementById('logoutForm').submit()">Log Out</button>
+    </div>
+  </div>
+</dialog>
