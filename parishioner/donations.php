@@ -2,12 +2,10 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/paymongo.php';
-requireRole('Parishioner');
-
-$userId = currentUser()['user_id'];
-$stmt = db()->prepare('SELECT parishioner_id FROM parishioners WHERE user_id = ?');
-$stmt->execute([$userId]);
-$parishionerId = $stmt->fetchColumn();
+$identity = requireParishionerOrGuest();
+$userId = $identity['user_id'];
+$parishionerId = $identity['parishioner_id'];
+$isGuest = $identity['is_guest'];
 
 /**
  * Reconciles a return from PayMongo's hosted checkout page. The redirect
@@ -24,9 +22,10 @@ $paymongoResultStatus = null; // 'verified' | 'pending' | 'failed' | 'cancelled'
 if (isset($_GET['paymongo_return']) || isset($_GET['paymongo_cancelled'])) {
     $returnAppointmentId = (int) ($_GET['appointment_id'] ?? 0);
     $stmt = db()->prepare(
-        "SELECT p.payment_id, p.payment_status, t.gateway_transaction_id
+        "SELECT p.payment_id, p.payment_status, t.gateway_transaction_id, a.guest_reference
          FROM payments p
          JOIN transactions t ON t.payment_id = p.payment_id AND t.gateway = 'paymongo'
+         JOIN appointments a ON a.appointment_id = p.appointment_id
          WHERE p.appointment_id = ?
          ORDER BY p.payment_id DESC LIMIT 1"
     );
@@ -55,6 +54,9 @@ if (isset($_GET['paymongo_return']) || isset($_GET['paymongo_cancelled'])) {
                 if ($result['ok']) {
                     $paymongoResultStatus = 'verified';
                     $paymongoResultMessage = 'Thank you! Your donation has been received and verified — a receipt has been issued.';
+                    if ($paymentRow['guest_reference']) {
+                        $paymongoResultMessage .= ' Your reference code is ' . $paymentRow['guest_reference'] . ' — save it to check your donation\'s status anytime.';
+                    }
                 } else {
                     // PayMongo confirmed payment, but our own bookkeeping step
                     // failed (e.g. a race with the webhook) — do NOT tell the
@@ -78,18 +80,25 @@ if (isset($_GET['paymongo_return']) || isset($_GET['paymongo_cancelled'])) {
     }
 }
 
-$stmt = db()->prepare(
-    "SELECT a.appointment_id, a.created_at, d.purpose, d.message, p.amount, p.payment_status, pm.method_name
-     FROM appointments a
-     JOIN services s ON a.service_id = s.service_id
-     JOIN donations d ON d.appointment_id = a.appointment_id
-     LEFT JOIN payments p ON p.appointment_id = a.appointment_id
-     LEFT JOIN payment_methods pm ON p.method_id = pm.method_id
-     WHERE a.parishioner_id = ? AND s.category = 'Donation'
-     ORDER BY a.created_at DESC"
-);
-$stmt->execute([$parishionerId]);
-$donations = $stmt->fetchAll();
+// Guests share one placeholder parishioner_id, so a personal history list
+// would leak every OTHER guest's donations too — skip it entirely for
+// guests; they track their own donation via the reference code instead
+// (status.php), same as a guest booking.
+$donations = [];
+if (!$isGuest) {
+    $stmt = db()->prepare(
+        "SELECT a.appointment_id, a.created_at, d.purpose, d.message, p.amount, p.payment_status, pm.method_name
+         FROM appointments a
+         JOIN services s ON a.service_id = s.service_id
+         JOIN donations d ON d.appointment_id = a.appointment_id
+         LEFT JOIN payments p ON p.appointment_id = a.appointment_id
+         LEFT JOIN payment_methods pm ON p.method_id = pm.method_id
+         WHERE a.parishioner_id = ? AND s.category = 'Donation'
+         ORDER BY a.created_at DESC"
+    );
+    $stmt->execute([$parishionerId]);
+    $donations = $stmt->fetchAll();
+}
 
 $donationEnabled = db()->query("SELECT setting_value FROM settings WHERE setting_key = 'donation_enabled'")->fetchColumn() !== '0';
 $purposes = ['General Donation', 'Church Maintenance', 'Charity', 'Mass / Parish Activities'];
@@ -98,9 +107,9 @@ $preselectedProjectId = (int) ($_GET['project_id'] ?? 0) ?: null;
 $autoOpenModal = isset($_GET['donate']) || $preselectedProjectId;
 
 $active = 'donations';
-$pageTitle = 'My Donations';
+$pageTitle = $isGuest ? 'Donate to Our Parish' : 'My Donations';
 include __DIR__ . '/../includes/header.php';
-include __DIR__ . '/../includes/dash-start.php';
+include __DIR__ . '/../includes/' . ($isGuest ? 'public-shell-start.php' : 'dash-start.php');
 ?>
 
 <?php if ($paymongoResultMessage): ?>
@@ -111,39 +120,49 @@ include __DIR__ . '/../includes/dash-start.php';
 <?php endif; ?>
 
 <div class="card">
-  <div class="card-header">
-    <h3>My Donations</h3>
+  <?php if ($isGuest): ?>
+    <div class="card-header"><h3>Donate to Our Parish</h3></div>
+    <p style="font-size:14px; color: var(--brown-mid);">Your generosity helps sustain our parish's ministries and services. No account needed — you'll get a reference code to check your donation's status afterward.</p>
     <?php if ($donationEnabled): ?>
-      <button type="button" class="btn btn-primary btn-sm" onclick="openDonateModal()">🤲 Donate Now</button>
+      <button type="button" class="btn btn-primary" onclick="openDonateModal()">🤲 Donate Now</button>
+    <?php else: ?>
+      <p class="text-muted">Online donations are currently unavailable. Please check back later.</p>
     <?php endif; ?>
-  </div>
-
-  <?php if (empty($donations)): ?>
-    <div class="empty-state">
-      <div class="icon">🤲</div>
-      <p>You haven't made any donations yet.</p>
+  <?php else: ?>
+    <div class="card-header">
+      <h3>My Donations</h3>
       <?php if ($donationEnabled): ?>
-        <button type="button" class="btn btn-primary btn-sm" onclick="openDonateModal()">Donate to Our Parish</button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="openDonateModal()">🤲 Donate Now</button>
       <?php endif; ?>
     </div>
-  <?php else: ?>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Date</th><th>Purpose</th><th>Amount</th><th>Method</th><th>Status</th><th></th></tr></thead>
-        <tbody>
-          <?php foreach ($donations as $d): ?>
-            <tr>
-              <td><?= formatDate($d['created_at']) ?></td>
-              <td><?= e($d['purpose']) ?></td>
-              <td><?= money((float) $d['amount']) ?></td>
-              <td><?= e($d['method_name'] ?? '—') ?></td>
-              <td><?php if ($d['payment_status']): ?><span class="badge badge-<?= e($d['payment_status']) ?>"><?= e($d['payment_status']) ?></span><?php else: ?><span class="text-muted">—</span><?php endif; ?></td>
-              <td><a href="<?= url('parishioner/appointment-detail.php?id=' . $d['appointment_id']) ?>" class="btn btn-outline btn-sm">View</a></td>
-            </tr>
-          <?php endforeach; ?>
-        </tbody>
-      </table>
-    </div>
+
+    <?php if (empty($donations)): ?>
+      <div class="empty-state">
+        <div class="icon">🤲</div>
+        <p>You haven't made any donations yet.</p>
+        <?php if ($donationEnabled): ?>
+          <button type="button" class="btn btn-primary btn-sm" onclick="openDonateModal()">Donate to Our Parish</button>
+        <?php endif; ?>
+      </div>
+    <?php else: ?>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Purpose</th><th>Amount</th><th>Method</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            <?php foreach ($donations as $d): ?>
+              <tr>
+                <td><?= formatDate($d['created_at']) ?></td>
+                <td><?= e($d['purpose']) ?></td>
+                <td><?= money((float) $d['amount']) ?></td>
+                <td><?= e($d['method_name'] ?? '—') ?></td>
+                <td><?php if ($d['payment_status']): ?><span class="badge badge-<?= e($d['payment_status']) ?>"><?= e($d['payment_status']) ?></span><?php else: ?><span class="text-muted">—</span><?php endif; ?></td>
+                <td><a href="<?= url('parishioner/appointment-detail.php?id=' . $d['appointment_id']) ?>" class="btn btn-outline btn-sm">View</a></td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+    <?php endif; ?>
   <?php endif; ?>
 </div>
 
@@ -242,6 +261,10 @@ include __DIR__ . '/../includes/dash-start.php';
       <div style="font-size:48px; margin-bottom:12px;">✔</div>
       <h3 style="margin:0 0 10px;">Thank You!</h3>
       <p id="donateConfirmMessage" style="color: var(--brown-mid); margin-bottom:20px;"></p>
+      <div id="donateConfirmReferenceBox" style="display:none; background: var(--cream); border: 1px solid var(--cream-dark); border-radius: 10px; padding: 14px; margin-bottom:20px;">
+        <p class="helper-text" style="margin:0 0 6px;">Your reference code — save this to check your donation's status anytime:</p>
+        <p style="font-size:22px; font-weight:700; letter-spacing:1px; color: var(--brown-dark); margin:0;" id="donateConfirmReferenceCode"></p>
+      </div>
       <div class="flex gap-3" style="justify-content:center; flex-wrap:wrap;">
         <a href="#" id="donateConfirmDetailLink" class="btn btn-outline">View Details</a>
         <button type="button" class="btn btn-primary" onclick="closeDonateModal()">Done</button>
@@ -307,7 +330,17 @@ document.addEventListener('DOMContentLoaded', function () {
           document.getElementById('donateFormView').style.display = 'none';
           document.getElementById('donateConfirmView').style.display = 'block';
           document.getElementById('donateConfirmMessage').textContent = data.message;
-          document.getElementById('donateConfirmDetailLink').href = data.detail_url;
+          var detailLink = document.getElementById('donateConfirmDetailLink');
+          var referenceBox = document.getElementById('donateConfirmReferenceBox');
+          if (data.guest_reference) {
+            detailLink.style.display = 'none';
+            document.getElementById('donateConfirmReferenceCode').textContent = data.guest_reference;
+            referenceBox.style.display = 'block';
+          } else {
+            detailLink.style.display = '';
+            detailLink.href = data.detail_url;
+            referenceBox.style.display = 'none';
+          }
         } else {
           submitBtn.disabled = false;
           submitBtn.textContent = originalText;
@@ -326,5 +359,5 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 
-<?php include __DIR__ . '/../includes/dash-end.php'; ?>
+<?php include __DIR__ . '/../includes/' . ($isGuest ? 'public-shell-end.php' : 'dash-end.php'); ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

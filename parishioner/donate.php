@@ -2,12 +2,15 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/paymongo.php';
-requireRole('Parishioner');
+$identity = requireParishionerOrGuest();
 
 /**
  * The donation form now lives in a modal on My Donations (parishioner/donations.php),
  * submitted via fetch() (hidden "ajax=1" field), same pattern as book.php. GET
- * requests just redirect there — no standalone donate page anymore.
+ * requests just redirect there — no standalone donate page anymore. Also
+ * reachable by a logged-out guest (see requireParishionerOrGuest()) — the
+ * existing donor_name/donor_email fields double as the guest's identity,
+ * same info a donation would collect anyway.
  */
 $isAjax = ($_POST['ajax'] ?? '') === '1';
 
@@ -28,10 +31,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 verifyCsrf();
 
-$userId = currentUser()['user_id'];
-$stmt = db()->prepare('SELECT parishioner_id FROM parishioners WHERE user_id = ?');
-$stmt->execute([$userId]);
-$parishionerId = $stmt->fetchColumn();
+$userId = $identity['user_id'];
+$parishionerId = $identity['parishioner_id'];
+$isGuest = $identity['is_guest'];
 
 $donationSetting = db()->query("SELECT setting_value FROM settings WHERE setting_key = 'donation_enabled'")->fetchColumn();
 if ($donationSetting === '0') {
@@ -51,6 +53,7 @@ const PAYMONGO_METHOD_ID = 7;
 
 $donorName = trim($_POST['donor_name'] ?? '') ?: null;
 $donorEmail = trim($_POST['donor_email'] ?? '') ?: null;
+$guestReference = $isGuest ? generateGuestReference() : null;
 $amount = (float) ($_POST['amount'] ?? 0);
 $purpose = in_array($_POST['purpose'] ?? '', $purposes, true) ? $_POST['purpose'] : $purposes[0];
 $message = trim($_POST['message'] ?? '') ?: null;
@@ -72,10 +75,10 @@ try {
     // review, no priest, no scheduled time. appointment_date/time just
     // record when the donation was made.
     $stmt = $pdo->prepare(
-        "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, approved_at)
-         VALUES (?, ?, NULL, CURRENT_DATE, CURRENT_TIME, 2, NOW())"
+        "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, approved_at, guest_name, guest_email, guest_reference)
+         VALUES (?, ?, NULL, CURRENT_DATE, CURRENT_TIME, 2, NOW(), ?, ?, ?)"
     );
-    $stmt->execute([$parishionerId, $donationServiceId]);
+    $stmt->execute([$parishionerId, $donationServiceId, $isGuest ? $donorName : null, $isGuest ? $donorEmail : null, $guestReference]);
     $appointmentId = $pdo->lastInsertId();
 
     $stmt = $pdo->prepare(
@@ -111,7 +114,7 @@ try {
         $stmt->execute([$paymentId, $checkout['session_id'], json_encode($checkout['raw'])]);
 
         $pdo->commit();
-        logActivity($userId, "Started an online donation (#$appointmentId) via PayMongo", 'Donations');
+        logActivity($userId, "Started an online donation (#$appointmentId) via PayMongo" . ($isGuest ? ' (guest)' : ''), 'Donations');
 
         if ($isAjax) {
             header('Content-Type: application/json');
@@ -121,26 +124,33 @@ try {
         redirect($checkout['checkout_url']);
     }
 
-    $stmt = $pdo->prepare(
-        "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Thank You for Your Donation', ?)"
-    );
-    $stmt->execute([$userId, "Thank you for your generous donation (#$appointmentId). It will be verified by our cashier shortly."]);
+    if (!$isGuest) {
+        $stmt = $pdo->prepare(
+            "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Thank You for Your Donation', ?)"
+        );
+        $stmt->execute([$userId, "Thank you for your generous donation (#$appointmentId). It will be verified by our cashier shortly."]);
+    }
 
     $pdo->commit();
-    logActivity($userId, "Submitted a donation (#$appointmentId)", 'Donations');
+    logActivity($userId, "Submitted a donation (#$appointmentId)" . ($isGuest ? ' (guest)' : ''), 'Donations');
 
     $successMessage = 'Thank you for your donation! It will be verified by our cashier shortly.';
+    if ($isGuest) {
+        $successMessage .= " Your reference code is $guestReference — save it to check your donation's status anytime.";
+    }
+    $detailUrl = $isGuest ? url('status.php?ref=' . urlencode($guestReference)) : url('parishioner/appointment-detail.php?id=' . $appointmentId);
     if ($isAjax) {
         header('Content-Type: application/json');
         echo json_encode([
             'success' => true,
             'message' => $successMessage,
-            'detail_url' => url('parishioner/appointment-detail.php?id=' . $appointmentId),
+            'detail_url' => $detailUrl,
+            'guest_reference' => $guestReference,
         ]);
         exit;
     }
     flash('success', $successMessage);
-    redirect(url('parishioner/appointment-detail.php?id=' . $appointmentId));
+    redirect($detailUrl);
 } catch (Throwable $e) {
     $pdo->rollBack();
     error_log($e->getMessage());

@@ -45,8 +45,10 @@ include __DIR__ . '/includes/header.php';
   <div class="links">
     <a href="<?= url('index.php') ?>">Home</a>
     <a href="<?= url('about.php') ?>">About</a>
-    <a href="#services">Services</a>
-    <a href="#how">How It Works</a>
+    <a href="<?= url('parishioner/services.php') ?>">Services</a>
+    <a href="<?= url('parishioner/calendar.php') ?>">Calendar</a>
+    <a href="<?= url('parishioner/announcements.php') ?>">Announcements</a>
+    <a href="<?= url('status.php') ?>">Check Status</a>
     <?php if ($__user): ?>
       <a href="<?= redirectForRole($__user['role_name']) ?>" class="btn btn-primary btn-sm">Dashboard</a>
       <form method="POST" action="<?= url('auth/logout.php') ?>" style="display:contents;">
@@ -199,7 +201,8 @@ include __DIR__ . '/includes/header.php';
       <h5>Quick Links</h5>
       <a href="<?= url('index.php') ?>">Home</a>
       <a href="<?= url('about.php') ?>">About the Parish</a>
-      <a href="#services">Services</a>
+      <a href="<?= url('parishioner/services.php') ?>">Services</a>
+      <a href="<?= url('status.php') ?>">Check Status</a>
       <a href="<?= url('auth/register.php') ?>">Create an Account</a>
     </div>
     <div class="footer-col">
