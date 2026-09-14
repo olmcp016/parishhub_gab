@@ -234,6 +234,10 @@ CREATE TABLE IF NOT EXISTS appointments (
     cancelled_reason VARCHAR(255) DEFAULT NULL,
     date_of_death DATE DEFAULT NULL,
     schedule_type VARCHAR(10) DEFAULT NULL CHECK (schedule_type IN ('Regular', 'Special')),
+    guest_name VARCHAR(150) DEFAULT NULL,
+    guest_email VARCHAR(150) DEFAULT NULL,
+    guest_phone VARCHAR(20) DEFAULT NULL,
+    guest_reference VARCHAR(20) DEFAULT NULL UNIQUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

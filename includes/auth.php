@@ -56,6 +56,80 @@ function guestOnly(): void
     }
 }
 
+/**
+ * The shared, login-disabled placeholder parishioner row (see
+ * database/migration_guest_access.sql) that satisfies appointments'
+ * NOT NULL parishioner_id FK for a booking/donation submitted with no
+ * account — the real identity lives in appointments.guest_name/
+ * guest_email/guest_phone instead. Looked up by email rather than a
+ * hardcoded id so it stays correct regardless of row order.
+ */
+function guestParishionerId(): int
+{
+    static $id = null;
+    if ($id === null) {
+        $stmt = db()->prepare(
+            'SELECT p.parishioner_id FROM parishioners p JOIN users u ON p.user_id = u.user_id WHERE u.email = ?'
+        );
+        $stmt->execute(['guest@parishhub.internal']);
+        $id = (int) $stmt->fetchColumn();
+    }
+    return $id;
+}
+
+/**
+ * Generates a short, unique, human-typeable reference code for a guest
+ * booking/donation (e.g. "PH-A3F9K2") — shown on confirmation and used
+ * later to look up status without an account (see status.php).
+ */
+function generateGuestReference(): string
+{
+    do {
+        $code = 'PH-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 6));
+        $stmt = db()->prepare('SELECT 1 FROM appointments WHERE guest_reference = ?');
+        $stmt->execute([$code]);
+    } while ($stmt->fetchColumn());
+    return $code;
+}
+
+/**
+ * True when the visitor should see the normal logged-in Parishioner
+ * dashboard chrome (sidebar/topbar); false for a guest or anyone else,
+ * who gets the lightweight public-shell-start.php/public-shell-end.php
+ * chrome instead. Used by every page that works for both.
+ */
+function usesParishionerShell(): bool
+{
+    return isLoggedIn() && currentUser()['role_name'] === 'Parishioner';
+}
+
+/**
+ * The softer counterpart to requireRole('Parishioner') for pages that
+ * must also work for an anonymous visitor with no account (browsing
+ * services/calendar/announcements, booking, entering a Mass Intention,
+ * donating). Does NOT redirect to login. Returns the identity to book
+ * under: a real parishioner_id for a logged-in Parishioner, or the
+ * shared guest placeholder otherwise. A logged-in user of any OTHER
+ * role is sent to their own dashboard — these pages are the public/
+ * parishioner-facing ones, not a staff view.
+ *
+ * @return array{is_guest: bool, parishioner_id: int, user_id: ?int}
+ */
+function requireParishionerOrGuest(): array
+{
+    sendNoCacheHeaders();
+    if (isLoggedIn()) {
+        $user = currentUser();
+        if ($user['role_name'] !== 'Parishioner') {
+            redirect(redirectForRole($user['role_name']));
+        }
+        $stmt = db()->prepare('SELECT parishioner_id FROM parishioners WHERE user_id = ?');
+        $stmt->execute([$user['user_id']]);
+        return ['is_guest' => false, 'parishioner_id' => (int) $stmt->fetchColumn(), 'user_id' => (int) $user['user_id']];
+    }
+    return ['is_guest' => true, 'parishioner_id' => guestParishionerId(), 'user_id' => null];
+}
+
 function redirectForRole(string $role): string
 {
     switch ($role) {
