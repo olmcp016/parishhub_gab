@@ -2,12 +2,15 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/scheduling.php';
+require_once __DIR__ . '/../includes/document-validation.php';
 requireRole('Parishioner');
 
 $userId = currentUser()['user_id'];
 $stmt = db()->prepare('SELECT parishioner_id FROM parishioners WHERE user_id = ?');
 $stmt->execute([$userId]);
 $parishionerId = $stmt->fetchColumn();
+
+const SCHEDULE_TOGGLE_CATEGORIES = ['Baptism', 'Wedding', 'Blessing', 'Confirmation'];
 
 /**
  * The booking form now lives in a modal on the Services page, submitted
@@ -41,20 +44,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     verifyCsrf();
-    $serviceId = $_POST['service_id'] ?? '';
+    $serviceId = (int) ($_POST['service_id'] ?? 0);
     $priestId = ($_POST['priest_id'] ?? '') ?: null;
     $date = $_POST['appointment_date'] ?? '';
     $time = $_POST['appointment_time'] ?? '';
     $dateOfDeath = ($_POST['date_of_death'] ?? '') ?: null;
     $remarks = trim($_POST['remarks'] ?? '') ?: null;
+    $scheduleType = in_array($_POST['schedule_type'] ?? '', ['Regular', 'Special'], true) ? $_POST['schedule_type'] : null;
 
-    $stmt = db()->prepare('SELECT category FROM services WHERE service_id = ?');
+    $stmt = db()->prepare('SELECT category, requirements FROM services WHERE service_id = ?');
     $stmt->execute([$serviceId]);
-    $category = $stmt->fetchColumn();
+    $service = $stmt->fetch();
+    $category = $service['category'] ?? null;
 
     if (!$category || !$date || !$time) {
         bookRespondError($isAjax, 'Please fill in the service, date, and time.', url('parishioner/services.php'));
     }
+
+    $usesScheduleToggle = in_array($category, SCHEDULE_TOGGLE_CATEGORIES, true);
+    $scheduleTypeToSave = $usesScheduleToggle ? $scheduleType : null;
 
     $isMassIntention = ($category === 'Mass Intention');
     if ($isMassIntention) {
@@ -65,12 +73,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $time = $massTimes[0] ?? $time;
     }
 
-    // ---- Enforce the parish's fixed scheduling rules ----
-    $check = validateBooking($category, $date, $time, $dateOfDeath);
+    // ---- Enforce the parish's fixed scheduling rules (Regular/Special, Mass conflicts, staff day-off, funeral mourning period, ...) ----
+    $check = validateBooking($category, $date, $time, $dateOfDeath, $scheduleTypeToSave, $serviceId);
     if (!$check['valid']) {
         bookRespondError($isAjax, $check['message'], url('parishioner/services.php'));
     }
     $finalTime = $check['forcedTime'] ?? $time;
+
+    // ---- Re-check that this exact service+date+time hasn't just been taken by someone else ----
+    if (!$isMassIntention && serviceSlotIsBooked($serviceId, $date, $finalTime)) {
+        bookRespondError($isAjax, 'That exact date and time was just booked by someone else for this service. Please choose another slot.', url('parishioner/services.php'));
+    }
+
+    // ---- Re-check priest availability right before saving (race-condition guard) ----
+    if ($priestId) {
+        $availability = priestIsAvailable((int) $priestId, $date, $finalTime);
+        if (!$availability['available']) {
+            bookRespondError($isAjax, $availability['reason'], url('parishioner/services.php'));
+        }
+    }
+
+    // ---- Validate every submitted file BEFORE touching the database or filesystem ----
+    $requirementsList = parseRequirementsList($service['requirements']);
+    $pendingUploads = []; // [ ['file' => $_FILES-entry, 'label' => ?string], ... ]
+
+    $skippedFiles = [];
+
+    if (!$isMassIntention) {
+        foreach ($requirementsList as $i => $label) {
+            $field = "req_doc_$i";
+            $err = $_FILES[$field]['error'] ?? UPLOAD_ERR_NO_FILE;
+            if ($err === UPLOAD_ERR_NO_FILE) {
+                continue;
+            }
+            if (in_array($err, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) {
+                $skippedFiles[] = $_FILES[$field]['name'];
+                continue;
+            }
+            $pendingUploads[] = ['file' => $_FILES[$field], 'label' => $label];
+        }
+        if (!empty($_FILES['documents']['name'][0])) {
+            foreach ($_FILES['documents']['name'] as $i => $name) {
+                if ($name === '') continue;
+                $err = $_FILES['documents']['error'][$i];
+                if (in_array($err, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) {
+                    // Oversized files are skipped (not hard-rejected) — same
+                    // long-standing behavior, surfaced via $skippedFiles below.
+                    continue;
+                }
+                $pendingUploads[] = [
+                    'file' => [
+                        'name' => $name,
+                        'type' => $_FILES['documents']['type'][$i],
+                        'tmp_name' => $_FILES['documents']['tmp_name'][$i],
+                        'error' => $err,
+                        'size' => $_FILES['documents']['size'][$i],
+                    ],
+                    'label' => null,
+                ];
+            }
+        }
+
+        foreach ($pendingUploads as $upload) {
+            $result = validateUploadedFile($upload['file']);
+            if (!$result['valid']) {
+                bookRespondError($isAjax, DOCUMENT_VALIDATION_ERROR, url('parishioner/services.php'));
+            }
+        }
+    }
 
     $pdo = db();
     $pdo->beginTransaction();
@@ -83,22 +153,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             bookRespondError($isAjax, 'The selected date is not available for booking. Please choose another date.', url('parishioner/services.php'));
         }
 
-        // Priest availability check — a priest cannot be double-booked at the same date/time
-        if ($priestId) {
-            $stmt = $pdo->prepare(
-                "SELECT a.appointment_id, s.service_name FROM appointments a
-                 JOIN services s ON a.service_id = s.service_id
-                 WHERE a.priest_id = ? AND a.appointment_date = ? AND a.appointment_time = ?
-                   AND a.status_id NOT IN (3, 7)"
-            );
-            $stmt->execute([$priestId, $date, $finalTime]);
-            $conflict = $stmt->fetch();
-            if ($conflict) {
-                $pdo->rollBack();
-                bookRespondError($isAjax, "That priest is already booked for another appointment (\"{$conflict['service_name']}\", #{$conflict['appointment_id']}) at that exact date and time. Please choose a different time, or leave the priest field as \"No preference\" and the secretary will assign one.", url('parishioner/services.php'));
-            }
-        }
-
         // Mass Intentions skip manual secretary review entirely — approved on
         // submission so the parishioner can go straight to payment.
         $initialStatusId = $isMassIntention ? 2 : 1;
@@ -106,10 +160,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $approvedAtValue = $isMassIntention ? ', NOW()' : '';
 
         $stmt = $pdo->prepare(
-            "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, date_of_death{$approvedAtColumn})
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?{$approvedAtValue})"
+            "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, date_of_death, schedule_type{$approvedAtColumn})
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?{$approvedAtValue})"
         );
-        $stmt->execute([$parishionerId, $serviceId, $priestId, $date, $finalTime, $initialStatusId, $remarks, $dateOfDeath]);
+        $stmt->execute([$parishionerId, $serviceId, $priestId, $date, $finalTime, $initialStatusId, $remarks, $dateOfDeath, $scheduleTypeToSave]);
         $appointmentId = $pdo->lastInsertId();
 
         if ($category === 'Mass Intention' && !empty($_POST['intention_type'])) {
@@ -126,26 +180,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
         }
 
-        $skippedFiles = [];
-        if (!$isMassIntention && !empty($_FILES['documents']['name'][0])) {
-            $uploadDir = __DIR__ . '/../public/uploads/';
-            foreach ($_FILES['documents']['name'] as $i => $name) {
-                $err = $_FILES['documents']['error'][$i];
-                if ($err !== UPLOAD_ERR_OK) {
-                    if (in_array($err, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) {
-                        $skippedFiles[] = $name;
-                    }
-                    continue;
-                }
-                $safeName = time() . '-' . preg_replace('/[^A-Za-z0-9._-]/', '_', $name);
-                $dest = $uploadDir . $safeName;
-                if (move_uploaded_file($_FILES['documents']['tmp_name'][$i], $dest)) {
-                    $stmt = $pdo->prepare(
-                        "INSERT INTO uploaded_documents (appointment_id, file_name, file_path, file_type) VALUES (?, ?, ?, ?)"
-                    );
-                    $stmt->execute([$appointmentId, $name, 'public/uploads/' . $safeName, $_FILES['documents']['type'][$i]]);
-                }
+        $uploadDir = __DIR__ . '/../public/uploads/';
+        foreach ($pendingUploads as $upload) {
+            $file = $upload['file'];
+            $safeName = time() . '-' . preg_replace('/[^A-Za-z0-9._-]/', '_', $file['name']);
+            $dest = $uploadDir . $safeName;
+            if (move_uploaded_file($file['tmp_name'], $dest)) {
+                $stmt = $pdo->prepare(
+                    "INSERT INTO uploaded_documents (appointment_id, file_name, file_path, file_type, requirement_label) VALUES (?, ?, ?, ?, ?)"
+                );
+                $stmt->execute([$appointmentId, $file['name'], 'public/uploads/' . $safeName, $file['type'], $upload['label']]);
             }
+        }
+
+        $documentsReminder = null;
+        if (!$isMassIntention && !empty($requirementsList) && empty($pendingUploads)) {
+            $documentsReminder = 'Reminder: this service requires documents (' . implode(', ', $requirementsList) . '). You can upload them now or later from your appointment page — your request just won\'t be approved until they\'re submitted and verified.';
         }
 
         if ($isMassIntention) {
@@ -176,6 +226,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'appointment_id' => $appointmentId,
                 'message' => $successMessage,
                 'skipped_files' => $skippedFiles,
+                'documents_reminder' => $documentsReminder,
+                'schedule_type' => $scheduleTypeToSave,
                 'detail_url' => url('parishioner/appointment-detail.php?id=' . $appointmentId),
             ]);
             exit;

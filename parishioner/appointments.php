@@ -49,7 +49,10 @@ include __DIR__ . '/../includes/dash-start.php';
               <td><?= formatDate($a['appointment_date']) ?> · <?= date('g:i A', strtotime($a['appointment_time'])) ?></td>
               <td><?= e($a['priest_name'] ?? '—') ?></td>
               <td><?= money($a['fee']) ?></td>
-              <td><span class="badge badge-<?= badgeClass($a['status_name']) ?>"><?= e($a['status_name']) ?></span></td>
+              <td>
+                <?php if ($a['schedule_type']): ?><span class="badge badge-<?= strtolower($a['schedule_type']) ?>"><?= e($a['schedule_type']) ?></span><?php endif; ?>
+                <span class="badge badge-<?= badgeClass($a['status_name']) ?>"><?= e($a['status_name']) ?></span>
+              </td>
               <td>
                 <?php if ($a['status_name'] === 'Approved'): ?>
                   <a href="<?= url('parishioner/appointment-detail.php?id=' . $a['appointment_id']) ?>" class="btn btn-primary btn-sm">Proceed to Payment</a>

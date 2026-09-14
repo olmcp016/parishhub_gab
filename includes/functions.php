@@ -131,6 +131,20 @@ function isImageFile(string $filename): bool
     return in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true);
 }
 
+/**
+ * Splits a service's free-text comma-separated requirements column (e.g.
+ * "Baptismal Certificate, Marriage License, CENOMAR") into a clean list of
+ * individual requirement names, for per-requirement upload rows/status.
+ */
+function parseRequirementsList(?string $requirementsText): array
+{
+    if (!$requirementsText) {
+        return [];
+    }
+    $items = array_map('trim', explode(',', $requirementsText));
+    return array_values(array_filter($items, fn($item) => $item !== ''));
+}
+
 /** The current calendar week's Monday and Sunday dates (Y-m-d), Monday-start. */
 function currentWeekBounds(): array
 {

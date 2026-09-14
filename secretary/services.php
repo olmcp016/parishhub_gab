@@ -6,8 +6,8 @@ requireRole('Secretary', 'Admin');
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifyCsrf();
     $id = (int) $_POST['service_id'];
-    db()->prepare("UPDATE services SET service_name=?, fee=?, description=?, is_active=? WHERE service_id=?")
-        ->execute([$_POST['service_name'], $_POST['fee'], $_POST['description'], !empty($_POST['is_active']) ? 1 : 0, $id]);
+    db()->prepare("UPDATE services SET service_name=?, fee=?, description=?, requirements=?, is_active=? WHERE service_id=?")
+        ->execute([$_POST['service_name'], $_POST['fee'], $_POST['description'], trim($_POST['requirements'] ?? '') ?: null, !empty($_POST['is_active']) ? 1 : 0, $id]);
     flash('success', 'Service updated.');
     redirect(url('secretary/services.php'));
 }
@@ -42,6 +42,7 @@ include __DIR__ . '/../includes/dash-start.php';
                 <div class="form-group"><label>Name</label><input type="text" name="service_name" value="<?= e($s['service_name']) ?>" required></div>
                 <div class="form-group"><label>Fee</label><input type="number" name="fee" value="<?= e((string)$s['fee']) ?>" step="0.01" required></div>
                 <div class="form-group"><label>Description</label><input type="text" name="description" value="<?= e($s['description']) ?>"></div>
+                <div class="form-group"><label>Requirements (comma-separated)</label><input type="text" name="requirements" value="<?= e($s['requirements']) ?>" placeholder="e.g. Baptismal Certificate, Marriage License"></div>
                 <div class="form-group">
                   <label><input type="checkbox" name="is_active" value="1" <?= $s['is_active'] ? 'checked' : '' ?> style="width:auto; display:inline-block;"> Active</label>
                 </div>

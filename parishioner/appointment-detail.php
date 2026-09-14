@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/document-validation.php';
 requireRole('Parishioner');
 
 $userId = currentUser()['user_id'];
@@ -34,34 +35,75 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'upload_documents') {
         // Confirm this appointment actually belongs to the logged-in parishioner
-        $stmt = db()->prepare('SELECT appointment_id FROM appointments WHERE appointment_id = ? AND parishioner_id = ?');
+        $stmt = db()->prepare(
+            "SELECT a.appointment_id, s.requirements FROM appointments a
+             JOIN services s ON a.service_id = s.service_id
+             WHERE a.appointment_id = ? AND a.parishioner_id = ?"
+        );
         $stmt->execute([$id, $parishionerId]);
-        if (!$stmt->fetch()) {
+        $appt = $stmt->fetch();
+        if (!$appt) {
             flash('error', 'Appointment not found.');
             redirect(url('parishioner/appointments.php'));
         }
 
-        $uploaded = 0;
+        $requirementsList = parseRequirementsList($appt['requirements']);
+        $pendingUploads = [];
         $skippedFiles = [];
+
+        foreach ($requirementsList as $i => $label) {
+            $field = "req_doc_$i";
+            $err = $_FILES[$field]['error'] ?? UPLOAD_ERR_NO_FILE;
+            if ($err === UPLOAD_ERR_NO_FILE) {
+                continue;
+            }
+            if (in_array($err, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) {
+                $skippedFiles[] = $_FILES[$field]['name'];
+                continue;
+            }
+            $pendingUploads[] = ['file' => $_FILES[$field], 'label' => $label];
+        }
         if (!empty($_FILES['documents']['name'][0])) {
-            $uploadDir = __DIR__ . '/../public/uploads/';
             foreach ($_FILES['documents']['name'] as $i => $name) {
+                if ($name === '') continue;
                 $err = $_FILES['documents']['error'][$i];
-                if ($err !== UPLOAD_ERR_OK) {
-                    if (in_array($err, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) {
-                        $skippedFiles[] = $name;
-                    }
+                if (in_array($err, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) {
+                    $skippedFiles[] = $name;
                     continue;
                 }
-                $safeName = time() . '-' . preg_replace('/[^A-Za-z0-9._-]/', '_', $name);
-                $dest = $uploadDir . $safeName;
-                if (move_uploaded_file($_FILES['documents']['tmp_name'][$i], $dest)) {
-                    $stmt = db()->prepare(
-                        "INSERT INTO uploaded_documents (appointment_id, file_name, file_path, file_type) VALUES (?, ?, ?, ?)"
-                    );
-                    $stmt->execute([$id, $name, 'public/uploads/' . $safeName, $_FILES['documents']['type'][$i]]);
-                    $uploaded++;
-                }
+                $pendingUploads[] = [
+                    'file' => [
+                        'name' => $name,
+                        'type' => $_FILES['documents']['type'][$i],
+                        'tmp_name' => $_FILES['documents']['tmp_name'][$i],
+                        'error' => $err,
+                        'size' => $_FILES['documents']['size'][$i],
+                    ],
+                    'label' => null,
+                ];
+            }
+        }
+
+        foreach ($pendingUploads as $upload) {
+            $result = validateUploadedFile($upload['file']);
+            if (!$result['valid']) {
+                flash('error', DOCUMENT_VALIDATION_ERROR);
+                redirect(url('parishioner/appointment-detail.php?id=' . $id));
+            }
+        }
+
+        $uploaded = 0;
+        $uploadDir = __DIR__ . '/../public/uploads/';
+        foreach ($pendingUploads as $upload) {
+            $file = $upload['file'];
+            $safeName = time() . '-' . preg_replace('/[^A-Za-z0-9._-]/', '_', $file['name']);
+            $dest = $uploadDir . $safeName;
+            if (move_uploaded_file($file['tmp_name'], $dest)) {
+                $stmt = db()->prepare(
+                    "INSERT INTO uploaded_documents (appointment_id, file_name, file_path, file_type, requirement_label) VALUES (?, ?, ?, ?, ?)"
+                );
+                $stmt->execute([$id, $file['name'], 'public/uploads/' . $safeName, $file['type'], $upload['label']]);
+                $uploaded++;
             }
         }
 
@@ -81,7 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $stmt = db()->prepare(
-    "SELECT a.*, s.service_name, s.fee, s.category, st.status_name, p.full_name AS priest_name
+    "SELECT a.*, s.service_name, s.fee, s.category, s.requirements, st.status_name, p.full_name AS priest_name
      FROM appointments a
      JOIN services s ON a.service_id = s.service_id
      JOIN appointment_status st ON a.status_id = st.status_id
@@ -124,7 +166,12 @@ include __DIR__ . '/../includes/dash-start.php';
   <div class="card">
     <div class="card-header">
       <h3><?= e($appointment['service_name']) ?></h3>
-      <span class="badge badge-<?= badgeClass($appointment['status_name']) ?>"><?= e($appointment['status_name']) ?></span>
+      <div class="flex gap-2">
+        <?php if ($appointment['schedule_type']): ?>
+          <span class="badge badge-<?= strtolower($appointment['schedule_type']) ?>"><?= e($appointment['schedule_type']) ?></span>
+        <?php endif; ?>
+        <span class="badge badge-<?= badgeClass($appointment['status_name']) ?>"><?= e($appointment['status_name']) ?></span>
+      </div>
     </div>
     <p><strong>Date:</strong> <?= formatDate($appointment['appointment_date']) ?> at <?= date('g:i A', strtotime($appointment['appointment_time'])) ?></p>
     <p><strong>Priest:</strong> <?= e($appointment['priest_name'] ?? 'Not yet assigned') ?></p>
@@ -233,13 +280,53 @@ include __DIR__ . '/../includes/dash-start.php';
     </div>
 
     <?php if (!in_array($appointment['category'], ['Mass Intention', 'Donation'], true)): ?>
+    <?php
+      $requirementsList = parseRequirementsList($appointment['requirements']);
+      $documentsByLabel = [];
+      $extraDocuments = [];
+      foreach ($documents as $d) {
+          if ($d['requirement_label'] && in_array($d['requirement_label'], $requirementsList, true)) {
+              $documentsByLabel[$d['requirement_label']][] = $d;
+          } else {
+              $extraDocuments[] = $d;
+          }
+      }
+      $canUpload = in_array($appointment['status_name'], ['Pending', 'Approved'], true);
+    ?>
     <div class="card">
-      <div class="card-header"><h3>Uploaded Documents</h3></div>
-      <?php if (empty($documents)): ?>
-        <p class="text-muted">No documents uploaded yet.</p>
+      <div class="card-header"><h3>Required Documents</h3></div>
+      <?php if (empty($requirementsList)): ?>
+        <p class="text-muted">No specific documents are required for this service.</p>
       <?php else: ?>
+        <?php foreach ($requirementsList as $i => $label): ?>
+          <?php $matches = $documentsByLabel[$label] ?? []; ?>
+          <div class="form-group doc-req-row">
+            <label>
+              <?= e($label) ?>
+              <?php if (empty($matches)): ?>
+                <span class="badge badge-cancelled">Missing</span>
+              <?php elseif (array_reduce($matches, fn($carry, $d) => $carry || $d['verified'], false)): ?>
+                <span class="badge badge-verified">Verified/Accepted</span>
+              <?php else: ?>
+                <span class="badge badge-pending">Uploaded — Pending Review</span>
+              <?php endif; ?>
+            </label>
+            <?php foreach ($matches as $d): ?>
+              <p style="margin:2px 0;">
+                <a href="<?= documentUrl($d['file_path']) ?>" target="_blank" rel="noopener"><?= e($d['file_name']) ?></a>
+              </p>
+            <?php endforeach; ?>
+            <?php if (empty($matches) && $canUpload): ?>
+              <input type="file" form="uploadDocsForm" name="req_doc_<?= $i ?>" accept=".pdf,.jpg,.jpeg,.png">
+            <?php endif; ?>
+          </div>
+        <?php endforeach; ?>
+      <?php endif; ?>
+
+      <?php if (!empty($extraDocuments)): ?>
+        <h4 style="margin-top:16px;">Additional Documents</h4>
         <ul style="list-style:none; padding:0; margin:0;">
-          <?php foreach ($documents as $d): ?>
+          <?php foreach ($extraDocuments as $d): ?>
             <li class="mb-2">
               <a href="<?= documentUrl($d['file_path']) ?>" target="_blank" rel="noopener" style="display:flex; align-items:center; gap:10px;">
                 <?php if (isImageFile($d['file_name'])): ?>
@@ -254,14 +341,14 @@ include __DIR__ . '/../includes/dash-start.php';
         </ul>
       <?php endif; ?>
 
-      <?php if (in_array($appointment['status_name'], ['Pending', 'Approved'], true)): ?>
-        <form method="POST" action="<?= url('parishioner/appointment-detail.php?id=' . $id) ?>" enctype="multipart/form-data" class="mt-3">
+      <?php if ($canUpload): ?>
+        <form method="POST" action="<?= url('parishioner/appointment-detail.php?id=' . $id) ?>" enctype="multipart/form-data" class="mt-3" id="uploadDocsForm">
           <?= csrfField() ?>
           <input type="hidden" name="action" value="upload_documents">
           <div class="form-group">
-            <label>Upload More Documents</label>
+            <label>Additional Documents (optional)</label>
             <input type="file" name="documents[]" multiple accept=".pdf,.jpg,.jpeg,.png">
-            <p class="helper-text">Max <?= e(ini_get('upload_max_filesize')) ?> per file, <?= e(ini_get('post_max_size')) ?> total.</p>
+            <p class="helper-text">Max <?= e(ini_get('upload_max_filesize')) ?> per file, <?= e(ini_get('post_max_size')) ?> total. Files must be readable, correctly formatted (PDF/JPG/PNG), and portrait-oriented — these are checked automatically before final staff review.</p>
           </div>
           <button type="submit" class="btn btn-outline btn-sm">Upload</button>
         </form>

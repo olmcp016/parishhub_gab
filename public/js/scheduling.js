@@ -54,3 +54,21 @@ function formatTimeLabel(t) {
   if (h12 === 0) h12 = 12;
   return h12 + ':' + m + ' ' + ampm;
 }
+
+/**
+ * Client-side pre-check for uploaded document images: confirms the file
+ * actually decodes as an image and is portrait-oriented (height >= width),
+ * per the upload instructions shown to parishioners. Advisory only — the
+ * server re-checks with getimagesize() before ever storing the file.
+ */
+function checkImagePortrait(file, callback) {
+  var reader = new FileReader();
+  reader.onerror = function () { callback(false); };
+  reader.onload = function () {
+    var img = new Image();
+    img.onerror = function () { callback(false); };
+    img.onload = function () { callback(img.naturalHeight >= img.naturalWidth); };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}

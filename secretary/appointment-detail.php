@@ -20,7 +20,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'approve') {
-        // Require that any required documents have been verified before approving.
+        // Require that EVERY named requirement has a verified upload before
+        // approving — not just "at least one document total" as before.
         // Mass Intentions and Donations never require documents — they're
         // auto-approved on submission anyway, but this also covers any
         // legacy pending records.
@@ -29,16 +30,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         );
         $stmt->execute([$id]);
         $svc = $stmt->fetch();
-        $requirements = $svc['requirements'];
+        $requirementsList = parseRequirementsList($svc['requirements']);
 
-        if (!in_array($svc['category'], ['Mass Intention', 'Donation'], true) && !empty($requirements)) {
-            $stmt = db()->prepare('SELECT COUNT(*) FROM uploaded_documents WHERE appointment_id = ? AND verified = TRUE');
+        if (!in_array($svc['category'], ['Mass Intention', 'Donation'], true) && !empty($requirementsList)) {
+            $stmt = db()->prepare('SELECT requirement_label, verified FROM uploaded_documents WHERE appointment_id = ?');
             $stmt->execute([$id]);
-            $verifiedCount = (int) $stmt->fetchColumn();
+            $docs = $stmt->fetchAll();
+            $hasAnyLabel = array_reduce($docs, fn($carry, $d) => $carry || $d['requirement_label'], false);
 
-            if ($verifiedCount === 0) {
-                flash('error', 'This service requires documents (' . $requirements . '). Please verify at least one uploaded document before approving, or contact the parishioner to submit them.');
-                redirect(url('secretary/appointment-detail.php?id=' . $id));
+            if ($hasAnyLabel) {
+                // New-style upload with per-requirement labels — every named item must be verified.
+                $verifiedLabels = array_column(array_filter($docs, fn($d) => $d['verified']), 'requirement_label');
+                $missing = array_diff($requirementsList, $verifiedLabels);
+                if (!empty($missing)) {
+                    flash('error', 'The following required document(s) still need to be uploaded and verified before approving: ' . implode(', ', $missing) . '.');
+                    redirect(url('secretary/appointment-detail.php?id=' . $id));
+                }
+            } else {
+                // Legacy appointment (uploaded before per-requirement tracking existed) —
+                // keep the original, looser "at least one verified document" check.
+                $verifiedCount = count(array_filter($docs, fn($d) => $d['verified']));
+                if ($verifiedCount === 0) {
+                    flash('error', 'This service requires documents (' . $svc['requirements'] . '). Please verify at least one uploaded document before approving, or contact the parishioner to submit them.');
+                    redirect(url('secretary/appointment-detail.php?id=' . $id));
+                }
             }
         }
 
@@ -76,24 +91,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($action === 'assign_priest') {
         $priestId = $_POST['priest_id'];
 
-        // Priest availability check — cannot double-book a priest at the same date/time.
         $stmt = db()->prepare(
             "SELECT appointment_date, appointment_time FROM appointments WHERE appointment_id = ?"
         );
         $stmt->execute([$id]);
         $slot = $stmt->fetch();
 
-        $stmt = db()->prepare(
-            "SELECT a.appointment_id, s.service_name FROM appointments a
-             JOIN services s ON a.service_id = s.service_id
-             WHERE a.priest_id = ? AND a.appointment_date = ? AND a.appointment_time = ?
-               AND a.status_id NOT IN (3, 7) AND a.appointment_id != ?"
-        );
-        $stmt->execute([$priestId, $slot['appointment_date'], $slot['appointment_time'], $id]);
-        $conflict = $stmt->fetch();
+        $availability = priestIsAvailable((int) $priestId, $slot['appointment_date'], $slot['appointment_time'], $id);
 
-        if ($conflict) {
-            flash('error', "This priest is already assigned to another appointment (\"{$conflict['service_name']}\", #{$conflict['appointment_id']}) at the exact same date and time. Please choose a different priest or reschedule first.");
+        if (!$availability['available']) {
+            flash('error', $availability['reason']);
         } else {
             db()->prepare("UPDATE appointments SET priest_id = ? WHERE appointment_id = ?")
                 ->execute([$priestId, $id]);
@@ -105,14 +112,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $newTime = $_POST['appointment_time'];
 
         $stmt = db()->prepare(
-            "SELECT s.category FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_id = ?"
+            "SELECT s.category, s.service_id, a.schedule_type FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_id = ?"
         );
         $stmt->execute([$id]);
-        $category = $stmt->fetchColumn();
+        $apptInfo = $stmt->fetch();
+        $category = $apptInfo['category'];
 
-        $check = validateBooking($category, $newDate, $newTime);
+        $check = validateBooking($category, $newDate, $newTime, null, $apptInfo['schedule_type'], (int) $apptInfo['service_id']);
         if (!$check['valid']) {
             flash('error', $check['message']);
+        } elseif (serviceSlotIsBooked((int) $apptInfo['service_id'], $newDate, $check['forcedTime'] ?? $newTime, $id)) {
+            flash('error', 'That exact date and time is already booked for this service. Please choose another slot.');
         } else {
             $finalTime = $check['forcedTime'] ?? $newTime;
             db()->prepare("UPDATE appointments SET appointment_date = ?, appointment_time = ? WHERE appointment_id = ?")
@@ -168,18 +178,29 @@ $stmt = db()->prepare('SELECT * FROM uploaded_documents WHERE appointment_id = ?
 $stmt->execute([$id]);
 $documents = $stmt->fetchAll();
 
-// Each priest's upcoming schedule, so the secretary can check availability
-// before assigning — directly at the point of decision.
+// Each priest's upcoming schedule and declared unavailability, so the
+// secretary can check availability before assigning — directly at the
+// point of decision.
 $priestSchedules = [];
+$priestUnavailability = [];
+$today = date('Y-m-d');
 foreach ($priests as $p) {
     $stmt = db()->prepare(
         "SELECT a.appointment_id, a.appointment_date, a.appointment_time, s.service_name
          FROM appointments a JOIN services s ON a.service_id = s.service_id
-         WHERE a.priest_id = ? AND a.status_id NOT IN (3, 7) AND a.appointment_date >= CURDATE()
+         WHERE a.priest_id = ? AND a.status_id NOT IN (3, 7) AND a.appointment_date >= ?
          ORDER BY a.appointment_date, a.appointment_time LIMIT 5"
     );
-    $stmt->execute([$p['priest_id']]);
+    $stmt->execute([$p['priest_id'], $today]);
     $priestSchedules[$p['priest_id']] = $stmt->fetchAll();
+
+    $stmt = db()->prepare(
+        "SELECT unavailable_date, start_time, end_time, reason FROM priest_unavailability
+         WHERE priest_id = ? AND unavailable_date >= ?
+         ORDER BY unavailable_date LIMIT 10"
+    );
+    $stmt->execute([$p['priest_id'], $today]);
+    $priestUnavailability[$p['priest_id']] = $stmt->fetchAll();
 }
 
 $active = 'appointments';
@@ -192,7 +213,12 @@ include __DIR__ . '/../includes/dash-start.php';
   <div class="card">
     <div class="card-header">
       <h3><?= e($appointment['service_name']) ?></h3>
-      <span class="badge badge-<?= badgeClass($appointment['status_name']) ?>"><?= e($appointment['status_name']) ?></span>
+      <div class="flex gap-2">
+        <?php if ($appointment['schedule_type']): ?>
+          <span class="badge badge-<?= strtolower($appointment['schedule_type']) ?>"><?= e($appointment['schedule_type']) ?></span>
+        <?php endif; ?>
+        <span class="badge badge-<?= badgeClass($appointment['status_name']) ?>"><?= e($appointment['status_name']) ?></span>
+      </div>
     </div>
     <p><strong>Parishioner:</strong> <?= e($appointment['firstname']) ?> <?= e($appointment['lastname']) ?> (<?= e($appointment['email']) ?>, <?= e($appointment['phone']) ?>)</p>
     <p><strong>Date:</strong> <?= formatDate($appointment['appointment_date']) ?> at <?= date('g:i A', strtotime($appointment['appointment_time'])) ?></p>
@@ -227,6 +253,24 @@ include __DIR__ . '/../includes/dash-start.php';
     <?php if (!in_array($appointment['category'], ['Mass Intention', 'Donation'], true)): ?>
     <hr style="border-color: var(--cream-dark); margin: 18px 0;">
     <h4>Uploaded Documents</h4>
+    <?php
+      $requirementsList = parseRequirementsList($appointment['requirements']);
+      if (!empty($requirementsList)):
+        $verifiedLabels = array_column(array_filter($documents, fn($d) => $d['verified']), 'requirement_label');
+        $uploadedLabels = array_column($documents, 'requirement_label');
+    ?>
+      <div class="flex gap-2" style="flex-wrap:wrap; margin-bottom:12px;">
+        <?php foreach ($requirementsList as $label): ?>
+          <?php if (in_array($label, $verifiedLabels, true)): ?>
+            <span class="badge badge-verified"><?= e($label) ?>: Verified</span>
+          <?php elseif (in_array($label, $uploadedLabels, true)): ?>
+            <span class="badge badge-pending"><?= e($label) ?>: Pending</span>
+          <?php else: ?>
+            <span class="badge badge-cancelled"><?= e($label) ?>: Missing</span>
+          <?php endif; ?>
+        <?php endforeach; ?>
+      </div>
+    <?php endif; ?>
     <?php if (empty($documents)): ?><p class="text-muted">No documents uploaded yet.</p>
     <?php else: ?>
       <div class="table-wrap">
@@ -324,11 +368,18 @@ include __DIR__ . '/../includes/dash-start.php';
         <div class="mb-2" style="font-size:12.5px; border-bottom: 1px solid var(--cream-dark); padding-bottom:6px;">
           <strong><?= e($p['title']) ?> <?= e($p['full_name']) ?></strong>
           <?php if (empty($priestSchedules[$p['priest_id']])): ?>
-            <span class="text-muted"> — no upcoming appointments (fully available)</span>
+            <span class="text-muted"> — no upcoming appointments</span>
           <?php else: ?>
             <ul style="margin: 4px 0 0 18px; padding: 0;">
               <?php foreach ($priestSchedules[$p['priest_id']] as $sched): ?>
                 <li><?= formatDate($sched['appointment_date']) ?> at <?= date('g:i A', strtotime($sched['appointment_time'])) ?> — <?= e($sched['service_name']) ?></li>
+              <?php endforeach; ?>
+            </ul>
+          <?php endif; ?>
+          <?php if (!empty($priestUnavailability[$p['priest_id']])): ?>
+            <ul style="margin: 4px 0 0 18px; padding: 0; color: var(--danger);">
+              <?php foreach ($priestUnavailability[$p['priest_id']] as $u): ?>
+                <li>Unavailable <?= formatDate($u['unavailable_date']) ?><?= $u['start_time'] ? ' (' . date('g:i A', strtotime($u['start_time'])) . '–' . date('g:i A', strtotime($u['end_time'])) . ')' : ' (whole day)' ?><?= $u['reason'] ? ' — ' . e($u['reason']) : '' ?></li>
               <?php endforeach; ?>
             </ul>
           <?php endif; ?>
