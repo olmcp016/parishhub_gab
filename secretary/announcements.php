@@ -87,7 +87,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('success', 'Announcement updated.');
         }
     } elseif ($action === 'delete') {
+        $stmt = db()->prepare('SELECT title FROM announcements WHERE announcement_id = ?');
+        $stmt->execute([$_POST['announcement_id']]);
+        $deletedTitle = $stmt->fetchColumn();
         db()->prepare('DELETE FROM announcements WHERE announcement_id = ?')->execute([$_POST['announcement_id']]);
+        logActivity($userId, "Deleted announcement: " . ($deletedTitle ?: '#' . $_POST['announcement_id']), 'Announcements');
         flash('success', 'Announcement removed.');
     }
     redirect(url('secretary/announcements.php'));

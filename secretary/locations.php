@@ -3,6 +3,8 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 requireRole('Secretary', 'Admin');
 
+$userId = currentUser()['user_id'];
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifyCsrf();
     $action = $_POST['action'] ?? '';
@@ -10,6 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'add') {
         db()->prepare('INSERT INTO locations (name, notes) VALUES (?, ?)')
             ->execute([trim($_POST['name']), trim($_POST['notes'] ?? '') ?: null]);
+        logActivity($userId, "Added location: " . trim($_POST['name']), 'Locations');
         flash('success', 'Location added.');
     } elseif ($action === 'update') {
         db()->prepare('UPDATE locations SET name = ?, notes = ? WHERE location_id = ?')
@@ -20,7 +23,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ->execute([!empty($_POST['is_active']) ? 1 : 0, $_POST['location_id']]);
         flash('success', 'Location updated.');
     } elseif ($action === 'delete') {
+        $stmt = db()->prepare('SELECT name FROM locations WHERE location_id = ?');
+        $stmt->execute([$_POST['location_id']]);
+        $deletedName = $stmt->fetchColumn();
         db()->prepare('DELETE FROM locations WHERE location_id = ?')->execute([$_POST['location_id']]);
+        logActivity($userId, "Deleted location: " . ($deletedName ?: '#' . $_POST['location_id']), 'Locations');
         flash('success', 'Location removed.');
     }
     redirect(url('secretary/locations.php'));

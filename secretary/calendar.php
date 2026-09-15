@@ -15,6 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_POST['title'], $_POST['description'] ?: null, $_POST['event_date'],
             $_POST['event_time'] ?: null, $_POST['location_id'] ?: null, $_POST['priest_id'] ?: null, $userId,
         ]);
+        logActivity($userId, "Created event: {$_POST['title']}", 'Calendar');
         flash('success', 'Event added to calendar.');
     } elseif ($action === 'block_date') {
         db()->prepare(
@@ -25,7 +26,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         db()->prepare('DELETE FROM calendar WHERE calendar_id = ?')->execute([$_POST['calendar_id']]);
         flash('success', 'Date unblocked — it is now available for booking again.');
     } elseif ($action === 'delete_event') {
+        $stmt = db()->prepare('SELECT title FROM events WHERE event_id = ?');
+        $stmt->execute([$_POST['event_id']]);
+        $deletedTitle = $stmt->fetchColumn();
         db()->prepare('DELETE FROM events WHERE event_id = ?')->execute([$_POST['event_id']]);
+        logActivity($userId, "Deleted event: " . ($deletedTitle ?: '#' . $_POST['event_id']), 'Calendar');
         flash('success', 'Event removed from calendar.');
     }
     redirect(url('secretary/calendar.php'));
