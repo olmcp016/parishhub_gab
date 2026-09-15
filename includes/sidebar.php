@@ -112,7 +112,7 @@ function renderNavSection(string $slug, string $title, array $items, string $act
         [url('secretary/locations.php'), 'locations', 'map-pin', 'Locations'],
         [url('admin/services.php'), 'services', 'heart-handshake', 'Services'],
       ], $__active); ?>
-      <?php renderNavSection('scheduling-appointments', 'Scheduling & Appointments', [
+      <?php renderNavSection('scheduling-appointments', 'Services & Scheduling', [
         [url('admin/service-schedules.php'), 'service-schedules', 'calendar-clock', 'Regular Schedules'],
         [url('secretary/calendar.php'), 'calendar', 'calendar-days', 'Calendar'],
         [url('secretary/appointments.php'), 'appointments', 'calendar-check', 'Appointments'],
