@@ -1,6 +1,28 @@
 <?php
 $__user = currentUser();
 $__active = $active ?? '';
+
+/**
+ * Renders one sidebar group: a small muted uppercase label followed by its
+ * links. Each group after the first gets a divider line above it (see
+ * ".nav-section + .nav-section" in style.css), matching a plain flat
+ * account-nav layout — no accordion/collapse behavior.
+ */
+if (!function_exists('renderNavSection')) {
+function renderNavSection(string $slug, string $title, array $items, string $activeKey): void
+{
+    ?>
+    <div class="nav-section" data-section="<?= e($slug) ?>">
+      <div class="nav-section-title"><?= e($title) ?></div>
+      <ul>
+        <?php foreach ($items as [$href, $key, $icon, $label]): ?>
+          <li><a href="<?= $href ?>" class="<?= $activeKey === $key ? 'active' : '' ?>"><span class="nav-icon"><i data-lucide="<?= e($icon) ?>"></i></span> <?= e($label) ?></a></li>
+        <?php endforeach; ?>
+      </ul>
+    </div>
+    <?php
+}
+}
 ?>
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-brand">
@@ -11,57 +33,105 @@ $__active = $active ?? '';
     </div>
   </div>
 
-  <ul class="sidebar-nav">
+  <nav class="sidebar-nav" id="sidebarNav">
     <?php if ($__user['role_name'] === 'Parishioner'): ?>
-      <li><a href="<?= url('parishioner/dashboard.php') ?>" class="<?= $__active==='dashboard'?'active':'' ?>"><span class="nav-icon"><i data-lucide="layout-dashboard"></i></span> Dashboard</a></li>
-      <li><a href="<?= url('parishioner/services.php') ?>" class="<?= $__active==='services'?'active':'' ?>"><span class="nav-icon"><i data-lucide="heart-handshake"></i></span> Services</a></li>
-      <li><a href="<?= url('parishioner/appointments.php') ?>" class="<?= $__active==='appointments'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-check"></i></span> My Appointments</a></li>
-      <li><a href="<?= url('parishioner/donations.php') ?>" class="<?= $__active==='donations'?'active':'' ?>"><span class="nav-icon"><i data-lucide="hand-heart"></i></span> My Donations</a></li>
-      <li><a href="<?= url('parishioner/projects.php') ?>" class="<?= $__active==='projects'?'active':'' ?>"><span class="nav-icon"><i data-lucide="hard-hat"></i></span> Ongoing Projects</a></li>
-      <li><a href="<?= url('parishioner/calendar.php') ?>" class="<?= $__active==='calendar'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-days"></i></span> Parish Calendar</a></li>
-      <li><a href="<?= url('parishioner/announcements.php') ?>" class="<?= $__active==='announcements'?'active':'' ?>"><span class="nav-icon"><i data-lucide="megaphone"></i></span> Announcements</a></li>
-      <li><a href="<?= url('parishioner/notifications.php') ?>" class="<?= $__active==='notifications'?'active':'' ?>"><span class="nav-icon"><i data-lucide="bell"></i></span> Notifications</a></li>
-      <li><a href="<?= url('parishioner/profile.php') ?>" class="<?= $__active==='profile'?'active':'' ?>"><span class="nav-icon"><i data-lucide="user-circle"></i></span> My Profile</a></li>
+      <?php renderNavSection('overview', 'Overview', [
+        [url('parishioner/dashboard.php'), 'dashboard', 'layout-dashboard', 'Dashboard'],
+      ], $__active); ?>
+      <?php renderNavSection('parish-services', 'Parish Services', [
+        [url('parishioner/services.php'), 'services', 'heart-handshake', 'Services'],
+        [url('parishioner/appointments.php'), 'appointments', 'calendar-check', 'My Appointments'],
+      ], $__active); ?>
+      <?php renderNavSection('donations-projects', 'Donations & Projects', [
+        [url('parishioner/donations.php'), 'donations', 'hand-heart', 'My Donations'],
+        [url('parishioner/projects.php'), 'projects', 'hard-hat', 'Ongoing Projects'],
+      ], $__active); ?>
+      <?php renderNavSection('parish-info', 'Parish Information', [
+        [url('parishioner/calendar.php'), 'calendar', 'calendar-days', 'Parish Calendar'],
+        [url('parishioner/announcements.php'), 'announcements', 'megaphone', 'Announcements'],
+      ], $__active); ?>
+      <?php renderNavSection('notifications', 'Notifications', [
+        [url('parishioner/notifications.php'), 'notifications', 'bell', 'Notifications'],
+      ], $__active); ?>
+      <?php renderNavSection('account', 'Account', [
+        [url('parishioner/profile.php'), 'profile', 'user-circle', 'My Profile'],
+      ], $__active); ?>
     <?php elseif ($__user['role_name'] === 'Secretary'): ?>
-      <li><a href="<?= url('secretary/dashboard.php') ?>" class="<?= $__active==='dashboard'?'active':'' ?>"><span class="nav-icon"><i data-lucide="layout-dashboard"></i></span> Dashboard</a></li>
-      <li><a href="<?= url('secretary/appointments.php') ?>" class="<?= $__active==='appointments'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-check"></i></span> Appointments</a></li>
-      <li><a href="<?= url('secretary/mass-intentions.php') ?>" class="<?= $__active==='mass-intentions'?'active':'' ?>"><span class="nav-icon"><i data-lucide="flame"></i></span> Mass Intentions</a></li>
-      <li><a href="<?= url('treasurer/donations.php') ?>" class="<?= $__active==='donations'?'active':'' ?>"><span class="nav-icon"><i data-lucide="hand-heart"></i></span> Donations</a></li>
-      <li><a href="<?= url('secretary/projects.php') ?>" class="<?= $__active==='projects'?'active':'' ?>"><span class="nav-icon"><i data-lucide="hard-hat"></i></span> Ongoing Projects</a></li>
-      <li><a href="<?= url('secretary/calendar.php') ?>" class="<?= $__active==='calendar'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-days"></i></span> Calendar</a></li>
-      <li><a href="<?= url('secretary/priest-unavailability.php') ?>" class="<?= $__active==='priest-unavailability'?'active':'' ?>"><span class="nav-icon"><i data-lucide="user-x"></i></span> Priest Unavailability</a></li>
-      <li><a href="<?= url('secretary/locations.php') ?>" class="<?= $__active==='locations'?'active':'' ?>"><span class="nav-icon"><i data-lucide="map-pin"></i></span> Locations</a></li>
-      <li><a href="<?= url('secretary/announcements.php') ?>" class="<?= $__active==='announcements'?'active':'' ?>"><span class="nav-icon"><i data-lucide="megaphone"></i></span> Announcements</a></li>
-      <li><a href="<?= url('secretary/parishioners.php') ?>" class="<?= $__active==='parishioners'?'active':'' ?>"><span class="nav-icon"><i data-lucide="users"></i></span> Parishioners</a></li>
-      <li><a href="<?= url('secretary/services.php') ?>" class="<?= $__active==='services'?'active':'' ?>"><span class="nav-icon"><i data-lucide="heart-handshake"></i></span> Services</a></li>
-      <li><a href="<?= url('secretary/reports.php') ?>" class="<?= $__active==='reports'?'active':'' ?>"><span class="nav-icon"><i data-lucide="bar-chart-3"></i></span> Reports</a></li>
-      <li><a href="<?= url('secretary/settings.php') ?>" class="<?= $__active==='settings'?'active':'' ?>"><span class="nav-icon"><i data-lucide="settings"></i></span> Settings</a></li>
+      <?php renderNavSection('overview', 'Overview', [
+        [url('secretary/dashboard.php'), 'dashboard', 'layout-dashboard', 'Dashboard'],
+      ], $__active); ?>
+      <?php renderNavSection('parishioner-priest', 'Parishioner & Priest Management', [
+        [url('secretary/parishioners.php'), 'parishioners', 'users', 'Parishioners'],
+        [url('secretary/priest-unavailability.php'), 'priest-unavailability', 'user-x', 'Priest Unavailability'],
+      ], $__active); ?>
+      <?php renderNavSection('services-scheduling', 'Services & Scheduling', [
+        [url('secretary/services.php'), 'services', 'heart-handshake', 'Services'],
+        [url('secretary/calendar.php'), 'calendar', 'calendar-days', 'Calendar'],
+        [url('secretary/appointments.php'), 'appointments', 'calendar-check', 'Appointments'],
+        [url('secretary/mass-intentions.php'), 'mass-intentions', 'flame', 'Mass Intentions'],
+      ], $__active); ?>
+      <?php renderNavSection('parish-content', 'Parish Content', [
+        [url('secretary/announcements.php'), 'announcements', 'megaphone', 'Announcements'],
+        [url('secretary/projects.php'), 'projects', 'hard-hat', 'Ongoing Projects'],
+        [url('secretary/locations.php'), 'locations', 'map-pin', 'Locations'],
+      ], $__active); ?>
+      <?php renderNavSection('donations', 'Donations', [
+        [url('treasurer/donations.php'), 'donations', 'hand-heart', 'Donations'],
+      ], $__active); ?>
+      <?php renderNavSection('reports', 'Reports', [
+        [url('secretary/reports.php'), 'reports', 'bar-chart-3', 'Reports'],
+      ], $__active); ?>
+      <?php renderNavSection('system', 'System', [
+        [url('secretary/settings.php'), 'settings', 'settings', 'Settings'],
+      ], $__active); ?>
     <?php elseif ($__user['role_name'] === 'Treasurer'): ?>
-      <li><a href="<?= url('treasurer/dashboard.php') ?>" class="<?= $__active==='dashboard'?'active':'' ?>"><span class="nav-icon"><i data-lucide="layout-dashboard"></i></span> Dashboard</a></li>
-      <li><a href="<?= url('treasurer/payments.php') ?>" class="<?= $__active==='payments'?'active':'' ?>"><span class="nav-icon"><i data-lucide="history"></i></span> Transaction History</a></li>
-      <li><a href="<?= url('treasurer/donations.php') ?>" class="<?= $__active==='donations'?'active':'' ?>"><span class="nav-icon"><i data-lucide="hand-heart"></i></span> Donations</a></li>
-      <li><a href="<?= url('secretary/calendar.php') ?>" class="<?= $__active==='calendar'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-days"></i></span> Calendar</a></li>
-      <li><a href="<?= url('treasurer/reports.php') ?>" class="<?= $__active==='reports'?'active':'' ?>"><span class="nav-icon"><i data-lucide="bar-chart-3"></i></span> Financial Reports</a></li>
+      <?php renderNavSection('overview', 'Overview', [
+        [url('treasurer/dashboard.php'), 'dashboard', 'layout-dashboard', 'Dashboard'],
+      ], $__active); ?>
+      <?php renderNavSection('payments-transactions', 'Payments & Transactions', [
+        [url('treasurer/payments.php'), 'payments', 'history', 'Transaction History'],
+        [url('treasurer/donations.php'), 'donations', 'hand-heart', 'Donations'],
+      ], $__active); ?>
+      <?php renderNavSection('scheduling', 'Scheduling', [
+        [url('secretary/calendar.php'), 'calendar', 'calendar-days', 'Calendar'],
+      ], $__active); ?>
+      <?php renderNavSection('financial-reports', 'Financial Reports', [
+        [url('treasurer/reports.php'), 'reports', 'bar-chart-3', 'Financial Reports'],
+      ], $__active); ?>
     <?php elseif ($__user['role_name'] === 'Admin'): ?>
-      <li><a href="<?= url('admin/dashboard.php') ?>" class="<?= $__active==='dashboard'?'active':'' ?>"><span class="nav-icon"><i data-lucide="layout-dashboard"></i></span> Dashboard</a></li>
-      <li><a href="<?= url('admin/users.php') ?>" class="<?= $__active==='users'?'active':'' ?>"><span class="nav-icon"><i data-lucide="users"></i></span> Users & Roles</a></li>
-      <li><a href="<?= url('secretary/parishioners.php') ?>" class="<?= $__active==='parishioners'?'active':'' ?>"><span class="nav-icon"><i data-lucide="user-cog"></i></span> Parishioner Management</a></li>
-      <li><a href="<?= url('admin/priests.php') ?>" class="<?= $__active==='priests'?'active':'' ?>"><span class="nav-icon"><i data-lucide="contact"></i></span> Priests</a></li>
-      <li><a href="<?= url('secretary/priest-unavailability.php') ?>" class="<?= $__active==='priest-unavailability'?'active':'' ?>"><span class="nav-icon"><i data-lucide="user-x"></i></span> Priest Unavailability</a></li>
-      <li><a href="<?= url('secretary/locations.php') ?>" class="<?= $__active==='locations'?'active':'' ?>"><span class="nav-icon"><i data-lucide="map-pin"></i></span> Locations</a></li>
-      <li><a href="<?= url('admin/services.php') ?>" class="<?= $__active==='services'?'active':'' ?>"><span class="nav-icon"><i data-lucide="heart-handshake"></i></span> Services</a></li>
-      <li><a href="<?= url('admin/service-schedules.php') ?>" class="<?= $__active==='service-schedules'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-clock"></i></span> Regular Schedules</a></li>
-      <li><a href="<?= url('secretary/calendar.php') ?>" class="<?= $__active==='calendar'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-days"></i></span> Calendar</a></li>
-      <li><a href="<?= url('secretary/appointments.php') ?>" class="<?= $__active==='appointments'?'active':'' ?>"><span class="nav-icon"><i data-lucide="calendar-check"></i></span> Appointments</a></li>
-      <li><a href="<?= url('secretary/mass-intentions.php') ?>" class="<?= $__active==='mass-intentions'?'active':'' ?>"><span class="nav-icon"><i data-lucide="flame"></i></span> Mass Intentions</a></li>
-      <li><a href="<?= url('treasurer/payments.php') ?>" class="<?= $__active==='payments'?'active':'' ?>"><span class="nav-icon"><i data-lucide="banknote"></i></span> Payment & Transaction Overview</a></li>
-      <li><a href="<?= url('treasurer/donations.php') ?>" class="<?= $__active==='donations'?'active':'' ?>"><span class="nav-icon"><i data-lucide="hand-heart"></i></span> Donations</a></li>
-      <li><a href="<?= url('admin/reports.php') ?>" class="<?= $__active==='reports'?'active':'' ?>"><span class="nav-icon"><i data-lucide="bar-chart-3"></i></span> Financial Reports</a></li>
-      <li><a href="<?= url('admin/activity-logs.php') ?>" class="<?= $__active==='logs'?'active':'' ?>"><span class="nav-icon"><i data-lucide="history"></i></span> Activity Logs</a></li>
-      <li><a href="<?= url('admin/settings.php') ?>" class="<?= $__active==='settings'?'active':'' ?>"><span class="nav-icon"><i data-lucide="settings"></i></span> Settings</a></li>
-      <li><a href="<?= url('admin/backup.php') ?>" class="<?= $__active==='backup'?'active':'' ?>"><span class="nav-icon"><i data-lucide="database-backup"></i></span> Backup & Restore</a></li>
+      <?php renderNavSection('overview', 'Overview', [
+        [url('admin/dashboard.php'), 'dashboard', 'layout-dashboard', 'Dashboard'],
+      ], $__active); ?>
+      <?php renderNavSection('user-access', 'User & Access Management', [
+        [url('admin/users.php'), 'users', 'users', 'Users & Roles'],
+        [url('secretary/parishioners.php'), 'parishioners', 'user-cog', 'Parishioner Management'],
+        [url('admin/priests.php'), 'priests', 'contact', 'Priests'],
+        [url('secretary/priest-unavailability.php'), 'priest-unavailability', 'user-x', 'Priest Unavailability'],
+      ], $__active); ?>
+      <?php renderNavSection('parish-management', 'Parish Management', [
+        [url('secretary/locations.php'), 'locations', 'map-pin', 'Locations'],
+        [url('admin/services.php'), 'services', 'heart-handshake', 'Services'],
+      ], $__active); ?>
+      <?php renderNavSection('scheduling-appointments', 'Scheduling & Appointments', [
+        [url('admin/service-schedules.php'), 'service-schedules', 'calendar-clock', 'Regular Schedules'],
+        [url('secretary/calendar.php'), 'calendar', 'calendar-days', 'Calendar'],
+        [url('secretary/appointments.php'), 'appointments', 'calendar-check', 'Appointments'],
+        [url('secretary/mass-intentions.php'), 'mass-intentions', 'flame', 'Mass Intentions'],
+      ], $__active); ?>
+      <?php renderNavSection('payments-finance', 'Payments & Finance', [
+        [url('treasurer/payments.php'), 'payments', 'banknote', 'Payment & Transaction Overview'],
+        [url('treasurer/donations.php'), 'donations', 'hand-heart', 'Donations'],
+      ], $__active); ?>
+      <?php renderNavSection('reports-monitoring', 'Reports & Monitoring', [
+        [url('admin/reports.php'), 'reports', 'bar-chart-3', 'Financial Reports'],
+        [url('admin/activity-logs.php'), 'logs', 'history', 'Activity Logs'],
+      ], $__active); ?>
+      <?php renderNavSection('system', 'System', [
+        [url('admin/settings.php'), 'settings', 'settings', 'Settings'],
+        [url('admin/backup.php'), 'backup', 'database-backup', 'Backup & Restore'],
+      ], $__active); ?>
     <?php endif; ?>
-  </ul>
+  </nav>
 
   <div class="sidebar-footer">
     <form method="POST" action="<?= url('auth/logout.php') ?>" id="logoutForm">
