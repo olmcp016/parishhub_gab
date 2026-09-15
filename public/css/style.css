@@ -248,6 +248,18 @@ img { max-width: 100%; }
 }
 .card-header h2, .card-header h3 { margin: 0; font-size: 20px; }
 
+/* ---------- Activity log date grouping ---------- */
+.activity-date-heading {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  color: var(--brown-mid);
+  margin: 22px 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.activity-date-heading:first-child { margin-top: 0; }
+
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
 .stat-card {
   background: var(--ivory);
