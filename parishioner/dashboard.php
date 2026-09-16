@@ -24,6 +24,7 @@ $announcements = array_values(array_filter(
 
 $donationEnabled = db()->query("SELECT setting_value FROM settings WHERE setting_key = 'donation_enabled'")->fetchColumn() !== '0';
 $weekDonors = getCurrentWeekDonors();
+$todaysMassIntentions = getTodaysConfirmedMassIntentions();
 
 $stmt = db()->prepare(
     "SELECT a.*, s.service_name, st.status_name, p.full_name AS priest_name
@@ -120,6 +121,22 @@ include __DIR__ . '/../includes/dash-start.php';
         </div>
       <?php endif; ?>
     </div>
+
+    <?php if (!empty($todaysMassIntentions)): ?>
+    <div class="card">
+      <div class="card-header"><h3>Today's Mass Intentions</h3></div>
+      <ul style="margin:0; padding-left:18px; display:flex; flex-direction:column; gap:8px;">
+        <?php foreach ($todaysMassIntentions as $mi): ?>
+          <?php $parts = publicMassIntentionParts($mi['intention_type'], $mi['offerer_name'], $mi['intention_for'], $mi['message']); ?>
+          <li style="font-size:13.5px; line-height:1.5; color: var(--brown-mid);">
+            <span class="badge badge-regular" style="margin-right:6px;"><?= e($parts['type']) ?></span>
+            <?= e($parts['body']) ?>
+            <span class="text-muted">— <?= e($parts['name']) ?></span>
+          </li>
+        <?php endforeach; ?>
+      </ul>
+    </div>
+    <?php endif; ?>
 
     <div class="card">
       <div class="card-header"><h3>Services</h3></div>

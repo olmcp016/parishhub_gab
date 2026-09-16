@@ -9,6 +9,8 @@ $stmt = db()->prepare(
 $stmt->execute([date('Y-m-d')]);
 $announcements = $stmt->fetchAll();
 
+$todaysMassIntentions = getTodaysConfirmedMassIntentions();
+
 $stmt = db()->query("SELECT * FROM services WHERE is_active=TRUE AND category != 'Donation' ORDER BY category, service_name LIMIT 6");
 $services = $stmt->fetchAll();
 
@@ -121,6 +123,26 @@ include __DIR__ . '/includes/header.php';
         <p style="font-size: 14.5px; white-space: pre-line;"><?= e(mb_strlen($a['content']) > 140 ? mb_substr($a['content'],0,140) . '…' : $a['content']) ?></p>
       </div>
     <?php endforeach; ?>
+  </div>
+</section>
+<?php endif; ?>
+
+<?php if (!empty($todaysMassIntentions)): ?>
+<section class="section" id="mass-intentions-today">
+  <div class="section-eyebrow">From the Office</div>
+  <h2 class="section-title">Today's Mass Intentions</h2>
+  <p class="section-lede"><?= e(date('F j, Y')) ?></p>
+  <div class="card" style="max-width: 720px;">
+    <ul style="margin:0; padding-left:20px; display:flex; flex-direction:column; gap:10px;">
+      <?php foreach ($todaysMassIntentions as $mi): ?>
+        <?php $parts = publicMassIntentionParts($mi['intention_type'], $mi['offerer_name'], $mi['intention_for'], $mi['message']); ?>
+        <li style="font-size: 14.5px; line-height:1.5;">
+          <span class="badge badge-regular" style="margin-right:6px;"><?= e($parts['type']) ?></span>
+          <?= e($parts['body']) ?>
+          <span class="text-muted">— <?= e($parts['name']) ?></span>
+        </li>
+      <?php endforeach; ?>
+    </ul>
   </div>
 </section>
 <?php endif; ?>

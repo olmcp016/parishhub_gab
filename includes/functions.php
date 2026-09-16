@@ -47,6 +47,59 @@ function massIntentionReadingLine(string $type, string $offerer, string $for): s
     return "{$line}, requested by {$offerer}.";
 }
 
+/**
+ * Public-safe breakdown of a Mass Intention for the website's "Today's Mass
+ * Intentions" display — no contact info, no internal status. Returns the
+ * three pieces that must always be shown: the Intention Type, the message
+ * body (the parishioner's own Prayer Message when they gave one, else a
+ * short generated line from the intention type and who it's for), and the
+ * name it's offered by.
+ */
+function publicMassIntentionParts(string $type, string $offerer, string $for, ?string $message): array
+{
+    $message = trim((string) $message);
+    if ($message !== '') {
+        $body = $message;
+    } else {
+        $for = trim($for) ?: 'the intention submitted';
+        $body = match ($type) {
+            'Living' => "For the health and well-being of {$for}.",
+            'Dead' => "For the eternal repose of the soul of {$for}.",
+            'Thanksgiving' => "In thanksgiving for the blessings received by {$for}.",
+            'Healing' => "For the healing and recovery of {$for}.",
+            'Birthday' => "For the birthday blessing of {$for}.",
+            default => "For the intention of {$for}.",
+        };
+    }
+    return [
+        'type' => $type,
+        'body' => $body,
+        'name' => trim($offerer) ?: 'the parish community',
+    ];
+}
+
+/**
+ * Today's Mass Intentions that are eligible for public display — payment
+ * must be Cashier-confirmed (appointments.status_id = 5), matching the
+ * required flow: submit -> pay -> Cashier verifies -> Cashier confirms ->
+ * public display. Compared against PHP's Asia/Manila "today" (see
+ * config/config.php), not the database's own current date, consistent
+ * with how the rest of the app computes "today".
+ */
+function getTodaysConfirmedMassIntentions(): array
+{
+    $stmt = db()->prepare(
+        "SELECT mi.intention_type, mi.offerer_name, mi.intention_for, mi.message, a.appointment_time
+         FROM appointments a
+         JOIN services s ON a.service_id = s.service_id
+         JOIN mass_intentions mi ON mi.appointment_id = a.appointment_id
+         WHERE s.category = 'Mass Intention' AND a.status_id = 5 AND a.appointment_date = ?
+         ORDER BY a.appointment_time ASC"
+    );
+    $stmt->execute([date('Y-m-d')]);
+    return $stmt->fetchAll();
+}
+
 function badgeClass(string $statusName): string
 {
     return strtolower(str_replace(' ', '-', $statusName));
