@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
-requireRole('Treasurer', 'Secretary', 'Admin');
+requireRole('Treasurer', 'Admin');
 
 $userId = currentUser()['user_id'];
 $purposes = ['General Donation', 'Church Maintenance', 'Charity', 'Mass / Parish Activities'];

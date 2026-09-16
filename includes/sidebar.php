@@ -75,9 +75,6 @@ function renderNavSection(string $slug, string $title, array $items, string $act
         [url('secretary/projects.php'), 'projects', 'hard-hat', 'Ongoing Projects'],
         [url('secretary/locations.php'), 'locations', 'map-pin', 'Locations'],
       ], $__active); ?>
-      <?php renderNavSection('donations', 'Donations', [
-        [url('treasurer/donations.php'), 'donations', 'hand-heart', 'Donations'],
-      ], $__active); ?>
       <?php renderNavSection('reports', 'Reports', [
         [url('secretary/reports.php'), 'reports', 'bar-chart-3', 'Reports'],
       ], $__active); ?>
@@ -91,6 +88,7 @@ function renderNavSection(string $slug, string $title, array $items, string $act
       <?php renderNavSection('payments-transactions', 'Payments & Transactions', [
         [url('treasurer/payments.php'), 'payments', 'history', 'Transaction History'],
         [url('treasurer/donations.php'), 'donations', 'hand-heart', 'Donations'],
+        [url('secretary/mass-intentions.php'), 'mass-intentions', 'flame', 'Mass Intentions'],
       ], $__active); ?>
       <?php renderNavSection('scheduling', 'Scheduling', [
         [url('secretary/calendar.php'), 'calendar', 'calendar-days', 'Calendar'],

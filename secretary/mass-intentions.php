@@ -1,15 +1,22 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
-requireRole('Secretary', 'Admin');
+requireRole('Secretary', 'Admin', 'Treasurer');
 
 $dateFilter = $_GET['date'] ?? '';
 $search = $_GET['search'] ?? '';
+$viewerRole = currentUser()['role_name'];
+$isSecretaryViewer = $viewerRole === 'Secretary';
+$isCashierViewer = $viewerRole === 'Treasurer';
 
+// Secretary sees this list to know what to read during Mass — no payment
+// detail, since that's the Cashier's responsibility to view, verify, and
+// confirm (see treasurer/payment-detail.php). Cashier/Admin get the
+// payment status too, since they need it to act.
 $sql = "SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.status_id,
                st.status_name, u.firstname, u.lastname,
                mi.intention_type, mi.offerer_name, mi.intention_for, mi.message,
-               p.payment_status
+               p.payment_id, p.payment_status
         FROM appointments a
         JOIN services s ON a.service_id = s.service_id
         JOIN mass_intentions mi ON mi.appointment_id = a.appointment_id
@@ -66,7 +73,13 @@ include __DIR__ . '/../includes/dash-start.php';
   <?php else: ?>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Date</th><th>Time</th><th>Type</th><th>Offerer</th><th>Intention For</th><th>Requested By</th><th>Payment</th><th>Status</th><th></th></tr></thead>
+        <thead>
+          <tr>
+            <th>Date</th><th>Time</th><th>Type</th><th>Offerer</th><th>Intention For</th><th>Requested By</th>
+            <?php if (!$isSecretaryViewer): ?><th>Payment</th><?php endif; ?>
+            <th>Status</th><th></th>
+          </tr>
+        </thead>
         <tbody>
           <?php foreach ($intentions as $row): ?>
             <tr>
@@ -76,9 +89,38 @@ include __DIR__ . '/../includes/dash-start.php';
               <td><?= e($row['offerer_name']) ?></td>
               <td><?= e($row['intention_for']) ?></td>
               <td><?= e($row['firstname']) ?> <?= e($row['lastname']) ?></td>
-              <td><?php if ($row['payment_status']): ?><span class="badge badge-<?= e($row['payment_status']) ?>"><?= e($row['payment_status']) ?></span><?php else: ?><span class="text-muted">—</span><?php endif; ?></td>
-              <td><span class="badge badge-<?= badgeClass($row['status_name']) ?>"><?= e($row['status_name']) ?></span></td>
-              <td><a href="<?= url('secretary/appointment-detail.php?id=' . $row['appointment_id']) ?>" class="btn btn-outline btn-sm">View</a></td>
+              <?php if (!$isSecretaryViewer): ?>
+                <td><?php if ($row['payment_status']): ?><span class="badge badge-<?= e($row['payment_status']) ?>"><?= e($row['payment_status']) ?></span><?php else: ?><span class="text-muted">—</span><?php endif; ?></td>
+              <?php endif; ?>
+              <td>
+                <?php if ($isSecretaryViewer):
+                  // Collapse the Cashier's payment-lifecycle detail (Approved /
+                  // Payment Verified / Confirmed all just mean "still on") into
+                  // one neutral label — Secretary sees whether it's happening,
+                  // not how far along the payment is.
+                  $display = match ($row['status_name']) {
+                      'Rejected' => ['Rejected', 'rejected'],
+                      'Cancelled' => ['Cancelled', 'cancelled'],
+                      'Completed' => ['Completed', 'completed'],
+                      default => ['Scheduled', 'approved'],
+                  };
+                ?>
+                  <span class="badge badge-<?= $display[1] ?>"><?= $display[0] ?></span>
+                <?php else: ?>
+                  <span class="badge badge-<?= badgeClass($row['status_name']) ?>"><?= e($row['status_name']) ?></span>
+                <?php endif; ?>
+              </td>
+              <td>
+                <?php if ($isCashierViewer): ?>
+                  <?php if ($row['payment_id']): ?>
+                    <a href="<?= url('treasurer/payment-detail.php?id=' . $row['payment_id']) ?>" class="btn btn-outline btn-sm">View Payment</a>
+                  <?php else: ?>
+                    <span class="text-muted" style="font-size:12px;">No payment yet</span>
+                  <?php endif; ?>
+                <?php else: ?>
+                  <a href="<?= url('secretary/appointment-detail.php?id=' . $row['appointment_id']) ?>" class="btn btn-outline btn-sm">View</a>
+                <?php endif; ?>
+              </td>
             </tr>
           <?php endforeach; ?>
         </tbody>

@@ -5,6 +5,7 @@ requireRole('Secretary', 'Admin');
 
 $statusFilter = $_GET['status'] ?? '';
 $search = $_GET['search'] ?? '';
+$isSecretaryViewer = currentUser()['role_name'] === 'Secretary';
 
 $sql = "SELECT a.*, s.service_name, s.category, u.firstname, u.lastname, u.email, st.status_name, p.full_name AS priest_name
         FROM appointments a
@@ -73,7 +74,20 @@ include __DIR__ . '/../includes/dash-start.php';
             <td><?= e($a['priest_name'] ?? '—') ?></td>
             <td>
               <?php if ($a['schedule_type']): ?><span class="badge badge-<?= strtolower($a['schedule_type']) ?>"><?= e($a['schedule_type']) ?></span><?php endif; ?>
-              <span class="badge badge-<?= badgeClass($a['status_name']) ?>"><?= e($a['status_name']) ?></span>
+              <?php if ($isSecretaryViewer && $a['category'] === 'Mass Intention'):
+                // Mass Intention payments are the Cashier's responsibility —
+                // Secretary sees whether it's still on, not the payment stage.
+                $display = match ($a['status_name']) {
+                    'Rejected' => ['Rejected', 'rejected'],
+                    'Cancelled' => ['Cancelled', 'cancelled'],
+                    'Completed' => ['Completed', 'completed'],
+                    default => ['Scheduled', 'approved'],
+                };
+              ?>
+                <span class="badge badge-<?= $display[1] ?>"><?= $display[0] ?></span>
+              <?php else: ?>
+                <span class="badge badge-<?= badgeClass($a['status_name']) ?>"><?= e($a['status_name']) ?></span>
+              <?php endif; ?>
             </td>
             <td><a href="<?= url('secretary/appointment-detail.php?id=' . $a['appointment_id']) ?>" class="btn btn-outline btn-sm">Review</a></td>
           </tr>

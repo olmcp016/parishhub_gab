@@ -6,6 +6,7 @@ requireRole('Secretary', 'Admin');
 
 $id = (int) ($_GET['id'] ?? 0);
 $userId = currentUser()['user_id'];
+$isSecretaryViewer = currentUser()['role_name'] === 'Secretary';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifyCsrf();
@@ -131,6 +132,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('success', 'Schedule updated.');
         }
     } elseif ($action === 'confirm') {
+        // Mass Intention/Donation payment confirmation is the Cashier's
+        // responsibility (see treasurer/payment-detail.php) — Secretary no
+        // longer manages payments for these two categories.
+        $stmt = db()->prepare("SELECT s.category FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_id = ?");
+        $stmt->execute([$id]);
+        if (in_array($stmt->fetchColumn(), ['Mass Intention', 'Donation'], true)) {
+            flash('error', 'Payment confirmation for Mass Intentions and Donations is handled by the Cashier.');
+            redirect(url('secretary/appointment-detail.php?id=' . $id));
+        }
+
         db()->prepare("UPDATE appointments SET status_id = 5 WHERE appointment_id = ?")->execute([$id]);
         $stmt = db()->prepare("SELECT parishioner_id FROM appointments WHERE appointment_id = ?");
         $stmt->execute([$id]);
@@ -217,7 +228,21 @@ include __DIR__ . '/../includes/dash-start.php';
         <?php if ($appointment['schedule_type']): ?>
           <span class="badge badge-<?= strtolower($appointment['schedule_type']) ?>"><?= e($appointment['schedule_type']) ?></span>
         <?php endif; ?>
-        <span class="badge badge-<?= badgeClass($appointment['status_name']) ?>"><?= e($appointment['status_name']) ?></span>
+        <?php if ($isSecretaryViewer && in_array($appointment['category'], ['Mass Intention', 'Donation'], true)): ?>
+          <?php
+            // Secretary doesn't see the Cashier's payment-lifecycle detail
+            // for these two categories — just whether it's still on.
+            $displayStatus = match ($appointment['status_name']) {
+                'Rejected' => ['Rejected', 'rejected'],
+                'Cancelled' => ['Cancelled', 'cancelled'],
+                'Completed' => ['Completed', 'completed'],
+                default => ['Scheduled', 'approved'],
+            };
+          ?>
+          <span class="badge badge-<?= $displayStatus[1] ?>"><?= $displayStatus[0] ?></span>
+        <?php else: ?>
+          <span class="badge badge-<?= badgeClass($appointment['status_name']) ?>"><?= e($appointment['status_name']) ?></span>
+        <?php endif; ?>
       </div>
     </div>
     <p><strong>Parishioner:</strong> <?= e($appointment['firstname']) ?> <?= e($appointment['lastname']) ?> (<?= e($appointment['email']) ?>, <?= e($appointment['phone']) ?>)</p>
@@ -329,6 +354,8 @@ include __DIR__ . '/../includes/dash-start.php';
           </div>
           <button type="submit" class="btn btn-danger btn-block">✖ Reject</button>
         </form>
+      <?php elseif ($appointment['status_name'] === 'Payment Verified' && in_array($appointment['category'], ['Mass Intention', 'Donation'], true)): ?>
+        <p class="text-muted">This request is being finalized by the Cashier — no action needed here.</p>
       <?php elseif ($appointment['status_name'] === 'Payment Verified'): ?>
         <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>">
           <?= csrfField() ?>
