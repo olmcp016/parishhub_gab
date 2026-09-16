@@ -169,6 +169,7 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
 
             <div id="massTimeGroup" style="display:none;">
               <input type="text" id="massTimeDisplay" disabled>
+              <select id="massTimeSelect" style="display:none;"></select>
               <input type="hidden" name="appointment_time" id="massTimeInput">
               <p class="helper-text" id="massTimeHint">Select a date to see the assigned Mass time.</p>
             </div>
@@ -604,26 +605,47 @@ function checkRequirementFile(input) {
 }
 
 /**
- * Mass Intention times are never chosen by the parishioner — the time is
- * assigned automatically from the parish's Mass schedule for the selected
- * date (the earliest/only official Mass time that day).
+ * Most days only have one official Mass, so the time is just assigned
+ * automatically. Sunday has three (1st, 2nd, and 3rd Mass) — on those
+ * dates the parishioner picks which one they want their intention
+ * offered at, via massTimeSelect below.
  */
 function autoAssignMassTime() {
   var dateInput = document.getElementById('appointmentDateInput');
   var display = document.getElementById('massTimeDisplay');
+  var select = document.getElementById('massTimeSelect');
   var hidden = document.getElementById('massTimeInput');
   var hint = document.getElementById('massTimeHint');
 
   if (!dateInput.value) {
+    display.style.display = '';
+    select.style.display = 'none';
     display.value = '';
     hidden.value = '';
     hint.textContent = 'Select a date to see the assigned Mass time.';
     return;
   }
-  var t = massTimesForJS(dateInput.value)[0];
-  display.value = formatTimeLabel(t) + ' (assigned automatically)';
-  hidden.value = t;
-  hint.textContent = 'This Mass Intention will be offered during the ' + formatTimeLabel(t) + ' Mass on the selected date.';
+
+  var times = massTimesForJS(dateInput.value);
+
+  if (times.length > 1) {
+    var previousValue = hidden.value;
+    display.style.display = 'none';
+    select.style.display = '';
+    select.innerHTML = times.map(function (t) {
+      return '<option value="' + t + '">' + formatTimeLabel(t) + '</option>';
+    }).join('');
+    select.value = times.indexOf(previousValue) !== -1 ? previousValue : times[0];
+    hidden.value = select.value;
+    hint.textContent = 'This date has three Sunday Masses — choose which one you would like this intention offered at.';
+  } else {
+    var t = times[0];
+    display.style.display = '';
+    select.style.display = 'none';
+    display.value = formatTimeLabel(t) + ' (assigned automatically)';
+    hidden.value = t;
+    hint.textContent = 'This Mass Intention will be offered during the ' + formatTimeLabel(t) + ' Mass on the selected date.';
+  }
   refreshAvailability();
 }
 
@@ -719,6 +741,10 @@ document.addEventListener('DOMContentLoaded', function () {
     else updateOccupiedTimesHint();
   });
   document.getElementById('freeTimeInput').addEventListener('change', refreshAvailability);
+  document.getElementById('massTimeSelect').addEventListener('change', function () {
+    document.getElementById('massTimeInput').value = this.value;
+    refreshAvailability();
+  });
 
   var toggleBtn = document.getElementById('togglePickerBtn');
   var wrap = document.getElementById('miniCalendarWrap');
