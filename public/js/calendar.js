@@ -68,6 +68,13 @@ function renderParishCalendar(elId, options) {
     events: eventItems.concat(blockedItems),
     dayMaxEvents: 2,
 
+    // Fires after initial render and after every prev/next/today navigation
+    // (the month can be 4-6 weeks tall) — lets a page keep something else
+    // in sync with the calendar's actual rendered height.
+    datesSet: function (info) {
+      if (typeof options.datesSet === 'function') options.datesSet(info);
+    },
+
     dateClick: function (info) {
       var dateStr = info.dateStr; // YYYY-MM-DD, in the calendar's local rendering
 

@@ -38,7 +38,7 @@ include __DIR__ . '/../includes/' . (usesParishionerShell() ? 'dash-start.php' :
 ?>
 
 <div style="display:grid; grid-template-columns: auto 1fr; gap: 22px; align-items:start;" class="calendar-layout">
-  <div>
+  <div id="calendarColumn">
     <div id="parishCalendar"></div>
     <div class="pcal-legend">
       <span><i class="pcal-dot pcal-dot-today"></i> Today</span>
@@ -49,12 +49,12 @@ include __DIR__ . '/../includes/' . (usesParishionerShell() ? 'dash-start.php' :
   </div>
 
   <div>
-    <div class="card">
+    <div class="card" id="upcomingEventsCard">
       <div class="card-header"><h3>Upcoming Parish Events</h3></div>
       <?php if (empty($events)): ?>
         <p class="text-muted">No upcoming events scheduled.</p>
       <?php else: ?>
-        <div class="table-wrap">
+        <div class="table-wrap" id="upcomingEventsTableWrap">
           <table>
             <thead><tr><th>Event</th><th>Date</th><th>Time</th><th>Location</th><th>Priest</th></tr></thead>
             <tbody>
@@ -90,12 +90,35 @@ include __DIR__ . '/../includes/' . (usesParishionerShell() ? 'dash-start.php' :
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.21/index.global.min.js"></script>
-<script src="<?= url('public/js/calendar.js') ?>"></script>
+<script src="<?= url('public/js/calendar.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/calendar.js') ?>"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   // "today" is derived from the browser's own local clock, not the server's.
   var now = new Date();
   var todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+
+  // Keeps "Upcoming Parish Events" the same height as the calendar (which
+  // varies between 4 and 6 week-rows depending on the month) so its
+  // pagination controls are always visible without scrolling the page —
+  // the events table scrolls internally instead of pushing the page taller.
+  function syncUpcomingEventsHeight() {
+    var column = document.getElementById('calendarColumn');
+    var card = document.getElementById('upcomingEventsCard');
+    var tableWrap = document.getElementById('upcomingEventsTableWrap');
+    if (!column || !card || !tableWrap) return;
+
+    if (window.innerWidth <= 900) {
+      // Stacked layout on small screens — no benefit to capping the height.
+      tableWrap.style.maxHeight = '';
+      tableWrap.style.overflowY = '';
+      return;
+    }
+
+    var otherContentHeight = card.offsetHeight - tableWrap.offsetHeight;
+    var target = column.offsetHeight - otherContentHeight;
+    tableWrap.style.maxHeight = Math.max(target, 180) + 'px';
+    tableWrap.style.overflowY = 'auto';
+  }
 
   renderParishCalendar('parishCalendar', {
     events: <?= json_encode($calendarEvents, JSON_UNESCAPED_UNICODE) ?>,
@@ -107,7 +130,18 @@ document.addEventListener('DOMContentLoaded', function () {
         return;
       }
       window.location.href = '<?= url('parishioner/services.php') ?>?date=' + dateStr;
+    },
+    datesSet: function () {
+      // The calendar has already re-rendered synchronously by this point,
+      // but give layout a tick to settle before measuring.
+      setTimeout(syncUpcomingEventsHeight, 0);
     }
+  });
+
+  var resizeTimer = null;
+  window.addEventListener('resize', function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(syncUpcomingEventsHeight, 150);
   });
 });
 </script>

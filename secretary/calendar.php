@@ -191,7 +191,7 @@ include __DIR__ . '/../includes/dash-start.php';
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.21/index.global.min.js"></script>
-<script src="<?= url('public/js/calendar.js') ?>"></script>
+<script src="<?= url('public/js/calendar.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/calendar.js') ?>"></script>
 <script src="<?= url('public/js/scheduling.js') ?>"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
