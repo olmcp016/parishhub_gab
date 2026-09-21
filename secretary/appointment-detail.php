@@ -7,6 +7,8 @@ requireRole('Secretary', 'Admin');
 $id = (int) ($_GET['id'] ?? 0);
 $userId = currentUser()['user_id'];
 $isSecretaryViewer = currentUser()['role_name'] === 'Secretary';
+$isAjax = isDetailModalRequest();
+$redirectUrl = url('secretary/appointment-detail.php?id=' . $id);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifyCsrf();
@@ -16,8 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         db()->prepare('UPDATE uploaded_documents SET verified = TRUE WHERE document_id = ? AND appointment_id = ?')
             ->execute([$_POST['document_id'], $id]);
         logActivity($userId, "Verified a document for appointment #$id", 'Appointments');
-        flash('success', 'Document marked as verified.');
-        redirect(url('secretary/appointment-detail.php?id=' . $id));
+        respondAjaxOrRedirect($isAjax, true, 'Document marked as verified.', $redirectUrl);
     }
 
     if ($action === 'approve') {
@@ -44,16 +45,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $verifiedLabels = array_column(array_filter($docs, fn($d) => $d['verified']), 'requirement_label');
                 $missing = array_diff($requirementsList, $verifiedLabels);
                 if (!empty($missing)) {
-                    flash('error', 'The following required document(s) still need to be uploaded and verified before approving: ' . implode(', ', $missing) . '.');
-                    redirect(url('secretary/appointment-detail.php?id=' . $id));
+                    respondAjaxOrRedirect($isAjax, false, 'The following required document(s) still need to be uploaded and verified before approving: ' . implode(', ', $missing) . '.', $redirectUrl);
                 }
             } else {
                 // Legacy appointment (uploaded before per-requirement tracking existed) —
                 // keep the original, looser "at least one verified document" check.
                 $verifiedCount = count(array_filter($docs, fn($d) => $d['verified']));
                 if ($verifiedCount === 0) {
-                    flash('error', 'This service requires documents (' . $svc['requirements'] . '). Please verify at least one uploaded document before approving, or contact the parishioner to submit them.');
-                    redirect(url('secretary/appointment-detail.php?id=' . $id));
+                    respondAjaxOrRedirect($isAjax, false, 'This service requires documents (' . $svc['requirements'] . '). Please verify at least one uploaded document before approving, or contact the parishioner to submit them.', $redirectUrl);
                 }
             }
         }
@@ -69,12 +68,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         db()->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Appointment Approved', ?)")
             ->execute([$puid, "Your appointment #$id has been approved. Please proceed with payment."]);
         logActivity($userId, "Approved appointment #$id", 'Appointments');
-        flash('success', 'Appointment approved. The parishioner may now proceed to payment.');
+        respondAjaxOrRedirect($isAjax, true, 'Appointment approved. The parishioner may now proceed to payment.', $redirectUrl);
     } elseif ($action === 'reject') {
         $reason = trim($_POST['reason'] ?? '');
         if ($reason === '') {
-            flash('error', 'Please provide a reason for rejecting this appointment.');
-            redirect(url('secretary/appointment-detail.php?id=' . $id));
+            respondAjaxOrRedirect($isAjax, false, 'Please provide a reason for rejecting this appointment.', $redirectUrl);
         }
 
         db()->prepare("UPDATE appointments SET status_id = 3, rejection_reason = ? WHERE appointment_id = ?")
@@ -88,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         db()->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Appointment Rejected', ?)")
             ->execute([$puid, "Your appointment #$id was not approved. Reason: $reason"]);
         logActivity($userId, "Rejected appointment #$id", 'Appointments');
-        flash('success', 'Appointment rejected.');
+        respondAjaxOrRedirect($isAjax, true, 'Appointment rejected.', $redirectUrl);
     } elseif ($action === 'assign_priest') {
         $priestId = $_POST['priest_id'];
 
@@ -101,13 +99,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $availability = priestIsAvailable((int) $priestId, $slot['appointment_date'], $slot['appointment_time'], $id);
 
         if (!$availability['available']) {
-            flash('error', $availability['reason']);
-        } else {
-            db()->prepare("UPDATE appointments SET priest_id = ? WHERE appointment_id = ?")
-                ->execute([$priestId, $id]);
-            logActivity($userId, "Assigned priest to appointment #$id", 'Appointments');
-            flash('success', 'Priest assigned.');
+            respondAjaxOrRedirect($isAjax, false, $availability['reason'], $redirectUrl);
         }
+        db()->prepare("UPDATE appointments SET priest_id = ? WHERE appointment_id = ?")
+            ->execute([$priestId, $id]);
+        logActivity($userId, "Assigned priest to appointment #$id", 'Appointments');
+        respondAjaxOrRedirect($isAjax, true, 'Priest assigned.', $redirectUrl);
     } elseif ($action === 'reschedule') {
         $newDate = $_POST['appointment_date'];
         $newTime = $_POST['appointment_time'];
@@ -121,16 +118,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $check = validateBooking($category, $newDate, $newTime, null, $apptInfo['schedule_type'], (int) $apptInfo['service_id']);
         if (!$check['valid']) {
-            flash('error', $check['message']);
-        } elseif (serviceSlotIsBooked((int) $apptInfo['service_id'], $newDate, $check['forcedTime'] ?? $newTime, $id)) {
-            flash('error', 'That exact date and time is already booked for this service. Please choose another slot.');
-        } else {
-            $finalTime = $check['forcedTime'] ?? $newTime;
-            db()->prepare("UPDATE appointments SET appointment_date = ?, appointment_time = ? WHERE appointment_id = ?")
-                ->execute([$newDate, $finalTime, $id]);
-            logActivity($userId, "Rescheduled appointment #$id", 'Appointments');
-            flash('success', 'Schedule updated.');
+            respondAjaxOrRedirect($isAjax, false, $check['message'], $redirectUrl);
         }
+        if (serviceSlotIsBooked((int) $apptInfo['service_id'], $newDate, $check['forcedTime'] ?? $newTime, $id)) {
+            respondAjaxOrRedirect($isAjax, false, 'That exact date and time is already booked for this service. Please choose another slot.', $redirectUrl);
+        }
+        $finalTime = $check['forcedTime'] ?? $newTime;
+        db()->prepare("UPDATE appointments SET appointment_date = ?, appointment_time = ? WHERE appointment_id = ?")
+            ->execute([$newDate, $finalTime, $id]);
+        logActivity($userId, "Rescheduled appointment #$id", 'Appointments');
+        respondAjaxOrRedirect($isAjax, true, 'Schedule updated.', $redirectUrl);
     } elseif ($action === 'confirm') {
         // Mass Intention/Donation payment confirmation is the Cashier's
         // responsibility (see treasurer/payment-detail.php) — Secretary no
@@ -138,8 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = db()->prepare("SELECT s.category FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_id = ?");
         $stmt->execute([$id]);
         if (in_array($stmt->fetchColumn(), ['Mass Intention', 'Donation'], true)) {
-            flash('error', 'Payment confirmation for Mass Intentions and Donations is handled by the Cashier.');
-            redirect(url('secretary/appointment-detail.php?id=' . $id));
+            respondAjaxOrRedirect($isAjax, false, 'Payment confirmation for Mass Intentions and Donations is handled by the Cashier.', $redirectUrl);
         }
 
         db()->prepare("UPDATE appointments SET status_id = 5 WHERE appointment_id = ?")->execute([$id]);
@@ -152,13 +148,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         db()->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Appointment Confirmed', ?)")
             ->execute([$puid, "Your appointment #$id is confirmed. We look forward to seeing you."]);
         logActivity($userId, "Confirmed appointment #$id", 'Appointments');
-        flash('success', 'Appointment confirmed.');
+        respondAjaxOrRedirect($isAjax, true, 'Appointment confirmed.', $redirectUrl);
     } elseif ($action === 'complete') {
         db()->prepare("UPDATE appointments SET status_id = 6 WHERE appointment_id = ?")->execute([$id]);
         logActivity($userId, "Marked appointment #$id as completed", 'Appointments');
-        flash('success', 'Appointment marked as completed.');
+        respondAjaxOrRedirect($isAjax, true, 'Appointment marked as completed.', $redirectUrl);
     }
-    redirect(url('secretary/appointment-detail.php?id=' . $id));
+    redirect($redirectUrl);
 }
 
 $stmt = db()->prepare(
@@ -174,6 +170,11 @@ $stmt->execute([$id]);
 $appointment = $stmt->fetch();
 
 if (!$appointment) {
+    if ($isAjax) {
+        http_response_code(404);
+        echo '<p class="text-muted">Appointment not found.</p>';
+        exit;
+    }
     flash('error', 'Appointment not found.');
     redirect(url('secretary/appointments.php'));
 }
@@ -216,11 +217,13 @@ foreach ($priests as $p) {
 
 $active = 'appointments';
 $pageTitle = 'Appointment #' . $appointment['appointment_id'];
-include __DIR__ . '/../includes/header.php';
-include __DIR__ . '/../includes/dash-start.php';
+if (!$isAjax) {
+    include __DIR__ . '/../includes/header.php';
+    include __DIR__ . '/../includes/dash-start.php';
+}
 ?>
 
-<div style="display:grid; grid-template-columns: 1.4fr 1fr; gap: 22px;">
+<div style="display:grid; grid-template-columns: 1.4fr 1fr; gap: 22px;" class="detail-grid">
   <div class="card">
     <div class="card-header">
       <h3><?= e($appointment['service_name']) ?></h3>
@@ -228,16 +231,20 @@ include __DIR__ . '/../includes/dash-start.php';
         <?php if ($appointment['schedule_type']): ?>
           <span class="badge badge-<?= strtolower($appointment['schedule_type']) ?>"><?= e($appointment['schedule_type']) ?></span>
         <?php endif; ?>
-        <?php if ($isSecretaryViewer && in_array($appointment['category'], ['Mass Intention', 'Donation'], true)): ?>
+        <?php if ($appointment['category'] === 'Mass Intention' || ($isSecretaryViewer && $appointment['category'] === 'Donation')): ?>
           <?php
-            // Secretary doesn't see the Cashier's payment-lifecycle detail
-            // for these two categories — just whether it's still on.
-            $displayStatus = match ($appointment['status_name']) {
-                'Rejected' => ['Rejected', 'rejected'],
-                'Cancelled' => ['Cancelled', 'cancelled'],
-                'Completed' => ['Completed', 'completed'],
-                default => ['Scheduled', 'approved'],
-            };
+            // Mass Intentions use the shared Payment Required / Pending Cashier
+            // Verification / Approved / Rejected wording (the Secretary only
+            // sees approved-or-not); the Secretary never sees the Cashier's
+            // payment-lifecycle detail for Donations either.
+            $displayStatus = $appointment['category'] === 'Mass Intention'
+                ? massIntentionStatusDisplay($appointment['status_name'], true, $isSecretaryViewer)
+                : match ($appointment['status_name']) {
+                    'Rejected' => ['Rejected', 'rejected'],
+                    'Cancelled' => ['Cancelled', 'cancelled'],
+                    'Completed' => ['Completed', 'completed'],
+                    default => ['Scheduled', 'approved'],
+                };
           ?>
           <span class="badge badge-<?= $displayStatus[1] ?>"><?= $displayStatus[0] ?></span>
         <?php else: ?>
@@ -435,5 +442,7 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
 </div>
 
+<?php if (!$isAjax): ?>
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
+<?php endif; ?>

@@ -8,7 +8,7 @@ $todayCount = db()->query("SELECT COUNT(*) FROM appointments a JOIN services s O
 $weekCount = db()->query("SELECT COUNT(*) FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE YEARWEEK(a.appointment_date, 1) = YEARWEEK(CURDATE(), 1) AND s.category != 'Donation'")->fetchColumn();
 
 $recent = db()->query(
-    "SELECT a.*, s.service_name, u.firstname, u.lastname, st.status_name
+    "SELECT a.*, s.service_name, s.category, u.firstname, u.lastname, st.status_name
      FROM appointments a
      JOIN services s ON a.service_id = s.service_id
      JOIN parishioners par ON a.parishioner_id = par.parishioner_id
@@ -45,14 +45,23 @@ include __DIR__ . '/../includes/dash-start.php';
             <td><?= e($a['firstname']) ?> <?= e($a['lastname']) ?></td>
             <td><?= e($a['service_name']) ?></td>
             <td><?= formatDate($a['appointment_date']) ?></td>
-            <td><span class="badge badge-<?= badgeClass($a['status_name']) ?>"><?= e($a['status_name']) ?></span></td>
-            <td><a href="<?= url('secretary/appointment-detail.php?id=' . $a['appointment_id']) ?>" class="btn btn-outline btn-sm">Review</a></td>
+            <td>
+              <?php if ($a['category'] === 'Mass Intention'): ?>
+                <?php $miStatus = massIntentionStatusDisplay($a['status_name'], true, currentUser()['role_name'] === 'Secretary'); ?>
+                <span class="badge badge-<?= $miStatus[1] ?>"><?= e($miStatus[0]) ?></span>
+              <?php else: ?>
+                <span class="badge badge-<?= badgeClass($a['status_name']) ?>"><?= e($a['status_name']) ?></span>
+              <?php endif; ?>
+            </td>
+            <td><a href="<?= url('secretary/appointment-detail.php?id=' . $a['appointment_id']) ?>" class="btn btn-outline btn-sm js-view-modal" data-url="<?= url('secretary/appointment-detail.php?id=' . $a['appointment_id']) ?>" data-title="<?= e('Appointment #' . $a['appointment_id'] . ' — ' . $a['service_name']) ?>">Review</a></td>
           </tr>
         <?php endforeach; ?>
       </tbody>
     </table>
   </div>
 </div>
+
+<?php include __DIR__ . '/../includes/detail-modal.php'; ?>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

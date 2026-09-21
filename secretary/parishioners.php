@@ -55,7 +55,7 @@ include __DIR__ . '/../includes/dash-start.php';
             <td><?= e($p['phone'] ?? '—') ?></td>
             <td><?= e($p['marital_status'] ?? '—') ?></td>
             <td><span class="badge badge-<?= $p['status']==='active'?'approved':'rejected' ?>"><?= e($p['status']) ?></span></td>
-            <td><a href="<?= url('secretary/parishioner-detail.php?id=' . $p['parishioner_id']) ?>" class="btn btn-outline btn-sm">View</a></td>
+            <td><a href="<?= url('secretary/parishioner-detail.php?id=' . $p['parishioner_id']) ?>" class="btn btn-outline btn-sm js-view-modal" data-url="<?= url('secretary/parishioner-detail.php?id=' . $p['parishioner_id']) ?>" data-title="<?= e($p['firstname'] . ' ' . $p['lastname']) ?>">View</a></td>
           </tr>
         <?php endforeach; ?>
       </tbody>
@@ -63,6 +63,8 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
   <?php if (empty($parishioners)): ?><p class="text-muted text-center mt-3">No parishioners found.</p><?php endif; ?>
 </div>
+
+<?php include __DIR__ . '/../includes/detail-modal.php'; ?>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

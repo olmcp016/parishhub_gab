@@ -6,11 +6,12 @@ requireRole('Secretary', 'Admin');
 $id = (int) ($_GET['id'] ?? 0); // parishioner_id
 $userId = currentUser()['user_id'];
 $isAdmin = currentUser()['role_name'] === 'Admin';
+$isAjax = isDetailModalRequest();
+$redirectUrl = url('secretary/parishioner-detail.php?id=' . $id);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$isAdmin) {
-        flash('error', 'Only administrators can manage parishioner accounts.');
-        redirect(url('secretary/parishioner-detail.php?id=' . $id));
+        respondAjaxOrRedirect($isAjax, false, 'Only administrators can manage parishioner accounts.', $redirectUrl);
     }
     verifyCsrf();
 
@@ -21,9 +22,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($targetUserId && in_array($_POST['status'] ?? '', ['active', 'inactive', 'suspended'], true)) {
         db()->prepare('UPDATE users SET status = ? WHERE user_id = ?')->execute([$_POST['status'], $targetUserId]);
         logActivity($userId, "Updated status of parishioner #$id to {$_POST['status']}", 'Parishioners');
-        flash('success', 'Account status updated.');
+        respondAjaxOrRedirect($isAjax, true, 'Account status updated.', $redirectUrl);
     }
-    redirect(url('secretary/parishioner-detail.php?id=' . $id));
+    redirect($redirectUrl);
 }
 
 $stmt = db()->prepare(
@@ -35,6 +36,11 @@ $stmt->execute([$id]);
 $parishioner = $stmt->fetch();
 
 if (!$parishioner) {
+    if ($isAjax) {
+        http_response_code(404);
+        echo '<p class="text-muted">Parishioner not found.</p>';
+        exit;
+    }
     flash('error', 'Parishioner not found.');
     redirect(url('secretary/parishioners.php'));
 }
@@ -51,11 +57,13 @@ $appointments = $stmt->fetchAll();
 
 $active = 'parishioners';
 $pageTitle = $parishioner['firstname'] . ' ' . $parishioner['lastname'];
-include __DIR__ . '/../includes/header.php';
-include __DIR__ . '/../includes/dash-start.php';
+if (!$isAjax) {
+    include __DIR__ . '/../includes/header.php';
+    include __DIR__ . '/../includes/dash-start.php';
+}
 ?>
 
-<div style="display:grid; grid-template-columns: 1.4fr 1fr; gap: 22px;">
+<div style="display:grid; grid-template-columns: 1.4fr 1fr; gap: 22px;" class="detail-grid">
   <div class="card">
     <div class="card-header">
       <h3><?= e($parishioner['firstname']) ?> <?= e($parishioner['lastname']) ?></h3>
@@ -106,7 +114,7 @@ include __DIR__ . '/../includes/dash-start.php';
               <td><?= e($a['service_name']) ?></td>
               <td><?= formatDate($a['appointment_date']) ?> <?= date('g:i A', strtotime($a['appointment_time'])) ?></td>
               <td><span class="badge badge-<?= badgeClass($a['status_name']) ?>"><?= e($a['status_name']) ?></span></td>
-              <td><a href="<?= url('secretary/appointment-detail.php?id=' . $a['appointment_id']) ?>" class="btn btn-outline btn-sm">View</a></td>
+              <td><a href="<?= url('secretary/appointment-detail.php?id=' . $a['appointment_id']) ?>" class="btn btn-outline btn-sm js-view-modal" data-url="<?= url('secretary/appointment-detail.php?id=' . $a['appointment_id']) ?>" data-title="<?= e('Appointment #' . $a['appointment_id'] . ' — ' . $a['service_name']) ?>">View</a></td>
             </tr>
           <?php endforeach; ?>
         </tbody>
@@ -115,5 +123,7 @@ include __DIR__ . '/../includes/dash-start.php';
   <?php endif; ?>
 </div>
 
+<?php if (!$isAjax): ?>
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
+<?php endif; ?>

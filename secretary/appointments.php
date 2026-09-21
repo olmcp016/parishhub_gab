@@ -74,22 +74,17 @@ include __DIR__ . '/../includes/dash-start.php';
             <td><?= e($a['priest_name'] ?? '—') ?></td>
             <td>
               <?php if ($a['schedule_type']): ?><span class="badge badge-<?= strtolower($a['schedule_type']) ?>"><?= e($a['schedule_type']) ?></span><?php endif; ?>
-              <?php if ($isSecretaryViewer && $a['category'] === 'Mass Intention'):
+              <?php if ($a['category'] === 'Mass Intention'):
                 // Mass Intention payments are the Cashier's responsibility —
-                // Secretary sees whether it's still on, not the payment stage.
-                $display = match ($a['status_name']) {
-                    'Rejected' => ['Rejected', 'rejected'],
-                    'Cancelled' => ['Cancelled', 'cancelled'],
-                    'Completed' => ['Completed', 'completed'],
-                    default => ['Scheduled', 'approved'],
-                };
+                // Secretary only sees whether it's approved yet, not the payment stage.
+                $display = massIntentionStatusDisplay($a['status_name'], true, $isSecretaryViewer);
               ?>
                 <span class="badge badge-<?= $display[1] ?>"><?= $display[0] ?></span>
               <?php else: ?>
                 <span class="badge badge-<?= badgeClass($a['status_name']) ?>"><?= e($a['status_name']) ?></span>
               <?php endif; ?>
             </td>
-            <td><a href="<?= url('secretary/appointment-detail.php?id=' . $a['appointment_id']) ?>" class="btn btn-outline btn-sm">Review</a></td>
+            <td><a href="<?= url('secretary/appointment-detail.php?id=' . $a['appointment_id']) ?>" class="btn btn-outline btn-sm js-view-modal" data-url="<?= url('secretary/appointment-detail.php?id=' . $a['appointment_id']) ?>" data-title="<?= e('Appointment #' . $a['appointment_id'] . ' — ' . $a['service_name']) ?>">Review</a></td>
           </tr>
         <?php endforeach; ?>
       </tbody>
@@ -97,6 +92,8 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
   <?php if (empty($appointments)): ?><p class="text-muted text-center mt-3">No appointments found.</p><?php endif; ?>
 </div>
+
+<?php include __DIR__ . '/../includes/detail-modal.php'; ?>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
