@@ -73,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $isMassIntention = ($category === 'Mass Intention');
     if (!$category || !$date || !$time) {
         bookRespondError($isAjax, $isMassIntention
-            ? 'Please select a Mass date and one of the Mass times (6:00 AM, 9:00 AM, or 4:00 PM).'
+            ? 'Please select a Mass date and one of the available Mass times.'
             : 'Please fill in the service, date, and time.', url('parishioner/services.php'));
     }
 

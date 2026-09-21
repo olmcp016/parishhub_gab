@@ -567,7 +567,7 @@ function rebuildPriestOptions(priests) {
   }
   if (unavailable.length) {
     html += '<optgroup label="Unavailable">' + unavailable.map(function (p) {
-      return '<option value="' + p.priest_id + '" disabled title="' + (p.reason || '') + '">' + p.label + ' — Unavailable</option>';
+      return '<option value="' + p.priest_id + '" disabled title="' + (p.reason || '').replace(/"/g, '&quot;') + '">' + p.label + ' — Unavailable' + (p.note ? ' (' + p.note.replace(/</g, '&lt;') + ')' : '') + '</option>';
     }).join('') + '</optgroup>';
   }
   select.innerHTML = html;
@@ -643,6 +643,12 @@ function checkRequirementFile(input) {
 /** The parish's three official Mass Intention times (mirrors MASS_INTENTION_TIMES in includes/scheduling.php). */
 var MASS_INTENTION_TIMES = [['06:00', '1st Mass'], ['09:00', '2nd Mass'], ['16:00', '3rd Mass']];
 
+/** Sundays have the three Masses; Monday–Saturday there is only the 6:00 AM Daily Mass (mirrors massIntentionTimesForDate()). */
+function massTimesForDate(dateStr) {
+  var d = new Date(dateStr + 'T00:00:00');
+  return d.getDay() === 0 ? MASS_INTENTION_TIMES : [['06:00', 'Daily Mass']];
+}
+
 /**
  * Mass Intentions can only be booked at the three official Masses — the
  * parishioner picks one from this dropdown (no free time entry). Each time
@@ -680,7 +686,7 @@ function autoAssignMassTime() {
     hidden.value = select.value;
     hint.textContent = !checked
       ? 'Choose one of the parish\'s Mass times. Availability is confirmed when you submit.'
-      : (anyAvailable ? 'Choose one of the parish\'s three Masses. Unavailable times are greyed out.' : 'No Mass times are available on this date — please choose another date.');
+      : (anyAvailable ? (new Date(requestedDate + 'T00:00:00').getDay() === 0 ? 'Sunday Masses: 6:00 AM, 9:00 AM and 4:00 PM. Unavailable times are greyed out.' : 'Monday to Saturday there is one Daily Mass at 6:00 AM.') : 'No Mass times are available on this date — please choose another date.');
     refreshAvailability();
   }
 
@@ -692,7 +698,7 @@ function autoAssignMassTime() {
     .then(function (res) { return res.json(); })
     .then(function (data) { render(data.mass_slots || [], true); })
     .catch(function () {
-      render(MASS_INTENTION_TIMES.map(function (t) {
+      render(massTimesForDate(requestedDate).map(function (t) {
         return { time: t[0], label: formatTimeLabel(t[0]) + ' — ' + t[1], available: true, reason: null };
       }), false);
     });

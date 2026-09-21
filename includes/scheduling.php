@@ -99,6 +99,21 @@ const MASS_INTENTION_TIMES = [
 ];
 
 /**
+ * The Mass Intention times offered on a given date (H:i => label). The three
+ * Masses run on SUNDAYS ONLY; Monday–Saturday there is a single 6:00 AM
+ * Daily Mass. This is the one source of truth used by the booking form's
+ * time list, the availability API, and the backend validation.
+ */
+function massIntentionTimesForDate(string $date): array
+{
+    $ts = strtotime($date);
+    if ($ts !== false && (int) date('w', $ts) === 0) {
+        return MASS_INTENTION_TIMES;
+    }
+    return ['06:00' => 'Daily Mass'];
+}
+
+/**
  * Whether a Mass Intention can be booked at this exact date + official Mass
  * time. Reuses the existing staff-day-off and blocked-calendar rules, plus:
  * dates/times already past, and another parish service already booked in
@@ -109,11 +124,14 @@ const MASS_INTENTION_TIMES = [
 function massIntentionSlotAvailability(string $date, string $time): array
 {
     $time5 = substr($time, 0, 5);
-    if (!isset(MASS_INTENTION_TIMES[$time5])) {
-        return ['available' => false, 'reason' => 'Mass Intentions can only be offered at the 6:00 AM, 9:00 AM, or 4:00 PM Mass.'];
-    }
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || strtotime($date) === false) {
         return ['available' => false, 'reason' => 'Please choose a valid date.'];
+    }
+    if (!isset(massIntentionTimesForDate($date)[$time5])) {
+        $isSunday = (int) date('w', strtotime($date)) === 0;
+        return ['available' => false, 'reason' => $isSunday
+            ? 'On Sundays, Mass Intentions can only be offered at the 6:00 AM, 9:00 AM, or 4:00 PM Mass.'
+            : 'From Monday to Saturday, Mass Intentions can only be offered at the 6:00 AM Daily Mass.'];
     }
 
     $today = date('Y-m-d');
@@ -147,7 +165,7 @@ function massIntentionSlotAvailability(string $date, string $time): array
 function massIntentionSlotsFor(string $date): array
 {
     $slots = [];
-    foreach (MASS_INTENTION_TIMES as $time5 => $name) {
+    foreach (massIntentionTimesForDate($date) as $time5 => $name) {
         $check = massIntentionSlotAvailability($date, $time5);
         $slots[] = [
             'time' => $time5,
@@ -336,14 +354,20 @@ function priestIsAvailable(int $priestId, string $date, string $time, ?int $excl
     $stmt = db()->prepare(
         "SELECT reason, start_time, end_time FROM priest_unavailability
          WHERE priest_id = ? AND unavailable_date = ?
-           AND (start_time IS NULL OR (start_time <= ? AND end_time >= ?))"
+           AND (start_time IS NULL OR start_time <= ?) AND (end_time IS NULL OR end_time >= ?)"
     );
     $stmt->execute([$priestId, $date, $time5 . ':00', $time5 . ':00']);
     $blocked = $stmt->fetch();
     if ($blocked) {
+        // Blank start AND end = the whole day; otherwise only that window.
+        $window = ($blocked['start_time'] === null && $blocked['end_time'] === null)
+            ? 'that day'
+            : 'from ' . ($blocked['start_time'] ? date('g:i A', strtotime($blocked['start_time'])) : 'the start of the day')
+              . ' to ' . ($blocked['end_time'] ? date('g:i A', strtotime($blocked['end_time'])) : 'the end of the day');
         return [
             'available' => false,
-            'reason' => $priest['title'] . ' ' . $priest['full_name'] . ' is unavailable that day' . ($blocked['reason'] ? " ({$blocked['reason']})" : '') . '.',
+            'reason' => $priest['title'] . ' ' . $priest['full_name'] . ' is unavailable ' . $window . ($blocked['reason'] ? " ({$blocked['reason']})" : '') . '.',
+            'note' => $blocked['reason'] ?: 'Not available',
         ];
     }
 
@@ -385,6 +409,7 @@ function availablePriestsFor(string $date, string $time, ?int $excludeAppointmen
             'label' => $p['title'] . ' ' . $p['full_name'],
             'available' => $check['available'],
             'reason' => $check['reason'],
+            'note' => $check['note'] ?? null,
         ];
     }
     return $result;
@@ -528,7 +553,7 @@ function schedulingPolicyText(string $category, ?int $serviceId = null): string
         case 'Funeral':
             return 'Funeral Masses are held after the 9-day mourning period from the date of death, fixed at 1:00 PM.';
         case 'Mass Intention':
-            return 'Mass Intentions are offered at the 1st Mass (6:00 AM), 2nd Mass (9:00 AM), or 3rd Mass (4:00 PM) — choose one after picking your date. There is no fixed fee, but an offering greater than ₱0 must be paid to submit your intention. Once our Cashier confirms your payment, it is approved.';
+            return 'Mass Intentions are offered on Sundays at the 1st Mass (6:00 AM), 2nd Mass (9:00 AM), or 3rd Mass (4:00 PM), and Monday to Saturday at the 6:00 AM Daily Mass — the available times appear after you pick your date. There is no fixed fee, but an offering greater than ₱0 must be paid to submit your intention. Once our Cashier confirms your payment, it is approved.';
         case 'First Communion':
             return 'Propose a preferred date and time below — just not during a scheduled Mass.';
         default:

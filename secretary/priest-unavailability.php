@@ -15,8 +15,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $endTime = $_POST['end_time'] ?: null;
         $reason = trim($_POST['reason'] ?? '') ?: null;
 
-        $dates = [$_POST['unavailable_date']];
+        $singleDate = $_POST['unavailable_date'] ?? '';
+        $dateOk = preg_match('/^\d{4}-\d{2}-\d{2}$/', $singleDate) && strtotime($singleDate) !== false;
+        if (!$dateOk || $singleDate < date('Y-m-d')) {
+            flash('error', 'Please choose a valid date that is today or later.');
+            redirect(url('secretary/priest-unavailability.php'));
+        }
+        // Times are all-or-nothing: both blank = the whole day; otherwise a
+        // real window where the end is after the start.
+        if (($startTime === null) !== ($endTime === null)) {
+            flash('error', 'Enter both a start time and an end time, or leave both blank to block the whole day.');
+            redirect(url('secretary/priest-unavailability.php'));
+        }
+        if ($startTime !== null && $endTime <= $startTime) {
+            flash('error', 'The end time must be later than the start time.');
+            redirect(url('secretary/priest-unavailability.php'));
+        }
+        $exists = db()->prepare("SELECT 1 FROM priests WHERE priest_id = ? AND status != 'inactive'");
+        $exists->execute([$priestId]);
+        if (!$exists->fetchColumn()) {
+            flash('error', 'Please choose a valid priest.');
+            redirect(url('secretary/priest-unavailability.php'));
+        }
+
+        $dates = [$singleDate];
         if (!empty($_POST['repeat_weekly']) && !empty($_POST['repeat_until'])) {
+            if ($_POST['repeat_until'] < $singleDate) {
+                flash('error', 'The "repeat until" date must be on or after the start date.');
+                redirect(url('secretary/priest-unavailability.php'));
+            }
             $cursor = new DateTime($_POST['unavailable_date']);
             $until = new DateTime($_POST['repeat_until']);
             $dates = [];
@@ -108,7 +135,7 @@ include __DIR__ . '/../includes/dash-start.php';
           <tr>
             <td><?= e($r['title']) ?> <?= e($r['full_name']) ?></td>
             <td><?= formatDate($r['unavailable_date']) ?></td>
-            <td><?= $r['start_time'] ? date('g:i A', strtotime($r['start_time'])) . '–' . date('g:i A', strtotime($r['end_time'])) : 'Whole day' ?></td>
+            <td><?= ($r['start_time'] || $r['end_time']) ? ($r['start_time'] ? date('g:i A', strtotime($r['start_time'])) : 'Start of day') . '–' . ($r['end_time'] ? date('g:i A', strtotime($r['end_time'])) : 'End of day') : 'Whole day' ?></td>
             <td><?= e($r['reason'] ?? '—') ?></td>
             <td>
               <form method="POST" action="<?= url('secretary/priest-unavailability.php') ?>" onsubmit="return confirm('Remove this entry?');">
