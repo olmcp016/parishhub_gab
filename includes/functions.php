@@ -305,6 +305,30 @@ function renderPagination(int $page, int $totalPages, string $baseUrl): string
     HTML;
 }
 
+/** Public announcement badge choices (announcements.category; NULL is shown as "Announcement"). */
+const ANNOUNCEMENT_CATEGORIES = ['Announcement', 'Parish News', 'Event', 'Project', 'Donation', 'Mass', 'Community', 'Important'];
+
+/** A category from a form post, or NULL when blank/unknown (never trust the raw value). */
+function normalizeAnnouncementCategory(?string $value): ?string
+{
+    return in_array($value, ANNOUNCEMENT_CATEGORIES, true) ? $value : null;
+}
+
+/** Short plain-text preview of an announcement for its card: whitespace collapsed, cut at a word boundary. */
+function announcementExcerpt(string $content, int $limit = 110): string
+{
+    $flat = trim(preg_replace('/\s+/u', ' ', $content));
+    if (mb_strlen($flat) <= $limit) {
+        return $flat;
+    }
+    $cut = mb_substr($flat, 0, $limit);
+    $lastSpace = mb_strrpos($cut, ' ');
+    if ($lastSpace !== false && $lastSpace > $limit * 0.6) {
+        $cut = mb_substr($cut, 0, $lastSpace);
+    }
+    return rtrim($cut, " ,.;:-–—") . '…';
+}
+
 /**
  * Upcoming / Active / Expired status for an announcement, derived from its
  * start_date/end_date rather than stored — always correct, never stale.
@@ -491,7 +515,7 @@ function syncWeeklyDonationAnnouncement(int $postedByUserId): void
                 ->execute([$content, $existingId]);
         } else {
             db()->prepare(
-                "INSERT INTO announcements (title, content, posted_by, is_pinned, status) VALUES (?, ?, ?, FALSE, 'published')"
+                "INSERT INTO announcements (title, content, posted_by, is_pinned, status, category) VALUES (?, ?, ?, FALSE, 'published', 'Donation')"
             )->execute([$title, $content, $postedByUserId]);
         }
     } catch (Throwable $e) {

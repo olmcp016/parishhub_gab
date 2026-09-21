@@ -322,6 +322,7 @@ CREATE TABLE IF NOT EXISTS announcements (
     image VARCHAR(255) DEFAULT NULL,
     posted_by INT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     is_pinned BOOLEAN DEFAULT FALSE,
+    category VARCHAR(30) DEFAULT NULL,
     status announcement_status DEFAULT 'published',
     start_date DATE DEFAULT NULL,
     end_date DATE DEFAULT NULL,

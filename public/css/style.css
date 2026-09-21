@@ -1074,3 +1074,41 @@ dialog.modal::backdrop { background: rgba(36, 22, 17, 0.55); }
 }
 .mass-print-list { font-size: 16px; line-height: 2; padding-left: 28px; color: var(--brown-darkest); }
 .mass-print-list li { margin-bottom: 10px; }
+
+/* ---------- Public announcement cards + details modal ---------- */
+.ann-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 22px; align-items: stretch; }
+.ann-card {
+  display: flex; flex-direction: column; height: 100%; min-height: 340px; overflow: hidden; cursor: pointer;
+  background: var(--white, #fff); border: 1px solid var(--line, rgba(0,0,0,.1)); border-radius: 14px;
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,.08));
+  transition: transform .2s var(--ease), box-shadow .2s var(--ease), border-color .2s var(--ease);
+}
+.ann-card:hover, .ann-card:focus-visible { transform: translateY(-2px); border-color: var(--gold); box-shadow: var(--shadow-lg); outline: none; }
+.ann-card.is-pinned { border-color: var(--gold); }
+.ann-thumb { aspect-ratio: 16 / 9; width: 100%; overflow: hidden; background: var(--cream-dark, #f3ead8); flex-shrink: 0; }
+.ann-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ann-thumb-pdf { display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--brown-mid); }
+.ann-body { display: flex; flex-direction: column; flex: 1; padding: 16px 18px; min-width: 0; }
+.ann-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; }
+.ann-cat { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; background: var(--cream-dark, #f3ead8); color: var(--brown-mid); }
+.ann-title { margin: 0 0 4px; font-size: 17px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.ann-date { font-size: 13px; color: var(--text-muted, #7a6a5f); margin-bottom: 10px; }
+.ann-excerpt { margin: 0; font-size: 14.5px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.ann-excerpt-long { -webkit-line-clamp: 6; }
+.ann-more { margin-top: auto; padding-top: 12px; font-weight: 600; font-size: 14px; color: var(--gold-dark, var(--brown-mid)); }
+.ann-modal-title { margin: 0 0 4px; font-size: 22px; line-height: 1.3; overflow-wrap: anywhere; }
+.ann-modal-meta { font-size: 13px; color: var(--text-muted, #7a6a5f); margin-bottom: 14px; }
+.ann-modal-image { margin-bottom: 14px; text-align: center; }
+.ann-modal-image img { max-width: 100%; height: auto; border-radius: 10px; }
+.ann-modal-content { white-space: pre-line; line-height: 1.6; overflow-wrap: anywhere; }
+.ann-modal-actions { margin-top: 18px; text-align: right; }
+@media (max-width: 600px) {
+  .ann-grid { grid-template-columns: 1fr; gap: 16px; }
+  .ann-card { min-height: 0; }
+  .ann-modal { width: calc(100vw - 24px); }
+}
+
+/* Today's Mass Intentions (public) — visually distinct from announcements */
+.mi-today { background: linear-gradient(135deg, #fbf5e6, #f4e9cd); border: 1px solid var(--gold); border-radius: 16px; padding: 22px 24px; max-width: 760px; }
+.mi-today-title { margin: 0 0 2px; font-size: 20px; letter-spacing: .06em; text-transform: uppercase; color: var(--brown-dark, #4a2e22); }
+.mi-today-date { color: var(--brown-mid); font-size: 14px; margin-bottom: 14px; }

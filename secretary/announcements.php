@@ -55,12 +55,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($action === 'create') {
             $stmt = db()->prepare(
-                "INSERT INTO announcements (title, content, posted_by, is_pinned, status, start_date, end_date, duration_type, image)
-                 VALUES (?, ?, ?, ?, 'published', ?, ?, ?, ?)"
+                "INSERT INTO announcements (title, content, posted_by, is_pinned, status, start_date, end_date, duration_type, image, category)
+                 VALUES (?, ?, ?, ?, 'published', ?, ?, ?, ?, ?)"
             );
             $stmt->execute([
                 $_POST['title'], $_POST['content'], $userId, !empty($_POST['is_pinned']) ? 1 : 0,
-                $startDate, $endDate, $durationType, $imagePath,
+                $startDate, $endDate, $durationType, $imagePath, normalizeAnnouncementCategory($_POST['category'] ?? null),
             ]);
             logActivity($userId, "Created announcement: {$_POST['title']}", 'Announcements');
             flash('success', 'Announcement published.');
@@ -76,12 +76,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $finalImage = $imagePath ?: ($existing['image'] ?? null);
             $stmt = db()->prepare(
-                "UPDATE announcements SET title = ?, content = ?, is_pinned = ?, start_date = ?, end_date = ?, duration_type = ?, image = ?
+                "UPDATE announcements SET title = ?, content = ?, is_pinned = ?, start_date = ?, end_date = ?, duration_type = ?, image = ?, category = ?
                  WHERE announcement_id = ?"
             );
             $stmt->execute([
                 $_POST['title'], $_POST['content'], !empty($_POST['is_pinned']) ? 1 : 0,
-                $startDate, $endDate, $durationType, $finalImage, $id,
+                $startDate, $endDate, $durationType, $finalImage, normalizeAnnouncementCategory($_POST['category'] ?? null), $id,
             ]);
             logActivity($userId, "Updated announcement #$id", 'Announcements');
             flash('success', 'Announcement updated.');
@@ -111,6 +111,12 @@ include __DIR__ . '/../includes/dash-start.php';
     <?= csrfField() ?>
     <input type="hidden" name="action" value="create">
     <div class="form-group"><label>Title</label><input type="text" name="title" required></div>
+    <div class="form-group">
+      <label>Category</label>
+      <select name="category">
+        <?php foreach (ANNOUNCEMENT_CATEGORIES as $cat): ?><option value="<?= e($cat) ?>"><?= e($cat) ?></option><?php endforeach; ?>
+      </select>
+    </div>
     <div class="form-group"><label>Content</label><textarea name="content" rows="4" required></textarea></div>
     <div class="form-group"><label>Poster / Image (optional)</label><input type="file" name="image" accept=".jpg,.jpeg,.png,.pdf"></div>
 
@@ -188,6 +194,12 @@ include __DIR__ . '/../includes/dash-start.php';
                 <input type="hidden" name="action" value="update">
                 <input type="hidden" name="announcement_id" value="<?= $a['announcement_id'] ?>">
                 <div class="form-group"><label>Title</label><input type="text" name="title" value="<?= e($a['title']) ?>" required></div>
+                <div class="form-group">
+                  <label>Category</label>
+                  <select name="category">
+                    <?php foreach (ANNOUNCEMENT_CATEGORIES as $cat): ?><option value="<?= e($cat) ?>" <?= ($a['category'] ?? 'Announcement') === $cat ? 'selected' : '' ?>><?= e($cat) ?></option><?php endforeach; ?>
+                  </select>
+                </div>
                 <div class="form-group"><label>Content</label><textarea name="content" rows="4" required><?= e($a['content']) ?></textarea></div>
                 <div class="form-group">
                   <label>Poster / Image (optional — leave blank to keep current)</label>

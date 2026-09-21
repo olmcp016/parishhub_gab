@@ -115,24 +115,16 @@ include __DIR__ . '/includes/header.php';
   <div class="section-eyebrow">From the Office</div>
   <h2 class="section-title">Latest announcements</h2>
   <p class="section-lede">What's happening at the parish office right now.</p>
-  <div class="grid-3">
-    <?php foreach ($announcements as $a): ?>
-      <div class="card">
-        <h3><?= e($a['title']) ?></h3>
-        <p class="text-muted" style="font-size: 13px;"><?= formatDate($a['created_at']) ?></p>
-        <p style="font-size: 14.5px; white-space: pre-line;"><?= e(mb_strlen($a['content']) > 140 ? mb_substr($a['content'],0,140) . '…' : $a['content']) ?></p>
-      </div>
-    <?php endforeach; ?>
-  </div>
+  <?php include __DIR__ . '/includes/announcement-cards.php'; ?>
+  <p style="margin-top:18px;"><a href="<?= url('parishioner/announcements.php') ?>" class="btn btn-outline btn-sm">View all announcements →</a></p>
 </section>
 <?php endif; ?>
 
 <?php if (!empty($todaysMassIntentions)): ?>
 <section class="section" id="mass-intentions-today">
-  <div class="section-eyebrow">From the Office</div>
-  <h2 class="section-title">Today's Mass Intentions</h2>
-  <p class="section-lede"><?= e(date('F j, Y')) ?></p>
-  <div class="card" style="max-width: 720px;">
+  <div class="mi-today">
+    <h2 class="mi-today-title">🕊️ Today's Mass Intentions</h2>
+    <div class="mi-today-date"><?= e(date('l, F j, Y')) ?></div>
     <ul style="margin:0; padding-left:20px; display:flex; flex-direction:column; gap:10px;">
       <?php foreach ($todaysMassIntentions as $mi): ?>
         <?php $parts = publicMassIntentionParts($mi['intention_type'], $mi['offerer_name'], $mi['intention_for'], $mi['message']); ?>

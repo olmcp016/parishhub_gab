@@ -34,28 +34,7 @@ include __DIR__ . '/../includes/' . (usesParishionerShell() ? 'dash-start.php' :
 <?php if (empty($announcements)): ?>
   <div class="empty-state"><div class="icon">📢</div><p>No announcements yet.</p></div>
 <?php else: ?>
-  <div class="grid-3">
-    <?php foreach ($announcements as $a): ?>
-      <?php $isDonorCard = isCurrentWeeklyDonorAnnouncement($a['title']); ?>
-      <?php $annStatus = announcementStatus($a['start_date'], $a['end_date']); ?>
-      <div class="card <?= $isDonorCard ? 'card-clickable' : '' ?>" style="display:flex; flex-direction:column;"
-           <?php if ($isDonorCard): ?>onclick="document.getElementById('donorModal').showModal()"<?php endif; ?>>
-        <?php if ($a['image']): ?>
-          <img src="<?= documentUrl($a['image']) ?>" alt="" style="width:100%; max-height:180px; object-fit:cover; border-radius:10px; margin-bottom:10px;">
-        <?php endif; ?>
-        <div class="flex-between" style="align-items:flex-start; gap:8px; margin-bottom:4px;">
-          <h3 style="margin:0;"><?= e($a['title']) ?></h3>
-          <div class="flex gap-2" style="flex-shrink:0;">
-            <?php if ($annStatus === 'Upcoming'): ?><span class="badge badge-regular">Upcoming</span><?php endif; ?>
-            <?php if ($a['is_pinned']): ?><span class="badge badge-pending">Pinned</span><?php endif; ?>
-          </div>
-        </div>
-        <span class="text-muted" style="font-size:13px; margin-bottom:12px;"><?= formatDate($a['created_at']) ?></span>
-        <p style="margin:0; white-space: pre-line;"><?= e($a['content']) ?></p>
-        <?php if ($isDonorCard): ?><div class="card-click-hint">🤲 Click to view the donor list →</div><?php endif; ?>
-      </div>
-    <?php endforeach; ?>
-  </div>
+  <?php $donorModalId = !empty($weekDonors) ? 'donorModal' : null; include __DIR__ . '/../includes/announcement-cards.php'; ?>
 <?php endif; ?>
 
 <?php if (!empty($weekDonors)): ?>
