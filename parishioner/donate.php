@@ -114,6 +114,7 @@ try {
         $stmt->execute([$paymentId, $checkout['session_id'], json_encode($checkout['raw'])]);
 
         $pdo->commit();
+        $_SESSION['donation_checkout'][$appointmentId] = true; // lets only THIS browser cancel it on return
         logActivity($userId, "Started an online donation (#$appointmentId) via PayMongo" . ($isGuest ? ' (guest)' : ''), 'Donations');
 
         if ($isAjax) {

@@ -147,10 +147,15 @@ $stmt->execute([$id]);
 $donation = $stmt->fetch() ?: null;
 
 $stmt = db()->prepare(
-    "SELECT p.*, pm.method_name FROM payments p JOIN payment_methods pm ON p.method_id = pm.method_id WHERE p.appointment_id = ?"
+    "SELECT p.*, pm.method_name FROM payments p JOIN payment_methods pm ON p.method_id = pm.method_id WHERE p.appointment_id = ? ORDER BY p.payment_id DESC LIMIT 1"
 );
 $stmt->execute([$id]);
 $payment = $stmt->fetch() ?: null;
+// An online (PayMongo) payment that was started but never finished, or one that
+// failed/was cancelled, can simply be retried — it's not a completed payment.
+$onlineUnfinished = $payment && (int) $payment['method_id'] === 7 && $payment['payment_status'] === 'pending';
+$canPay = $appointment['status_name'] === 'Approved'
+    && (!$payment || $onlineUnfinished || in_array($payment['payment_status'], ['failed', 'cancelled'], true));
 
 $stmt = db()->prepare('SELECT * FROM uploaded_documents WHERE appointment_id = ?');
 $stmt->execute([$id]);
@@ -170,7 +175,11 @@ include __DIR__ . '/../includes/dash-start.php';
         <?php if ($appointment['schedule_type']): ?>
           <span class="badge badge-<?= strtolower($appointment['schedule_type']) ?>"><?= e($appointment['schedule_type']) ?></span>
         <?php endif; ?>
-        <span class="badge badge-<?= badgeClass($appointment['status_name']) ?>"><?= e($appointment['status_name']) ?></span>
+        <?php if ($appointment['category'] === 'Mass Intention'): $miStatus = massIntentionStatusDisplay($appointment['status_name'], $payment && !((int) $payment['method_id'] === 7 && $payment['payment_status'] !== 'verified')); ?>
+          <span class="badge badge-<?= $miStatus[1] ?>"><?= e($miStatus[0]) ?></span>
+        <?php else: ?>
+          <span class="badge badge-<?= badgeClass($appointment['status_name']) ?>"><?= e($appointment['status_name']) ?></span>
+        <?php endif; ?>
       </div>
     </div>
     <p><strong>Date:</strong> <?= formatDate($appointment['appointment_date']) ?> at <?= date('g:i A', strtotime($appointment['appointment_time'])) ?></p>
@@ -238,22 +247,27 @@ include __DIR__ . '/../includes/dash-start.php';
       <?php if ($payment): ?>
         <p><strong>Amount:</strong> <?= money($payment['amount']) ?></p>
         <p><strong>Method:</strong> <?= e($payment['method_name']) ?></p>
-        <p><strong>Reference #:</strong> <?= e($payment['reference_number']) ?></p>
+        <?php if ($payment['reference_number']): ?><p><strong>Reference #:</strong> <?= e($payment['reference_number']) ?></p><?php endif; ?>
         <p><strong>Status:</strong> <span class="badge badge-<?= e($payment['payment_status']) ?>"><?= e($payment['payment_status']) ?></span></p>
-        <?php if ($payment['payment_status'] === 'pending'): ?>
+        <?php if ($onlineUnfinished): ?>
+          <p class="text-muted" style="font-size:13px;">Your online payment was started but not completed yet. You can pay again below.</p>
+        <?php elseif ($payment['payment_status'] === 'pending'): ?>
           <p class="text-muted" style="font-size:13px;">Awaiting verification by our cashier.</p>
         <?php elseif ($payment['payment_status'] === 'verified'): ?>
           <p class="text-muted" style="font-size:13px;">✔ Verified — please wait for your schedule to be confirmed.</p>
+        <?php elseif (in_array($payment['payment_status'], ['failed', 'cancelled'], true)): ?>
+          <p class="text-muted" style="font-size:13px;">This payment was not completed. You can try again below.</p>
         <?php endif; ?>
-      <?php elseif ($appointment['status_name'] === 'Approved'): ?>
-        <form method="POST" action="<?= url('parishioner/pay.php') ?>">
+      <?php endif; ?>
+
+      <?php if ($canPay): ?>
+        <form method="POST" action="<?= url('parishioner/pay.php') ?>" id="payForm" <?= $payment ? 'class="mt-3"' : '' ?>>
           <?= csrfField() ?>
           <input type="hidden" name="appointment_id" value="<?= $id ?>">
           <?php if ($appointment['category'] === 'Mass Intention'): ?>
             <div class="form-group">
-              <label>Amount (voluntary offering)</label>
-              <input type="number" name="amount" min="0" step="0.01" placeholder="Enter your offering amount (0 is okay)" required>
-              <p class="helper-text">There's no fixed fee for Mass Intentions — enter whatever amount you'd like to offer, or 0 if you have nothing to give right now.</p>
+              <label>Amount (voluntary offering) — must be more than ₱0</label>
+              <input type="number" name="amount" min="0.01" step="0.01" placeholder="e.g. 500" required>
             </div>
           <?php else: ?>
             <div class="form-group">
@@ -262,19 +276,54 @@ include __DIR__ . '/../includes/dash-start.php';
             </div>
           <?php endif; ?>
           <div class="form-group">
-            <label>Payment Method</label>
-            <select name="method_id" required>
-              <option value="1">Cash (pay at parish office)</option>
-              <option value="2">GCash</option>
-              <option value="3">Maya</option>
-              <option value="4">Bank Transfer</option>
-              <option value="5">Credit/Debit Card</option>
-            </select>
+            <label>How would you like to pay?</label>
+            <label class="radio-option" style="display:block; margin-bottom:8px;">
+              <input type="radio" name="pay_mode" value="online" checked>
+              <strong>Pay Online Now</strong> — GCash, Maya, or Card via PayMongo (secure)
+            </label>
+            <label class="radio-option" style="display:block; margin-bottom:8px;">
+              <input type="radio" name="pay_mode" value="cash">
+              Pay in cash at the parish office
+            </label>
+            <label class="radio-option" style="display:block;">
+              <input type="radio" name="pay_mode" value="manual">
+              I already paid by GCash / Maya / Bank Transfer — enter my reference number
+            </label>
           </div>
-          <button type="submit" class="btn btn-primary btn-block">Submit Payment</button>
-          <p class="helper-text mt-2">After paying, please wait for our cashier to verify it, then wait for your schedule to be confirmed.</p>
+          <div id="payManualFields" style="display:none;">
+            <div class="form-group">
+              <label>Payment Method</label>
+              <select name="method_id">
+                <option value="2">GCash</option>
+                <option value="3">Maya</option>
+                <option value="4">Bank Transfer</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Payment Reference Number</label>
+              <input type="text" name="payment_reference" placeholder="Reference / transaction no.">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block" id="paySubmitBtn">Pay Online Now</button>
+          <p class="helper-text mt-2" id="payHint">You'll be taken to PayMongo's secure page to pay. Once it's completed, our cashier and secretary take it from there.</p>
         </form>
-      <?php else: ?>
+        <script>
+        (function () {
+          var form = document.getElementById('payForm');
+          function update() {
+            var mode = form.querySelector('input[name="pay_mode"]:checked').value;
+            document.getElementById('payManualFields').style.display = mode === 'manual' ? 'block' : 'none';
+            form.querySelector('[name="payment_reference"]').required = mode === 'manual';
+            document.getElementById('paySubmitBtn').textContent = mode === 'online' ? 'Pay Online Now' : 'Submit Payment';
+            document.getElementById('payHint').textContent = mode === 'online'
+              ? "You'll be taken to PayMongo's secure page to pay. Once it's completed, our cashier and secretary take it from there."
+              : 'After paying, please wait for our cashier to verify it, then wait for your schedule to be confirmed.';
+          }
+          form.querySelectorAll('input[name="pay_mode"]').forEach(function (r) { r.addEventListener('change', update); });
+          update();
+        })();
+        </script>
+      <?php elseif (!$payment): ?>
         <p class="text-muted">Payment will be available once your appointment is approved.</p>
       <?php endif; ?>
     </div>

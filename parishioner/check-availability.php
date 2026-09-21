@@ -32,8 +32,13 @@ $response = [
     'message' => '',
     'forced_time' => null,
     'regular_slots' => [],
+    'mass_slots' => [],
     'available_priests' => [],
 ];
+
+if ($category === 'Mass Intention' && $date !== '') {
+    $response['mass_slots'] = massIntentionSlotsFor($date);
+}
 
 if ($serviceId && in_array($scheduleType, ['Regular', 'Special'], true)) {
     if ($scheduleType === 'Regular') {
@@ -56,7 +61,7 @@ if ($category !== '' && $date !== '' && $time !== '') {
     }
 }
 
-if ($date !== '' && $time !== '') {
+if ($date !== '' && $time !== '' && $category !== 'Mass Intention') {
     $response['available_priests'] = availablePriestsFor($date, $time, $excludeAppointmentId);
 }
 

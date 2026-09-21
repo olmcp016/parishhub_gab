@@ -18,8 +18,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'manua
     $reference = trim($_POST['reference_number'] ?? '') ?: null;
     $selectedParishionerId = (int) ($_POST['parishioner_id'] ?? 0);
 
-    if ($amount < 0) {
-        flash('error', 'Please enter a valid donation amount.');
+    if (!($amount > 0)) {
+        flash('error', 'Please enter a valid donation amount (more than zero).');
         redirect(url('treasurer/donations.php'));
     }
     if (!isset($methods[$methodId])) {
@@ -157,7 +157,7 @@ include __DIR__ . '/../includes/dash-start.php';
     </div>
     <div class="form-group"><label>Donor Name (optional)</label><input type="text" name="donor_name" placeholder="Leave blank for Anonymous"></div>
     <div class="form-group"><label>Email (optional)</label><input type="email" name="donor_email"></div>
-    <div class="form-group"><label>Amount</label><input type="number" name="amount" min="0" step="0.01" required></div>
+    <div class="form-group"><label>Amount</label><input type="number" name="amount" min="0.01" step="0.01" required></div>
     <div class="form-group">
       <label>Purpose</label>
       <select name="purpose">

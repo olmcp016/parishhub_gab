@@ -3,6 +3,35 @@
  * PARISHHUB — Shared helper functions
  */
 
+/**
+ * True when the current request came from the detail-modal JS (see
+ * public/js/detail-modal.js) rather than a normal browser navigation —
+ * used by pages that support both a full standalone page and an
+ * in-modal fragment/AJAX-action mode (e.g. secretary/appointment-detail.php).
+ */
+function isDetailModalRequest(): bool
+{
+    return ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest';
+}
+
+/**
+ * Responds to a POST action either as JSON (when called via the detail
+ * modal's AJAX form submit) or as the classic flash+redirect (when the
+ * same form is submitted normally, e.g. JS disabled, or a direct link) —
+ * same underlying action/validation either way, only the response
+ * transport differs. Always ends the request.
+ */
+function respondAjaxOrRedirect(bool $isAjax, bool $success, string $message, string $redirectUrl): void
+{
+    if ($isAjax) {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => $success, 'message' => $message]);
+        exit;
+    }
+    flash($success ? 'success' : 'error', $message);
+    redirect($redirectUrl);
+}
+
 function logActivity(?int $userId, string $action, string $module = 'General'): void
 {
     try {
@@ -88,16 +117,43 @@ function publicMassIntentionParts(string $type, string $offerer, string $for, ?s
  */
 function getTodaysConfirmedMassIntentions(): array
 {
+    // Public display needs BOTH the Cashier's confirmation (status 5) AND a
+    // real, verified payment of more than ₱0 on record — never one without
+    // the other.
     $stmt = db()->prepare(
         "SELECT mi.intention_type, mi.offerer_name, mi.intention_for, mi.message, a.appointment_time
          FROM appointments a
          JOIN services s ON a.service_id = s.service_id
          JOIN mass_intentions mi ON mi.appointment_id = a.appointment_id
          WHERE s.category = 'Mass Intention' AND a.status_id = 5 AND a.appointment_date = ?
+           AND EXISTS (SELECT 1 FROM payments p WHERE p.appointment_id = a.appointment_id
+                       AND p.payment_status = 'verified' AND p.amount > 0)
          ORDER BY a.appointment_time ASC"
     );
     $stmt->execute([date('Y-m-d')]);
     return $stmt->fetchAll();
+}
+
+/**
+ * Clear, consistent Mass Intention status wording used across the system:
+ * Payment Required -> Pending Cashier Verification -> Approved / Rejected.
+ * Underlying appointment statuses are unchanged (2/4 = submitted with
+ * payment, awaiting Cashier; 5 = Cashier approved; 3 = rejected). The
+ * Secretary never sees payment-stage wording, only whether it's approved.
+ *
+ * @return array{0: string, 1: string} [label, badge class suffix]
+ */
+function massIntentionStatusDisplay(string $statusName, ?bool $hasPayment = true, bool $forSecretary = false): array
+{
+    return match ($statusName) {
+        'Rejected' => ['Rejected', 'rejected'],
+        'Cancelled' => ['Cancelled', 'cancelled'],
+        'Completed' => ['Completed', 'completed'],
+        'Confirmed' => ['Approved', 'approved'],
+        default => $hasPayment === false
+            ? ['Payment Required', 'pending']
+            : [$forSecretary ? 'Pending Approval' : 'Pending Cashier Verification', 'pending'],
+    };
 }
 
 function badgeClass(string $statusName): string

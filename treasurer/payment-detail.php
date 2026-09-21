@@ -54,15 +54,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
     redirect(url('treasurer/payment-detail.php?id=' . $id));
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'reject_intention') {
+    // Cashier declines a Mass Intention payment (e.g. the reference doesn't
+    // match a real payment). The intention is marked Rejected and never
+    // becomes eligible for public display.
+    verifyCsrf();
+    $reason = trim($_POST['reason'] ?? '');
+    $stmt = db()->prepare(
+        "SELECT a.appointment_id, a.parishioner_id, p.payment_status FROM payments p
+         JOIN appointments a ON a.appointment_id = p.appointment_id
+         JOIN services s ON a.service_id = s.service_id
+         WHERE p.payment_id = ? AND s.category = 'Mass Intention' AND a.status_id IN (2, 4)"
+    );
+    $stmt->execute([$id]);
+    $toReject = $stmt->fetch();
+
+    if (!$toReject) {
+        flash('error', 'This Mass Intention can no longer be rejected.');
+    } elseif ($reason === '') {
+        flash('error', 'Please give a reason for rejecting this Mass Intention.');
+    } else {
+        $apptId = $toReject['appointment_id'];
+        db()->prepare('UPDATE appointments SET status_id = 3, rejection_reason = ? WHERE appointment_id = ?')->execute([$reason, $apptId]);
+        if ($toReject['payment_status'] === 'pending') {
+            markPaymentUnsuccessful($id, 'failed');
+        }
+        $stmt = db()->prepare(
+            "SELECT u.user_id FROM parishioners par JOIN users u ON par.user_id = u.user_id WHERE par.parishioner_id = ? AND u.email != 'guest@parishhub.internal'"
+        );
+        $stmt->execute([$toReject['parishioner_id']]);
+        if ($puid = $stmt->fetchColumn()) {
+            $note = "Your Mass Intention (#$apptId) was not approved. Reason: $reason";
+            if ($toReject['payment_status'] === 'verified') {
+                $note .= ' Your offering was already received — please contact the parish office about it.';
+            }
+            db()->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Mass Intention Rejected', ?)")
+                ->execute([$puid, $note]);
+        }
+        logActivity($userId, "Rejected Mass Intention #$apptId payment", 'Payments');
+        flash('success', 'Mass Intention rejected.');
+    }
+    redirect(url('treasurer/payment-detail.php?id=' . $id));
+}
+
 $stmt = db()->prepare(
     "SELECT p.*, pm.method_name, u.firstname, u.lastname, u.email, s.service_name, s.category,
-            a.appointment_date, a.appointment_id, a.status_id AS appointment_status_id
+            a.appointment_date, a.appointment_id, a.status_id AS appointment_status_id,
+            a.guest_name, a.guest_phone, a.guest_reference, st.status_name AS appointment_status_name
      FROM payments p
      JOIN payment_methods pm ON p.method_id = pm.method_id
      JOIN appointments a ON p.appointment_id = a.appointment_id
      JOIN parishioners par ON a.parishioner_id = par.parishioner_id
      JOIN users u ON par.user_id = u.user_id
      JOIN services s ON a.service_id = s.service_id
+     JOIN appointment_status st ON a.status_id = st.status_id
      WHERE p.payment_id = ?"
 );
 $stmt->execute([$id]);
@@ -104,6 +149,9 @@ include __DIR__ . '/../includes/dash-start.php';
       <span class="badge badge-<?= e($payment['payment_status']) ?>"><?= e($payment['payment_status']) ?></span>
     </div>
     <p><strong>Parishioner:</strong> <?= e($payment['firstname']) ?> <?= e($payment['lastname']) ?> (<?= e($payment['email']) ?>)</p>
+    <?php if ($payment['guest_name']): ?>
+      <p><strong>Guest:</strong> <?= e($payment['guest_name']) ?> (<?= e($payment['guest_phone']) ?>) — Ref <?= e($payment['guest_reference']) ?></p>
+    <?php endif; ?>
     <p><strong>Service:</strong> <?= e($payment['service_name']) ?> (Appointment #<?= $payment['appointment_id'] ?>)</p>
     <p><strong>Amount:</strong> <?= money($payment['amount']) ?></p>
     <p><strong>Method:</strong> <?= e($payment['method_name']) ?></p>
@@ -127,11 +175,23 @@ include __DIR__ . '/../includes/dash-start.php';
       <?php if ($donation['message']): ?><p><strong>Message:</strong> <?= e($donation['message']) ?></p><?php endif; ?>
     <?php endif; ?>
 
-    <?php if ($payment['payment_status'] === 'pending'): ?>
+    <?php
+      $isIntention = $payment['category'] === 'Mass Intention';
+      $awaitingGateway = $payment['payment_status'] === 'pending' && (int) $payment['method_id'] === 7; // PayMongo checkout not finished yet
+      $canRejectIntention = $isIntention && in_array((int) $payment['appointment_status_id'], [2, 4], true) && !$awaitingGateway;
+      if ($isIntention):
+        [$miLabel, $miClass] = massIntentionStatusDisplay($payment['appointment_status_name']);
+    ?>
+      <p><strong>Mass Intention Status:</strong> <span class="badge badge-<?= $miClass ?>"><?= e($miLabel) ?></span></p>
+    <?php endif; ?>
+
+    <?php if ($awaitingGateway): ?>
+      <p class="helper-text">This online payment hasn't been completed on PayMongo yet. It verifies automatically once the parishioner pays — nothing to do here until then.</p>
+    <?php elseif ($payment['payment_status'] === 'pending'): ?>
       <form method="POST" action="<?= url('treasurer/payment-detail.php?id=' . $id) ?>" class="mt-3" onsubmit="return confirm('Verify this payment and issue an official receipt?');">
         <?= csrfField() ?>
         <input type="hidden" name="action" value="verify">
-        <div class="form-group"><label>Official Reference Number</label><input type="text" name="reference_number" placeholder="Enter Reference/OR Number" required style="padding:8px; width:100%; max-width:300px; border:1px solid #ccc; border-radius:6px;"></div>
+        <div class="form-group"><label>Official Reference Number</label><input type="text" name="reference_number" value="<?= e($payment['reference_number'] ?? '') ?>" placeholder="Enter Reference/OR Number" required style="padding:8px; width:100%; max-width:300px; border:1px solid #ccc; border-radius:6px;"></div>
         <button type="submit" class="btn btn-success">✔ Verify Payment & Issue Receipt</button>
       </form>
     <?php elseif ($payment['payment_status'] === 'verified' && (int) $payment['appointment_status_id'] === 4 && in_array($payment['category'], ['Mass Intention', 'Donation'], true)): ?>
@@ -139,9 +199,18 @@ include __DIR__ . '/../includes/dash-start.php';
         <?= csrfField() ?>
         <input type="hidden" name="action" value="confirm">
         <p class="helper-text" style="margin-top:0;">
-          <?= $payment['category'] === 'Mass Intention' ? 'Confirming makes this Mass Intention eligible for the public "Today\'s Mass Intentions" display on its scheduled date.' : 'Confirming finalizes this donation.' ?>
+          <?= $payment['category'] === 'Mass Intention' ? 'Confirming approves this Mass Intention and makes it eligible for the public "Today\'s Mass Intentions" display on its scheduled date.' : 'Confirming finalizes this donation.' ?>
         </p>
         <button type="submit" class="btn btn-success">✔ Confirm Payment</button>
+      </form>
+    <?php endif; ?>
+
+    <?php if ($canRejectIntention): ?>
+      <form method="POST" action="<?= url('treasurer/payment-detail.php?id=' . $id) ?>" class="mt-3" onsubmit="return confirm('Reject this Mass Intention?');">
+        <?= csrfField() ?>
+        <input type="hidden" name="action" value="reject_intention">
+        <div class="form-group"><label>Reason for rejecting</label><textarea name="reason" rows="2" required placeholder="e.g. Payment reference could not be verified"></textarea></div>
+        <button type="submit" class="btn btn-danger">✖ Reject Mass Intention</button>
       </form>
     <?php endif; ?>
   </div>

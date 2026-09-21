@@ -3,6 +3,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/scheduling.php';
 require_once __DIR__ . '/../includes/document-validation.php';
+require_once __DIR__ . '/../includes/paymongo.php';
 $identity = requireParishionerOrGuest();
 $userId = $identity['user_id'];
 $parishionerId = $identity['parishioner_id'];
@@ -69,20 +70,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $service = $stmt->fetch();
     $category = $service['category'] ?? null;
 
+    $isMassIntention = ($category === 'Mass Intention');
     if (!$category || !$date || !$time) {
-        bookRespondError($isAjax, 'Please fill in the service, date, and time.', url('parishioner/services.php'));
+        bookRespondError($isAjax, $isMassIntention
+            ? 'Please select a Mass date and one of the Mass times (6:00 AM, 9:00 AM, or 4:00 PM).'
+            : 'Please fill in the service, date, and time.', url('parishioner/services.php'));
     }
 
     $usesScheduleToggle = in_array($category, SCHEDULE_TOGGLE_CATEGORIES, true);
     $scheduleTypeToSave = $usesScheduleToggle ? $scheduleType : null;
 
-    $isMassIntention = ($category === 'Mass Intention');
+    $intentionType = $offererName = $intentionFor = $intentionMessage = null;
+    $offeringAmount = 0.0;
+    $payOnline = false;
+    $manualMethodId = null;
+    $manualReference = null;
     if ($isMassIntention) {
-        // Priests do not personally read Mass Intentions, and the time is
-        // assigned automatically from the Mass schedule — never client-chosen.
+        // Priests do not personally read Mass Intentions. The time must be one
+        // of the three official Mass times — checked by validateBooking()
+        // below — and a Mass Intention can NEVER be saved without a real
+        // payment: the amount, payment choice, and (for manual payments) the
+        // payment reference are all required up front, and the appointment,
+        // intention, and payment record are created together in one transaction.
         $priestId = null;
-        $massTimes = massTimesFor($date);
-        $time = $massTimes[0] ?? $time;
+        $paymentRequiredMsg = 'Payment is required before submitting a Mass Intention. Please enter a valid amount.';
+
+        $intentionType = $_POST['intention_type'] ?? '';
+        $offererName = trim($_POST['offerer_name'] ?? '');
+        $intentionFor = trim($_POST['intention_for'] ?? '');
+        $intentionMessage = trim($_POST['message'] ?? '') ?: null;
+        if (!in_array($intentionType, ['Living', 'Dead', 'Thanksgiving', 'Healing', 'Birthday'], true) || $offererName === '' || $intentionFor === '') {
+            bookRespondError($isAjax, 'Please enter the intention type, the offerer name, and who the Mass is offered for.', url('parishioner/services.php'));
+        }
+
+        $rawAmount = $_POST['amount'] ?? '';
+        $offeringAmount = is_numeric($rawAmount) ? round((float) $rawAmount, 2) : 0.0;
+        if (!($offeringAmount > 0) || $offeringAmount > 1000000) {
+            bookRespondError($isAjax, $paymentRequiredMsg, url('parishioner/services.php'));
+        }
+
+        $payMode = $_POST['pay_mode'] ?? '';
+        if ($payMode === 'online') {
+            $payOnline = true;
+        } elseif ($payMode === 'manual') {
+            $manualMethodId = (int) ($_POST['method_id'] ?? 0);
+            $manualReference = trim($_POST['payment_reference'] ?? '');
+            if (!in_array($manualMethodId, [2, 3, 4], true) || strlen($manualReference) < 4) {
+                bookRespondError($isAjax, 'Please choose GCash, Maya, or Bank Transfer and enter the payment reference number of your completed payment.', url('parishioner/services.php'));
+            }
+        } else {
+            bookRespondError($isAjax, $paymentRequiredMsg, url('parishioner/services.php'));
+        }
     }
 
     // ---- Enforce the parish's fixed scheduling rules (Regular/Special, Mass conflicts, staff day-off, funeral mourning period, ...) ----
@@ -165,8 +203,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             bookRespondError($isAjax, 'The selected date is not available for booking. Please choose another date.', url('parishioner/services.php'));
         }
 
-        // Mass Intentions skip manual secretary review entirely — approved on
-        // submission so the parishioner can go straight to payment.
+        // Mass Intentions skip manual secretary review entirely: they're
+        // saved together with their payment record and wait on the Cashier
+        // (status 2 = submitted with payment, pending Cashier verification).
         $initialStatusId = $isMassIntention ? 2 : 1;
         $approvedAtColumn = $isMassIntention ? ', approved_at' : '';
         $approvedAtValue = $isMassIntention ? ', NOW()' : '';
@@ -178,18 +217,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$parishionerId, $serviceId, $priestId, $date, $finalTime, $initialStatusId, $remarks, $dateOfDeath, $scheduleTypeToSave, $guestName, $guestEmail, $guestPhone, $guestReference]);
         $appointmentId = $pdo->lastInsertId();
 
-        if ($category === 'Mass Intention' && !empty($_POST['intention_type'])) {
+        $checkoutUrl = null;
+        if ($isMassIntention) {
             $stmt = $pdo->prepare(
                 "INSERT INTO mass_intentions (appointment_id, intention_type, offerer_name, intention_for, message)
                  VALUES (?, ?, ?, ?, ?)"
             );
-            $stmt->execute([
-                $appointmentId,
-                $_POST['intention_type'],
-                $_POST['offerer_name'] ?? '',
-                $_POST['intention_for'] ?? '',
-                ($_POST['message'] ?? '') ?: null,
-            ]);
+            $stmt->execute([$appointmentId, $intentionType, $offererName, $intentionFor, $intentionMessage]);
+
+            // The payment record is part of the same transaction — if it (or
+            // the online checkout below) can't be created, nothing is saved.
+            $methodId = $payOnline ? 7 : $manualMethodId; // 7 = PayMongo (Online)
+            $stmt = $pdo->prepare(
+                "INSERT INTO payments (appointment_id, reference_number, amount, method_id, payment_status, payment_date)
+                 VALUES (?, ?, ?, ?, 'pending', NOW())"
+            );
+            $stmt->execute([$appointmentId, $payOnline ? null : $manualReference, $offeringAmount, $methodId]);
+            $paymentId = $pdo->lastInsertId();
+
+            if ($payOnline) {
+                $returnBase = absoluteUrl('parishioner/mass-intention-return.php') . '?appointment_id=' . $appointmentId;
+                $checkout = paymongoCreateCheckoutSession(
+                    $offeringAmount,
+                    'Mass Intention Offering',
+                    $returnBase . '&paid=1',
+                    $returnBase . '&cancelled=1',
+                    $isGuest ? $guestEmail : (currentUser()['email'] ?? null)
+                );
+                if (!$checkout['ok'] || !$checkout['checkout_url']) {
+                    $pdo->rollBack();
+                    error_log('PayMongo checkout session creation failed (Mass Intention): ' . json_encode($checkout['raw'] ?? []));
+                    bookRespondError($isAjax, 'Could not start the online payment (' . ($checkout['error'] ?: 'please try again') . '). Nothing was submitted — please try again, or pay by GCash/Maya/Bank Transfer and enter the reference number.', url('parishioner/services.php'));
+                }
+                $stmt = $pdo->prepare(
+                    "INSERT INTO transactions (payment_id, gateway, gateway_transaction_id, status, raw_response) VALUES (?, 'paymongo', ?, 'pending', ?)"
+                );
+                $stmt->execute([$paymentId, $checkout['session_id'], json_encode($checkout['raw'])]);
+                $checkoutUrl = $checkout['checkout_url'];
+                $_SESSION['mi_checkout'][$appointmentId] = true; // lets only THIS browser cancel it on return
+            }
         }
 
         $uploadDir = __DIR__ . '/../public/uploads/';
@@ -215,10 +281,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // status instead.
         if (!$isGuest) {
             if ($isMassIntention) {
-                $stmt = $pdo->prepare(
-                    "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Mass Intention Approved', ?)"
-                );
-                $stmt->execute([$userId, "Your Mass Intention request (#$appointmentId) has been automatically approved. You may now proceed to payment."]);
+                // Online payments are announced once PayMongo confirms them
+                // (see parishioner/mass-intention-return.php); a manual
+                // payment is on record right now, awaiting the Cashier.
+                if (!$payOnline) {
+                    $stmt = $pdo->prepare(
+                        "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Mass Intention Submitted', ?)"
+                    );
+                    $stmt->execute([$userId, "Your Mass Intention (#$appointmentId) and payment were submitted. Our Cashier will verify your payment; once approved, your intention is confirmed."]);
+                }
             } else {
                 $stmt = $pdo->prepare(
                     "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Appointment Submitted', ?)"
@@ -228,10 +299,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $pdo->commit();
-        logActivity($userId, "Booked appointment #$appointmentId" . ($isGuest ? ' (guest)' : ''), 'Appointments');
+        logActivity($userId, ($isMassIntention ? "Submitted Mass Intention #$appointmentId with an offering of ₱" . number_format($offeringAmount, 2) : "Booked appointment #$appointmentId") . ($isGuest ? ' (guest)' : ''), 'Appointments');
+
+        if ($isMassIntention && $checkoutUrl) {
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => true, 'redirect' => $checkoutUrl, 'appointment_id' => $appointmentId]);
+                exit;
+            }
+            redirect($checkoutUrl);
+        }
 
         if ($isMassIntention) {
-            $successMessage = 'Your Mass Intention request has been automatically approved! You can proceed to payment right away — no documents needed.';
+            $successMessage = 'Your Mass Intention and payment were submitted. Our Cashier will verify your payment — once approved, your intention is confirmed.';
         } else {
             $successMessage = 'Appointment request submitted! Our secretary will review your requirements before approving.';
         }

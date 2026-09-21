@@ -9,7 +9,7 @@ $stmt->execute([$userId]);
 $parishionerId = $stmt->fetchColumn();
 
 $stmt = db()->prepare(
-    "SELECT a.*, s.service_name, s.fee, st.status_name, p.full_name AS priest_name
+    "SELECT a.*, s.service_name, s.fee, s.category, st.status_name, p.full_name AS priest_name
      FROM appointments a
      JOIN services s ON a.service_id = s.service_id
      JOIN appointment_status st ON a.status_id = st.status_id
@@ -51,10 +51,14 @@ include __DIR__ . '/../includes/dash-start.php';
               <td><?= money($a['fee']) ?></td>
               <td>
                 <?php if ($a['schedule_type']): ?><span class="badge badge-<?= strtolower($a['schedule_type']) ?>"><?= e($a['schedule_type']) ?></span><?php endif; ?>
-                <span class="badge badge-<?= badgeClass($a['status_name']) ?>"><?= e($a['status_name']) ?></span>
+                <?php if ($a['category'] === 'Mass Intention'): $miStatus = massIntentionStatusDisplay($a['status_name']); ?>
+                  <span class="badge badge-<?= $miStatus[1] ?>"><?= e($miStatus[0]) ?></span>
+                <?php else: ?>
+                  <span class="badge badge-<?= badgeClass($a['status_name']) ?>"><?= e($a['status_name']) ?></span>
+                <?php endif; ?>
               </td>
               <td>
-                <?php if ($a['status_name'] === 'Approved'): ?>
+                <?php if ($a['status_name'] === 'Approved' && $a['category'] !== 'Mass Intention'): ?>
                   <a href="<?= url('parishioner/appointment-detail.php?id=' . $a['appointment_id']) ?>" class="btn btn-primary btn-sm">Proceed to Payment</a>
                 <?php else: ?>
                   <a href="<?= url('parishioner/appointment-detail.php?id=' . $a['appointment_id']) ?>" class="btn btn-outline btn-sm">View</a>

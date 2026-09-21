@@ -9,6 +9,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'manua
     verifyCsrf();
     $appointmentId = (int) $_POST['appointment_id'];
     $ref = trim($_POST['reference_number'] ?? '') ?: ('CASH-' . time());
+    $manualAmount = is_numeric($_POST['amount'] ?? '') ? (float) $_POST['amount'] : 0.0;
+
+    // A manual payment can only be recorded against a real appointment that is
+    // approved and still awaiting payment (nothing paid or pending yet), for an
+    // amount above zero — never over a rejected/cancelled/already-paid one.
+    $stmt = db()->prepare(
+        "SELECT a.status_id, (SELECT COUNT(*) FROM payments p WHERE p.appointment_id = a.appointment_id AND p.payment_status IN ('pending', 'verified')) AS open_payments
+         FROM appointments a WHERE a.appointment_id = ?"
+    );
+    $stmt->execute([$appointmentId]);
+    $target = $stmt->fetch();
+    if (!$target) {
+        flash('error', "Appointment #$appointmentId was not found.");
+        redirect(url('treasurer/payments.php'));
+    }
+    if (!($manualAmount > 0)) {
+        flash('error', 'Please enter a payment amount greater than zero.');
+        redirect(url('treasurer/payments.php'));
+    }
+    if ((int) $target['status_id'] !== 2 || (int) $target['open_payments'] > 0) {
+        flash('error', "Appointment #$appointmentId is not awaiting payment (it may be unapproved, rejected, cancelled, or already paid). If a payment is pending, verify it from Transaction History instead.");
+        redirect(url('treasurer/payments.php'));
+    }
     db()->prepare(
         "INSERT INTO payments (appointment_id, reference_number, amount, method_id, payment_status, payment_date, verified_by, verified_at)
          VALUES (?, ?, ?, ?, 'verified', NOW(), ?, NOW())"

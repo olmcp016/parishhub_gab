@@ -87,6 +87,79 @@ function massTimesFor(string $dateStr): array
 }
 
 /**
+ * The parish's official Mass Intention schedule — the ONLY times a Mass
+ * Intention can be booked, on every date (H:i => label). Kept separate from
+ * massTimesFor() above, which other services still use for their own
+ * "occupied by a scheduled Mass" conflict rule.
+ */
+const MASS_INTENTION_TIMES = [
+    '06:00' => '1st Mass',
+    '09:00' => '2nd Mass',
+    '16:00' => '3rd Mass',
+];
+
+/**
+ * Whether a Mass Intention can be booked at this exact date + official Mass
+ * time. Reuses the existing staff-day-off and blocked-calendar rules, plus:
+ * dates/times already past, and another parish service already booked in
+ * that exact slot (the church is in use).
+ *
+ * @return array{available: bool, reason: ?string}
+ */
+function massIntentionSlotAvailability(string $date, string $time): array
+{
+    $time5 = substr($time, 0, 5);
+    if (!isset(MASS_INTENTION_TIMES[$time5])) {
+        return ['available' => false, 'reason' => 'Mass Intentions can only be offered at the 6:00 AM, 9:00 AM, or 4:00 PM Mass.'];
+    }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || strtotime($date) === false) {
+        return ['available' => false, 'reason' => 'Please choose a valid date.'];
+    }
+
+    $today = date('Y-m-d');
+    if ($date < $today || ($date === $today && $time5 <= date('H:i'))) {
+        return ['available' => false, 'reason' => 'That Mass has already passed.'];
+    }
+    if (isStaffDayOff($date, $time5)) {
+        return ['available' => false, 'reason' => 'The parish office is closed (Monday afternoons and all day Tuesday).'];
+    }
+
+    $stmt = db()->prepare('SELECT 1 FROM calendar WHERE calendar_date = ? AND is_blocked = 1');
+    $stmt->execute([$date]);
+    if ($stmt->fetchColumn()) {
+        return ['available' => false, 'reason' => 'This date is not available (blocked on the parish calendar).'];
+    }
+
+    $stmt = db()->prepare(
+        "SELECT 1 FROM appointments a JOIN services s ON a.service_id = s.service_id
+         WHERE a.appointment_date = ? AND a.appointment_time = ?
+           AND s.category NOT IN ('Mass Intention', 'Donation') AND a.status_id NOT IN (3, 7) LIMIT 1"
+    );
+    $stmt->execute([$date, $time5 . ':00']);
+    if ($stmt->fetchColumn()) {
+        return ['available' => false, 'reason' => 'Occupied — another parish service is scheduled at this time.'];
+    }
+
+    return ['available' => true, 'reason' => null];
+}
+
+/** The three official Mass Intention slots for a date, each with its availability, for the booking modal. */
+function massIntentionSlotsFor(string $date): array
+{
+    $slots = [];
+    foreach (MASS_INTENTION_TIMES as $time5 => $name) {
+        $check = massIntentionSlotAvailability($date, $time5);
+        $slots[] = [
+            'time' => $time5,
+            'label' => date('g:i A', strtotime($time5)) . ' — ' . $name,
+            'available' => $check['available'],
+            'reason' => $check['reason'],
+        ];
+    }
+    return $slots;
+}
+
+/**
  * True if a non-cancelled/non-rejected appointment already occupies this
  * exact service+date+time. Closes a gap the priest-only conflict check
  * misses: two parishioners could otherwise both land on the same fixed
@@ -399,18 +472,11 @@ function validateBooking(
             break;
 
         case 'Mass Intention':
-            $validTimes = massTimesFor($date);
-            if (!in_array($time5, $validTimes, true)) {
-                $list = implode(', ', array_map(fn($t) => date('g:i A', strtotime($t)), $validTimes));
-                return [
-                    'valid' => false,
-                    'message' => "Mass Intentions must be offered during an actual Mass time. Available Mass time(s) for that date: $list.",
-                    'forcedTime' => null,
-                ];
-            }
-            // Mass Intentions ARE the Mass — they never conflict with themselves,
+            // Only the parish's three official Mass times are bookable. Mass
+            // Intentions ARE the Mass — they never conflict with each other,
             // so return directly, skipping the "occupied by a Mass" check below.
-            return ['valid' => true, 'message' => '', 'forcedTime' => null];
+            $slot = massIntentionSlotAvailability($date, $time5);
+            return ['valid' => $slot['available'], 'message' => (string) $slot['reason'], 'forcedTime' => null];
 
         case 'First Communion':
         default:
@@ -462,7 +528,7 @@ function schedulingPolicyText(string $category, ?int $serviceId = null): string
         case 'Funeral':
             return 'Funeral Masses are held after the 9-day mourning period from the date of death, fixed at 1:00 PM.';
         case 'Mass Intention':
-            return 'Mass Intentions are offered during the daily 6:00 AM Mass (5:15 PM on Wednesdays; 6:30 AM, 9:30 AM, or 4:30 PM on Sundays). The time is assigned automatically based on your chosen date — no need to pick a time. Your request is approved instantly, with no documents required, and you can proceed straight to payment.';
+            return 'Mass Intentions are offered at the 1st Mass (6:00 AM), 2nd Mass (9:00 AM), or 3rd Mass (4:00 PM) — choose one after picking your date. There is no fixed fee, but an offering greater than ₱0 must be paid to submit your intention. Once our Cashier confirms your payment, it is approved.';
         case 'First Communion':
             return 'Propose a preferred date and time below — just not during a scheduled Mass.';
         default:

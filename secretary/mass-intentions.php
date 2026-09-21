@@ -5,18 +5,16 @@ requireRole('Secretary', 'Admin', 'Treasurer');
 
 $dateFilter = $_GET['date'] ?? '';
 $search = $_GET['search'] ?? '';
+$statusFilter = $_GET['status'] ?? '';
 $viewerRole = currentUser()['role_name'];
 $isSecretaryViewer = $viewerRole === 'Secretary';
 $isCashierViewer = $viewerRole === 'Treasurer';
+$showPayment = !$isSecretaryViewer; // Cashier/Admin only — payments are the Cashier's job
 
-// Secretary sees this list to know what to read during Mass — no payment
-// detail, since that's the Cashier's responsibility to view, verify, and
-// confirm (see treasurer/payment-detail.php). Cashier/Admin get the
-// payment status too, since they need it to act.
-$sql = "SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.status_id,
+$sql = "SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.status_id, a.guest_name,
                st.status_name, u.firstname, u.lastname,
                mi.intention_type, mi.offerer_name, mi.intention_for, mi.message,
-               p.payment_id, p.payment_status
+               p.payment_id, p.payment_status, p.amount, p.method_id
         FROM appointments a
         JOIN services s ON a.service_id = s.service_id
         JOIN mass_intentions mi ON mi.appointment_id = a.appointment_id
@@ -26,6 +24,32 @@ $sql = "SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.statu
         LEFT JOIN payments p ON p.appointment_id = a.appointment_id
         WHERE s.category = 'Mass Intention'";
 $params = [];
+
+if ($isSecretaryViewer) {
+    // The Secretary's list is what gets read at Mass, so it only carries
+    // intentions the Cashier has already approved (confirmed or completed) —
+    // never one that is unpaid or still awaiting the Cashier. They see no
+    // payment detail at all.
+    $sql .= ' AND a.status_id IN (5, 6)';
+} elseif ($isCashierViewer) {
+    // Only Mass Intentions with a real payment transaction enter the
+    // Cashier's list: a recorded payment of more than ₱0, and — for an online
+    // (PayMongo) payment — only once PayMongo has actually confirmed it. An
+    // unpaid, ₱0, or abandoned-checkout intention never shows as awaiting
+    // Cashier approval.
+    $sql .= " AND p.payment_id IS NOT NULL AND p.amount > 0
+              AND (p.method_id <> 7 OR p.payment_status = 'verified')";
+}
+if ($showPayment && $statusFilter !== '') {
+    $statusSql = [
+        'pending' => 'a.status_id IN (2, 4)',
+        'approved' => 'a.status_id IN (5, 6)',
+        'rejected' => 'a.status_id = 3',
+    ];
+    if (isset($statusSql[$statusFilter])) {
+        $sql .= ' AND ' . $statusSql[$statusFilter];
+    }
+}
 if ($dateFilter) { $sql .= ' AND a.appointment_date = ?'; $params[] = $dateFilter; }
 if ($search) {
     $sql .= ' AND (u.firstname LIKE ? OR u.lastname LIKE ? OR mi.offerer_name LIKE ? OR mi.intention_for LIKE ?)';
@@ -39,6 +63,7 @@ $intentions = $stmt->fetchAll();
 // Group by date+time for the printable, read-during-Mass view.
 $grouped = [];
 foreach ($intentions as $row) {
+    if (!in_array((int) $row['status_id'], [5, 6], true)) continue; // only approved intentions are ever read at Mass
     $key = $row['appointment_date'] . ' ' . $row['appointment_time'];
     $grouped[$key]['date'] = $row['appointment_date'];
     $grouped[$key]['time'] = $row['appointment_time'];
@@ -59,11 +84,25 @@ include __DIR__ . '/../includes/dash-start.php';
 </div>
 
 <div class="card no-print">
+  <?php if ($isSecretaryViewer): ?>
+    <p class="helper-text" style="margin-top:0;">Shows Mass Intentions the Cashier has approved — the ones to be read at Mass.</p>
+  <?php endif; ?>
   <form method="GET" class="form-row mb-3">
     <div class="form-group"><label>Mass Date</label><input type="date" name="date" value="<?= e($dateFilter) ?>"></div>
+    <?php if ($showPayment): ?>
+      <div class="form-group">
+        <label>Status</label>
+        <select name="status">
+          <option value="">All</option>
+          <option value="pending" <?= $statusFilter==='pending'?'selected':'' ?>>Pending Cashier Verification</option>
+          <option value="approved" <?= $statusFilter==='approved'?'selected':'' ?>>Approved</option>
+          <option value="rejected" <?= $statusFilter==='rejected'?'selected':'' ?>>Rejected</option>
+        </select>
+      </div>
+    <?php endif; ?>
     <div class="form-group"><label>Search</label><input type="text" name="search" value="<?= e($search) ?>" placeholder="Parishioner, offerer, or intention for..."></div>
     <div class="form-group" style="align-self:end;"><button class="btn btn-primary">Filter</button></div>
-    <?php if ($dateFilter || $search): ?>
+    <?php if ($dateFilter || $search || $statusFilter): ?>
       <div class="form-group" style="align-self:end;"><a href="<?= url('secretary/mass-intentions.php') ?>" class="btn btn-outline">Clear</a></div>
     <?php endif; ?>
   </form>
@@ -75,50 +114,34 @@ include __DIR__ . '/../includes/dash-start.php';
       <table>
         <thead>
           <tr>
-            <th>Date</th><th>Time</th><th>Type</th><th>Offerer</th><th>Intention For</th><th>Requested By</th>
-            <?php if (!$isSecretaryViewer): ?><th>Payment</th><?php endif; ?>
+            <th>Date</th><th>Time</th><th>Type</th><th>Offerer</th><th>Intention For</th>
+            <?php if ($showPayment): ?><th>Message</th><?php endif; ?>
+            <th>Requested By</th>
+            <?php if ($showPayment): ?><th>Amount</th><th>Payment</th><?php endif; ?>
             <th>Status</th><th></th>
           </tr>
         </thead>
         <tbody>
           <?php foreach ($intentions as $row): ?>
+            <?php [$miLabel, $miClass] = massIntentionStatusDisplay($row['status_name'], $row['payment_id'] ? true : false, $isSecretaryViewer); ?>
             <tr>
               <td><?= formatDate($row['appointment_date']) ?></td>
               <td><?= date('g:i A', strtotime($row['appointment_time'])) ?></td>
               <td><?= e($row['intention_type']) ?></td>
               <td><?= e($row['offerer_name']) ?></td>
               <td><?= e($row['intention_for']) ?></td>
-              <td><?= e($row['firstname']) ?> <?= e($row['lastname']) ?></td>
-              <?php if (!$isSecretaryViewer): ?>
+              <?php if ($showPayment): ?><td style="max-width:220px;"><?= e($row['message'] ?: '—') ?></td><?php endif; ?>
+              <td><?= $row['guest_name'] ? e($row['guest_name']) . ' <span class="text-muted">(guest)</span>' : e($row['firstname']) . ' ' . e($row['lastname']) ?></td>
+              <?php if ($showPayment): ?>
+                <td><?= $row['payment_id'] ? money((float) $row['amount']) : '<span class="text-muted">—</span>' ?></td>
                 <td><?php if ($row['payment_status']): ?><span class="badge badge-<?= e($row['payment_status']) ?>"><?= e($row['payment_status']) ?></span><?php else: ?><span class="text-muted">—</span><?php endif; ?></td>
               <?php endif; ?>
-              <td>
-                <?php if ($isSecretaryViewer):
-                  // Collapse the Cashier's payment-lifecycle detail (Approved /
-                  // Payment Verified / Confirmed all just mean "still on") into
-                  // one neutral label — Secretary sees whether it's happening,
-                  // not how far along the payment is.
-                  $display = match ($row['status_name']) {
-                      'Rejected' => ['Rejected', 'rejected'],
-                      'Cancelled' => ['Cancelled', 'cancelled'],
-                      'Completed' => ['Completed', 'completed'],
-                      default => ['Scheduled', 'approved'],
-                  };
-                ?>
-                  <span class="badge badge-<?= $display[1] ?>"><?= $display[0] ?></span>
-                <?php else: ?>
-                  <span class="badge badge-<?= badgeClass($row['status_name']) ?>"><?= e($row['status_name']) ?></span>
-                <?php endif; ?>
-              </td>
+              <td><span class="badge badge-<?= $miClass ?>"><?= e($miLabel) ?></span></td>
               <td>
                 <?php if ($isCashierViewer): ?>
-                  <?php if ($row['payment_id']): ?>
-                    <a href="<?= url('treasurer/payment-detail.php?id=' . $row['payment_id']) ?>" class="btn btn-outline btn-sm">View Payment</a>
-                  <?php else: ?>
-                    <span class="text-muted" style="font-size:12px;">No payment yet</span>
-                  <?php endif; ?>
+                  <a href="<?= url('treasurer/payment-detail.php?id=' . $row['payment_id']) ?>" class="btn btn-outline btn-sm"><?= in_array((int) $row['status_id'], [2, 4], true) ? 'Review Payment' : 'View Payment' ?></a>
                 <?php else: ?>
-                  <a href="<?= url('secretary/appointment-detail.php?id=' . $row['appointment_id']) ?>" class="btn btn-outline btn-sm">View</a>
+                  <a href="<?= url('secretary/appointment-detail.php?id=' . $row['appointment_id']) ?>" class="btn btn-outline btn-sm js-view-modal" data-url="<?= url('secretary/appointment-detail.php?id=' . $row['appointment_id']) ?>" data-title="<?= e('Mass Intention — ' . formatDate($row['appointment_date']) . ' ' . date('g:i A', strtotime($row['appointment_time']))) ?>">View</a>
                 <?php endif; ?>
               </td>
             </tr>
@@ -142,6 +165,10 @@ include __DIR__ . '/../includes/dash-start.php';
       </div>
     <?php endforeach; ?>
   </div>
+<?php endif; ?>
+
+<?php if (!$isCashierViewer): ?>
+<?php include __DIR__ . '/../includes/detail-modal.php'; ?>
 <?php endif; ?>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>

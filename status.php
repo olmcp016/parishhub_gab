@@ -108,7 +108,11 @@ include __DIR__ . '/includes/header.php';
     <div class="card" style="margin-top:20px;">
       <div class="card-header">
         <h3><?= e($appointment['service_name']) ?></h3>
-        <span class="badge badge-<?= badgeClass($appointment['status_name']) ?>"><?= e($appointment['status_name']) ?></span>
+        <?php if ($appointment['category'] === 'Mass Intention'): $miStatus = massIntentionStatusDisplay($appointment['status_name'], !empty($payment) && !((int) $payment['method_id'] === 7 && $payment['payment_status'] !== 'verified')); ?>
+          <span class="badge badge-<?= $miStatus[1] ?>"><?= e($miStatus[0]) ?></span>
+        <?php else: ?>
+          <span class="badge badge-<?= badgeClass($appointment['status_name']) ?>"><?= e($appointment['status_name']) ?></span>
+        <?php endif; ?>
       </div>
       <p><strong>Reference:</strong> <?= e($appointment['guest_reference']) ?></p>
       <p><strong>Date:</strong> <?= formatDate($appointment['appointment_date']) ?> at <?= date('g:i A', strtotime($appointment['appointment_time'])) ?></p>

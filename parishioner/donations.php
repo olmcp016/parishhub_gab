@@ -33,7 +33,11 @@ if (isset($_GET['paymongo_return']) || isset($_GET['paymongo_cancelled'])) {
     $paymentRow = $stmt->fetch();
 
     if ($paymentRow) {
-        if (isset($_GET['paymongo_cancelled'])) {
+        if (isset($_GET['paymongo_cancelled']) && $paymentRow['payment_status'] !== 'verified' && !empty($_SESSION['donation_checkout'][$returnAppointmentId])) {
+            // Only the browser session that started this checkout may cancel it
+            // (anyone could otherwise add ?paymongo_cancelled=1 to someone
+            // else's link and kill an unfinished payment).
+            unset($_SESSION['donation_checkout'][$returnAppointmentId]);
             markPaymentUnsuccessful((int) $paymentRow['payment_id'], 'cancelled');
             db()->prepare("UPDATE transactions SET status = 'cancelled' WHERE payment_id = ?")->execute([$paymentRow['payment_id']]);
             $paymongoResultStatus = 'cancelled';

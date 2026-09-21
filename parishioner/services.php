@@ -168,10 +168,9 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
             </div>
 
             <div id="massTimeGroup" style="display:none;">
-              <input type="text" id="massTimeDisplay" disabled>
-              <select id="massTimeSelect" style="display:none;"></select>
+              <select id="massTimeSelect"></select>
               <input type="hidden" name="appointment_time" id="massTimeInput">
-              <p class="helper-text" id="massTimeHint">Select a date to see the assigned Mass time.</p>
+              <p class="helper-text" id="massTimeHint">Select a date to see the available Mass times.</p>
             </div>
           </div>
         </div>
@@ -191,7 +190,7 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
 
         <div id="intentionFields" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px; margin-bottom: 16px;">
           <h4 style="margin-top:0;">Mass Intention Details</h4>
-          <p class="helper-text" style="margin-top:-4px;">Mass Intention requests are approved instantly — no documents needed, and no fixed fee. You'll choose your own offering amount at payment.</p>
+          <p class="helper-text" style="margin-top:-4px;">No documents needed. There is no fixed fee — you choose your offering, but payment is required to submit. Our Cashier confirms it, and only then is your intention approved.</p>
           <div class="form-group">
             <label>Intention Type</label>
             <select name="intention_type">
@@ -213,6 +212,40 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
           <div class="form-group">
             <label>Prayer Message (optional)</label>
             <textarea name="message" rows="2"></textarea>
+          </div>
+
+          <h4 style="margin-bottom:6px;">Offering &amp; Payment</h4>
+          <div class="form-group">
+            <label>Offering Amount (₱) — must be more than ₱0</label>
+            <input type="number" name="amount" id="offeringAmount" min="0.01" step="0.01" placeholder="e.g. 500">
+          </div>
+          <div class="form-group">
+            <label>How would you like to pay?</label>
+            <label class="radio-option" style="display:block; margin-bottom:8px;">
+              <input type="radio" name="pay_mode" value="online" id="payModeOnline" checked>
+              <strong>Pay Online Now</strong> — Card, GCash, or Maya via PayMongo (secure)
+            </label>
+            <label class="radio-option" style="display:block;">
+              <input type="radio" name="pay_mode" value="manual" id="payModeManual">
+              I already paid by GCash / Maya / Bank Transfer — enter my reference number
+            </label>
+          </div>
+          <div id="manualPayFields" style="display:none;">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Payment Method</label>
+                <select name="method_id" id="manualMethodSelect">
+                  <option value="2">GCash</option>
+                  <option value="3">Maya</option>
+                  <option value="4">Bank Transfer</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Payment Reference Number</label>
+                <input type="text" name="payment_reference" id="manualReference" placeholder="Reference / transaction no.">
+              </div>
+            </div>
+            <p class="helper-text" style="margin-top:-6px;">Our Cashier will check this reference against your payment before approving.</p>
           </div>
         </div>
 
@@ -321,6 +354,9 @@ function toggleServiceUI() {
   document.getElementById('intentionFields').style.display = isMassIntention ? 'block' : 'none';
   document.getElementById('offererNameInput').required = isMassIntention;
   document.getElementById('intentionForInput').required = isMassIntention;
+  document.getElementById('massTimeSelect').required = isMassIntention;
+  document.getElementById('manualReference').required = isMassIntention && document.getElementById('payModeManual').checked;
+  updatePayModeUI();
   document.getElementById('dateOfDeathGroup').style.display = category === 'Funeral' ? 'block' : 'none';
   document.getElementById('dateOfDeathInput').required = (category === 'Funeral');
 
@@ -604,49 +640,75 @@ function checkRequirementFile(input) {
   });
 }
 
+/** The parish's three official Mass Intention times (mirrors MASS_INTENTION_TIMES in includes/scheduling.php). */
+var MASS_INTENTION_TIMES = [['06:00', '1st Mass'], ['09:00', '2nd Mass'], ['16:00', '3rd Mass']];
+
 /**
- * Most days only have one official Mass, so the time is just assigned
- * automatically. Sunday has three (1st, 2nd, and 3rd Mass) — on those
- * dates the parishioner picks which one they want their intention
- * offered at, via massTimeSelect below.
+ * Mass Intentions can only be booked at the three official Masses — the
+ * parishioner picks one from this dropdown (no free time entry). Each time
+ * is checked against the server's availability rules for the chosen date;
+ * unavailable/occupied ones are shown disabled with the reason.
  */
 function autoAssignMassTime() {
   var dateInput = document.getElementById('appointmentDateInput');
-  var display = document.getElementById('massTimeDisplay');
   var select = document.getElementById('massTimeSelect');
   var hidden = document.getElementById('massTimeInput');
   var hint = document.getElementById('massTimeHint');
+  var requestedDate = dateInput.value;
 
-  if (!dateInput.value) {
-    display.style.display = '';
-    select.style.display = 'none';
-    display.value = '';
+  if (!requestedDate) {
+    select.innerHTML = '<option value="">Select a date first</option>';
     hidden.value = '';
-    hint.textContent = 'Select a date to see the assigned Mass time.';
+    hint.textContent = 'Select a date to see the available Mass times.';
     return;
   }
 
-  var times = massTimesForJS(dateInput.value);
+  var previous = hidden.value;
+  select.innerHTML = '<option value="">Checking available Mass times…</option>';
+  hidden.value = '';
 
-  if (times.length > 1) {
-    var previousValue = hidden.value;
-    display.style.display = 'none';
-    select.style.display = '';
-    select.innerHTML = times.map(function (t) {
-      return '<option value="' + t + '">' + formatTimeLabel(t) + '</option>';
+  function render(slots, checked) {
+    if (dateInput.value !== requestedDate) return; // date changed while loading
+    var anyAvailable = slots.some(function (s) { return s.available; });
+    select.innerHTML = '<option value="">-- Select a Mass time --</option>' + slots.map(function (s) {
+      return s.available
+        ? '<option value="' + s.time + '">' + s.label + '</option>'
+        : '<option value="' + s.time + '" disabled>' + s.label + ' — Unavailable' + (s.reason ? ' (' + s.reason + ')' : '') + '</option>';
     }).join('');
-    select.value = times.indexOf(previousValue) !== -1 ? previousValue : times[0];
+    var keep = slots.some(function (s) { return s.available && s.time === previous; });
+    select.value = keep ? previous : '';
     hidden.value = select.value;
-    hint.textContent = 'This date has three Sunday Masses — choose which one you would like this intention offered at.';
-  } else {
-    var t = times[0];
-    display.style.display = '';
-    select.style.display = 'none';
-    display.value = formatTimeLabel(t) + ' (assigned automatically)';
-    hidden.value = t;
-    hint.textContent = 'This Mass Intention will be offered during the ' + formatTimeLabel(t) + ' Mass on the selected date.';
+    hint.textContent = !checked
+      ? 'Choose one of the parish\'s Mass times. Availability is confirmed when you submit.'
+      : (anyAvailable ? 'Choose one of the parish\'s three Masses. Unavailable times are greyed out.' : 'No Mass times are available on this date — please choose another date.');
+    refreshAvailability();
   }
-  refreshAvailability();
+
+  fetch(CHECK_AVAILABILITY_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ category: 'Mass Intention', appointment_date: requestedDate })
+  })
+    .then(function (res) { return res.json(); })
+    .then(function (data) { render(data.mass_slots || [], true); })
+    .catch(function () {
+      render(MASS_INTENTION_TIMES.map(function (t) {
+        return { time: t[0], label: formatTimeLabel(t[0]) + ' — ' + t[1], available: true, reason: null };
+      }), false);
+    });
+}
+
+/** Submit-button wording: Mass Intentions are paid as part of submitting. */
+function submitButtonLabel() {
+  var select = document.getElementById('serviceSelect');
+  var category = select.options[select.selectedIndex]?.dataset.category || '';
+  if (category !== 'Mass Intention') return 'Submit Appointment Request';
+  return document.getElementById('payModeManual').checked ? 'Submit Mass Intention' : 'Pay & Submit Mass Intention';
+}
+
+function updatePayModeUI() {
+  document.getElementById('manualPayFields').style.display = document.getElementById('payModeManual').checked ? 'block' : 'none';
+  document.getElementById('bookSubmitBtn').textContent = submitButtonLabel();
 }
 
 /** For free-choice date/time entry (First Communion, or Special mode) — show which times that date is already occupied by a scheduled Mass. */
@@ -741,6 +803,12 @@ document.addEventListener('DOMContentLoaded', function () {
     else updateOccupiedTimesHint();
   });
   document.getElementById('freeTimeInput').addEventListener('change', refreshAvailability);
+  ['payModeOnline', 'payModeManual'].forEach(function (id) {
+    document.getElementById(id).addEventListener('change', function () {
+      document.getElementById('manualReference').required = document.getElementById('payModeManual').checked;
+      updatePayModeUI();
+    });
+  });
   document.getElementById('massTimeSelect').addEventListener('change', function () {
     document.getElementById('massTimeInput').value = this.value;
     refreshAvailability();
@@ -760,6 +828,21 @@ document.addEventListener('DOMContentLoaded', function () {
     var submitBtn = document.getElementById('bookSubmitBtn');
     var errorBox = document.getElementById('bookFormError');
     errorBox.style.display = 'none';
+
+    var serviceSelect = document.getElementById('serviceSelect');
+    var isMassIntention = (serviceSelect.options[serviceSelect.selectedIndex]?.dataset.category || '') === 'Mass Intention';
+    if (isMassIntention) {
+      // A Mass Intention can never be submitted without a real payment.
+      var amount = parseFloat(document.getElementById('offeringAmount').value);
+      if (!(amount > 0)) {
+        errorBox.textContent = 'Payment is required before submitting a Mass Intention. Please enter a valid amount.';
+        errorBox.style.display = 'block';
+        errorBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        document.getElementById('offeringAmount').focus();
+        return;
+      }
+    }
+
     submitBtn.disabled = true;
     submitBtn.textContent = 'Submitting...';
 
@@ -767,8 +850,15 @@ document.addEventListener('DOMContentLoaded', function () {
     fetch('<?= url('parishioner/book.php') ?>', { method: 'POST', body: formData })
       .then(function (res) { return res.json(); })
       .then(function (data) {
+        if (data.success && data.redirect) {
+          // PayMongo's hosted checkout (provider-required redirect) — the
+          // Mass Intention only counts once that payment is actually completed.
+          submitBtn.textContent = 'Redirecting to secure payment…';
+          window.location.href = data.redirect;
+          return;
+        }
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Submit Appointment Request';
+        submitBtn.textContent = submitButtonLabel();
         if (data.success) {
           document.getElementById('bookFormView').style.display = 'none';
           document.getElementById('bookConfirmView').style.display = 'block';
@@ -800,7 +890,7 @@ document.addEventListener('DOMContentLoaded', function () {
       })
       .catch(function () {
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Submit Appointment Request';
+        submitBtn.textContent = submitButtonLabel();
         errorBox.textContent = 'Something went wrong submitting your request. Please try again.';
         errorBox.style.display = 'block';
       });

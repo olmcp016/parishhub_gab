@@ -27,7 +27,7 @@ $weekDonors = getCurrentWeekDonors();
 $todaysMassIntentions = getTodaysConfirmedMassIntentions();
 
 $stmt = db()->prepare(
-    "SELECT a.*, s.service_name, st.status_name, p.full_name AS priest_name
+    "SELECT a.*, s.service_name, s.category, st.status_name, p.full_name AS priest_name
      FROM appointments a
      JOIN services s ON a.service_id = s.service_id
      JOIN appointment_status st ON a.status_id = st.status_id
@@ -83,7 +83,7 @@ include __DIR__ . '/../includes/dash-start.php';
                 <td><?= e($a['service_name']) ?></td>
                 <td><?= formatDate($a['appointment_date']) ?> · <?= date('g:i A', strtotime($a['appointment_time'])) ?></td>
                 <td><?= e($a['priest_name'] ?? 'Not yet assigned') ?></td>
-                <td><span class="badge badge-<?= badgeClass($a['status_name']) ?>"><?= e($a['status_name']) ?></span> <?php if ($a['status_name'] === 'Approved'): ?> <a href="<?= url('parishioner/appointment-detail.php?id=' . $a['appointment_id']) ?>" class="btn btn-primary btn-sm" style="margin-left:8px;" onclick="event.stopPropagation();">Proceed to Payment</a> <?php endif; ?></td>
+                <td><?php if ($a['category'] === 'Mass Intention'): $miStatus = massIntentionStatusDisplay($a['status_name']); ?><span class="badge badge-<?= $miStatus[1] ?>"><?= e($miStatus[0]) ?></span><?php else: ?><span class="badge badge-<?= badgeClass($a['status_name']) ?>"><?= e($a['status_name']) ?></span><?php endif; ?> <?php if ($a['status_name'] === 'Approved' && $a['category'] !== 'Mass Intention'): ?> <a href="<?= url('parishioner/appointment-detail.php?id=' . $a['appointment_id']) ?>" class="btn btn-primary btn-sm" style="margin-left:8px;" onclick="event.stopPropagation();">Proceed to Payment</a> <?php endif; ?></td>
               </tr>
             <?php endforeach; ?>
           </tbody>
