@@ -77,6 +77,12 @@ function paymongoCreateCheckoutSession(float $amount, string $description, strin
         ]],
         'payment_method_types' => ['card', 'gcash', 'paymaya'],
         'description' => $description,
+        // Shown on the payer's bank/card statement line (PayMongo requires
+        // 5–22 characters). This does NOT change the "Justine Abella" name
+        // shown on PayMongo's own checkout page — that comes from the
+        // account's Business Profile, which only PayMongo's dashboard
+        // controls, not the API.
+        'statement_descriptor' => 'PARISHHUB',
         'success_url' => $successUrl,
         'cancel_url' => $cancelUrl,
     ];
