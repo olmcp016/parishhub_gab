@@ -83,11 +83,6 @@ include __DIR__ . '/../includes/dash-start.php';
     <h3>All Staff</h3>
     <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('addStaffModal').showModal()">+ Add Staff</button>
   </div>
-  <?php if ($totalStaff > 0): ?>
-    <p class="helper-text" style="margin-top:-8px;">
-      Showing <?= $pagination['offset'] + 1 ?>–<?= min($pagination['offset'] + $pagination['limit'], $totalStaff) ?> of <?= $totalStaff ?> staff members
-    </p>
-  <?php endif; ?>
   <div class="table-wrap">
     <table>
       <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
@@ -136,7 +131,7 @@ include __DIR__ . '/../includes/dash-start.php';
       </tbody>
     </table>
   </div>
-  <?= renderPagination($pagination['page'], $pagination['totalPages'], url('admin/users.php')) ?>
+  <?= renderPagination($pagination, url('admin/users.php')) ?>
 </div>
 
 <!-- ===================== Add Staff Modal ===================== -->

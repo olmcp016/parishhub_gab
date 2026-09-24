@@ -25,11 +25,22 @@ if ($search) {
     $sql .= ' AND (u.firstname LIKE ? OR u.lastname LIKE ? OR s.service_name LIKE ?)';
     $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%";
 }
-$sql .= ' ORDER BY a.appointment_date DESC';
+$countStmt = db()->prepare(str_replace('SELECT a.*, s.service_name, s.category, u.firstname, u.lastname, u.email, st.status_name, p.full_name AS priest_name', 'SELECT COUNT(*)', $sql));
+$countStmt->execute($params);
+$pagination = paginate((int) $countStmt->fetchColumn(), 10);
+
+$sql .= ' ORDER BY a.appointment_date DESC LIMIT ? OFFSET ?';
 
 $stmt = db()->prepare($sql);
-$stmt->execute($params);
+foreach ($params as $i => $val) {
+    $stmt->bindValue($i + 1, $val);
+}
+$stmt->bindValue(count($params) + 1, $pagination['limit'], PDO::PARAM_INT);
+$stmt->bindValue(count($params) + 2, $pagination['offset'], PDO::PARAM_INT);
+$stmt->execute();
 $appointments = $stmt->fetchAll();
+
+$paginationUrl = url('secretary/appointments.php') . '?' . http_build_query(array_filter(['status' => $statusFilter, 'search' => $search]));
 
 $statuses = db()->query('SELECT * FROM appointment_status')->fetchAll();
 
@@ -90,7 +101,9 @@ include __DIR__ . '/../includes/dash-start.php';
       </tbody>
     </table>
   </div>
-  <?php if (empty($appointments)): ?><p class="text-muted text-center mt-3">No appointments found.</p><?php endif; ?>
+  <?php if (empty($appointments)): ?><p class="text-muted text-center mt-3">No appointments found.</p><?php else: ?>
+    <?= renderPagination($pagination, $paginationUrl) ?>
+  <?php endif; ?>
 </div>
 
 <?php include __DIR__ . '/../includes/detail-modal.php'; ?>

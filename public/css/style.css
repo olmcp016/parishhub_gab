@@ -1112,3 +1112,17 @@ dialog.modal::backdrop { background: rgba(36, 22, 17, 0.55); }
 .mi-today { background: linear-gradient(135deg, #fbf5e6, #f4e9cd); border: 1px solid var(--gold); border-radius: 16px; padding: 22px 24px; max-width: 760px; }
 .mi-today-title { margin: 0 0 2px; font-size: 20px; letter-spacing: .06em; text-transform: uppercase; color: var(--brown-dark, #4a2e22); }
 .mi-today-date { color: var(--brown-mid); font-size: 14px; margin-bottom: 14px; }
+
+/* ---------- Shared pagination bar (see renderPagination() in functions.php) ---------- */
+.pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; }
+.pagination-summary { font-size: 13px; color: var(--text-muted, var(--brown-mid)); }
+.pagination-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.pagination-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 32px; height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--cream-dark); background: var(--white, #fff); color: var(--brown-dark, #4a2e22); font-size: 13px; text-decoration: none; cursor: pointer; transition: background .15s var(--ease), border-color .15s var(--ease); }
+.pagination-btn:hover:not(.is-disabled):not(.is-current) { background: var(--cream); border-color: var(--gold); }
+.pagination-btn.is-current { background: var(--gold); border-color: var(--gold); color: #fff; font-weight: 600; cursor: default; }
+.pagination-btn.is-disabled { opacity: .4; pointer-events: none; }
+.pagination-ellipsis { padding: 0 4px; color: var(--text-muted, var(--brown-mid)); font-size: 13px; }
+@media (max-width: 520px) {
+  .pagination { justify-content: center; text-align: center; }
+  .pagination-controls { justify-content: center; }
+}

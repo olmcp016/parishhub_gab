@@ -5,8 +5,15 @@ requireRole('Parishioner');
 
 $userId = currentUser()['user_id'];
 
-$stmt = db()->prepare('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 50');
+$stmt = db()->prepare('SELECT COUNT(*) FROM notifications WHERE user_id = ?');
 $stmt->execute([$userId]);
+$pagination = paginate((int) $stmt->fetchColumn(), 10);
+
+$stmt = db()->prepare('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?');
+$stmt->bindValue(1, $userId);
+$stmt->bindValue(2, $pagination['limit'], PDO::PARAM_INT);
+$stmt->bindValue(3, $pagination['offset'], PDO::PARAM_INT);
+$stmt->execute();
 $notifications = $stmt->fetchAll();
 
 db()->prepare('UPDATE notifications SET is_read = TRUE WHERE user_id = ?')->execute([$userId]);
@@ -29,6 +36,7 @@ include __DIR__ . '/../includes/dash-start.php';
         <span class="text-muted" style="font-size:12px;"><?= formatDateTime($n['created_at']) ?></span>
       </div>
     <?php endforeach; ?>
+    <?= renderPagination($pagination, url('parishioner/notifications.php')) ?>
   <?php endif; ?>
 </div>
 

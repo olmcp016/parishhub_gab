@@ -65,10 +65,28 @@ if ($search) {
     $sql .= ' AND (u.firstname LIKE ? OR u.lastname LIKE ? OR p.reference_number LIKE ?)';
     $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%";
 }
-$sql .= ' ORDER BY p.created_at DESC';
+$countSql = str_replace(
+    'SELECT p.*, pm.method_name, u.firstname, u.lastname, s.service_name, a.appointment_date',
+    'SELECT COUNT(*)',
+    $sql
+);
+$countStmt = db()->prepare($countSql);
+$countStmt->execute($params);
+$pagination = paginate((int) $countStmt->fetchColumn(), 10);
+
+$sql .= ' ORDER BY p.created_at DESC LIMIT ? OFFSET ?';
 $stmt = db()->prepare($sql);
-$stmt->execute($params);
+foreach ($params as $i => $val) {
+    $stmt->bindValue($i + 1, $val);
+}
+$stmt->bindValue(count($params) + 1, $pagination['limit'], PDO::PARAM_INT);
+$stmt->bindValue(count($params) + 2, $pagination['offset'], PDO::PARAM_INT);
+$stmt->execute();
 $payments = $stmt->fetchAll();
+
+$paginationUrl = url('treasurer/payments.php') . '?' . http_build_query(array_filter([
+    'status' => $statusFilter, 'method_id' => $methodFilter, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'search' => $search,
+]));
 
 $paymentMethods = db()->query('SELECT * FROM payment_methods ORDER BY method_id')->fetchAll();
 
@@ -149,7 +167,9 @@ include __DIR__ . '/../includes/dash-start.php';
       </tbody>
     </table>
   </div>
-  <?php if (empty($payments)): ?><p class="text-muted text-center mt-3">No payments found.</p><?php endif; ?>
+  <?php if (empty($payments)): ?><p class="text-muted text-center mt-3">No payments found.</p><?php else: ?>
+    <?= renderPagination($pagination, $paginationUrl) ?>
+  <?php endif; ?>
 </div>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>

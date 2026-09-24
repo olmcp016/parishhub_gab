@@ -268,39 +268,78 @@ function paginate(int $totalRows, int $perPage = 10): array
         'totalPages' => $totalPages,
         'offset' => ($page - 1) * $perPage,
         'limit' => $perPage,
+        'totalRows' => $totalRows,
+        'perPage' => $perPage,
     ];
 }
 
 /**
- * Renders a simple Prev/Next pagination bar. $baseUrl is the current page's
- * URL without a `page` query param (other filters, if any, should already
- * be included) — `page=N` is appended to it for each control.
+ * Renders the one pagination bar used everywhere in PARISHHUB: a
+ * "Showing X–Y of Z" summary plus Previous / page numbers (with an ellipsis
+ * once there are too many to list) / Next. $pagination is a paginate()
+ * result; $baseUrl is the current page's URL WITHOUT a `page` query param —
+ * any other filters (search, status, date, ...) should already be included
+ * in it so they carry over when a page link is followed.
  */
-function renderPagination(int $page, int $totalPages, string $baseUrl): string
+function renderPagination(array $pagination, string $baseUrl): string
 {
-    if ($totalPages <= 1) {
+    $page = $pagination['page'];
+    $totalPages = $pagination['totalPages'];
+    $totalRows = $pagination['totalRows'];
+    $perPage = $pagination['perPage'];
+
+    if ($totalRows <= 0) {
         return '';
     }
-    $sep = str_contains($baseUrl, '?') ? '&' : '?';
-    $disabledStyle = 'opacity:.4; pointer-events:none;';
 
-    if ($page <= 1) {
-        $prevTag = '<span class="btn btn-outline btn-sm" style="' . $disabledStyle . '">&laquo; Previous</span>';
-    } else {
-        $prevTag = '<a href="' . e($baseUrl . $sep . 'page=' . ($page - 1)) . '" class="btn btn-outline btn-sm">&laquo; Previous</a>';
+    $sep = str_contains($baseUrl, '?') ? '&' : '?';
+    $link = fn(int $p): string => e($baseUrl . $sep . 'page=' . $p);
+
+    $first = ($page - 1) * $perPage + 1;
+    $last = min($page * $perPage, $totalRows);
+    $summary = "Showing {$first}–{$last} of {$totalRows}";
+
+    if ($totalPages <= 1) {
+        return '<div class="pagination"><span class="pagination-summary">' . e($summary) . '</span></div>';
     }
 
-    if ($page >= $totalPages) {
-        $nextTag = '<span class="btn btn-outline btn-sm" style="' . $disabledStyle . '">Next &raquo;</span>';
-    } else {
-        $nextTag = '<a href="' . e($baseUrl . $sep . 'page=' . ($page + 1)) . '" class="btn btn-outline btn-sm">Next &raquo;</a>';
+    $prevTag = $page <= 1
+        ? '<span class="pagination-btn is-disabled">&laquo; Previous</span>'
+        : '<a href="' . $link($page - 1) . '" class="pagination-btn">&laquo; Previous</a>';
+    $nextTag = $page >= $totalPages
+        ? '<span class="pagination-btn is-disabled">Next &raquo;</span>'
+        : '<a href="' . $link($page + 1) . '" class="pagination-btn">Next &raquo;</a>';
+
+    // Page numbers: always the first and last page, plus one on each side of
+    // the current page — everything else collapses into a single ellipsis so
+    // a huge result set never prints dozens of page links.
+    $numbers = [];
+    for ($p = 1; $p <= $totalPages; $p++) {
+        if ($p === 1 || $p === $totalPages || abs($p - $page) <= 1) {
+            $numbers[] = $p;
+        } elseif (end($numbers) !== '…') {
+            $numbers[] = '…';
+        }
+    }
+    $numberTags = '';
+    foreach ($numbers as $n) {
+        if ($n === '…') {
+            $numberTags .= '<span class="pagination-ellipsis">…</span>';
+        } elseif ($n === $page) {
+            $numberTags .= '<span class="pagination-btn is-current" aria-current="page">' . $n . '</span>';
+        } else {
+            $numberTags .= '<a href="' . $link($n) . '" class="pagination-btn">' . $n . '</a>';
+        }
     }
 
     return <<<HTML
-    <div class="flex gap-2" style="justify-content:center; align-items:center; margin-top:14px;">
-      {$prevTag}
-      <span class="text-muted" style="font-size:13px;">Page {$page} of {$totalPages}</span>
-      {$nextTag}
+    <div class="pagination">
+      <span class="pagination-summary">{$summary}</span>
+      <div class="pagination-controls">
+        {$prevTag}
+        {$numberTags}
+        {$nextTag}
+      </div>
     </div>
     HTML;
 }

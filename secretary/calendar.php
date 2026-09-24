@@ -160,7 +160,7 @@ include __DIR__ . '/../includes/dash-start.php';
   <?php if (empty($events)): ?>
     <p class="text-muted text-center mt-3">No upcoming events scheduled.</p>
   <?php else: ?>
-    <?= renderPagination($eventPagination['page'], $eventPagination['totalPages'], url('secretary/calendar.php')) ?>
+    <?= renderPagination($eventPagination, url('secretary/calendar.php')) ?>
   <?php endif; ?>
 </div>
 

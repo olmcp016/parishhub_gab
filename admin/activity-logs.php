@@ -17,10 +17,22 @@ $sql = "SELECT l.*, u.firstname, u.lastname, r.role_name FROM activity_logs l
 $params = [];
 if ($dateFrom) { $sql .= ' AND l.created_at >= ?'; $params[] = $dateFrom . ' 00:00:00'; }
 if ($dateTo) { $sql .= ' AND l.created_at <= ?'; $params[] = $dateTo . ' 23:59:59'; }
-$sql .= ' ORDER BY l.created_at DESC LIMIT 200';
+
+$countStmt = db()->prepare(str_replace('SELECT l.*, u.firstname, u.lastname, r.role_name', 'SELECT COUNT(*)', $sql));
+$countStmt->execute($params);
+$pagination = paginate((int) $countStmt->fetchColumn(), 10);
+
+$sql .= ' ORDER BY l.created_at DESC LIMIT ? OFFSET ?';
 $stmt = db()->prepare($sql);
-$stmt->execute($params);
+foreach ($params as $i => $val) {
+    $stmt->bindValue($i + 1, $val);
+}
+$stmt->bindValue(count($params) + 1, $pagination['limit'], PDO::PARAM_INT);
+$stmt->bindValue(count($params) + 2, $pagination['offset'], PDO::PARAM_INT);
+$stmt->execute();
 $logs = $stmt->fetchAll();
+
+$paginationUrl = url('admin/activity-logs.php') . '?' . http_build_query(array_filter(['date_from' => $dateFrom, 'date_to' => $dateTo]));
 
 // Group into date buckets (in the app's Asia/Manila timezone, consistent
 // with how the rest of the app computes "today") so the template can
@@ -66,7 +78,9 @@ include __DIR__ . '/../includes/dash-start.php';
       </table>
     </div>
   <?php endforeach; ?>
-  <?php if (empty($logs)): ?><p class="text-muted text-center mt-3">No activity recorded yet.</p><?php endif; ?>
+  <?php if (empty($logs)): ?><p class="text-muted text-center mt-3">No activity recorded yet.</p><?php else: ?>
+    <?= renderPagination($pagination, $paginationUrl) ?>
+  <?php endif; ?>
 </div>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>

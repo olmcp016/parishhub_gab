@@ -117,10 +117,27 @@ if ($search) {
     $sql .= ' AND (d.donor_name LIKE ? OR d.donor_email LIKE ? OR d.purpose LIKE ?)';
     $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%";
 }
-$sql .= ' ORDER BY a.created_at DESC';
+$countSql = str_replace(
+    'SELECT a.appointment_id, a.created_at, d.donor_name, d.donor_email, d.purpose, d.message,
+               p.amount, p.payment_status, p.payment_id, pm.method_name',
+    'SELECT COUNT(*)',
+    $sql
+);
+$countStmt = db()->prepare($countSql);
+$countStmt->execute($params);
+$pagination = paginate((int) $countStmt->fetchColumn(), 10);
+
+$sql .= ' ORDER BY a.created_at DESC LIMIT ? OFFSET ?';
 $stmt = db()->prepare($sql);
-$stmt->execute($params);
+foreach ($params as $i => $val) {
+    $stmt->bindValue($i + 1, $val);
+}
+$stmt->bindValue(count($params) + 1, $pagination['limit'], PDO::PARAM_INT);
+$stmt->bindValue(count($params) + 2, $pagination['offset'], PDO::PARAM_INT);
+$stmt->execute();
 $donations = $stmt->fetchAll();
+
+$paginationUrl = url('treasurer/donations.php') . '?' . http_build_query(array_filter(['status' => $statusFilter, 'search' => $search]));
 
 $totalVerified = db()->query(
     "SELECT COALESCE(SUM(p.amount),0) FROM payments p
@@ -219,7 +236,9 @@ include __DIR__ . '/../includes/dash-start.php';
       </tbody>
     </table>
   </div>
-  <?php if (empty($donations)): ?><p class="text-muted text-center mt-3">No donations found.</p><?php endif; ?>
+  <?php if (empty($donations)): ?><p class="text-muted text-center mt-3">No donations found.</p><?php else: ?>
+    <?= renderPagination($pagination, $paginationUrl) ?>
+  <?php endif; ?>
 </div>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>

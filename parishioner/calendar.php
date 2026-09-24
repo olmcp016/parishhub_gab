@@ -70,7 +70,7 @@ include __DIR__ . '/../includes/' . (usesParishionerShell() ? 'dash-start.php' :
             </tbody>
           </table>
         </div>
-        <?= renderPagination($pagination['page'], $pagination['totalPages'], url('parishioner/calendar.php')) ?>
+        <?= renderPagination($pagination, url('parishioner/calendar.php')) ?>
       <?php endif; ?>
     </div>
 

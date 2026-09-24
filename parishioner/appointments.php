@@ -9,15 +9,25 @@ $stmt->execute([$userId]);
 $parishionerId = $stmt->fetchColumn();
 
 $stmt = db()->prepare(
+    "SELECT COUNT(*) FROM appointments a JOIN services s ON a.service_id = s.service_id
+     WHERE a.parishioner_id = ? AND s.category != 'Donation'"
+);
+$stmt->execute([$parishionerId]);
+$pagination = paginate((int) $stmt->fetchColumn(), 10);
+
+$stmt = db()->prepare(
     "SELECT a.*, s.service_name, s.fee, s.category, st.status_name, p.full_name AS priest_name
      FROM appointments a
      JOIN services s ON a.service_id = s.service_id
      JOIN appointment_status st ON a.status_id = st.status_id
      LEFT JOIN priests p ON a.priest_id = p.priest_id
      WHERE a.parishioner_id = ? AND s.category != 'Donation'
-     ORDER BY a.created_at DESC"
+     ORDER BY a.created_at DESC LIMIT ? OFFSET ?"
 );
-$stmt->execute([$parishionerId]);
+$stmt->bindValue(1, $parishionerId);
+$stmt->bindValue(2, $pagination['limit'], PDO::PARAM_INT);
+$stmt->bindValue(3, $pagination['offset'], PDO::PARAM_INT);
+$stmt->execute();
 $appointments = $stmt->fetchAll();
 
 $active = 'appointments';
@@ -69,6 +79,7 @@ include __DIR__ . '/../includes/dash-start.php';
         </tbody>
       </table>
     </div>
+    <?= renderPagination($pagination, url('parishioner/appointments.php')) ?>
   <?php endif; ?>
 </div>
 

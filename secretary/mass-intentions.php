@@ -1,7 +1,12 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
-requireRole('Secretary', 'Admin', 'Treasurer');
+// The Secretary no longer has a Mass Intentions interface — payment
+// verification is the Cashier's job, and approved intentions to read at Mass
+// are handled through Appointments — only Cashier (Treasurer) and Admin
+// reach this page now. $isSecretaryViewer below is kept only so the
+// display-formatting helpers below still degrade safely if ever reached.
+requireRole('Admin', 'Treasurer');
 
 $dateFilter = $_GET['date'] ?? '';
 $search = $_GET['search'] ?? '';
@@ -55,20 +60,43 @@ if ($search) {
     $sql .= ' AND (u.firstname LIKE ? OR u.lastname LIKE ? OR mi.offerer_name LIKE ? OR mi.intention_for LIKE ?)';
     $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%";
 }
-$sql .= ' ORDER BY a.appointment_date ASC, a.appointment_time ASC, mi.intention_id ASC';
+// The read-at-Mass print sheet needs EVERY approved intention for the
+// filtered date, never just one page of them — fetched separately, before
+// pagination is applied to the on-screen list below.
+$grouped = [];
+if ($dateFilter) {
+    $printStmt = db()->prepare($sql . ' AND a.status_id IN (5, 6) ORDER BY a.appointment_date ASC, a.appointment_time ASC, mi.intention_id ASC');
+    $printStmt->execute($params);
+    foreach ($printStmt->fetchAll() as $row) {
+        $key = $row['appointment_date'] . ' ' . $row['appointment_time'];
+        $grouped[$key]['date'] = $row['appointment_date'];
+        $grouped[$key]['time'] = $row['appointment_time'];
+        $grouped[$key]['rows'][] = $row;
+    }
+}
+
+$countStmt = db()->prepare(str_replace(
+    'SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.status_id, a.guest_name,
+               st.status_name, u.firstname, u.lastname,
+               mi.intention_type, mi.offerer_name, mi.intention_for, mi.message,
+               p.payment_id, p.payment_status, p.amount, p.method_id',
+    'SELECT COUNT(*)',
+    $sql
+));
+$countStmt->execute($params);
+$pagination = paginate((int) $countStmt->fetchColumn(), 10);
+
+$sql .= ' ORDER BY a.appointment_date ASC, a.appointment_time ASC, mi.intention_id ASC LIMIT ? OFFSET ?';
 $stmt = db()->prepare($sql);
-$stmt->execute($params);
+foreach ($params as $i => $val) {
+    $stmt->bindValue($i + 1, $val);
+}
+$stmt->bindValue(count($params) + 1, $pagination['limit'], PDO::PARAM_INT);
+$stmt->bindValue(count($params) + 2, $pagination['offset'], PDO::PARAM_INT);
+$stmt->execute();
 $intentions = $stmt->fetchAll();
 
-// Group by date+time for the printable, read-during-Mass view.
-$grouped = [];
-foreach ($intentions as $row) {
-    if (!in_array((int) $row['status_id'], [5, 6], true)) continue; // only approved intentions are ever read at Mass
-    $key = $row['appointment_date'] . ' ' . $row['appointment_time'];
-    $grouped[$key]['date'] = $row['appointment_date'];
-    $grouped[$key]['time'] = $row['appointment_time'];
-    $grouped[$key]['rows'][] = $row;
-}
+$paginationUrl = url('secretary/mass-intentions.php') . '?' . http_build_query(array_filter(['date' => $dateFilter, 'search' => $search, 'status' => $statusFilter]));
 
 $active = 'mass-intentions';
 $pageTitle = 'Mass Intentions';
@@ -149,6 +177,7 @@ include __DIR__ . '/../includes/dash-start.php';
         </tbody>
       </table>
     </div>
+    <?= renderPagination($pagination, $paginationUrl) ?>
   <?php endif; ?>
 </div>
 

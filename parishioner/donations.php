@@ -89,7 +89,15 @@ if (isset($_GET['paymongo_return']) || isset($_GET['paymongo_cancelled'])) {
 // guests; they track their own donation via the reference code instead
 // (status.php), same as a guest booking.
 $donations = [];
+$donationsPagination = null;
 if (!$isGuest) {
+    $stmt = db()->prepare(
+        "SELECT COUNT(*) FROM appointments a JOIN services s ON a.service_id = s.service_id
+         WHERE a.parishioner_id = ? AND s.category = 'Donation'"
+    );
+    $stmt->execute([$parishionerId]);
+    $donationsPagination = paginate((int) $stmt->fetchColumn(), 10);
+
     $stmt = db()->prepare(
         "SELECT a.appointment_id, a.created_at, d.purpose, d.message, p.amount, p.payment_status, pm.method_name
          FROM appointments a
@@ -98,9 +106,12 @@ if (!$isGuest) {
          LEFT JOIN payments p ON p.appointment_id = a.appointment_id
          LEFT JOIN payment_methods pm ON p.method_id = pm.method_id
          WHERE a.parishioner_id = ? AND s.category = 'Donation'
-         ORDER BY a.created_at DESC"
+         ORDER BY a.created_at DESC LIMIT ? OFFSET ?"
     );
-    $stmt->execute([$parishionerId]);
+    $stmt->bindValue(1, $parishionerId);
+    $stmt->bindValue(2, $donationsPagination['limit'], PDO::PARAM_INT);
+    $stmt->bindValue(3, $donationsPagination['offset'], PDO::PARAM_INT);
+    $stmt->execute();
     $donations = $stmt->fetchAll();
 }
 
@@ -166,6 +177,7 @@ include __DIR__ . '/../includes/' . ($isGuest ? 'public-shell-start.php' : 'dash
           </tbody>
         </table>
       </div>
+      <?= renderPagination($donationsPagination, url('parishioner/donations.php')) ?>
     <?php endif; ?>
   <?php endif; ?>
 </div>
