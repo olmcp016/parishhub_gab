@@ -67,13 +67,12 @@ function renderNavSection(string $slug, string $title, array $items, string $act
       <?php renderNavSection('services-scheduling', 'Services & Scheduling', [
         [url('secretary/services.php'), 'services', 'heart-handshake', 'Services'],
         [url('secretary/calendar.php'), 'calendar', 'calendar-days', 'Calendar'],
+        [url('secretary/locations.php'), 'locations', 'map-pin', 'Locations'],
         [url('secretary/appointments.php'), 'appointments', 'calendar-check', 'Appointments'],
-        [url('secretary/mass-intentions.php'), 'mass-intentions', 'flame', 'Mass Intentions'],
       ], $__active); ?>
       <?php renderNavSection('parish-content', 'Parish Content', [
         [url('secretary/announcements.php'), 'announcements', 'megaphone', 'Announcements'],
         [url('secretary/projects.php'), 'projects', 'hard-hat', 'Ongoing Projects'],
-        [url('secretary/locations.php'), 'locations', 'map-pin', 'Locations'],
       ], $__active); ?>
       <?php renderNavSection('reports', 'Reports', [
         [url('secretary/reports.php'), 'reports', 'bar-chart-3', 'Reports'],
