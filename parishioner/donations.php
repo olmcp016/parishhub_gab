@@ -7,6 +7,14 @@ $userId = $identity['user_id'];
 $parishionerId = $identity['parishioner_id'];
 $isGuest = $identity['is_guest'];
 
+$accountName = '';
+if (!$isGuest) {
+    $stmt = db()->prepare('SELECT firstname, lastname FROM users WHERE user_id = ?');
+    $stmt->execute([$userId]);
+    $u = $stmt->fetch();
+    if ($u) $accountName = trim($u['firstname'] . ' ' . $u['lastname']);
+}
+
 /**
  * Reconciles a return from PayMongo's hosted checkout page. The redirect
  * itself is NOT trusted as proof of payment (a donor could tamper with the
@@ -116,7 +124,7 @@ if (!$isGuest) {
 }
 
 $donationEnabled = db()->query("SELECT setting_value FROM settings WHERE setting_key = 'donation_enabled'")->fetchColumn() !== '0';
-$purposes = ['General Donation', 'Church Maintenance', 'Charity', 'Mass / Parish Activities'];
+$purposes = ['Church Maintenance', 'Charity', 'Mass / Parish Activities', 'Other / Not Specified'];
 $projects = db()->query('SELECT project_id, project_name FROM projects WHERE is_active = TRUE ORDER BY project_name')->fetchAll();
 $preselectedProjectId = (int) ($_GET['project_id'] ?? 0) ?: null;
 $autoOpenModal = isset($_GET['donate']) || $preselectedProjectId;
@@ -197,6 +205,7 @@ include __DIR__ . '/../includes/' . ($isGuest ? 'public-shell-start.php' : 'dash
         <?= csrfField() ?>
         <input type="hidden" name="ajax" value="1">
 
+        <?php if ($isGuest): ?>
         <div class="form-row">
           <div class="form-group">
             <label>Donor Name (optional)</label>
@@ -207,6 +216,17 @@ include __DIR__ . '/../includes/' . ($isGuest ? 'public-shell-start.php' : 'dash
             <input type="email" name="donor_email" placeholder="you@example.com">
           </div>
         </div>
+        <?php else: ?>
+        <input type="hidden" name="donor_name" id="donateDonorNameField" value="<?= e($accountName) ?>">
+        <div class="form-group">
+          <label>Donor</label>
+          <p style="margin:4px 0 8px;"><strong id="donateDonorDisplay"><?= e($accountName) ?></strong></p>
+          <label class="radio-option" style="display:inline-flex; align-items:center; gap:6px;">
+            <input type="checkbox" id="donateAnonymousCheck" style="width:auto;">
+            Donate Anonymously
+          </label>
+        </div>
+        <?php endif; ?>
 
         <div class="form-group">
           <label>Donation Amount</label>
@@ -215,19 +235,16 @@ include __DIR__ . '/../includes/' . ($isGuest ? 'public-shell-start.php' : 'dash
 
         <div class="form-group">
           <label>Purpose of Donation</label>
-          <div class="radio-group">
-            <?php foreach ($purposes as $i => $p): ?>
-              <label class="radio-option">
-                <input type="radio" name="purpose" value="<?= e($p) ?>" <?= $i === 0 ? 'checked' : '' ?>>
-                <?= e($p) ?>
-              </label>
+          <select name="purpose">
+            <?php foreach ($purposes as $p): ?>
+              <option value="<?= e($p) ?>"><?= e($p) ?></option>
             <?php endforeach; ?>
-          </div>
+          </select>
         </div>
 
         <?php if (!empty($projects)): ?>
         <div class="form-group">
-          <label>Support an Ongoing Project (optional)</label>
+          <label>Support an Ongoing Project</label>
           <select name="project_id" id="donateProjectSelect">
             <option value="">Not tied to a specific project</option>
             <?php foreach ($projects as $proj): ?>
@@ -311,6 +328,17 @@ document.addEventListener('DOMContentLoaded', function () {
   var manualGroup = document.getElementById('manualMethodGroup');
   var submitBtn = document.getElementById('donateSubmitBtn');
   var submitHint = document.getElementById('donateSubmitHint');
+
+  var anonCheck = document.getElementById('donateAnonymousCheck');
+  if (anonCheck) {
+    var accountName = <?= json_encode($accountName) ?>;
+    var nameField = document.getElementById('donateDonorNameField');
+    var nameDisplay = document.getElementById('donateDonorDisplay');
+    anonCheck.addEventListener('change', function () {
+      nameField.value = anonCheck.checked ? '' : accountName;
+      nameDisplay.textContent = anonCheck.checked ? 'Anonymous' : accountName;
+    });
+  }
 
   function toggleMethodUI() {
     var online = payOnlineRadio.checked;

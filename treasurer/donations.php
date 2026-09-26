@@ -4,7 +4,7 @@ require_once __DIR__ . '/../includes/functions.php';
 requireRole('Treasurer', 'Admin');
 
 $userId = currentUser()['user_id'];
-$purposes = ['General Donation', 'Church Maintenance', 'Charity', 'Mass / Parish Activities'];
+$purposes = ['Church Maintenance', 'Charity', 'Mass / Parish Activities', 'Other / Not Specified'];
 $methods = [1 => 'Cash', 2 => 'GCash', 3 => 'Maya', 4 => 'Bank Transfer', 5 => 'Credit/Debit Card', 6 => 'PayPal'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'manual') {
@@ -165,12 +165,12 @@ include __DIR__ . '/../includes/dash-start.php';
     <input type="hidden" name="action" value="manual">
     <div class="form-group">
       <label>Registered Parishioner (optional)</label>
-      <select name="parishioner_id">
-        <option value="">-- Walk-in / Not a member --</option>
-        <?php foreach ($parishioners as $p): ?>
-          <option value="<?= $p['parishioner_id'] ?>"><?= e($p['lastname']) ?>, <?= e($p['firstname']) ?></option>
-        <?php endforeach; ?>
-      </select>
+      <input type="hidden" name="parishioner_id" id="donationParishionerIdInput" value="">
+      <div class="flex gap-2" style="align-items:center;">
+        <span id="donationParishionerDisplay" class="text-muted">Walk-in / Not a member</span>
+        <button type="button" class="btn btn-outline btn-sm" onclick="openParishionerPicker()">Select Parishioner</button>
+        <button type="button" class="btn btn-outline btn-sm" id="donationParishionerClearBtn" style="display:none;" onclick="clearParishionerPicker()">Clear</button>
+      </div>
     </div>
     <div class="form-group"><label>Donor Name (optional)</label><input type="text" name="donor_name" placeholder="Leave blank for Anonymous"></div>
     <div class="form-group"><label>Email (optional)</label><input type="email" name="donor_email"></div>
@@ -240,6 +240,78 @@ include __DIR__ . '/../includes/dash-start.php';
     <?= renderPagination($pagination, $paginationUrl) ?>
   <?php endif; ?>
 </div>
+
+<dialog class="modal" id="parishionerPickerModal">
+  <div class="modal-head">
+    <h3>Select Parishioner</h3>
+    <button type="button" class="modal-close" onclick="document.getElementById('parishionerPickerModal').close()">✕</button>
+  </div>
+  <div class="modal-body">
+    <div class="form-group"><input type="text" id="parishionerPickerSearch" placeholder="Search by name or email..." autofocus></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Name</th><th>Email</th><th></th></tr></thead>
+        <tbody id="parishionerPickerResults"></tbody>
+      </table>
+    </div>
+  </div>
+</dialog>
+
+<script>
+function openParishionerPicker() {
+  document.getElementById('parishionerPickerModal').showModal();
+  loadParishionerResults('');
+  document.getElementById('parishionerPickerSearch').focus();
+}
+function clearParishionerPicker() {
+  document.getElementById('donationParishionerIdInput').value = '';
+  document.getElementById('donationParishionerDisplay').textContent = 'Walk-in / Not a member';
+  document.getElementById('donationParishionerClearBtn').style.display = 'none';
+}
+function selectParishioner(id, name) {
+  document.getElementById('donationParishionerIdInput').value = id;
+  document.getElementById('donationParishionerDisplay').textContent = name;
+  document.getElementById('donationParishionerClearBtn').style.display = '';
+  document.getElementById('parishionerPickerModal').close();
+}
+var parishionerSearchTimer = null;
+function loadParishionerResults(q) {
+  var tbody = document.getElementById('parishionerPickerResults');
+  tbody.innerHTML = '<tr><td colspan="3" class="text-muted">Searching…</td></tr>';
+  fetch('<?= url('secretary/parishioner-search.php') ?>?q=' + encodeURIComponent(q))
+    .then(function (res) { return res.json(); })
+    .then(function (rows) {
+      if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="3" class="text-muted">No matching parishioners.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = rows.map(function (r) {
+        return '<tr><td>' + escapeHtmlLocal(r.name) + '</td><td>' + escapeHtmlLocal(r.email) + '</td>'
+          + '<td><button type="button" class="btn btn-outline btn-sm js-select-parishioner" data-id="' + r.parishioner_id + '" data-name="' + escapeHtmlLocal(r.name) + '">Select</button></td></tr>';
+      }).join('');
+    })
+    .catch(function () {
+      tbody.innerHTML = '<tr><td colspan="3" class="text-muted">Could not load results.</td></tr>';
+    });
+}
+function escapeHtmlLocal(s) {
+  var d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+document.addEventListener('DOMContentLoaded', function () {
+  document.getElementById('parishionerPickerSearch').addEventListener('input', function () {
+    var q = this.value;
+    clearTimeout(parishionerSearchTimer);
+    parishionerSearchTimer = setTimeout(function () { loadParishionerResults(q); }, 250);
+  });
+  document.getElementById('parishionerPickerResults').addEventListener('click', function (e) {
+    var btn = e.target.closest('.js-select-parishioner');
+    if (!btn) return;
+    selectParishioner(btn.dataset.id, btn.dataset.name);
+  });
+});
+</script>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

@@ -47,7 +47,7 @@ if (!$donationServiceId) {
     donateRespondError($isAjax, 'Online donations are currently unavailable. Please check back later.');
 }
 
-$purposes = ['General Donation', 'Church Maintenance', 'Charity', 'Mass / Parish Activities'];
+$purposes = ['Church Maintenance', 'Charity', 'Mass / Parish Activities', 'Other / Not Specified'];
 $manualMethods = [1 => 'Cash', 2 => 'GCash', 3 => 'Maya', 4 => 'Bank Transfer', 6 => 'PayPal'];
 const PAYMONGO_METHOD_ID = 7;
 
