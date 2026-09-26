@@ -311,7 +311,7 @@ img { max-width: 100%; }
 .btn-block { width: 100%; }
 
 /* ---------- Forms ---------- */
-label { font-weight: 700; font-size: 11px; color: var(--brown-dark); display: block; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.6px; }
+label { font-weight: 700; font-size: 12px; color: var(--brown-dark); display: block; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.6px; }
 .form-group { margin-bottom: 16px; }
 input[type=text], input[type=email], input[type=password], input[type=number],
 input[type=date], input[type=time], input[type=tel], select, textarea {
@@ -319,7 +319,7 @@ input[type=date], input[type=time], input[type=tel], select, textarea {
   padding: 12px 14px;
   border: 1.5px solid #ddd5bb;
   border-radius: 10px;
-  font-size: 14px;
+  font-size: 15px;
   font-family: var(--font-body);
   background: #fdfaf4;
   color: var(--brown-darkest);
@@ -623,7 +623,7 @@ tbody tr:hover { background: #faf8f0; }
 .svc-card .svc-icon { font-size: 30px; display: block; margin-bottom: 14px; }
 .svc-card .svc-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--gold-dark); font-weight: 700; }
 .svc-card h3 { font-size: 20px; margin: 6px 0 8px; }
-.svc-card p { font-size: 13.5px; color: var(--brown-light); line-height: 1.6; margin-bottom: 16px; }
+.svc-card p { font-size: 14.5px; color: var(--brown-light); line-height: 1.6; margin-bottom: 16px; }
 .svc-card .svc-fee { font-size: 13px; font-weight: 700; }
 .svc-card .svc-fee.fixed { color: var(--info); }
 .svc-card .svc-fee.voluntary { color: var(--gold-dark); }
@@ -710,7 +710,7 @@ tbody tr:hover { background: #faf8f0; }
   overflow: hidden;
 }
 .auth-card h1 { text-align: center; font-size: 26px; }
-.auth-card .subtitle { text-align: center; color: var(--brown-muted); font-size: 13px; margin-bottom: 24px; }
+.auth-card .subtitle { text-align: center; color: var(--brown-muted); font-size: 14px; margin-bottom: 24px; }
 .auth-back-link {
   position: absolute; top: 40px; left: 40px;
   display: inline-flex; align-items: center; gap: 6px;
@@ -822,7 +822,7 @@ tbody tr:hover { background: #faf8f0; }
 /* ---------- Chatbot ---------- */
 .chat-fab {
   position: fixed; bottom: 24px; right: 24px; z-index: 200;
-  width: 58px; height: 58px; border-radius: 50%;
+  width: 64px; height: 64px; border-radius: 50%;
   background: linear-gradient(155deg, var(--gold-light), var(--gold));
   color: var(--brown-darkest);
   display: flex; align-items: center; justify-content: center;
@@ -830,7 +830,7 @@ tbody tr:hover { background: #faf8f0; }
   transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
   animation: fab-breathe 3.2s ease-in-out infinite;
 }
-.chat-fab svg { width: 26px; height: 26px; }
+.chat-fab svg { width: 28px; height: 28px; }
 .chat-fab:hover { transform: translateY(-2px); }
 @keyframes fab-breathe {
   0%, 100% { box-shadow: var(--shadow-lg); }
@@ -839,7 +839,7 @@ tbody tr:hover { background: #faf8f0; }
 
 .chat-panel {
   position: fixed; bottom: 94px; right: 24px; z-index: 200;
-  width: 360px; max-width: calc(100vw - 40px); height: 480px;
+  width: 380px; max-width: calc(100vw - 40px); height: 520px;
   background: var(--cream); border-radius: 20px 20px 14px 14px;
   border: 1px solid var(--border); box-shadow: var(--shadow-lg);
   display: flex; flex-direction: column; overflow: hidden;
@@ -1126,3 +1126,45 @@ dialog.modal::backdrop { background: rgba(36, 22, 17, 0.55); }
   .pagination { justify-content: center; text-align: center; }
   .pagination-controls { justify-content: center; }
 }
+
+/* ---------- Inline field validation (see public/js/validation.js) ---------- */
+.form-group.has-error input,
+.form-group.has-error select,
+.form-group.has-error textarea { border-color: var(--danger); background: var(--danger-bg); }
+.field-error-msg { display: block; color: var(--danger); font-size: 12px; margin-top: 4px; }
+
+/* ---------- Compact "native-style" date picker (Regular-schedule booking) ---------- */
+.mini-dp { position: relative; max-width: 280px; }
+.mini-dp-field {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; padding: 12px 14px; border: 1.5px solid #ddd5bb; border-radius: 10px;
+  background: #fdfaf4; color: var(--brown-darkest); font-size: 15px; cursor: pointer;
+}
+.mini-dp-field:hover, .mini-dp-field:focus { outline: none; border-color: var(--gold); }
+.mini-dp-placeholder { color: var(--brown-muted); }
+.mini-dp-popup {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 40;
+  width: 280px; background: #fff; border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: var(--shadow-lg); padding: 12px;
+}
+.mini-dp-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.mini-dp-title { font-weight: 700; font-size: 13.5px; color: var(--brown-dark); text-transform: none; letter-spacing: 0; }
+.mini-dp-nav {
+  background: none; border: none; cursor: pointer; font-size: 18px; line-height: 1;
+  color: var(--brown-mid); padding: 4px 8px; border-radius: 6px;
+}
+.mini-dp-nav:hover { background: var(--cream); color: var(--brown-darkest); }
+.mini-dp-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-size: 11px; font-weight: 700; color: var(--gold-dark); text-transform: uppercase; margin-bottom: 4px; }
+.mini-dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.mini-dp-day {
+  display: flex; align-items: center; justify-content: center; aspect-ratio: 1;
+  border-radius: 8px; font-size: 13px; color: var(--brown-darkest); cursor: pointer;
+}
+.mini-dp-day:hover:not(.mini-dp-disabled):not(.mini-dp-outside) { background: var(--cream); }
+.mini-dp-outside { color: #c9c0a8; cursor: default; }
+.mini-dp-disabled { color: #c9c0a8; cursor: not-allowed; }
+.mini-dp-today { border: 1.5px solid var(--gold); font-weight: 700; }
+.mini-dp-selected { background: var(--brown-darkest) !important; color: #fff !important; font-weight: 700; }
+.mini-dp-footer { display: flex; justify-content: space-between; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--cream-dark); }
+.mini-dp-footer a { font-size: 12.5px; font-weight: 600; color: var(--gold-dark); text-decoration: none; }
+.mini-dp-footer a:hover { text-decoration: underline; }

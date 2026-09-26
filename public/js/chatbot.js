@@ -201,7 +201,7 @@
     if (!started) {
       started = true;
       const p = data.parish || {};
-      addBubble(`Peace be with you! I'm the parish assistant for ${p.name || 'the parish'}. Ask me about sacrament requirements, fees, schedules, or how to book an appointment.`, 'bot');
+      addBubble(`Thank you for contacting ${p.name || 'our parish'}. How may we assist you today? Ask me about sacrament requirements, fees, schedules, or how to book an appointment.`, 'bot');
       renderSuggestions();
     }
     input.focus();
