@@ -42,11 +42,24 @@ function requireLogin(): void
 function requireRole(string ...$roles): void
 {
     requireLogin();
+    autoCancelExpiredUnpaidAppointments();
     if (!in_array($_SESSION['user']['role_name'], $roles, true)) {
         http_response_code(403);
         include __DIR__ . '/../errors/403.php';
         exit;
     }
+}
+
+/** The priest_id linked to the logged-in Priest account, or null if somehow unlinked. */
+function currentPriestId(): ?int
+{
+    $userId = currentUser()['user_id'] ?? null;
+    if (!$userId) return null;
+    static $cache = [];
+    if (array_key_exists($userId, $cache)) return $cache[$userId];
+    $stmt = db()->prepare('SELECT priest_id FROM priests WHERE user_id = ?');
+    $stmt->execute([$userId]);
+    return $cache[$userId] = ($stmt->fetchColumn() ?: null);
 }
 
 function guestOnly(): void
@@ -136,6 +149,7 @@ function redirectForRole(string $role): string
         case 'Admin':      return url('admin/dashboard.php');
         case 'Secretary':  return url('secretary/dashboard.php');
         case 'Treasurer':  return url('treasurer/dashboard.php');
+        case 'Priest':     return url('priest/dashboard.php');
         default:           return url('parishioner/dashboard.php');
     }
 }
@@ -199,4 +213,30 @@ function getFlash(): array
 function e(?string $value): string
 {
     return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
+}
+
+/**
+ * Stashes the current $_POST across a redirect (e.g. after a server-side
+ * validation failure) so the form that sent it can re-populate itself
+ * instead of making the person retype everything — see oldInput().
+ */
+function keepOldInput(array $data): void
+{
+    $_SESSION['old_input'] = $data;
+}
+
+/**
+ * Reads back one field stashed by keepOldInput(), HTML-escaped and ready to
+ * drop into a value="..." attribute. Lazily loads (and clears) the stashed
+ * array on first call per request, so several oldInput() calls on the same
+ * page all see it and it doesn't leak into the next unrelated form.
+ */
+function oldInput(string $key, string $default = ''): string
+{
+    static $old = null;
+    if ($old === null) {
+        $old = $_SESSION['old_input'] ?? [];
+        unset($_SESSION['old_input']);
+    }
+    return e($old[$key] ?? $default);
 }

@@ -48,6 +48,7 @@ CREATE TABLE users (
     role_id INT NOT NULL,
     firstname VARCHAR(100) NOT NULL,
     lastname VARCHAR(100) NOT NULL,
+    middlename VARCHAR(100) DEFAULT NULL,
     email VARCHAR(150) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL, -- bcrypt hash
     phone VARCHAR(20),

@@ -105,6 +105,7 @@ CREATE TABLE IF NOT EXISTS users (
     role_id INT NOT NULL REFERENCES roles(role_id),
     firstname VARCHAR(100) NOT NULL,
     lastname VARCHAR(100) NOT NULL,
+    middlename VARCHAR(100) DEFAULT NULL,
     email VARCHAR(150) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     phone VARCHAR(20),
@@ -238,6 +239,8 @@ CREATE TABLE IF NOT EXISTS appointments (
     guest_email VARCHAR(150) DEFAULT NULL,
     guest_phone VARCHAR(20) DEFAULT NULL,
     guest_reference VARCHAR(20) DEFAULT NULL UNIQUE,
+    contact_phone VARCHAR(20) DEFAULT NULL,
+    location_address TEXT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -470,7 +473,8 @@ INSERT INTO roles (role_id, role_name, description) VALUES
 (1, 'Parishioner', 'Regular parishioner user account'),
 (2, 'Secretary', 'Parish office secretary - reviews appointments'),
 (3, 'Treasurer', 'Parish office treasurer - verifies payments and issues receipts'),
-(4, 'Admin', 'System administrator')
+(4, 'Admin', 'System administrator'),
+(5, 'Priest', 'Parish priest - view-only schedule and Mass Intention access')
 ON CONFLICT (role_id) DO NOTHING;
 
 INSERT INTO appointment_status (status_id, status_name) VALUES

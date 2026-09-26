@@ -15,17 +15,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $user = $stmt->fetch();
 
     if (!$user) {
-        flash('error', 'Invalid email or password.');
+        keepOldInput(['email' => $email]);
+        flash('error', 'Incorrect email or password. Please try again.');
         redirect(url('auth/login.php'));
     }
 
     if ($user['status'] !== 'active') {
+        keepOldInput(['email' => $email]);
         flash('error', 'Your account is not active. Please contact the parish office.');
         redirect(url('auth/login.php'));
     }
 
     if (!password_verify($password, $user['password'])) {
-        flash('error', 'Invalid email or password.');
+        keepOldInput(['email' => $email]);
+        flash('error', 'Incorrect email or password. Please try again.');
         redirect(url('auth/login.php'));
     }
 
@@ -78,15 +81,17 @@ include __DIR__ . '/../includes/header.php';
         <p class="subtitle">Sign in to manage your parish requests</p>
       </div>
 
-      <?php $__flash = getFlash(); include __DIR__ . '/../includes/flash.php'; ?>
+      <?php // $__flash was already populated once by header.php's own getFlash() call —
+            // calling getFlash() again here would find it already drained and empty. ?>
+      <?php include __DIR__ . '/../includes/flash.php'; ?>
 
-      <form method="POST" action="<?= url('auth/login.php') ?>">
+      <form method="POST" action="<?= url('auth/login.php') ?>" id="loginForm" novalidate>
         <?= csrfField() ?>
         <div class="form-group">
           <label>Email Address</label>
           <div class="input-wrap">
             <span class="input-icon"><i data-lucide="mail"></i></span>
-            <input type="email" name="email" required placeholder="you@example.com" autocomplete="email" autofocus>
+            <input type="email" name="email" value="<?= oldInput('email') ?>" required placeholder="you@example.com" autocomplete="email" autofocus>
           </div>
         </div>
         <div class="form-group">
@@ -106,6 +111,7 @@ include __DIR__ . '/../includes/header.php';
     </div>
   </div>
 </div>
+<script src="<?= url('public/js/validation.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/validation.js') ?>"></script>
 <script>
 function parishToggle(id, btn) {
   const input = document.getElementById(id);
@@ -113,5 +119,21 @@ function parishToggle(id, btn) {
   btn.innerHTML = input.type === 'password' ? '<i data-lucide="eye"></i>' : '<i data-lucide="eye-off"></i>';
   if(window.lucide) { lucide.createIcons(); }
 }
+
+(function () {
+  var form = document.getElementById('loginForm');
+  var required = [
+    ['[name="email"]', 'your email address'],
+    ['[name="password"]', 'your password'],
+  ];
+  clearFieldErrorOnInput(form, required.map(function (f) { return f[0]; }));
+  form.addEventListener('submit', function (e) {
+    var firstInvalid = validateRequiredFields(form, required);
+    if (firstInvalid) {
+      e.preventDefault();
+      firstInvalid.focus();
+    }
+  });
+})();
 </script>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
