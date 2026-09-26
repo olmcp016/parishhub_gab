@@ -52,12 +52,24 @@ if ($searched) {
         $donation = $stmt->fetch() ?: null;
 
         $stmt = db()->prepare(
-            "SELECT p.*, pm.method_name FROM payments p JOIN payment_methods pm ON p.method_id = pm.method_id WHERE p.appointment_id = ?"
+            "SELECT p.*, pm.method_name FROM payments p JOIN payment_methods pm ON p.method_id = pm.method_id
+             WHERE p.appointment_id = ? ORDER BY p.payment_id DESC LIMIT 1"
         );
         $stmt->execute([$appointment['appointment_id']]);
         $payment = $stmt->fetch() ?: null;
     }
 }
+
+// A guest can pay for their own Approved regular-service appointment right
+// here — no login needed, since the reference code they already had to know
+// to reach this page IS the credential (see guest-pay.php). Mass Intentions
+// and Donations are excluded: those are paid at submission time, not here.
+$onlineUnfinished = $payment && (int) $payment['method_id'] === 7 && $payment['payment_status'] === 'pending';
+$canGuestPay = $appointment
+    && $appointment['status_name'] === 'Approved'
+    && !in_array($appointment['category'], ['Mass Intention', 'Donation'], true)
+    && (float) $appointment['fee'] > 0
+    && (!$payment || $onlineUnfinished || in_array($payment['payment_status'], ['failed', 'cancelled'], true));
 
 $pageTitle = 'Check Status';
 $__user = currentUser();
@@ -120,6 +132,8 @@ include __DIR__ . '/includes/header.php';
         <p><strong>Priest:</strong> <?= e($appointment['priest_name'] ?? 'Not yet assigned') ?></p>
         <p><strong>Fee:</strong> <?= feeLabel((float) $appointment['fee']) ?></p>
       <?php endif; ?>
+      <?php if (!empty($appointment['location_address'])): ?><p><strong>Address to Bless:</strong> <?= nl2br(e($appointment['location_address'])) ?></p><?php endif; ?>
+      <?php if (!empty($appointment['contact_phone'])): ?><p><strong>Contact Phone:</strong> <?= e($appointment['contact_phone']) ?></p><?php endif; ?>
       <?php if ($appointment['rejection_reason']): ?><p><strong>Reason:</strong> <?= e($appointment['rejection_reason']) ?></p><?php endif; ?>
       <?php if ($appointment['cancelled_reason']): ?><p><strong>Cancellation Reason:</strong> <?= e($appointment['cancelled_reason']) ?></p><?php endif; ?>
 
@@ -142,7 +156,78 @@ include __DIR__ . '/includes/header.php';
         <h4>Payment</h4>
         <p><strong>Amount:</strong> <?= money($payment['amount']) ?></p>
         <p><strong>Method:</strong> <?= e($payment['method_name']) ?></p>
+        <?php if ($payment['reference_number']): ?><p><strong>Reference #:</strong> <?= e($payment['reference_number']) ?></p><?php endif; ?>
         <p><strong>Status:</strong> <span class="badge badge-<?= e($payment['payment_status']) ?>"><?= e($payment['payment_status']) ?></span></p>
+        <?php if ($onlineUnfinished): ?>
+          <p class="text-muted" style="font-size:13px;">Your online payment was started but not completed yet. You can pay again below.</p>
+        <?php elseif ($payment['payment_status'] === 'pending'): ?>
+          <p class="text-muted" style="font-size:13px;">Awaiting verification by our cashier.</p>
+        <?php elseif ($payment['payment_status'] === 'verified'): ?>
+          <p class="text-muted" style="font-size:13px;">✔ Verified — please wait for your schedule to be confirmed.</p>
+        <?php elseif (in_array($payment['payment_status'], ['failed', 'cancelled'], true)): ?>
+          <p class="text-muted" style="font-size:13px;">This payment was not completed. You can try again below.</p>
+        <?php endif; ?>
+      <?php endif; ?>
+
+      <?php if ($canGuestPay): ?>
+        <hr style="border-color: var(--cream-dark); margin: 18px 0;">
+        <h4>Pay Now</h4>
+        <form method="POST" action="<?= url('guest-pay.php') ?>" id="guestPayForm">
+          <?= csrfField() ?>
+          <input type="hidden" name="appointment_id" value="<?= $appointment['appointment_id'] ?>">
+          <input type="hidden" name="ref" value="<?= e($appointment['guest_reference']) ?>">
+          <div class="form-group">
+            <label>Amount</label>
+            <input type="number" value="<?= e((string) $appointment['fee']) ?>" step="0.01" readonly disabled>
+          </div>
+          <div class="form-group">
+            <label>How would you like to pay?</label>
+            <label class="radio-option" style="display:block; margin-bottom:8px;">
+              <input type="radio" name="pay_mode" value="online" checked>
+              <strong>Pay Online Now</strong> — GCash, Maya, or Card via PayMongo (secure)
+            </label>
+            <label class="radio-option" style="display:block; margin-bottom:8px;">
+              <input type="radio" name="pay_mode" value="cash">
+              Pay in cash at the parish office
+            </label>
+            <label class="radio-option" style="display:block;">
+              <input type="radio" name="pay_mode" value="manual">
+              I already paid by GCash / Maya / Bank Transfer — enter my reference number
+            </label>
+          </div>
+          <div id="guestPayManualFields" style="display:none;">
+            <div class="form-group">
+              <label>Payment Method</label>
+              <select name="method_id">
+                <option value="2">GCash</option>
+                <option value="3">Maya</option>
+                <option value="4">Bank Transfer</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Payment Reference Number</label>
+              <input type="text" name="payment_reference" placeholder="Reference / transaction no.">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block" id="guestPaySubmitBtn">Pay Online Now</button>
+          <p class="helper-text mt-2" id="guestPayHint">You'll be taken to PayMongo's secure page to pay. Once it's completed, our cashier and secretary take it from there.</p>
+        </form>
+        <script>
+        (function () {
+          var form = document.getElementById('guestPayForm');
+          function update() {
+            var mode = form.querySelector('input[name="pay_mode"]:checked').value;
+            document.getElementById('guestPayManualFields').style.display = mode === 'manual' ? 'block' : 'none';
+            form.querySelector('[name="payment_reference"]').required = mode === 'manual';
+            document.getElementById('guestPaySubmitBtn').textContent = mode === 'online' ? 'Pay Online Now' : 'Submit Payment';
+            document.getElementById('guestPayHint').textContent = mode === 'online'
+              ? "You'll be taken to PayMongo's secure page to pay. Once it's completed, our cashier and secretary take it from there."
+              : 'After paying, please wait for our cashier to verify it, then wait for your schedule to be confirmed.';
+          }
+          form.querySelectorAll('input[name="pay_mode"]').forEach(function (r) { r.addEventListener('change', update); });
+          update();
+        })();
+        </script>
       <?php endif; ?>
     </div>
   <?php endif; ?>
