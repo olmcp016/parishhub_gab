@@ -11,6 +11,20 @@ $blockedRows = db()->query('SELECT calendar_date, notes FROM calendar WHERE is_b
 $calendarBlocked = array_map(fn($b) => ['date' => $b['calendar_date'], 'notes' => $b['notes']], $blockedRows);
 $preselectedDate = $_GET['date'] ?? '';
 
+// House Blessing (and any future Blessing-category service) asks for a
+// contact number and the address to bless — plain text, never a document
+// upload. A registered parishioner's own profile pre-fills these (still
+// editable); a guest always enters them fresh.
+$profilePhone = '';
+$profileAddress = '';
+if (!$identity['is_guest']) {
+    $stmt = db()->prepare('SELECT phone, address FROM users WHERE user_id = ?');
+    $stmt->execute([$identity['user_id']]);
+    $profileRow = $stmt->fetch() ?: [];
+    $profilePhone = $profileRow['phone'] ?? '';
+    $profileAddress = $profileRow['address'] ?? '';
+}
+
 $policies = [];
 $requirementsByService = [];
 foreach ($services as $s) {
@@ -117,6 +131,21 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
           </select>
         </div>
 
+        <div id="blessingFields" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px; margin-bottom: 16px;">
+          <h4 style="margin-top:0;">House Blessing Details</h4>
+          <?php if (!$identity['is_guest']): ?>
+            <div class="form-group">
+              <label>Contact Phone Number</label>
+              <input type="tel" name="contact_phone" id="blessingPhoneInput" value="<?= e($profilePhone) ?>" placeholder="09XX XXX XXXX">
+            </div>
+          <?php endif; ?>
+          <div class="form-group">
+            <label>Address / Location to Bless</label>
+            <textarea name="location_address" id="blessingAddressInput" rows="2" placeholder="House number, street, barangay..."><?= e($profileAddress) ?></textarea>
+            <p class="helper-text">This is just the address of the home/establishment — no document upload needed.</p>
+          </div>
+        </div>
+
         <div id="dateOfDeathGroup" class="form-group" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px;">
           <label>Date of Death</label>
           <input type="date" name="date_of_death" id="dateOfDeathInput" max="<?= date('Y-m-d') ?>">
@@ -136,23 +165,40 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
         </div>
 
         <div id="regularSlotGroup" class="form-group" style="display:none;">
-          <label>Available Slot</label>
-          <select id="regularSlotSelect">
-            <option value="">Loading available slots…</option>
-          </select>
+          <label>Preferred Date</label>
+          <div class="mini-dp" id="regularMiniDp">
+            <div class="mini-dp-field" id="regularDpField" tabindex="0">
+              <span id="regularDpFieldText" class="mini-dp-placeholder">mm/dd/yyyy</span>
+              <i data-lucide="calendar" style="width:16px; height:16px;"></i>
+            </div>
+            <div class="mini-dp-popup" id="regularDpPopup" style="display:none;">
+              <div class="mini-dp-header">
+                <button type="button" class="mini-dp-nav" id="regularDpPrev" aria-label="Previous month">‹</button>
+                <span class="mini-dp-title" id="regularDpTitle"></span>
+                <button type="button" class="mini-dp-nav" id="regularDpNext" aria-label="Next month">›</button>
+              </div>
+              <div class="mini-dp-weekdays">
+                <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+              </div>
+              <div class="mini-dp-grid" id="regularDpGrid"></div>
+              <p class="helper-text" id="regularSlotHint" style="margin: 6px 2px 0;">Loading available dates…</p>
+              <div class="mini-dp-footer">
+                <a href="#" id="regularDpClear">Clear</a>
+                <a href="#" id="regularDpToday">Today</a>
+              </div>
+            </div>
+          </div>
+          <div id="regularFixedTimeBox" style="display:none; margin-top:8px; background: var(--cream); border-radius: 8px; padding: 10px 12px;">
+            <strong>Time:</strong> <span id="regularFixedTimeText"></span> <span class="text-muted">(fixed for this schedule)</span>
+          </div>
           <input type="hidden" name="appointment_date" id="regularDateInput" disabled>
           <input type="hidden" name="appointment_time" id="regularTimeInput" disabled>
-          <p class="helper-text" id="regularSlotHint"></p>
         </div>
 
         <div class="form-row" id="dateTimeRow">
           <div class="form-group">
             <label>Preferred Date</label>
             <input type="date" name="appointment_date" id="appointmentDateInput" required min="<?= date('Y-m-d') ?>" value="<?= e($preselectedDate) ?>">
-            <button type="button" class="btn btn-outline btn-sm mt-2" id="togglePickerBtn">📅 Pick from calendar</button>
-            <div id="miniCalendarWrap" style="display:none; margin-top:10px;">
-              <div id="miniCalendar"></div>
-            </div>
           </div>
           <div class="form-group">
             <label>Preferred Time</label>
@@ -360,6 +406,12 @@ function toggleServiceUI() {
   document.getElementById('dateOfDeathGroup').style.display = category === 'Funeral' ? 'block' : 'none';
   document.getElementById('dateOfDeathInput').required = (category === 'Funeral');
 
+  var isBlessing = category === 'Blessing';
+  document.getElementById('blessingFields').style.display = isBlessing ? 'block' : 'none';
+  document.getElementById('blessingAddressInput').required = isBlessing;
+  var blessingPhone = document.getElementById('blessingPhoneInput');
+  if (blessingPhone) blessingPhone.required = isBlessing;
+
   // Priests do not personally read Mass Intentions, so there's nothing to prefer.
   var priestGroup = document.getElementById('priestFieldGroup');
   var priestSelect = document.getElementById('priestSelect');
@@ -424,7 +476,7 @@ function toggleServiceUI() {
     regularGroup.style.display = 'block';
     regularDateHidden.disabled = false;
     regularTimeHidden.disabled = false;
-    loadRegularSlots(serviceId);
+    initRegularCalendar(serviceId);
   } else {
     // Special mode for the 4 toggle categories, or First Communion (always free-form).
     freeGroup.style.display = 'block';
@@ -433,52 +485,221 @@ function toggleServiceUI() {
   }
 
   updateEarliestFuneralHint();
-  rebuildMiniCalendar();
   refreshAvailability();
 }
 
-/** Fetches this service's upcoming Regular slots and populates the dropdown. */
-function loadRegularSlots(serviceId) {
-  var select = document.getElementById('serviceSelect');
-  var category = select.options[select.selectedIndex]?.dataset.category || '';
-  var slotSelect = document.getElementById('regularSlotSelect');
-  var hint = document.getElementById('regularSlotHint');
-  slotSelect.innerHTML = '<option value="">Loading available slots…</option>';
+/**
+ * Regular-schedule date picker — a small dropdown calendar attached to a
+ * single date field (like a native date-input picker), not a big
+ * always-open grid. Only dates matching this service's configured weekly
+ * schedule are clickable; every other date is dimmed but its number still
+ * shows. The matching time is fixed and shown read-only once a date is
+ * picked; there is no way to choose a different time. Re-created per
+ * service since the available dates differ by service.
+ */
+var regularAvailableByDate = {};
+var regularAutoJumped = false; // one-shot per calendar open — never fights a manual prev/next click
+var regularViewYear = 0;
+var regularViewMonth = 0; // 0-11
+var regularServiceId = null;
+var MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
+function initRegularCalendar(serviceId) {
+  var hint = document.getElementById('regularSlotHint');
+  var fixedBox = document.getElementById('regularFixedTimeBox');
+  fixedBox.style.display = 'none';
+  document.getElementById('regularDateInput').value = '';
+  document.getElementById('regularTimeInput').value = '';
+  document.getElementById('regularDpFieldText').textContent = 'mm/dd/yyyy';
+  document.getElementById('regularDpFieldText').className = 'mini-dp-placeholder';
+  regularAvailableByDate = {};
+  regularAutoJumped = false;
+  regularServiceId = serviceId;
+  hint.textContent = 'Loading available dates…';
+
+  var now = new Date();
+  regularViewYear = now.getFullYear();
+  regularViewMonth = now.getMonth();
+  fetchRegularMonth(serviceId, regularYearMonth());
+  renderRegularDpGrid();
+}
+
+function regularYearMonth() {
+  return regularViewYear + '-' + String(regularViewMonth + 1).padStart(2, '0');
+}
+
+function todayStr() {
+  var now = new Date();
+  return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+}
+
+/** Renders the 6x7 day grid for the currently-viewed month (regularViewYear/regularViewMonth). */
+function renderRegularDpGrid() {
+  var grid = document.getElementById('regularDpGrid');
+  var title = document.getElementById('regularDpTitle');
+  title.textContent = MONTH_NAMES[regularViewMonth] + ' ' + regularViewYear;
+
+  var firstOfMonth = new Date(regularViewYear, regularViewMonth, 1);
+  var startWeekday = firstOfMonth.getDay(); // 0 = Sunday
+  var daysInMonth = new Date(regularViewYear, regularViewMonth + 1, 0).getDate();
+  var daysInPrevMonth = new Date(regularViewYear, regularViewMonth, 0).getDate();
+  var selected = document.getElementById('regularDateInput').value;
+  var today = todayStr();
+
+  var cells = [];
+  // Leading days from the previous month (dimmed, not interactive).
+  for (var i = startWeekday - 1; i >= 0; i--) {
+    cells.push({ day: daysInPrevMonth - i, outside: true });
+  }
+  for (var d = 1; d <= daysInMonth; d++) {
+    var dateStr = regularYearMonth() + '-' + String(d).padStart(2, '0');
+    cells.push({ day: d, outside: false, dateStr: dateStr });
+  }
+  var trailing = 42 - cells.length;
+  for (var n = 1; n <= trailing; n++) {
+    cells.push({ day: n, outside: true });
+  }
+
+  grid.innerHTML = cells.map(function (c) {
+    if (c.outside) {
+      return '<span class="mini-dp-day mini-dp-outside">' + c.day + '</span>';
+    }
+    var available = Object.prototype.hasOwnProperty.call(regularAvailableByDate, c.dateStr);
+    var classes = 'mini-dp-day';
+    if (!available) classes += ' mini-dp-disabled';
+    if (c.dateStr === selected) classes += ' mini-dp-selected';
+    if (c.dateStr === today) classes += ' mini-dp-today';
+    return '<span class="' + classes + '" data-date="' + c.dateStr + '"' + (available ? '' : ' aria-disabled="true"') + '>' + c.day + '</span>';
+  }).join('');
+}
+
+function selectRegularDate(dateStr) {
+  if (!Object.prototype.hasOwnProperty.call(regularAvailableByDate, dateStr)) return;
+  var time = regularAvailableByDate[dateStr];
+  var fixedBox = document.getElementById('regularFixedTimeBox');
+  document.getElementById('regularDateInput').value = dateStr;
+  document.getElementById('regularTimeInput').value = time;
+  document.getElementById('regularFixedTimeText').textContent = formatTimeLabel(time);
+  fixedBox.style.display = 'block';
+
+  var fieldText = document.getElementById('regularDpFieldText');
+  var d = new Date(dateStr + 'T00:00:00');
+  fieldText.textContent = String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0') + '/' + d.getFullYear()
+    + ' — ' + formatTimeLabel(time);
+  fieldText.className = '';
+
+  document.getElementById('regularSlotHint').textContent = 'Selected. Click a different highlighted date to change it.';
+  renderRegularDpGrid();
+  closeRegularDpPopup();
+  refreshAvailability();
+}
+
+function openRegularDpPopup() {
+  document.getElementById('regularDpPopup').style.display = 'block';
+}
+function closeRegularDpPopup() {
+  document.getElementById('regularDpPopup').style.display = 'none';
+}
+
+function fetchRegularMonth(serviceId, yearMonth) {
+  var hint = document.getElementById('regularSlotHint');
   fetch(CHECK_AVAILABILITY_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ service_id: serviceId, category: category, schedule_type: 'Regular' })
+    body: JSON.stringify({ service_id: serviceId, category: '', schedule_type: 'Regular', month: yearMonth })
   })
     .then(function (res) { return res.json(); })
     .then(function (data) {
-      var slots = data.regular_slots || [];
-      if (!slots.length) {
-        slotSelect.innerHTML = '<option value="">No upcoming slots available</option>';
-        hint.textContent = 'No Regular slots are currently available for this service — please choose Special instead, or check back later.';
-        applyRegularSlot();
+      regularAvailableByDate = data.regular_month_dates || {};
+      renderRegularDpGrid();
+      var count = Object.keys(regularAvailableByDate).length;
+
+      if (count) {
+        hint.textContent = 'Highlighted dates are available for this schedule — pick one.';
         return;
       }
-      slotSelect.innerHTML = slots.map(function (s) {
-        return '<option value="' + s.date + '|' + s.time + '" data-date="' + s.date + '" data-time="' + s.time + '">' + s.label + '</option>';
-      }).join('');
-      hint.textContent = '';
-      applyRegularSlot();
+
+      var nextMonth = data.regular_next_available_month;
+      if (nextMonth && !regularAutoJumped) {
+        // First time this calendar has come up empty since it was opened —
+        // jump straight to the nearest month that actually has an opening,
+        // instead of leaving the parishioner staring at an all-gray month
+        // with no clue "next" needs clicking (possibly many times, for a
+        // sparse schedule like "4th Saturday only").
+        regularAutoJumped = true;
+        hint.textContent = 'No openings this month — jumping to the next available month…';
+        var parts = nextMonth.split('-');
+        regularViewYear = parseInt(parts[0], 10);
+        regularViewMonth = parseInt(parts[1], 10) - 1;
+        renderRegularDpGrid();
+        fetchRegularMonth(serviceId, nextMonth);
+      } else if (nextMonth) {
+        hint.innerHTML = 'No available dates this month. <a href="#" id="regularJumpLink">Jump to the next available month</a>, or choose Special instead.';
+        var link = document.getElementById('regularJumpLink');
+        if (link) {
+          link.addEventListener('click', function (e) {
+            e.preventDefault();
+            var p = nextMonth.split('-');
+            regularViewYear = parseInt(p[0], 10);
+            regularViewMonth = parseInt(p[1], 10) - 1;
+            renderRegularDpGrid();
+            fetchRegularMonth(serviceId, nextMonth);
+          });
+        }
+      } else {
+        hint.textContent = 'No available dates found for this schedule in the next 12 months. Please choose Special instead, or contact the parish office.';
+      }
     })
     .catch(function () {
-      slotSelect.innerHTML = '<option value="">Could not load slots — please try again</option>';
+      hint.textContent = 'Could not load available dates — please try again.';
     });
 }
 
-function applyRegularSlot() {
-  var slotSelect = document.getElementById('regularSlotSelect');
-  var opt = slotSelect.options[slotSelect.selectedIndex];
-  var dateHidden = document.getElementById('regularDateInput');
-  var timeHidden = document.getElementById('regularTimeInput');
-  dateHidden.value = opt && opt.dataset.date ? opt.dataset.date : '';
-  timeHidden.value = opt && opt.dataset.time ? opt.dataset.time : '';
-  refreshAvailability();
-}
+document.addEventListener('DOMContentLoaded', function () {
+  document.getElementById('regularDpField').addEventListener('click', openRegularDpPopup);
+  document.getElementById('regularDpField').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRegularDpPopup(); }
+  });
+  document.getElementById('regularDpPrev').addEventListener('click', function () {
+    regularViewMonth--;
+    if (regularViewMonth < 0) { regularViewMonth = 11; regularViewYear--; }
+    renderRegularDpGrid();
+    fetchRegularMonth(regularServiceId, regularYearMonth());
+  });
+  document.getElementById('regularDpNext').addEventListener('click', function () {
+    regularViewMonth++;
+    if (regularViewMonth > 11) { regularViewMonth = 0; regularViewYear++; }
+    renderRegularDpGrid();
+    fetchRegularMonth(regularServiceId, regularYearMonth());
+  });
+  document.getElementById('regularDpGrid').addEventListener('click', function (e) {
+    var cell = e.target.closest('.mini-dp-day:not(.mini-dp-outside):not(.mini-dp-disabled)');
+    if (cell) selectRegularDate(cell.dataset.date);
+  });
+  document.getElementById('regularDpClear').addEventListener('click', function (e) {
+    e.preventDefault();
+    document.getElementById('regularDateInput').value = '';
+    document.getElementById('regularTimeInput').value = '';
+    document.getElementById('regularFixedTimeBox').style.display = 'none';
+    var fieldText = document.getElementById('regularDpFieldText');
+    fieldText.textContent = 'mm/dd/yyyy';
+    fieldText.className = 'mini-dp-placeholder';
+    renderRegularDpGrid();
+    refreshAvailability();
+  });
+  document.getElementById('regularDpToday').addEventListener('click', function (e) {
+    e.preventDefault();
+    var now = new Date();
+    regularViewYear = now.getFullYear();
+    regularViewMonth = now.getMonth();
+    renderRegularDpGrid();
+    fetchRegularMonth(regularServiceId, regularYearMonth());
+  });
+  document.addEventListener('click', function (e) {
+    var wrap = document.getElementById('regularMiniDp');
+    if (wrap && !wrap.contains(e.target)) closeRegularDpPopup();
+  });
+});
 
 /**
  * Live pre-submit check: re-validates the currently selected date/time via
@@ -590,7 +811,7 @@ function rebuildRequirementRows(serviceId) {
   container.innerHTML = items.map(function (label, i) {
     return (
       '<div class="form-group doc-req-row">' +
-        '<label>' + label + ' <span class="badge badge-cancelled doc-status-pill">Missing</span></label>' +
+        '<label>' + label + ' <span class="badge badge-rejected doc-status-pill">Missing</span></label>' +
         '<input type="file" name="req_doc_' + i + '" accept=".pdf,.jpg,.jpeg,.png">' +
       '</div>'
     );
@@ -608,7 +829,7 @@ function checkRequirementFile(input) {
 
   if (!file) {
     pill.textContent = 'Missing';
-    pill.className = 'badge badge-cancelled doc-status-pill';
+    pill.className = 'badge badge-rejected doc-status-pill';
     return;
   }
 
@@ -634,8 +855,9 @@ function checkRequirementFile(input) {
       pill.textContent = 'Valid';
       pill.className = 'badge badge-pending doc-status-pill';
     } else {
-      pill.textContent = 'Invalid';
+      pill.textContent = 'Invalid orientation';
       pill.className = 'badge badge-rejected doc-status-pill';
+      pill.title = 'Please upload this document in portrait orientation.';
     }
   });
 }
@@ -746,60 +968,13 @@ function updateEarliestFuneralHint() {
   dateInput.min = earliest;
 }
 
-function rebuildMiniCalendar() {
-  var wrap = document.getElementById('miniCalendarWrap');
-  if (wrap.style.display === 'none') return;
-  buildMiniCalendarNow();
-}
-
-function buildMiniCalendarNow() {
-  var select = document.getElementById('serviceSelect');
-  var category = select.options[select.selectedIndex]?.dataset.category || '';
-  var dodInput = document.getElementById('dateOfDeathInput');
-  var dateInput = document.getElementById('appointmentDateInput');
-
-  var now = new Date();
-  var todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
-
-  var earliestFuneral = (category === 'Funeral' && dodInput.value) ? addDaysJS(dodInput.value, 9) : null;
-
-  document.getElementById('miniCalendar').innerHTML = '';
-  renderParishCalendar('miniCalendar', {
-    events: [],
-    blocked: CALENDAR_BLOCKED,
-    minDate: earliestFuneral && earliestFuneral > todayStr ? earliestFuneral : todayStr,
-    isDateDisabled: function (dateStr) {
-      // The mini-calendar is only shown for free-form date entry (Funeral,
-      // First Communion, or Special mode for the 4 toggle categories) —
-      // Regular mode picks from a slot dropdown instead, so no weekday
-      // restriction is needed here anymore.
-      if (isTuesdayJS(dateStr)) return true;
-      if (category === 'Funeral' && earliestFuneral) return dateStr < earliestFuneral;
-      return false;
-    },
-    onDateClick: function (dateStr, info) {
-      if (info.isBlocked) {
-        alert('This date is not available for booking' + (info.blockedInfo.notes ? ':\n' + info.blockedInfo.notes : '.'));
-        return;
-      }
-      dateInput.value = dateStr;
-      document.getElementById('miniCalendarWrap').style.display = 'none';
-      document.getElementById('togglePickerBtn').textContent = '📅 Pick from calendar';
-      if (category === 'Mass Intention') autoAssignMassTime();
-      else updateOccupiedTimesHint();
-    }
-  });
-}
-
 document.addEventListener('DOMContentLoaded', function () {
   document.getElementById('serviceSelect').addEventListener('change', toggleServiceUI);
   document.getElementById('scheduleTypeRegular').addEventListener('change', toggleServiceUI);
   document.getElementById('scheduleTypeSpecial').addEventListener('change', toggleServiceUI);
-  document.getElementById('regularSlotSelect').addEventListener('change', applyRegularSlot);
   document.getElementById('priestSelect').addEventListener('change', refreshAvailability);
   document.getElementById('dateOfDeathInput').addEventListener('change', function () {
     updateEarliestFuneralHint();
-    rebuildMiniCalendar();
     refreshAvailability();
   });
   document.getElementById('appointmentDateInput').addEventListener('change', function () {
@@ -818,15 +993,6 @@ document.addEventListener('DOMContentLoaded', function () {
   document.getElementById('massTimeSelect').addEventListener('change', function () {
     document.getElementById('massTimeInput').value = this.value;
     refreshAvailability();
-  });
-
-  var toggleBtn = document.getElementById('togglePickerBtn');
-  var wrap = document.getElementById('miniCalendarWrap');
-  toggleBtn.addEventListener('click', function () {
-    var showing = wrap.style.display !== 'none';
-    wrap.style.display = showing ? 'none' : 'block';
-    toggleBtn.textContent = showing ? '📅 Pick from calendar' : '✕ Close calendar';
-    if (!showing) buildMiniCalendarNow();
   });
 
   document.getElementById('bookForm').addEventListener('submit', function (e) {

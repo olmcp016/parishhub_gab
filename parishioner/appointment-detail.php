@@ -10,14 +10,15 @@ $stmt->execute([$userId]);
 $parishionerId = $stmt->fetchColumn();
 
 $id = (int) ($_GET['id'] ?? 0);
+$isAjax = isDetailModalRequest();
+$redirectUrl = url('parishioner/appointment-detail.php?id=' . $id);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Same silent-post_max_size-wipe protection as the booking form — see book.php for details.
     $contentLength = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
     if (empty($_POST) && $contentLength > 0) {
         $limit = ini_get('post_max_size');
-        flash('error', "Your uploaded files were too large for the server to accept (total limit is $limit). Please upload smaller files or fewer at a time.");
-        redirect(url('parishioner/appointment-detail.php?id=' . $id));
+        respondAjaxOrRedirect($isAjax, false, "Your uploaded files were too large for the server to accept (total limit is $limit). Please upload smaller files or fewer at a time.", $redirectUrl);
     }
 
     verifyCsrf();
@@ -29,6 +30,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         );
         $stmt->execute([$_POST['reason'] ?? 'Cancelled by parishioner', $id, $parishionerId]);
         logActivity($userId, "Cancelled appointment #$id", 'Appointments');
+        // Cancelling closes the request entirely — send them back to the list
+        // either way (a JSON response wouldn't have anything left to refresh).
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true, 'message' => 'Appointment cancelled.', 'redirect' => url('parishioner/appointments.php')]);
+            exit;
+        }
         flash('success', 'Appointment cancelled.');
         redirect(url('parishioner/appointments.php'));
     }
@@ -36,16 +44,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'upload_documents') {
         // Confirm this appointment actually belongs to the logged-in parishioner
         $stmt = db()->prepare(
-            "SELECT a.appointment_id, s.requirements FROM appointments a
+            "SELECT a.appointment_id, a.status_id, s.requirements FROM appointments a
              JOIN services s ON a.service_id = s.service_id
              WHERE a.appointment_id = ? AND a.parishioner_id = ?"
         );
         $stmt->execute([$id, $parishionerId]);
         $appt = $stmt->fetch();
         if (!$appt) {
-            flash('error', 'Appointment not found.');
-            redirect(url('parishioner/appointments.php'));
+            respondAjaxOrRedirect($isAjax, false, 'Appointment not found.', url('parishioner/appointments.php'));
         }
+        $wasRejected = (int) $appt['status_id'] === 3;
 
         $requirementsList = parseRequirementsList($appt['requirements']);
         $pendingUploads = [];
@@ -87,8 +95,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach ($pendingUploads as $upload) {
             $result = validateUploadedFile($upload['file']);
             if (!$result['valid']) {
-                flash('error', DOCUMENT_VALIDATION_ERROR);
-                redirect(url('parishioner/appointment-detail.php?id=' . $id));
+                $label = $upload['label'] ? ('"' . $upload['label'] . '": ') : '';
+                respondAjaxOrRedirect($isAjax, false, $label . documentValidationMessage($result['reason']), $redirectUrl);
             }
         }
 
@@ -107,18 +115,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        $messages = [];
+        $anySuccess = false;
         if ($uploaded > 0) {
-            logActivity($userId, "Uploaded $uploaded document(s) for appointment #$id", 'Appointments');
-            flash('success', "$uploaded document(s) uploaded successfully.");
+            $anySuccess = true;
+            // A rejected request goes back into the Secretary's review queue
+            // once the parishioner has corrected/added documents — the whole
+            // point of "Update Documents" is fixing the SAME request rather
+            // than starting a brand new booking from scratch.
+            if ($wasRejected) {
+                db()->prepare("UPDATE appointments SET status_id = 1, rejection_reason = NULL WHERE appointment_id = ?")->execute([$id]);
+                db()->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Documents Updated', ?)")
+                    ->execute([$userId, "Your updated documents for appointment #$id have been submitted and are back under review."]);
+                logActivity($userId, "Resubmitted documents for previously rejected appointment #$id", 'Appointments');
+                $messages[] = "$uploaded document(s) uploaded — your request is back under review.";
+            } else {
+                logActivity($userId, "Uploaded $uploaded document(s) for appointment #$id", 'Appointments');
+                $messages[] = "$uploaded document(s) uploaded successfully.";
+            }
         }
         if (!empty($skippedFiles)) {
             $limit = ini_get('upload_max_filesize');
-            flash('error', 'The following file(s) were too large (max ' . $limit . ' each) and were NOT uploaded: ' . implode(', ', $skippedFiles) . '.');
+            $messages[] = 'The following file(s) were too large (max ' . $limit . ' each) and were NOT uploaded: ' . implode(', ', $skippedFiles) . '.';
         }
         if ($uploaded === 0 && empty($skippedFiles)) {
-            flash('error', 'No files were selected.');
+            $messages[] = 'No files were selected.';
         }
-        redirect(url('parishioner/appointment-detail.php?id=' . $id));
+        respondAjaxOrRedirect($isAjax, $anySuccess, implode(' ', $messages), $redirectUrl);
     }
 }
 
@@ -163,11 +186,13 @@ $documents = $stmt->fetchAll();
 
 $active = 'appointments';
 $pageTitle = 'Appointment #' . $appointment['appointment_id'];
-include __DIR__ . '/../includes/header.php';
-include __DIR__ . '/../includes/dash-start.php';
+if (!$isAjax) {
+    include __DIR__ . '/../includes/header.php';
+    include __DIR__ . '/../includes/dash-start.php';
+}
 ?>
 
-<div style="display:grid; grid-template-columns: 1.4fr 1fr; gap: 22px;">
+<div style="display:grid; grid-template-columns: 1.4fr 1fr; gap: 22px;" class="detail-grid">
   <div class="card">
     <div class="card-header">
       <h3><?= e($appointment['service_name']) ?></h3>
@@ -189,7 +214,12 @@ include __DIR__ . '/../includes/dash-start.php';
       <p><strong>Date of Death:</strong> <?= formatDate($appointment['date_of_death']) ?></p>
     <?php endif; ?>
     <?php if ($appointment['remarks']): ?><p><strong>Remarks:</strong> <?= e($appointment['remarks']) ?></p><?php endif; ?>
-    <?php if ($appointment['rejection_reason']): ?><p><strong>Rejection Reason:</strong> <?= e($appointment['rejection_reason']) ?></p><?php endif; ?>
+    <?php if (!empty($appointment['location_address'])): ?>
+      <p><strong>Address to Bless:</strong> <?= nl2br(e($appointment['location_address'])) ?></p>
+    <?php endif; ?>
+    <?php if (!empty($appointment['contact_phone'])): ?>
+      <p><strong>Contact Phone:</strong> <?= e($appointment['contact_phone']) ?></p>
+    <?php endif; ?>
     <?php if ($appointment['cancelled_reason']): ?><p><strong>Cancellation Reason:</strong> <?= e($appointment['cancelled_reason']) ?></p><?php endif; ?>
 
     <?php if ($appointment['status_name'] === 'Pending'): ?>
@@ -198,7 +228,10 @@ include __DIR__ . '/../includes/dash-start.php';
       </div>
     <?php elseif ($appointment['status_name'] === 'Rejected'): ?>
       <div class="alert" style="background: var(--danger-bg); color: var(--danger); border: 1px solid #f5c2c2;">
-        This request was not approved<?= $appointment['rejection_reason'] ? ' — see the reason above.' : '.' ?>
+        <strong>This request was not approved.</strong>
+        <?php if ($appointment['rejection_reason']): ?>
+          <br><strong>Reason:</strong> <?= e($appointment['rejection_reason']) ?>
+        <?php endif; ?>
       </div>
     <?php elseif ($appointment['status_name'] === 'Approved' && $payment && $payment['payment_status'] === 'pending'): ?>
       <div class="alert" style="background: var(--cream); color: var(--brown-mid); border: 1px solid var(--cream-dark);">
@@ -261,7 +294,7 @@ include __DIR__ . '/../includes/dash-start.php';
       <?php endif; ?>
 
       <?php if ($canPay): ?>
-        <form method="POST" action="<?= url('parishioner/pay.php') ?>" id="payForm" <?= $payment ? 'class="mt-3"' : '' ?>>
+        <form method="POST" action="<?= url('parishioner/pay.php') ?>" id="payForm" data-plain-submit="1" <?= $payment ? 'class="mt-3"' : '' ?>>
           <?= csrfField() ?>
           <input type="hidden" name="appointment_id" value="<?= $id ?>">
           <?php if ($appointment['category'] === 'Mass Intention'): ?>
@@ -340,10 +373,17 @@ include __DIR__ . '/../includes/dash-start.php';
               $extraDocuments[] = $d;
           }
       }
-      $canUpload = in_array($appointment['status_name'], ['Pending', 'Approved'], true);
+      // Rejected is included so a parishioner can correct/add the missing
+      // documents without starting a brand new booking — see the
+      // "wasRejected" handling above, which puts the request back under
+      // review as soon as they upload something.
+      $canUpload = in_array($appointment['status_name'], ['Pending', 'Approved', 'Rejected'], true);
     ?>
     <div class="card">
-      <div class="card-header"><h3>Required Documents</h3></div>
+      <div class="card-header"><h3><?= $appointment['status_name'] === 'Rejected' ? 'Update Documents' : 'Required Documents' ?></h3></div>
+      <?php if ($appointment['status_name'] === 'Rejected'): ?>
+        <p class="helper-text" style="margin-top:-6px;">Upload the corrected/missing document(s) below — your request will go back to our secretary for review, no need to start a new booking.</p>
+      <?php endif; ?>
       <?php if (empty($requirementsList)): ?>
         <p class="text-muted">No specific documents are required for this service.</p>
       <?php else: ?>
@@ -353,7 +393,7 @@ include __DIR__ . '/../includes/dash-start.php';
             <label>
               <?= e($label) ?>
               <?php if (empty($matches)): ?>
-                <span class="badge badge-cancelled">Missing</span>
+                <span class="badge badge-rejected">Missing</span>
               <?php elseif (array_reduce($matches, fn($carry, $d) => $carry || $d['verified'], false)): ?>
                 <span class="badge badge-verified">Verified/Accepted</span>
               <?php else: ?>
@@ -399,7 +439,7 @@ include __DIR__ . '/../includes/dash-start.php';
             <input type="file" name="documents[]" multiple accept=".pdf,.jpg,.jpeg,.png">
             <p class="helper-text">Max <?= e(ini_get('upload_max_filesize')) ?> per file, <?= e(ini_get('post_max_size')) ?> total. Files must be readable, correctly formatted (PDF/JPG/PNG), and portrait-oriented — these are checked automatically before final staff review.</p>
           </div>
-          <button type="submit" class="btn btn-outline btn-sm">Upload</button>
+          <button type="submit" class="btn btn-outline btn-sm"><?= $appointment['status_name'] === 'Rejected' ? 'Update Documents' : 'Upload' ?></button>
         </form>
       <?php endif; ?>
     </div>
@@ -407,5 +447,7 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
 </div>
 
+<?php if (!$isAjax): ?>
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
+<?php endif; ?>

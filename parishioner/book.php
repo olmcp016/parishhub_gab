@@ -123,6 +123,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // House Blessing (category "Blessing") needs a contact number and the
+    // address to bless — plain text, never a document upload. A registered
+    // parishioner's own phone is reused unless they typed a different one;
+    // a guest's phone comes from the guest fields collected above.
+    $contactPhone = null;
+    $locationAddress = null;
+    if ($category === 'Blessing') {
+        $locationAddress = trim($_POST['location_address'] ?? '');
+        $contactPhone = $isGuest ? $guestPhone : trim($_POST['contact_phone'] ?? '');
+        if ($locationAddress === '' || $contactPhone === '') {
+            bookRespondError($isAjax, 'Please provide the address to bless and a contact phone number.', url('parishioner/services.php'));
+        }
+        if (!$isGuest && !preg_match('/^09[0-9]{9}$/', $contactPhone)) {
+            bookRespondError($isAjax, 'Phone number must be exactly 11 digits starting with 09.', url('parishioner/services.php'));
+        }
+    }
+
     // ---- Enforce the parish's fixed scheduling rules (Regular/Special, Mass conflicts, staff day-off, funeral mourning period, ...) ----
     $check = validateBooking($category, $date, $time, $dateOfDeath, $scheduleTypeToSave, $serviceId);
     if (!$check['valid']) {
@@ -187,7 +204,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach ($pendingUploads as $upload) {
             $result = validateUploadedFile($upload['file']);
             if (!$result['valid']) {
-                bookRespondError($isAjax, DOCUMENT_VALIDATION_ERROR, url('parishioner/services.php'));
+                $label = $upload['label'] ? ('"' . $upload['label'] . '": ') : '';
+                bookRespondError($isAjax, $label . documentValidationMessage($result['reason']), url('parishioner/services.php'));
             }
         }
     }
@@ -211,10 +229,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $approvedAtValue = $isMassIntention ? ', NOW()' : '';
 
         $stmt = $pdo->prepare(
-            "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, date_of_death, schedule_type, guest_name, guest_email, guest_phone, guest_reference{$approvedAtColumn})
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$approvedAtValue})"
+            "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, date_of_death, schedule_type, guest_name, guest_email, guest_phone, guest_reference, contact_phone, location_address{$approvedAtColumn})
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$approvedAtValue})"
         );
-        $stmt->execute([$parishionerId, $serviceId, $priestId, $date, $finalTime, $initialStatusId, $remarks, $dateOfDeath, $scheduleTypeToSave, $guestName, $guestEmail, $guestPhone, $guestReference]);
+        $stmt->execute([$parishionerId, $serviceId, $priestId, $date, $finalTime, $initialStatusId, $remarks, $dateOfDeath, $scheduleTypeToSave, $guestName, $guestEmail, $guestPhone, $guestReference, $contactPhone, $locationAddress]);
         $appointmentId = $pdo->lastInsertId();
 
         $checkoutUrl = null;
