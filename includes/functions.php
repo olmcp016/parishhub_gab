@@ -259,6 +259,63 @@ function parseRequirementsList(?string $requirementsText): array
  * limit to use in a LIMIT/OFFSET query plus the total page count, clamped to
  * a valid range so an out-of-range ?page= never errors or shows nothing.
  */
+/**
+ * Auto-cancels an Approved appointment whose scheduled date has already
+ * passed while it was never actually paid (no pending or verified payment
+ * attempt at all — a payment awaiting Cashier verification is NOT
+ * "unpaid", it's just not confirmed yet, so it's left alone). There's no
+ * cron/scheduled-task runner in this deployment, so this runs opportunistically
+ * on every authenticated page load (see requireRole()) — a session-level
+ * throttle keeps that to at most once per calendar day per browser session,
+ * which is more than timely enough for a same-day check like this.
+ */
+function autoCancelExpiredUnpaidAppointments(): void
+{
+    if (($_SESSION['auto_cancel_ran_on'] ?? '') === date('Y-m-d')) {
+        return;
+    }
+    $_SESSION['auto_cancel_ran_on'] = date('Y-m-d');
+
+    try {
+        $stmt = db()->query(
+            "SELECT a.appointment_id, u.user_id, s.service_name
+             FROM appointments a
+             JOIN services s ON a.service_id = s.service_id
+             JOIN parishioners par ON a.parishioner_id = par.parishioner_id
+             JOIN users u ON par.user_id = u.user_id
+             WHERE a.status_id = 2
+               AND a.appointment_date < CURRENT_DATE
+               AND NOT EXISTS (
+                     SELECT 1 FROM payments p
+                     WHERE p.appointment_id = a.appointment_id AND p.payment_status IN ('pending', 'verified')
+                   )"
+        );
+        $expired = $stmt->fetchAll();
+        if (empty($expired)) {
+            return;
+        }
+
+        $ids = array_column($expired, 'appointment_id');
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        db()->prepare(
+            "UPDATE appointments SET status_id = 7, cancelled_reason = 'Automatically cancelled — approved but never paid before the scheduled date.'
+             WHERE appointment_id IN ($placeholders)"
+        )->execute($ids);
+
+        foreach ($expired as $row) {
+            db()->prepare(
+                "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Appointment Automatically Cancelled', ?)"
+            )->execute([
+                $row['user_id'],
+                "Your appointment for {$row['service_name']} (#{$row['appointment_id']}) was automatically cancelled — it was approved but never paid before the scheduled date.",
+            ]);
+            logActivity(null, "Auto-cancelled appointment #{$row['appointment_id']} (approved but unpaid past its date)", 'Appointments');
+        }
+    } catch (Throwable $e) {
+        error_log('autoCancelExpiredUnpaidAppointments error: ' . $e->getMessage());
+    }
+}
+
 function paginate(int $totalRows, int $perPage = 10): array
 {
     $totalPages = max(1, (int) ceil($totalRows / $perPage));
