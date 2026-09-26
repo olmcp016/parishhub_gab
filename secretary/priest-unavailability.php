@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
-requireRole('Secretary', 'Admin');
+requireRole('Secretary');
 
 $userId = currentUser()['user_id'];
 
@@ -53,6 +53,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        // A priest already booked for a specific date/time can't simply be
+        // marked unavailable for that same window — the existing appointment
+        // would be left with no priest showing up. Staff must reschedule or
+        // reassign that appointment first (through the normal appointment
+        // workflow), not paper over it here.
+        $conflictStmt = db()->prepare(
+            "SELECT a.appointment_id, a.appointment_date, a.appointment_time, s.service_name
+             FROM appointments a JOIN services s ON a.service_id = s.service_id
+             WHERE a.priest_id = ? AND a.appointment_date = ? AND a.status_id NOT IN (3, 7)
+               AND (? IS NULL OR (a.appointment_time >= ? AND a.appointment_time < ?))
+             LIMIT 1"
+        );
+        foreach ($dates as $d) {
+            $conflictStmt->execute([$priestId, $d, $startTime, $startTime, $endTime]);
+            $conflict = $conflictStmt->fetch();
+            if ($conflict) {
+                flash('error', 'Cannot mark this priest unavailable on ' . formatDate($d) . ' — already booked for "' . $conflict['service_name'] . '" (#' . $conflict['appointment_id'] . ') at ' . date('g:i A', strtotime($conflict['appointment_time'])) . '. Reschedule or reassign that appointment first.');
+                redirect(url('secretary/priest-unavailability.php'));
+            }
+        }
+
         $pdo = db();
         $pdo->beginTransaction();
         $stmt = $pdo->prepare(
@@ -77,6 +98,42 @@ $rows = db()->query(
      WHERE pu.unavailable_date >= CURRENT_DATE
      ORDER BY p.full_name, pu.unavailable_date"
 )->fetchAll();
+
+// Each priest's upcoming schedule (appointments + unavailability), for the
+// "View" modal below — kept off the page itself so this doesn't turn into
+// one long bullet list per priest.
+$today = date('Y-m-d');
+$scheduleByPriest = [];
+foreach ($priests as $p) {
+    $stmt = db()->prepare(
+        "SELECT a.appointment_id, a.appointment_date, a.appointment_time, s.service_name
+         FROM appointments a JOIN services s ON a.service_id = s.service_id
+         WHERE a.priest_id = ? AND a.status_id NOT IN (3, 7) AND a.appointment_date >= ?
+         ORDER BY a.appointment_date, a.appointment_time LIMIT 10"
+    );
+    $stmt->execute([$p['priest_id'], $today]);
+    $appts = $stmt->fetchAll();
+
+    $stmt = db()->prepare(
+        "SELECT unavailable_date, start_time, end_time, reason FROM priest_unavailability
+         WHERE priest_id = ? AND unavailable_date >= ?
+         ORDER BY unavailable_date LIMIT 10"
+    );
+    $stmt->execute([$p['priest_id'], $today]);
+    $unavail = $stmt->fetchAll();
+
+    $scheduleByPriest[$p['priest_id']] = [
+        'name' => trim($p['title'] . ' ' . $p['full_name']),
+        'appointments' => array_map(fn($a) => [
+            'label' => formatDate($a['appointment_date']) . ' at ' . date('g:i A', strtotime($a['appointment_time'])) . ' — ' . $a['service_name'],
+        ], $appts),
+        'unavailability' => array_map(fn($u) => [
+            'label' => 'Unavailable ' . formatDate($u['unavailable_date'])
+                . ($u['start_time'] ? ' (' . date('g:i A', strtotime($u['start_time'])) . '–' . date('g:i A', strtotime($u['end_time'])) . ')' : ' (whole day)')
+                . ($u['reason'] ? ' — ' . $u['reason'] : ''),
+        ], $unavail),
+    ];
+}
 
 $active = 'priest-unavailability';
 $pageTitle = 'Priest Unavailability';
@@ -124,6 +181,64 @@ include __DIR__ . '/../includes/dash-start.php';
     <div class="form-group"><button type="submit" class="btn btn-primary">Add</button></div>
   </form>
 </div>
+
+<div class="card">
+  <div class="card-header"><h3>Priest Schedules</h3></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Priest</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        <?php foreach ($priests as $p): ?>
+          <tr>
+            <td><?= e($p['title']) ?> <?= e($p['full_name']) ?></td>
+            <td><span class="badge badge-<?= $p['status'] === 'active' ? 'regular' : 'pending' ?>"><?= e(ucfirst(str_replace('_', ' ', $p['status']))) ?></span></td>
+            <td><button type="button" class="btn btn-outline btn-sm js-view-priest-schedule" data-priest-id="<?= $p['priest_id'] ?>">View Schedule</button></td>
+          </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<dialog class="modal" id="priestScheduleModal">
+  <div class="modal-head">
+    <h3 id="priestScheduleModalTitle">Priest Schedule</h3>
+    <button type="button" class="modal-close" onclick="document.getElementById('priestScheduleModal').close()">✕</button>
+  </div>
+  <div class="modal-body" id="priestScheduleModalBody"></div>
+</dialog>
+
+<script type="application/json" id="priestSchedulesData"><?= json_encode($scheduleByPriest, JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?></script>
+<script>
+(function () {
+  var data = {};
+  try { data = JSON.parse(document.getElementById('priestSchedulesData').textContent); } catch (e) {}
+
+  function section(title, items, emptyText, dangerColor) {
+    var html = '<h4 style="margin:14px 0 6px;">' + title + '</h4>';
+    if (!items.length) {
+      html += '<p class="text-muted" style="font-size:13px;">' + emptyText + '</p>';
+      return html;
+    }
+    html += '<ul style="margin:0; padding-left:18px;' + (dangerColor ? ' color: var(--danger);' : '') + '">';
+    items.forEach(function (i) { html += '<li style="font-size:13.5px; margin-bottom:4px;">' + i.label + '</li>'; });
+    html += '</ul>';
+    return html;
+  }
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.js-view-priest-schedule');
+    if (!btn) return;
+    var p = data[btn.dataset.priestId];
+    if (!p) return;
+    document.getElementById('priestScheduleModalTitle').textContent = p.name;
+    document.getElementById('priestScheduleModalBody').innerHTML =
+      section('Upcoming Appointments (next 10)', p.appointments, 'No upcoming appointments.', false) +
+      section('Unavailability (next 10)', p.unavailability, 'No upcoming unavailability entries.', true);
+    document.getElementById('priestScheduleModal').showModal();
+  });
+})();
+</script>
 
 <div class="card">
   <div class="card-header"><h3>Upcoming Unavailability</h3></div>

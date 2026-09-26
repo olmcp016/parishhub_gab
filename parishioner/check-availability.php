@@ -25,6 +25,7 @@ $time = trim($input['appointment_time'] ?? '');
 $priestId = isset($input['priest_id']) && $input['priest_id'] !== '' ? (int) $input['priest_id'] : null;
 $dateOfDeath = $input['date_of_death'] ?? null;
 $excludeAppointmentId = isset($input['exclude_appointment_id']) ? (int) $input['exclude_appointment_id'] : null;
+$month = trim($input['month'] ?? ''); // Y-m, for the Regular-schedule calendar
 
 $response = [
     'ok' => true,
@@ -32,6 +33,8 @@ $response = [
     'message' => '',
     'forced_time' => null,
     'regular_slots' => [],
+    'regular_month_dates' => [],
+    'regular_next_available_month' => null,
     'mass_slots' => [],
     'available_priests' => [],
 ];
@@ -43,6 +46,14 @@ if ($category === 'Mass Intention' && $date !== '') {
 if ($serviceId && in_array($scheduleType, ['Regular', 'Special'], true)) {
     if ($scheduleType === 'Regular') {
         $response['regular_slots'] = regularSlotsForService($serviceId);
+        if ($month !== '') {
+            $response['regular_month_dates'] = regularAvailableDatesInMonth($serviceId, $month);
+            // Only bother searching ahead when the requested month came up
+            // empty — otherwise there's nothing to jump to.
+            if (empty($response['regular_month_dates'])) {
+                $response['regular_next_available_month'] = regularNextAvailableMonth($serviceId, $month);
+            }
+        }
     }
 }
 

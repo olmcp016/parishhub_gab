@@ -115,9 +115,12 @@ function renderParishCalendar(elId, options) {
     }
   };
 
-  if (options.minDate) {
-    calendarConfig.validRange = { start: options.minDate };
-  }
+  // Deliberately NOT using FullCalendar's own `validRange` here — it blanks
+  // out the day number entirely for anything before it, rather than just
+  // graying the cell like every other disabled date. minDate enforcement is
+  // already fully handled above (dayCellClassNames greys it, dateClick
+  // refuses it), so every disabled date — past or simply unavailable —
+  // looks and behaves the same way: dimmed, but still showing its number.
 
   var calendar = new FullCalendar.Calendar(el, calendarConfig);
   calendar.render();

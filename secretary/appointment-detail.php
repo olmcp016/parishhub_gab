@@ -252,7 +252,11 @@ if (!$isAjax) {
         <?php endif; ?>
       </div>
     </div>
-    <p><strong>Parishioner:</strong> <?= e($appointment['firstname']) ?> <?= e($appointment['lastname']) ?> (<?= e($appointment['email']) ?>, <?= e($appointment['phone']) ?>)</p>
+    <?php if ($appointment['guest_name']): ?>
+      <p><strong>Guest:</strong> <?= e($appointment['guest_name']) ?> (<?= e($appointment['guest_phone']) ?><?= $appointment['guest_email'] ? ', ' . e($appointment['guest_email']) : '' ?>) — Ref <?= e($appointment['guest_reference']) ?></p>
+    <?php else: ?>
+      <p><strong>Parishioner:</strong> <?= e($appointment['firstname']) ?> <?= e($appointment['lastname']) ?> (<?= e($appointment['email']) ?>, <?= e($appointment['phone']) ?>)</p>
+    <?php endif; ?>
     <p><strong>Date:</strong> <?= formatDate($appointment['appointment_date']) ?> at <?= date('g:i A', strtotime($appointment['appointment_time'])) ?></p>
     <p><strong>Fee:</strong> <?= feeLabel((float) $appointment['fee']) ?></p>
     <?php if ($appointment['category'] === 'Funeral' && $appointment['date_of_death']): ?>
@@ -262,6 +266,12 @@ if (!$isAjax) {
       <p><strong>Required Documents:</strong> <?= e($appointment['requirements']) ?></p>
     <?php endif; ?>
     <?php if ($appointment['remarks']): ?><p><strong>Remarks:</strong> <?= e($appointment['remarks']) ?></p><?php endif; ?>
+    <?php if (!empty($appointment['location_address'])): ?>
+      <p><strong>Address to Bless:</strong> <?= nl2br(e($appointment['location_address'])) ?></p>
+    <?php endif; ?>
+    <?php if (!empty($appointment['contact_phone'])): ?>
+      <p><strong>Contact Phone:</strong> <?= e($appointment['contact_phone']) ?></p>
+    <?php endif; ?>
     <?php if ($appointment['rejection_reason']): ?><p><strong>Rejection Reason:</strong> <?= e($appointment['rejection_reason']) ?></p><?php endif; ?>
     <?php if ($appointment['cancelled_reason']): ?><p><strong>Cancellation Reason:</strong> <?= e($appointment['cancelled_reason']) ?></p><?php endif; ?>
 
@@ -298,7 +308,7 @@ if (!$isAjax) {
           <?php elseif (in_array($label, $uploadedLabels, true)): ?>
             <span class="badge badge-pending"><?= e($label) ?>: Pending</span>
           <?php else: ?>
-            <span class="badge badge-cancelled"><?= e($label) ?>: Missing</span>
+            <span class="badge badge-rejected"><?= e($label) ?>: Missing</span>
           <?php endif; ?>
         <?php endforeach; ?>
       </div>
@@ -381,44 +391,88 @@ if (!$isAjax) {
     </div>
 
     <?php if (!in_array($appointment['category'], ['Mass Intention', 'Donation'], true)): ?>
+    <?php
+      $priestAlreadySet = !empty($appointment['priest_id']);
+      $assignedPriest = null;
+      if ($priestAlreadySet) {
+          foreach ($priests as $p) {
+              if ((int) $p['priest_id'] === (int) $appointment['priest_id']) { $assignedPriest = $p; break; }
+          }
+          if (!$assignedPriest) {
+              // Assigned priest is no longer active — look them up anyway so the name still shows correctly.
+              $stmt = db()->prepare('SELECT * FROM priests WHERE priest_id = ?');
+              $stmt->execute([$appointment['priest_id']]);
+              $assignedPriest = $stmt->fetch() ?: null;
+          }
+      }
+    ?>
     <div class="card">
-      <div class="card-header"><h3>Assign Priest</h3></div>
-      <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>" class="mb-3">
-        <?= csrfField() ?>
-        <input type="hidden" name="action" value="assign_priest">
-        <div class="form-group">
-          <select name="priest_id" required>
-            <option value="">-- Select Priest --</option>
-            <?php foreach ($priests as $p): ?>
-              <option value="<?= $p['priest_id'] ?>" <?= $appointment['priest_id'] == $p['priest_id'] ? 'selected' : '' ?>><?= e($p['title']) ?> <?= e($p['full_name']) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <button type="submit" class="btn btn-outline btn-block">Assign</button>
-      </form>
+      <div class="card-header"><h3><?= $priestAlreadySet ? 'Priest Assignment' : 'Assign Priest' ?></h3></div>
 
-      <p class="text-muted" style="font-size:12.5px; margin-bottom:6px;">Priest availability (next 5 upcoming appointments each):</p>
-      <?php foreach ($priests as $p): ?>
-        <div class="mb-2" style="font-size:12.5px; border-bottom: 1px solid var(--cream-dark); padding-bottom:6px;">
-          <strong><?= e($p['title']) ?> <?= e($p['full_name']) ?></strong>
-          <?php if (empty($priestSchedules[$p['priest_id']])): ?>
-            <span class="text-muted"> — no upcoming appointments</span>
-          <?php else: ?>
-            <ul style="margin: 4px 0 0 18px; padding: 0;">
-              <?php foreach ($priestSchedules[$p['priest_id']] as $sched): ?>
-                <li><?= formatDate($sched['appointment_date']) ?> at <?= date('g:i A', strtotime($sched['appointment_time'])) ?> — <?= e($sched['service_name']) ?></li>
+      <?php if ($priestAlreadySet): ?>
+        <!-- The parishioner already picked (and the system already checked
+             availability for) a priest at booking time — no manual
+             assignment step is needed. This form stays available only for
+             an authorized emergency reassignment (e.g. the assigned priest
+             becomes unavailable), never as a required step. -->
+        <p style="margin-top:0;"><strong>Currently assigned:</strong> <?= $assignedPriest ? e($assignedPriest['title'] . ' ' . $assignedPriest['full_name']) : 'Not yet assigned' ?></p>
+        <details>
+          <summary class="text-muted" style="cursor:pointer; font-size:13px;">Reassign priest (emergency only)</summary>
+          <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>" class="mb-3 mt-2">
+            <?= csrfField() ?>
+            <input type="hidden" name="action" value="assign_priest">
+            <div class="form-group">
+              <select name="priest_id" required>
+                <option value="">-- Select Priest --</option>
+                <?php foreach ($priests as $p): ?>
+                  <option value="<?= $p['priest_id'] ?>" <?= $appointment['priest_id'] == $p['priest_id'] ? 'selected' : '' ?>><?= e($p['title']) ?> <?= e($p['full_name']) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-outline btn-block">Reassign</button>
+          </form>
+        </details>
+      <?php else: ?>
+        <p class="helper-text" style="margin-top:-6px;">The parishioner didn't request a specific priest — please assign one.</p>
+        <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>" class="mb-3">
+          <?= csrfField() ?>
+          <input type="hidden" name="action" value="assign_priest">
+          <div class="form-group">
+            <select name="priest_id" required>
+              <option value="">-- Select Priest --</option>
+              <?php foreach ($priests as $p): ?>
+                <option value="<?= $p['priest_id'] ?>"><?= e($p['title']) ?> <?= e($p['full_name']) ?></option>
               <?php endforeach; ?>
-            </ul>
-          <?php endif; ?>
-          <?php if (!empty($priestUnavailability[$p['priest_id']])): ?>
-            <ul style="margin: 4px 0 0 18px; padding: 0; color: var(--danger);">
-              <?php foreach ($priestUnavailability[$p['priest_id']] as $u): ?>
-                <li>Unavailable <?= formatDate($u['unavailable_date']) ?><?= $u['start_time'] ? ' (' . date('g:i A', strtotime($u['start_time'])) . '–' . date('g:i A', strtotime($u['end_time'])) . ')' : ' (whole day)' ?><?= $u['reason'] ? ' — ' . e($u['reason']) : '' ?></li>
-              <?php endforeach; ?>
-            </ul>
-          <?php endif; ?>
-        </div>
-      <?php endforeach; ?>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-outline btn-block">Assign</button>
+        </form>
+      <?php endif; ?>
+
+      <details>
+        <summary class="text-muted" style="cursor:pointer; font-size:12.5px;">Priest availability (next 5 upcoming appointments each)</summary>
+        <?php foreach ($priests as $p): ?>
+          <div class="mb-2 mt-2" style="font-size:12.5px; border-bottom: 1px solid var(--cream-dark); padding-bottom:6px;">
+            <strong><?= e($p['title']) ?> <?= e($p['full_name']) ?></strong>
+            <?php if (empty($priestSchedules[$p['priest_id']])): ?>
+              <span class="text-muted"> — no upcoming appointments</span>
+            <?php else: ?>
+              <ul style="margin: 4px 0 0 18px; padding: 0;">
+                <?php foreach ($priestSchedules[$p['priest_id']] as $sched): ?>
+                  <li><?= formatDate($sched['appointment_date']) ?> at <?= date('g:i A', strtotime($sched['appointment_time'])) ?> — <?= e($sched['service_name']) ?></li>
+                <?php endforeach; ?>
+              </ul>
+            <?php endif; ?>
+            <?php if (!empty($priestUnavailability[$p['priest_id']])): ?>
+              <ul style="margin: 4px 0 0 18px; padding: 0; color: var(--danger);">
+                <?php foreach ($priestUnavailability[$p['priest_id']] as $u): ?>
+                  <li>Unavailable <?= formatDate($u['unavailable_date']) ?><?= $u['start_time'] ? ' (' . date('g:i A', strtotime($u['start_time'])) . '–' . date('g:i A', strtotime($u['end_time'])) . ')' : ' (whole day)' ?><?= $u['reason'] ? ' — ' . e($u['reason']) : '' ?></li>
+                <?php endforeach; ?>
+              </ul>
+            <?php endif; ?>
+          </div>
+        <?php endforeach; ?>
+      </details>
     </div>
     <?php endif; ?>
 

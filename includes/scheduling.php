@@ -331,6 +331,86 @@ function regularSlotsForService(int $serviceId, int $count = 8): array
 }
 
 /**
+ * Every available Regular-schedule date within one calendar month, for the
+ * booking calendar (see parishioner/services.php) — replaces the old
+ * "next 8 slots" dropdown, which silently hid any date more than a couple
+ * of months out. The calendar widget calls this once per month it renders,
+ * so unlike regularSlotsForService() this only ever has to scan ~31 days.
+ *
+ * @return array<string, string> date (Y-m-d) => fixed slot_time (H:i), for
+ *         every date in the month that's actually bookable.
+ */
+function regularAvailableDatesInMonth(int $serviceId, string $yearMonth): array
+{
+    if (!preg_match('/^\d{4}-\d{2}$/', $yearMonth)) {
+        return [];
+    }
+    $rows = getServiceSchedules($serviceId);
+    if (empty($rows)) {
+        return [];
+    }
+
+    $first = DateTime::createFromFormat('Y-m-d', $yearMonth . '-01');
+    if (!$first) {
+        return [];
+    }
+    $daysInMonth = (int) $first->format('t');
+    $today = date('Y-m-d');
+
+    $blockedStmt = db()->query('SELECT calendar_date FROM calendar WHERE is_blocked = TRUE');
+    $blockedDates = array_column($blockedStmt->fetchAll(), 'calendar_date');
+
+    $available = [];
+    for ($day = 1; $day <= $daysInMonth; $day++) {
+        $dateStr = $yearMonth . '-' . str_pad((string) $day, 2, '0', STR_PAD_LEFT);
+        if ($dateStr < $today) continue;
+        if (in_array($dateStr, $blockedDates, true)) continue;
+
+        $dow = dowOf($dateStr);
+        $occurrence = nthWeekdayOccurrence($dateStr);
+
+        foreach ($rows as $r) {
+            if ((int) $r['weekday'] !== $dow) continue;
+            if ($r['occurrence'] !== null && (int) $r['occurrence'] !== $occurrence) continue;
+
+            $time5 = substr($r['slot_time'], 0, 5);
+            if (isStaffDayOff($dateStr, $time5)) continue;
+            if (in_array($time5, massTimesFor($dateStr), true)) continue;
+            if (serviceSlotIsBooked($serviceId, $dateStr, $time5)) continue;
+
+            $available[$dateStr] = $time5;
+            break; // one fixed slot per date is all the UI needs
+        }
+    }
+
+    return $available;
+}
+
+/**
+ * The first month (Y-m), at or after $fromYearMonth, that has at least one
+ * regularAvailableDatesInMonth() result — so the booking calendar can jump
+ * straight there instead of leaving the parishioner staring at an entirely
+ * grayed-out month with no clue that "next" needs clicking (possibly many
+ * times, for a sparse schedule like "4th Saturday only"). Returns null if
+ * nothing opens up within the search horizon.
+ */
+function regularNextAvailableMonth(int $serviceId, string $fromYearMonth, int $maxMonthsAhead = 12): ?string
+{
+    $cursor = DateTime::createFromFormat('Y-m-d', $fromYearMonth . '-01');
+    if (!$cursor) {
+        return null;
+    }
+    for ($i = 0; $i <= $maxMonthsAhead; $i++) {
+        $ym = $cursor->format('Y-m');
+        if (!empty(regularAvailableDatesInMonth($serviceId, $ym))) {
+            return $ym;
+        }
+        $cursor->modify('+1 month');
+    }
+    return null;
+}
+
+/**
  * Priests do not have a recurring schedule table — availability is derived
  * from (a) their global status, (b) ad-hoc priest_unavailability rows staff
  * add directly, and (c) existing non-cancelled/non-rejected appointments.
