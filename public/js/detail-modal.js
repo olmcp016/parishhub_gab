@@ -106,6 +106,12 @@
       if (e.defaultPrevented) return; // an inline onsubmit (e.g. a confirm() the user cancelled) already handled this
       var form = e.target;
       if (!(form instanceof HTMLFormElement)) return;
+      // Opt-out for a form that needs a REAL top-level navigation — e.g. an
+      // online payment form whose action can redirect to an external
+      // payment page. Letting it submit normally works fine even while the
+      // dialog is open: a genuine navigation just leaves the whole page,
+      // dialog included, exactly as if the modal had never been there.
+      if (form.dataset.plainSubmit) return;
       e.preventDefault();
 
       var submitButtons = form.querySelectorAll('button[type="submit"]');
@@ -118,6 +124,13 @@
       })
         .then(function (res) { return res.json(); })
         .then(function (data) {
+          if (data.redirect) {
+            // The record this modal was showing no longer exists in the
+            // underlying list the way it did (e.g. it was cancelled) —
+            // there's nothing left to refresh in place, so just go there.
+            window.location.href = data.redirect;
+            return;
+          }
           if (data.success) dirty = true;
           return fetchFragment(modal.dataset.currentUrl).then(function (html) {
             modalBody.innerHTML = html;
