@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
-requireRole('Admin');
+requireRole('Secretary', 'Admin');
 
 $isAjax = ($_POST['ajax'] ?? '') === '1';
 
@@ -59,6 +59,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($action === 'status') {
         db()->prepare('UPDATE priests SET status = ? WHERE priest_id = ?')->execute([$_POST['status'], $_POST['priest_id']]);
         flash('success', 'Priest status updated.');
+    } elseif ($action === 'create_login') {
+        // Gives an existing priest record a real account (role "Priest") —
+        // a view-only schedule/Mass Intention portal, see priest/*.php.
+        // Not done automatically for every priest: staff explicitly grants
+        // it here, confirming/correcting the priest's own email first.
+        $priestId = (int) ($_POST['priest_id'] ?? 0);
+        $email = trim($_POST['login_email'] ?? '');
+
+        $stmt = db()->prepare('SELECT * FROM priests WHERE priest_id = ?');
+        $stmt->execute([$priestId]);
+        $priest = $stmt->fetch();
+        if (!$priest) {
+            flash('error', 'Priest not found.');
+            redirect(url('admin/priests.php'));
+        }
+        if (!empty($priest['user_id'])) {
+            flash('error', 'This priest already has a login.');
+            redirect(url('admin/priests.php'));
+        }
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            flash('error', 'Please enter a valid email address for the login.');
+            redirect(url('admin/priests.php'));
+        }
+        $stmt = db()->prepare('SELECT user_id FROM users WHERE email = ?');
+        $stmt->execute([$email]);
+        if ($stmt->fetch()) {
+            flash('error', "An account with $email already exists — use a different email, or that user may already be linked elsewhere.");
+            redirect(url('admin/priests.php'));
+        }
+
+        $priestRoleId = (int) db()->query("SELECT role_id FROM roles WHERE role_name = 'Priest'")->fetchColumn();
+        $tempPassword = bin2hex(random_bytes(5)); // 10-char random, shown once below
+        $hash = password_hash($tempPassword, PASSWORD_BCRYPT);
+
+        $pdo = db();
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare(
+                "INSERT INTO users (role_id, firstname, lastname, email, password, phone, status) VALUES (?, ?, '', ?, ?, ?, 'active')"
+            );
+            $stmt->execute([$priestRoleId, trim($priest['title'] . ' ' . $priest['full_name']), $email, $hash, $priest['contact_number']]);
+            $newUserId = (int) $pdo->lastInsertId();
+
+            $pdo->prepare('UPDATE priests SET user_id = ?, email = ? WHERE priest_id = ?')->execute([$newUserId, $email, $priestId]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            error_log($e->getMessage());
+            flash('error', 'Could not create the login. Please try again.');
+            redirect(url('admin/priests.php'));
+        }
+
+        logActivity(currentUser()['user_id'], "Created a Priest login for {$priest['title']} {$priest['full_name']} ($email)", 'Priests');
+        flash('success', "Login created for {$priest['title']} {$priest['full_name']}. Email: $email — Temporary password: $tempPassword (please relay this to the priest securely; it will not be shown again).");
     }
     redirect(url('admin/priests.php'));
 }
@@ -78,7 +132,7 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Name</th><th>Contact</th><th>Status</th></tr></thead>
+      <thead><tr><th>Name</th><th>Contact</th><th>Status</th><th>Portal Login</th></tr></thead>
       <tbody id="priestsTableBody">
         <?php foreach ($priests as $p): ?>
           <tr>
@@ -95,6 +149,19 @@ include __DIR__ . '/../includes/dash-start.php';
                   <option value="inactive" <?= $p['status']==='inactive'?'selected':'' ?>>Inactive</option>
                 </select>
               </form>
+            </td>
+            <td>
+              <?php if (!empty($p['user_id'])): ?>
+                <span class="badge badge-verified">Has Login</span>
+              <?php else: ?>
+                <form method="POST" action="<?= url('admin/priests.php') ?>" class="flex gap-2" style="align-items:center;">
+                  <?= csrfField() ?>
+                  <input type="hidden" name="action" value="create_login">
+                  <input type="hidden" name="priest_id" value="<?= $p['priest_id'] ?>">
+                  <input type="email" name="login_email" value="<?= e($p['email'] ?? '') ?>" placeholder="priest@email.com" required style="width:170px;">
+                  <button type="submit" class="btn btn-outline btn-sm">Create Login</button>
+                </form>
+              <?php endif; ?>
             </td>
           </tr>
         <?php endforeach; ?>
@@ -174,9 +241,23 @@ document.getElementById('addPriestForm').addEventListener('submit', function (e)
           + '</select>';
         statusTd.appendChild(statusForm);
 
+        var loginTd = document.createElement('td');
+        var loginForm = document.createElement('form');
+        loginForm.method = 'POST';
+        loginForm.action = '<?= url('admin/priests.php') ?>';
+        loginForm.className = 'flex gap-2';
+        loginForm.style.alignItems = 'center';
+        loginForm.innerHTML = <?= json_encode(csrfField()) ?>
+          + '<input type="hidden" name="action" value="create_login">'
+          + '<input type="hidden" name="priest_id" value="' + p.priest_id + '">'
+          + '<input type="email" name="login_email" value="' + (p.email || '') + '" placeholder="priest@email.com" required style="width:170px;">'
+          + '<button type="submit" class="btn btn-outline btn-sm">Create Login</button>';
+        loginTd.appendChild(loginForm);
+
         tr.appendChild(nameTd);
         tr.appendChild(contactTd);
         tr.appendChild(statusTd);
+        tr.appendChild(loginTd);
         tbody.appendChild(tr);
 
         form.reset();
