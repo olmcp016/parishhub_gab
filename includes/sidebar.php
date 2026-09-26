@@ -62,10 +62,12 @@ function renderNavSection(string $slug, string $title, array $items, string $act
       ], $__active); ?>
       <?php renderNavSection('parishioner-priest', 'Parishioner & Priest Management', [
         [url('secretary/parishioners.php'), 'parishioners', 'users', 'Parishioners'],
+        [url('admin/priests.php'), 'priests', 'contact', 'Priests'],
         [url('secretary/priest-unavailability.php'), 'priest-unavailability', 'user-x', 'Priest Unavailability'],
       ], $__active); ?>
       <?php renderNavSection('services-scheduling', 'Services & Scheduling', [
         [url('secretary/services.php'), 'services', 'heart-handshake', 'Services'],
+        [url('admin/service-schedules.php'), 'service-schedules', 'calendar-clock', 'Regular Schedules'],
         [url('secretary/calendar.php'), 'calendar', 'calendar-days', 'Calendar'],
         [url('secretary/locations.php'), 'locations', 'map-pin', 'Locations'],
         [url('secretary/appointments.php'), 'appointments', 'calendar-check', 'Appointments'],
@@ -103,14 +105,9 @@ function renderNavSection(string $slug, string $title, array $items, string $act
         [url('admin/users.php'), 'users', 'users', 'Users & Roles'],
         [url('secretary/parishioners.php'), 'parishioners', 'user-cog', 'Parishioner Management'],
         [url('admin/priests.php'), 'priests', 'contact', 'Priests'],
-        [url('secretary/priest-unavailability.php'), 'priest-unavailability', 'user-x', 'Priest Unavailability'],
       ], $__active); ?>
-      <?php renderNavSection('parish-management', 'Parish Management', [
-        [url('secretary/locations.php'), 'locations', 'map-pin', 'Locations'],
-        [url('admin/services.php'), 'services', 'heart-handshake', 'Services'],
-      ], $__active); ?>
+      <?php // Priest Unavailability, Locations, and Services are now Secretary-managed only (updated role structure) — Admin keeps oversight through Reports/Activity Logs instead of direct management access. ?>
       <?php renderNavSection('scheduling-appointments', 'Services & Scheduling', [
-        [url('admin/service-schedules.php'), 'service-schedules', 'calendar-clock', 'Regular Schedules'],
         [url('secretary/calendar.php'), 'calendar', 'calendar-days', 'Calendar'],
         [url('secretary/appointments.php'), 'appointments', 'calendar-check', 'Appointments'],
         [url('secretary/mass-intentions.php'), 'mass-intentions', 'flame', 'Mass Intentions'],
@@ -126,6 +123,14 @@ function renderNavSection(string $slug, string $title, array $items, string $act
       <?php renderNavSection('system', 'System', [
         [url('admin/settings.php'), 'settings', 'settings', 'Settings'],
         [url('admin/backup.php'), 'backup', 'database-backup', 'Backup & Restore'],
+      ], $__active); ?>
+    <?php elseif ($__user['role_name'] === 'Priest'): ?>
+      <?php renderNavSection('overview', 'Overview', [
+        [url('priest/dashboard.php'), 'dashboard', 'layout-dashboard', 'Dashboard'],
+      ], $__active); ?>
+      <?php renderNavSection('schedule', 'Schedule', [
+        [url('priest/calendar.php'), 'calendar', 'calendar-days', 'Parish Calendar'],
+        [url('priest/mass-intentions.php'), 'mass-intentions', 'flame', 'Mass Intentions'],
       ], $__active); ?>
     <?php endif; ?>
   </nav>
