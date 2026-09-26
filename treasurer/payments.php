@@ -48,7 +48,7 @@ $dateFrom = $_GET['date_from'] ?? '';
 $dateTo = $_GET['date_to'] ?? '';
 $search = $_GET['search'] ?? '';
 
-$sql = "SELECT p.*, pm.method_name, u.firstname, u.lastname, s.service_name, a.appointment_date
+$sql = "SELECT p.*, pm.method_name, u.firstname, u.lastname, a.guest_name, s.service_name, a.appointment_date
         FROM payments p
         JOIN payment_methods pm ON p.method_id = pm.method_id
         JOIN appointments a ON p.appointment_id = a.appointment_id
@@ -62,11 +62,11 @@ if ($methodFilter) { $sql .= ' AND p.method_id = ?'; $params[] = $methodFilter; 
 if ($dateFrom) { $sql .= ' AND p.created_at >= ?'; $params[] = $dateFrom . ' 00:00:00'; }
 if ($dateTo) { $sql .= ' AND p.created_at <= ?'; $params[] = $dateTo . ' 23:59:59'; }
 if ($search) {
-    $sql .= ' AND (u.firstname LIKE ? OR u.lastname LIKE ? OR p.reference_number LIKE ?)';
-    $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%";
+    $sql .= ' AND (u.firstname LIKE ? OR u.lastname LIKE ? OR a.guest_name LIKE ? OR p.reference_number LIKE ?)';
+    $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%";
 }
 $countSql = str_replace(
-    'SELECT p.*, pm.method_name, u.firstname, u.lastname, s.service_name, a.appointment_date',
+    'SELECT p.*, pm.method_name, u.firstname, u.lastname, a.guest_name, s.service_name, a.appointment_date',
     'SELECT COUNT(*)',
     $sql
 );
@@ -156,7 +156,7 @@ include __DIR__ . '/../includes/dash-start.php';
         <?php foreach ($payments as $p): ?>
           <tr>
             <td><?= e($p['reference_number']) ?></td>
-            <td><?= e($p['firstname']) ?> <?= e($p['lastname']) ?></td>
+            <td><?= $p['guest_name'] ? e($p['guest_name']) . ' <span class="text-muted">(guest)</span>' : e($p['firstname']) . ' ' . e($p['lastname']) ?></td>
             <td><?= e($p['service_name']) ?></td>
             <td><?= money($p['amount']) ?></td>
             <td><?= e($p['method_name']) ?></td>

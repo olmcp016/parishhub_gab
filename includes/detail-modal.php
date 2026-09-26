@@ -1,9 +1,10 @@
 <?php
 /**
- * Shared "View/Review details" pop-up modal shell for the Secretary
- * dashboard (Parishioners, Mass Intentions, Appointments lists) — see
- * public/js/detail-modal.js. One dialog per page; its body is filled via
- * fetch() with the linked page's own content (requested as a fragment).
+ * Shared "View/Review details" pop-up modal shell — used by the Secretary
+ * dashboard (Parishioners, Mass Intentions, Appointments lists) and the
+ * Parishioner's own My Appointments list. See public/js/detail-modal.js.
+ * One dialog per page; its body is filled via fetch() with the linked
+ * page's own content (requested as a fragment).
  */
 ?>
 <dialog class="modal modal-xl" id="detailModal">

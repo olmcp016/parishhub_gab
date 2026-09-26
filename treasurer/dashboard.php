@@ -10,7 +10,7 @@ $yearly = db()->query("SELECT COALESCE(SUM(amount),0) FROM payments WHERE paymen
 $pendingCount = db()->query("SELECT COUNT(*) FROM payments WHERE payment_status='pending'")->fetchColumn();
 
 $recent = db()->query(
-    "SELECT p.*, u.firstname, u.lastname, s.service_name
+    "SELECT p.*, u.firstname, u.lastname, a.guest_name, s.service_name
      FROM payments p
      JOIN appointments a ON p.appointment_id = a.appointment_id
      JOIN parishioners par ON a.parishioner_id = par.parishioner_id
@@ -47,7 +47,7 @@ include __DIR__ . '/../includes/dash-start.php';
       <tbody>
         <?php foreach ($recent as $p): ?>
           <tr>
-            <td><?= e($p['firstname']) ?> <?= e($p['lastname']) ?></td>
+            <td><?= $p['guest_name'] ? e($p['guest_name']) . ' <span class="text-muted">(guest)</span>' : e($p['firstname']) . ' ' . e($p['lastname']) ?></td>
             <td><?= e($p['service_name']) ?></td>
             <td><?= money($p['amount']) ?></td>
             <td><span class="badge badge-<?= e($p['payment_status']) ?>"><?= e($p['payment_status']) ?></span></td>

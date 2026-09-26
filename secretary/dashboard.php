@@ -42,7 +42,7 @@ include __DIR__ . '/../includes/dash-start.php';
         <?php foreach ($recent as $a): ?>
           <tr>
             <td>#<?= $a['appointment_id'] ?></td>
-            <td><?= e($a['firstname']) ?> <?= e($a['lastname']) ?></td>
+            <td><?= $a['guest_name'] ? e($a['guest_name']) . ' <span class="text-muted">(guest)</span>' : e($a['firstname']) . ' ' . e($a['lastname']) ?></td>
             <td><?= e($a['service_name']) ?></td>
             <td><?= formatDate($a['appointment_date']) ?></td>
             <td>
