@@ -73,25 +73,10 @@ $canGuestPay = $appointment
 
 $pageTitle = 'Check Status';
 $__user = currentUser();
+$publicNavActive = 'status';
 include __DIR__ . '/includes/header.php';
 ?>
-
-<nav class="public-nav">
-  <div class="brand"><span class="crest-mark"><?= crestMarkup() ?></span> PARISHHUB</div>
-  <div class="links">
-    <a href="<?= url('index.php') ?>">Home</a>
-    <a href="<?= url('about.php') ?>">About</a>
-    <a href="<?= url('parishioner/services.php') ?>">Services</a>
-    <a href="<?= url('parishioner/calendar.php') ?>">Calendar</a>
-    <a href="<?= url('parishioner/announcements.php') ?>">Announcements</a>
-    <?php if ($__user): ?>
-      <a href="<?= redirectForRole($__user['role_name']) ?>" class="btn btn-primary btn-sm">Dashboard</a>
-    <?php else: ?>
-      <a href="<?= url('auth/login.php') ?>">Sign In</a>
-      <a href="<?= url('auth/register.php') ?>" class="btn btn-primary btn-sm">Get Started</a>
-    <?php endif; ?>
-  </div>
-</nav>
+<?php include __DIR__ . '/includes/public-nav.php'; ?>
 
 <div style="max-width:700px; margin:0 auto; padding: 28px 20px 60px;">
   <?php include __DIR__ . '/includes/flash.php'; ?>

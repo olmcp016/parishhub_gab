@@ -472,6 +472,9 @@ tbody tr:hover { background: #faf8f0; }
   padding: 8px 16px; border-radius: 8px; transition: 0.2s var(--ease);
 }
 .public-nav .links .nav-logout-btn:hover { color: var(--brown-dark); background: rgba(201, 168, 76, 0.1); }
+.public-nav .links a.active { color: var(--brown-dark); background: rgba(201, 168, 76, 0.14); }
+.public-nav-toggle { display:none; background:none; border:0; color:var(--brown-dark); font-size:24px; cursor:pointer; padding:8px; }
+.public-nav-logout { display:contents; }
 
 /* Signature motif: a row of thin pointed arches marking the hero/content seam */
 .arch-divider { width: 100%; line-height: 0; }
@@ -1041,7 +1044,11 @@ tbody tr:hover { background: #faf8f0; }
 }
 
 @media (max-width: 700px) {
-  .public-nav .links a:not(.btn) { display: none; }
+  .public-nav-toggle { display:block; }
+  .public-nav .links { display:none; position:absolute; top:72px; left:0; right:0; padding:12px 5%; background:var(--cream); border-bottom:1px solid var(--border); box-shadow:var(--shadow-sm); flex-direction:column; align-items:stretch; gap:4px; }
+  .public-nav.is-open .links { display:flex; }
+  .public-nav .links a:not(.btn), .public-nav .links .nav-logout-btn { display:block; width:100%; text-align:left; }
+  .public-nav .links .btn { text-align:center; }
 }
 
 /* ---------- Clickable card (e.g. weekly donor announcement) ---------- */

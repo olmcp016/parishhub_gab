@@ -9,22 +9,10 @@ foreach ($settingsRows as $r) { $settings[$r['setting_key']] = $r['setting_value
 
 $pageTitle = 'About the Parish';
 $__user = currentUser();
+$publicNavActive = 'about';
 include __DIR__ . '/includes/header.php';
 ?>
-
-<nav class="public-nav">
-  <div class="brand"><span class="crest-mark"><?= crestMarkup() ?></span> PARISHHUB</div>
-  <div class="links">
-    <a href="<?= url('index.php') ?>">Home</a>
-    <a href="<?= url('about.php') ?>">About</a>
-    <?php if ($__user): ?>
-      <a href="<?= redirectForRole($__user['role_name']) ?>" class="btn btn-primary btn-sm">Dashboard</a>
-    <?php else: ?>
-      <a href="<?= url('auth/login.php') ?>">Log in</a>
-      <a href="<?= url('auth/register.php') ?>" class="btn btn-primary btn-sm">Register</a>
-    <?php endif; ?>
-  </div>
-</nav>
+<?php include __DIR__ . '/includes/public-nav.php'; ?>
 
 <section class="hero" style="min-height: auto;">
   <div class="hero-pattern"></div>
