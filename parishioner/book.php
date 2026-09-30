@@ -4,6 +4,7 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/scheduling.php';
 require_once __DIR__ . '/../includes/document-validation.php';
 require_once __DIR__ . '/../includes/paymongo.php';
+require_once __DIR__ . '/../includes/service-fees.php';
 $identity = requireParishionerOrGuest();
 $userId = $identity['user_id'];
 $parishionerId = $identity['parishioner_id'];
@@ -50,6 +51,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $dateOfDeath = ($_POST['date_of_death'] ?? '') ?: null;
     $remarks = trim($_POST['remarks'] ?? '') ?: null;
     $scheduleType = in_array($_POST['schedule_type'] ?? '', ['Regular', 'Special'], true) ? $_POST['schedule_type'] : null;
+    $pssClaim = in_array($_POST['pss_claim'] ?? '', ['pss', 'non_pss'], true) ? $_POST['pss_claim'] : null;
+    $rawSponsorCount = trim((string) ($_POST['sponsor_count'] ?? ''));
+    $rawWeddingSponsorCount = trim((string) ($_POST['wedding_sponsor_count'] ?? ''));
+    $sponsorCount = $rawSponsorCount === '' ? null : filter_var($rawSponsorCount, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0, 'max_range' => 100]]);
+    $weddingSponsorCount = $rawWeddingSponsorCount === '' ? null : filter_var($rawWeddingSponsorCount, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0, 'max_range' => 200]]);
 
     $guestName = null;
     $guestEmail = null;
@@ -94,6 +100,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $usesScheduleToggle = in_array($category, SCHEDULE_TOGGLE_CATEGORIES, true);
     $scheduleTypeToSave = $usesScheduleToggle ? $scheduleType : null;
+    $usesFeeRules = in_array($category, ['Baptism', 'Wedding', 'Funeral'], true);
+    if ($usesFeeRules && $pssClaim === null) {
+        bookRespondError($isAjax, 'Please indicate whether you are claiming PSS status. The parish will verify this before payment.', url('parishioner/services.php'));
+    }
+    if ($category === 'Baptism' && ($sponsorCount === null || $sponsorCount === false)) {
+        bookRespondError($isAjax, 'Please enter a valid non-negative sponsor count.', url('parishioner/services.php'));
+    }
+    if ($category === 'Wedding' && ($weddingSponsorCount === null || $weddingSponsorCount === false)) {
+        bookRespondError($isAjax, 'Please enter a valid non-negative individual sponsor count.', url('parishioner/services.php'));
+    }
+    $pssClassification = $usesFeeRules ? 'pending_verification' : null;
 
     $intentionType = $offererName = $intentionFor = $intentionMessage = null;
     $offeringAmount = 0.0;
@@ -254,10 +271,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $approvedAtValue = $isMassIntention ? ', NOW()' : '';
 
         $stmt = $pdo->prepare(
-            "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, date_of_death, schedule_type, guest_name, guest_email, guest_phone, guest_reference, contact_phone, location_address{$approvedAtColumn})
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$approvedAtValue})"
+            "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, date_of_death, schedule_type, pss_claim, pss_classification, sponsor_count, wedding_sponsor_count, guest_name, guest_email, guest_phone, guest_reference, contact_phone, location_address{$approvedAtColumn})
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$approvedAtValue})"
         );
-        $stmt->execute([$parishionerId, $serviceId, $priestId, $date, $finalTime, $initialStatusId, $remarks, $dateOfDeath, $scheduleTypeToSave, $guestName, $guestEmail, $guestPhone, $guestReference, $contactPhone, $locationAddress]);
+        $stmt->execute([$parishionerId, $serviceId, $priestId, $date, $finalTime, $initialStatusId, $remarks, $dateOfDeath, $scheduleTypeToSave, $pssClaim, $pssClassification, $sponsorCount, $weddingSponsorCount, $guestName, $guestEmail, $guestPhone, $guestReference, $contactPhone, $locationAddress]);
         $appointmentId = $pdo->lastInsertId();
 
         $checkoutUrl = null;

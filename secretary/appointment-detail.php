@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/scheduling.php';
+require_once __DIR__ . '/../includes/service-fees.php';
 requireRole('Secretary', 'Admin');
 
 $id = (int) ($_GET['id'] ?? 0);
@@ -19,6 +20,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ->execute([$_POST['document_id'], $id]);
         logActivity($userId, "Verified a document for appointment #$id", 'Appointments');
         respondAjaxOrRedirect($isAjax, true, 'Document marked as verified.', $redirectUrl);
+    }
+
+    if ($action === 'verify_pss') {
+        $classification = $_POST['pss_classification'] ?? '';
+        if (!in_array($classification, ['pss', 'non_pss'], true)) {
+            respondAjaxOrRedirect($isAjax, false, 'Please choose a valid PSS classification.', $redirectUrl);
+        }
+        $stmt = db()->prepare("SELECT a.schedule_type, a.sponsor_count, a.wedding_sponsor_count, s.category FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_id = ? FOR UPDATE");
+        $pdo = db();
+        $pdo->beginTransaction();
+        try {
+            $stmt->execute([$id]);
+            $feeAppointment = $stmt->fetch();
+            if (!$feeAppointment || !in_array($feeAppointment['category'], ['Baptism', 'Wedding', 'Funeral'], true)) {
+                throw new RuntimeException('This appointment does not use the PSS fee rules.');
+            }
+            $sponsors = $feeAppointment['category'] === 'Wedding' ? (int) $feeAppointment['wedding_sponsor_count'] : (int) $feeAppointment['sponsor_count'];
+            $calculation = calculateServiceFee($feeAppointment['category'], $feeAppointment['schedule_type'], $classification, $sponsors);
+            if (!$calculation) throw new RuntimeException('No fee rule is configured for this appointment.');
+            $calculation['verified_by'] = $userId;
+            $pdo->prepare('UPDATE appointments SET pss_classification = ?, pss_verified_by = ?, pss_verified_at = NOW(), fee_snapshot = ? WHERE appointment_id = ?')
+                ->execute([$classification, $userId, json_encode($calculation), $id]);
+            $pdo->commit();
+            logActivity($userId, "Verified PSS classification for appointment #$id as $classification", 'Appointments');
+            respondAjaxOrRedirect($isAjax, true, 'PSS classification verified and fee calculated.', $redirectUrl);
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log($e->getMessage());
+            respondAjaxOrRedirect($isAjax, false, 'Unable to verify the PSS classification.', $redirectUrl);
+        }
     }
 
     if ($action === 'approve') {
@@ -260,7 +291,37 @@ if (!$isAjax) {
       <p><strong>Parishioner:</strong> <?= e($appointment['firstname']) ?> <?= e($appointment['lastname']) ?> (<?= e($appointment['email']) ?>, <?= e($appointment['phone']) ?>)</p>
     <?php endif; ?>
     <p><strong>Date:</strong> <?= formatDate($appointment['appointment_date']) ?> at <?= date('g:i A', strtotime($appointment['appointment_time'])) ?></p>
-    <p><strong>Fee:</strong> <?= feeLabel((float) $appointment['fee']) ?></p>
+    <p><strong>Fee:</strong>
+      <?php if ($appointment['pss_classification'] === 'pending_verification'): ?>Fee pending PSS verification
+      <?php elseif (!empty($appointment['fee_snapshot'])): ?><?= feeLabel((float) (json_decode($appointment['fee_snapshot'], true)['total'] ?? 0)) ?>
+      <?php else: ?><?= feeLabel((float) $appointment['fee']) ?><?php endif; ?>
+    </p>
+    <?php if (in_array($appointment['category'], ['Baptism', 'Wedding', 'Funeral'], true)): ?>
+      <p><strong>PSS Classification:</strong> <?= e($appointment['pss_classification'] === 'pending_verification' ? 'Pending Verification' : ucfirst(str_replace('_', ' ', $appointment['pss_classification']))) ?></p>
+      <?php if ($appointment['category'] === 'Baptism'): ?><p><strong>Sponsors:</strong> <?= (int) $appointment['sponsor_count'] ?></p><?php endif; ?>
+      <?php if ($appointment['category'] === 'Wedding'): ?><p><strong>Individual Sponsors:</strong> <?= (int) $appointment['wedding_sponsor_count'] ?> (<?= (int) ceil((int) $appointment['wedding_sponsor_count'] / 2) ?> pairs)</p><?php endif; ?>
+      <?php if (!empty($appointment['fee_snapshot'])): $feeSnapshot = json_decode($appointment['fee_snapshot'], true) ?: []; ?>
+        <div class="alert" style="background:var(--cream); border:1px solid var(--cream-dark);">
+          <strong>Fee Calculation</strong><br>
+          Base Fee: <?= feeLabel((float) ($feeSnapshot['base_fee'] ?? 0)) ?><br>
+          Priest Stipend: <?= feeLabel((float) ($feeSnapshot['priest_stipend'] ?? 0)) ?><br>
+          Additional Sponsor Fee: <?= feeLabel((float) ($feeSnapshot['additional_sponsor_fee'] ?? 0)) ?><br>
+          <strong>Total: <?= feeLabel((float) ($feeSnapshot['total'] ?? 0)) ?></strong>
+        </div>
+      <?php endif; ?>
+      <?php if ($appointment['pss_classification'] === 'pending_verification'): ?>
+        <form method="POST" class="card" style="background:var(--cream); margin:16px 0;">
+          <?= csrfField() ?><input type="hidden" name="action" value="verify_pss">
+          <h4 style="margin-top:0;">Verify PSS Classification</h4>
+          <p class="text-muted">Applicant claim: <?= e($appointment['pss_claim'] ? ($appointment['pss_claim'] === 'pss' ? 'PSS Giver' : 'Non-PSS Giver') : 'Not provided') ?></p>
+          <label for="pss_classification">Secretary verification</label>
+          <select name="pss_classification" id="pss_classification" required>
+            <option value="">-- Select --</option><option value="pss">PSS Giver</option><option value="non_pss">Non-PSS Giver</option>
+          </select>
+          <button class="btn btn-primary btn-sm" type="submit" style="margin-top:10px;">Save Classification &amp; Calculate Fee</button>
+        </form>
+      <?php endif; ?>
+    <?php endif; ?>
     <?php if ($appointment['category'] === 'Funeral' && $appointment['date_of_death']): ?>
       <p><strong>Date of Death:</strong> <?= formatDate($appointment['date_of_death']) ?> <span class="text-muted">(9-day mourning period ends <?= formatDate(date('Y-m-d', strtotime($appointment['date_of_death'] . ' +9 days'))) ?>)</span></p>
     <?php endif; ?>

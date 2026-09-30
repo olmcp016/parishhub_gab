@@ -214,7 +214,11 @@ if (!$isAjax) {
     </div>
     <p><strong>Date:</strong> <?= formatDate($appointment['appointment_date']) ?> at <?= date('g:i A', strtotime($appointment['appointment_time'])) ?></p>
     <p><strong>Priest:</strong> <?= e($appointment['priest_name'] ?? 'Not yet assigned') ?></p>
-    <p><strong>Fee:</strong> <?= feeLabel((float) $appointment['fee']) ?></p>
+    <p><strong>Fee:</strong>
+      <?php if ($appointment['pss_classification'] === 'pending_verification'): ?>Fee pending PSS verification
+      <?php elseif (!empty($appointment['fee_snapshot'])): ?><?= feeLabel((float) (json_decode($appointment['fee_snapshot'], true)['total'] ?? 0)) ?>
+      <?php else: ?><?= feeLabel((float) $appointment['fee']) ?><?php endif; ?>
+    </p>
     <?php if ($appointment['category'] === 'Funeral' && $appointment['date_of_death']): ?>
       <p><strong>Date of Death:</strong> <?= formatDate($appointment['date_of_death']) ?></p>
     <?php endif; ?>

@@ -65,10 +65,13 @@ if ($searched) {
 // to reach this page IS the credential (see guest-pay.php). Mass Intentions
 // and Donations are excluded: those are paid at submission time, not here.
 $onlineUnfinished = $payment && (int) $payment['method_id'] === 7 && $payment['payment_status'] === 'pending';
+$appointmentSnapshot = $appointment && !empty($appointment['fee_snapshot']) ? (json_decode($appointment['fee_snapshot'], true) ?: []) : [];
+$displayFee = array_key_exists('total', $appointmentSnapshot) ? (float) $appointmentSnapshot['total'] : (float) ($appointment['fee'] ?? 0);
 $canGuestPay = $appointment
     && $appointment['status_name'] === 'Approved'
     && !in_array($appointment['category'], ['Mass Intention', 'Donation'], true)
-    && (float) $appointment['fee'] > 0
+    && $appointment['pss_classification'] !== 'pending_verification'
+    && $displayFee > 0
     && (!$payment || $onlineUnfinished || in_array($payment['payment_status'], ['failed', 'cancelled'], true));
 
 $pageTitle = 'Check Status';
@@ -115,7 +118,11 @@ include __DIR__ . '/includes/header.php';
       <p><strong>Date:</strong> <?= formatDate($appointment['appointment_date']) ?> at <?= date('g:i A', strtotime($appointment['appointment_time'])) ?></p>
       <?php if ($appointment['category'] !== 'Donation'): ?>
         <p><strong>Priest:</strong> <?= e($appointment['priest_name'] ?? 'Not yet assigned') ?></p>
-        <p><strong>Fee:</strong> <?= feeLabel((float) $appointment['fee']) ?></p>
+        <p><strong>Fee:</strong>
+          <?php if ($appointment['pss_classification'] === 'pending_verification'): ?>Fee pending PSS verification
+          <?php elseif ($appointmentSnapshot): ?><?= feeLabel($displayFee) ?>
+          <?php else: ?><?= feeLabel((float) $appointment['fee']) ?><?php endif; ?>
+        </p>
       <?php endif; ?>
       <?php if (!empty($appointment['location_address'])): ?><p><strong>Address to Bless:</strong> <?= nl2br(e($appointment['location_address'])) ?></p><?php endif; ?>
       <?php if (!empty($appointment['contact_phone'])): ?><p><strong>Contact Phone:</strong> <?= e($appointment['contact_phone']) ?></p><?php endif; ?>
@@ -163,7 +170,7 @@ include __DIR__ . '/includes/header.php';
           <input type="hidden" name="ref" value="<?= e($appointment['guest_reference']) ?>">
           <div class="form-group">
             <label>Amount</label>
-            <input type="number" value="<?= e((string) $appointment['fee']) ?>" step="0.01" readonly disabled>
+            <input type="number" value="<?= e((string) $displayFee) ?>" step="0.01" readonly disabled>
           </div>
           <div class="form-group">
             <label>How would you like to pay?</label>

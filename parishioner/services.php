@@ -5,6 +5,14 @@ require_once __DIR__ . '/../includes/scheduling.php';
 $identity = requireParishionerOrGuest();
 
 $services = db()->query("SELECT * FROM services WHERE is_active = 1 AND category != 'Donation' ORDER BY category, service_name")->fetchAll();
+$variableFeeCategories = ['Baptism', 'Wedding'];
+$feeRulesByCategory = [];
+try {
+    $feeRuleRows = db()->query("SELECT * FROM service_fee_rules ORDER BY service_category, schedule_type, pss_classification")->fetchAll();
+    foreach ($feeRuleRows as $feeRule) $feeRulesByCategory[$feeRule['service_category']][] = $feeRule;
+} catch (Throwable $e) {
+    // The pricing migration is deployed separately; legacy services remain usable until then.
+}
 $donationEnabled = db()->query("SELECT setting_value FROM settings WHERE setting_key = 'donation_enabled'")->fetchColumn() !== '0';
 $priests = db()->query("SELECT * FROM priests WHERE status = 'active'")->fetchAll();
 $blockedRows = db()->query('SELECT calendar_date, notes FROM calendar WHERE is_blocked = 1')->fetchAll();
@@ -60,6 +68,10 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
       <h3><?= e($s['service_name']) ?></h3>
       <p class="text-muted" style="font-size:12.5px; text-transform:uppercase; letter-spacing:.4px;"><?= e($s['category']) ?></p>
       <p style="font-size:14px;"><?= e($s['description']) ?></p>
+      <?php if (in_array($s['category'], ['Baptism', 'Wedding'], true) && !empty($feeRulesByCategory[$s['category']])): ?>
+        <p class="text-muted" style="font-size:13px;">Regular and Special fees available by PSS classification.</p>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('fees-<?= strtolower($s['category']) ?>').showModal()">View Fees</button>
+      <?php endif; ?>
       <?php if ($s['requirements']): ?>
         <details class="requirements-toggle">
           <summary>Requirements</summary>
@@ -67,7 +79,7 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
         </details>
       <?php endif; ?>
       <div class="flex-between mt-3">
-        <span class="text-gold" style="font-weight:700; font-size:18px;"><?= feeLabel((float) $s['fee']) ?></span>
+        <span class="text-gold" style="font-weight:700; font-size:14px;"><?= in_array($s['category'], $variableFeeCategories, true) ? 'Fee varies by schedule and PSS status' : feeLabel((float) $s['fee']) ?></span>
         <button type="button" class="btn btn-primary btn-sm" onclick="openBookModal(<?= $s['service_id'] ?>)"><?= $isMassIntention ? 'Enter Intentions' : 'Book Now' ?></button>
       </div>
     </div>
@@ -85,6 +97,24 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
     </div>
   <?php endif; ?>
 </div>
+
+<?php foreach (['Baptism', 'Wedding'] as $feeCategory): ?>
+  <?php if (!empty($feeRulesByCategory[$feeCategory])): ?>
+    <?php $feeService = array_values(array_filter($services, fn($x) => $x['category'] === $feeCategory))[0] ?? null; ?>
+    <?php if ($feeService): ?><dialog class="modal" id="fees-<?= strtolower($feeCategory) ?>">
+      <div class="modal-head"><h3><?= e($feeCategory) ?> Service Fees</h3><button type="button" class="modal-close" onclick="this.closest('dialog').close()">×</button></div>
+      <div class="modal-body">
+        <?php foreach (['Regular', 'Special'] as $feeSchedule): ?>
+          <h4><?= e($feeSchedule) ?> Schedule</h4>
+          <div class="table-wrap"><table><thead><tr><th></th><th>PSS Giver</th><th>Non-PSS Giver</th></tr></thead><tbody>
+          <?php $pssRule = array_values(array_filter($feeRulesByCategory[$feeCategory], fn($r) => $r['schedule_type'] === $feeSchedule && $r['pss_classification'] === 'pss'))[0] ?? null; $nonRule = array_values(array_filter($feeRulesByCategory[$feeCategory], fn($r) => $r['schedule_type'] === $feeSchedule && $r['pss_classification'] === 'non_pss'))[0] ?? null; ?>
+          <?php if ($pssRule && $nonRule): ?><tr><td>Base Fee</td><td><?= feeLabel((float) $pssRule['base_fee']) ?></td><td><?= feeLabel((float) $nonRule['base_fee']) ?></td></tr><tr><td>Priest Stipend</td><td><?= feeLabel((float) $pssRule['priest_stipend']) ?></td><td><?= feeLabel((float) $nonRule['priest_stipend']) ?></td></tr><tr><td>Additional Sponsor</td><td><?= feeLabel((float) $pssRule['additional_sponsor_fee']) ?> each after <?= (int) $pssRule['included_sponsors'] ?></td><td><?= feeLabel((float) $nonRule['additional_sponsor_fee']) ?> each after <?= (int) $nonRule['included_sponsors'] ?></td></tr><?php endif; ?>
+          </tbody></table></div>
+        <?php endforeach; ?>
+      </div>
+    </dialog><?php endif; ?>
+  <?php endif; ?>
+<?php endforeach; ?>
 
 <!-- ===================== Booking Modal ===================== -->
 <dialog class="modal modal-lg" id="bookModal">
@@ -136,7 +166,7 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
             <option value="">-- Choose a service --</option>
             <?php foreach ($services as $s): ?>
               <option value="<?= $s['service_id'] ?>" data-category="<?= e($s['category']) ?>">
-                <?= e($s['service_name']) ?> (<?= feeLabel((float) $s['fee']) ?>)
+                <?= e($s['service_name']) ?> (<?= in_array($s['category'], $variableFeeCategories, true) ? 'Fee varies by schedule/PSS status' : feeLabel((float) $s['fee']) ?>)
               </option>
             <?php endforeach; ?>
           </select>
@@ -175,6 +205,17 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
           </label>
         </div>
 
+        <div id="feeClassificationGroup" class="form-group" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px;">
+          <label>PSS Classification Claim</label>
+          <select name="pss_claim" id="pssClaimInput"><option value="">-- Select --</option><option value="pss">PSS Giver (subject to verification)</option><option value="non_pss">Non-PSS Giver</option></select>
+          <p class="helper-text">The parish Secretary verifies this classification before the final fee is charged.</p>
+        </div>
+        <div id="sponsorCountGroup" class="form-group" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px;">
+          <label>Number of Sponsors</label><input type="number" name="sponsor_count" id="sponsorCountInput" min="0" max="100" step="1" value="0">
+        </div>
+        <div id="weddingSponsorCountGroup" class="form-group" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px;">
+          <label>Number of Individual Sponsors</label><input type="number" name="wedding_sponsor_count" id="weddingSponsorCountInput" min="0" max="200" step="1" value="0"><p class="helper-text">The first 4 individual sponsors (2 pairs) are included; each additional individual sponsor is ₱100.</p>
+        </div>
         <div id="regularSlotGroup" class="form-group" style="display:none;">
           <label>Preferred Date</label>
           <div class="mini-dp" id="regularMiniDp">
@@ -385,6 +426,14 @@ function toggleServiceUI() {
   var selectedOption = select.options[select.selectedIndex];
   var category = selectedOption ? selectedOption.dataset.category || '' : '';
   var serviceId = selectedOption ? selectedOption.value : '';
+
+  var needsClassification = ['Baptism', 'Wedding', 'Funeral'].indexOf(category) !== -1;
+  document.getElementById('feeClassificationGroup').style.display = needsClassification ? 'block' : 'none';
+  document.getElementById('pssClaimInput').required = needsClassification;
+  document.getElementById('sponsorCountGroup').style.display = category === 'Baptism' ? 'block' : 'none';
+  document.getElementById('weddingSponsorCountGroup').style.display = category === 'Wedding' ? 'block' : 'none';
+  document.getElementById('sponsorCountInput').required = category === 'Baptism';
+  document.getElementById('weddingSponsorCountInput').required = category === 'Wedding';
 
   var isMassIntention = category === 'Mass Intention';
   var usesToggle = SCHEDULE_TOGGLE_CATEGORIES.indexOf(category) !== -1;

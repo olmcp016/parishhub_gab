@@ -2,6 +2,7 @@
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/paymongo.php';
+require_once __DIR__ . '/includes/service-fees.php';
 
 /**
  * Guest equivalent of parishioner/pay.php — for a guest booking's regular
@@ -27,7 +28,8 @@ if ($reference === '') {
 }
 
 $stmt = db()->prepare(
-    "SELECT a.appointment_id, s.fee, s.category, s.service_name, a.guest_email
+    "SELECT a.appointment_id, a.schedule_type, a.pss_classification, a.sponsor_count, a.wedding_sponsor_count, a.fee_snapshot,
+            s.fee, s.category, s.service_name, a.guest_email
      FROM appointments a
      JOIN services s ON a.service_id = s.service_id
      JOIN appointment_status st ON a.status_id = st.status_id
@@ -42,7 +44,28 @@ if (!$appointment) {
     redirect($statusUrl);
 }
 
-$amount = (float) $appointment['fee'];
+$variableCategory = in_array($appointment['category'], ['Baptism', 'Wedding', 'Funeral', 'Wake'], true);
+if ($variableCategory && $appointment['pss_classification'] !== null) {
+    if ($appointment['pss_classification'] === 'pending_verification') {
+        flash('error', 'The parish office must verify the PSS classification before payment can be submitted.');
+        redirect($statusUrl);
+    }
+    $snapshot = $appointment['fee_snapshot'] ? json_decode($appointment['fee_snapshot'], true) : null;
+    if (is_array($snapshot) && isset($snapshot['total'])) {
+        $amount = (float) $snapshot['total'];
+    } else {
+        $sponsors = $appointment['category'] === 'Wedding' ? (int) $appointment['wedding_sponsor_count'] : (int) $appointment['sponsor_count'];
+        $calculation = calculateServiceFee($appointment['category'], $appointment['schedule_type'], $appointment['pss_classification'], $sponsors);
+        if (!$calculation) {
+            flash('error', 'The applicable service fee could not be determined. Please contact the parish office.');
+            redirect($statusUrl);
+        }
+        $amount = $calculation['total'];
+        db()->prepare('UPDATE appointments SET fee_snapshot = ? WHERE appointment_id = ? AND fee_snapshot IS NULL')->execute([json_encode($calculation), $appointmentId]);
+    }
+} else {
+    $amount = (float) $appointment['fee'];
+}
 
 // A payment already in progress or completed blocks a second one. A failed
 // or cancelled payment — or an online checkout that was started but never
