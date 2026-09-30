@@ -116,12 +116,7 @@ include __DIR__ . '/../includes/dash-start.php';
               </form>
             </td>
             <td>
-              <form method="POST" action="<?= url('admin/users.php') ?>" onsubmit="return confirm('Delete this user permanently?');" style="display:inline;">
-                <?= csrfField() ?>
-                <input type="hidden" name="action" value="delete">
-                <input type="hidden" name="user_id" value="<?= $u['user_id'] ?>">
-                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-              </form>
+              <button type="button" class="btn btn-danger btn-sm js-delete-user" data-id="<?= $u['user_id'] ?>" data-name="<?= e($u['firstname'] . ' ' . $u['lastname']) ?>">Delete</button>
             </td>
           </tr>
         <?php endforeach; ?>
@@ -141,7 +136,7 @@ include __DIR__ . '/../includes/dash-start.php';
     <button type="button" class="modal-close" onclick="document.getElementById('addStaffModal').close()">✕</button>
   </div>
   <div class="modal-body">
-    <form method="POST" action="<?= url('admin/users.php') ?>" onsubmit="return confirm('Create this staff account?');">
+    <form method="POST" action="<?= url('admin/users.php') ?>" id="createStaffForm">
       <?= csrfField() ?>
       <input type="hidden" name="action" value="create">
       <div class="form-row">
@@ -157,7 +152,32 @@ include __DIR__ . '/../includes/dash-start.php';
           <?php foreach ($staffRoles as $r): ?><option value="<?= $r['role_id'] ?>"><?= e(roleLabel($r['role_name'])) ?></option><?php endforeach; ?>
         </select>
       </div>
-      <button type="submit" class="btn btn-primary btn-block">Create Staff Account</button>
+      <button type="button" class="btn btn-primary btn-block" onclick="document.getElementById('createStaffConfirmModal').showModal()">Create Staff Account</button>
+    </form>
+  </div>
+</dialog>
+
+<!-- Create Staff Confirm Modal -->
+<dialog id="createStaffConfirmModal" style="max-width:400px;padding:24px;border-radius:8px;border:none;">
+  <h3 style="margin-top:0;">Create Account?</h3>
+  <p style="color:var(--text-muted,#555);">Are you sure you want to create this staff account?</p>
+  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+    <button type="button" class="btn btn-outline" onclick="document.getElementById('createStaffConfirmModal').close()">Cancel</button>
+    <button type="button" class="btn btn-success" onclick="document.getElementById('createStaffConfirmModal').close(); document.getElementById('createStaffForm').submit();">Yes, Create</button>
+  </div>
+</dialog>
+
+<!-- Delete-confirm modal -->
+<dialog id="deleteUserModal" style="max-width:420px;padding:24px;border-radius:8px;border:none;">
+  <h3 style="margin-top:0;">Delete User?</h3>
+  <p id="deleteUserMsg" style="color:var(--text-muted,#555);"></p>
+  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+    <button type="button" class="btn btn-outline" id="deleteUserCancel">Cancel</button>
+    <form method="POST" action="<?= url('admin/users.php') ?>" id="deleteUserForm">
+      <?= csrfField() ?>
+      <input type="hidden" name="action" value="delete">
+      <input type="hidden" name="user_id" id="deleteUserId">
+      <button type="submit" class="btn btn-danger">Yes, Delete</button>
     </form>
   </div>
 </dialog>
@@ -208,6 +228,18 @@ document.addEventListener('DOMContentLoaded', function () {
   document.querySelectorAll('.role-select').forEach(function (sel) {
     sel.dataset.originalValue = sel.value;
   });
+
+  var deleteModal = document.getElementById('deleteUserModal');
+  document.querySelectorAll('.js-delete-user').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.getElementById('deleteUserId').value = this.dataset.id;
+      document.getElementById('deleteUserMsg').textContent = 'Permanently delete "' + this.dataset.name + '"? This cannot be undone.';
+      deleteModal.showModal();
+    });
+  });
+  if (document.getElementById('deleteUserCancel')) {
+    document.getElementById('deleteUserCancel').addEventListener('click', function () { deleteModal.close(); });
+  }
 });
 </script>
 

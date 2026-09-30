@@ -87,12 +87,7 @@ include __DIR__ . '/../includes/dash-start.php';
           <input type="hidden" name="is_active" value="<?= $p['is_active'] ? 0 : 1 ?>">
           <button type="submit" class="btn btn-outline btn-sm"><?= $p['is_active'] ? 'Deactivate' : 'Activate' ?></button>
         </form>
-        <form method="POST" action="<?= url('secretary/projects.php') ?>" onsubmit="return confirm('Delete this project?');">
-          <?= csrfField() ?>
-          <input type="hidden" name="action" value="delete">
-          <input type="hidden" name="project_id" value="<?= $p['project_id'] ?>">
-          <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-        </form>
+        <button type="button" class="btn btn-danger btn-sm js-delete-project" data-id="<?= $p['project_id'] ?>">Delete</button>
       </div>
     </div>
     <dialog class="modal" id="editProject-<?= $p['project_id'] ?>">
@@ -117,6 +112,29 @@ include __DIR__ . '/../includes/dash-start.php';
     <p class="text-muted">No projects yet.</p>
   <?php endif; ?>
 </div>
+
+<dialog id="deleteProjectModal" style="max-width:400px;padding:24px;border-radius:8px;border:none;">
+  <h3 style="margin-top:0;">Delete Project?</h3>
+  <p style="color:var(--text-muted,#555);">Are you sure you want to delete this project?</p>
+  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+    <button type="button" class="btn btn-outline" onclick="document.getElementById('deleteProjectModal').close()">Cancel</button>
+    <form method="POST" action="<?= url('secretary/projects.php') ?>">
+      <?= csrfField() ?>
+      <input type="hidden" name="action" value="delete">
+      <input type="hidden" name="project_id" id="deleteProjectId">
+      <button type="submit" class="btn btn-danger">Yes, Delete</button>
+    </form>
+  </div>
+</dialog>
+
+<script>
+document.querySelectorAll('.js-delete-project').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.getElementById('deleteProjectId').value = this.dataset.id;
+    document.getElementById('deleteProjectModal').showModal();
+  });
+});
+</script>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

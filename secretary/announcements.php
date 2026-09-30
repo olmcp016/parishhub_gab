@@ -175,12 +175,7 @@ include __DIR__ . '/../includes/dash-start.php';
               <?php if ($status !== 'Expired'): ?>
                 <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('editModal-<?= $a['announcement_id'] ?>').showModal()">Edit</button>
               <?php endif; ?>
-              <form method="POST" action="<?= url('secretary/announcements.php') ?>" onsubmit="return confirm('Delete this announcement?');" style="display:inline;">
-                <?= csrfField() ?>
-                <input type="hidden" name="action" value="delete">
-                <input type="hidden" name="announcement_id" value="<?= $a['announcement_id'] ?>">
-                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-              </form>
+              <button type="button" class="btn btn-danger btn-sm js-delete-announcement" data-id="<?= $a['announcement_id'] ?>">Delete</button>
             </td>
           </tr>
           <dialog class="modal" id="editModal-<?= $a['announcement_id'] ?>">
@@ -233,6 +228,20 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
 </div>
 
+<dialog id="deleteAnnouncementModal" style="max-width:400px;padding:24px;border-radius:8px;border:none;">
+  <h3 style="margin-top:0;">Delete Announcement?</h3>
+  <p style="color:var(--text-muted,#555);">Are you sure you want to delete this announcement?</p>
+  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+    <button type="button" class="btn btn-outline" onclick="document.getElementById('deleteAnnouncementModal').close()">Cancel</button>
+    <form method="POST" action="<?= url('secretary/announcements.php') ?>">
+      <?= csrfField() ?>
+      <input type="hidden" name="action" value="delete">
+      <input type="hidden" name="announcement_id" id="deleteAnnouncementId">
+      <button type="submit" class="btn btn-danger">Yes, Delete</button>
+    </form>
+  </div>
+</dialog>
+
 <script>
 function toggleDurationFields() {
   var type = document.getElementById('durationType').value;
@@ -240,6 +249,13 @@ function toggleDurationFields() {
     el.style.display = el.dataset.for === type ? '' : 'none';
   });
 }
+
+document.querySelectorAll('.js-delete-announcement').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.getElementById('deleteAnnouncementId').value = this.dataset.id;
+    document.getElementById('deleteAnnouncementModal').showModal();
+  });
+});
 </script>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>

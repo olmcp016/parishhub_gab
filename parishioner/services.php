@@ -104,19 +104,30 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
         <?php if ($identity['is_guest']): ?>
         <div class="form-row">
           <div class="form-group">
-            <label>Your Full Name</label>
-            <input type="text" name="guest_name" required placeholder="Juan Dela Cruz">
+            <label>Last Name</label>
+            <input type="text" name="guest_lastname" id="guestLastNameInput" required placeholder="Dela Cruz">
           </div>
           <div class="form-group">
-            <label>Phone Number</label>
-            <input type="tel" name="guest_phone" required placeholder="09XX XXX XXXX">
+            <label>First Name</label>
+            <input type="text" name="guest_firstname" id="guestFirstNameInput" required placeholder="Juan">
+          </div>
+          <div class="form-group">
+            <label>Middle Name <span class="text-muted" style="font-weight:400;">(optional)</span></label>
+            <input type="text" name="guest_middlename" id="guestMiddleNameInput" placeholder="Santos">
           </div>
         </div>
-        <div class="form-group">
-          <label>Email Address (optional)</label>
-          <input type="email" name="guest_email" placeholder="you@example.com">
-          <p class="helper-text">We'll use this and your phone number to identify your request — you'll get a reference code to check its status anytime.</p>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Phone Number</label>
+            <input type="tel" name="guest_phone" id="guestPhoneInput" required pattern="09[0-9]{9}" maxlength="11" minlength="11" placeholder="09XXXXXXXXX" title="Must be exactly 11 digits starting with 09">
+          </div>
+          <div class="form-group">
+            <label>Email Address <span class="text-muted" style="font-weight:400;">(optional)</span></label>
+            <input type="email" name="guest_email" id="guestEmailInput" placeholder="you@example.com">
+          </div>
         </div>
+        <input type="hidden" name="guest_name" id="guestCombinedName">
+        <p class="helper-text" style="margin-top:-6px; margin-bottom:14px;">We'll use your name and phone number to identify your request — you'll get a reference code to check its status anytime.</p>
         <?php endif; ?>
 
         <div class="form-group">
@@ -231,7 +242,7 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
               <option value="<?= $p['priest_id'] ?>"><?= e($p['title']) ?> <?= e($p['full_name']) ?></option>
             <?php endforeach; ?>
           </select>
-          <p class="helper-text">Choosing a specific priest is subject to his availability — the secretary will confirm.</p>
+          <p class="helper-text">Choosing a specific priest is subject to his availability — in case of unavoidable priest emergencies or pastoral duties, the parish office reserves the right to assign an available priest.</p>
         </div>
 
         <div id="intentionFields" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px; margin-bottom: 16px;">
@@ -266,32 +277,11 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
             <input type="number" name="amount" id="offeringAmount" min="0.01" step="0.01" placeholder="e.g. 500">
           </div>
           <div class="form-group">
-            <label>How would you like to pay?</label>
-            <label class="radio-option" style="display:block; margin-bottom:8px;">
-              <input type="radio" name="pay_mode" value="online" id="payModeOnline" checked>
-              <strong>Pay Online Now</strong> — Card, GCash, or Maya via PayMongo (secure)
-            </label>
-            <label class="radio-option" style="display:block;">
-              <input type="radio" name="pay_mode" value="manual" id="payModeManual">
-              I already paid by GCash / Maya / Bank Transfer — enter my reference number
-            </label>
-          </div>
-          <div id="manualPayFields" style="display:none;">
-            <div class="form-row">
-              <div class="form-group">
-                <label>Payment Method</label>
-                <select name="method_id" id="manualMethodSelect">
-                  <option value="2">GCash</option>
-                  <option value="3">Maya</option>
-                  <option value="4">Bank Transfer</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label>Payment Reference Number</label>
-                <input type="text" name="payment_reference" id="manualReference" placeholder="Reference / transaction no.">
-              </div>
+            <label>Payment Method</label>
+            <input type="hidden" name="pay_mode" value="online" id="payModeOnline">
+            <div class="alert" style="background: var(--cream); color: var(--brown-mid); border: 1px solid var(--cream-dark); font-size: 13.5px; margin-top: 4px;">
+              <strong>Pay Online Now</strong> via PayMongo (GCash, Maya, or Card). Once our Cashier confirms your payment, your Mass Intention is approved.
             </div>
-            <p class="helper-text" style="margin-top:-6px;">Our Cashier will check this reference against your payment before approving.</p>
           </div>
         </div>
 
@@ -811,8 +801,8 @@ function rebuildRequirementRows(serviceId) {
   container.innerHTML = items.map(function (label, i) {
     return (
       '<div class="form-group doc-req-row">' +
-        '<label>' + label + ' <span class="badge badge-rejected doc-status-pill">Missing</span></label>' +
-        '<input type="file" name="req_doc_' + i + '" accept=".pdf,.jpg,.jpeg,.png">' +
+        '<label>' + label + ' <span style="color:var(--danger);">*</span> <span class="badge badge-rejected doc-status-pill">Required</span></label>' +
+        '<input type="file" name="req_doc_' + i + '" accept=".pdf,.jpg,.jpeg,.png" required data-label="' + label.replace(/"/g, '&quot;') + '">' +
       '</div>'
     );
   }).join('');
@@ -930,13 +920,11 @@ function autoAssignMassTime() {
 function submitButtonLabel() {
   var select = document.getElementById('serviceSelect');
   var category = select.options[select.selectedIndex]?.dataset.category || '';
-  if (category !== 'Mass Intention') return 'Submit Appointment Request';
-  return document.getElementById('payModeManual').checked ? 'Submit Mass Intention' : 'Pay & Submit Mass Intention';
+  return category === 'Mass Intention' ? 'Pay & Submit Mass Intention' : 'Submit Appointment Request';
 }
 
 function updatePayModeUI() {
-  document.getElementById('manualPayFields').style.display = document.getElementById('payModeManual').checked ? 'block' : 'none';
-  document.getElementById('bookSubmitBtn').textContent = submitButtonLabel();
+  // no-op: manual pay mode removed from Mass Intentions; kept for safety
 }
 
 /** For free-choice date/time entry (First Communion, or Special mode) — show which times that date is already occupied by a scheduled Mass. */
@@ -984,12 +972,25 @@ document.addEventListener('DOMContentLoaded', function () {
     else updateOccupiedTimesHint();
   });
   document.getElementById('freeTimeInput').addEventListener('change', refreshAvailability);
-  ['payModeOnline', 'payModeManual'].forEach(function (id) {
-    document.getElementById(id).addEventListener('change', function () {
-      document.getElementById('manualReference').required = document.getElementById('payModeManual').checked;
-      updatePayModeUI();
+
+  // Auto-compose the hidden guest_name from the split first/last/middle fields
+  var guestLast = document.getElementById('guestLastNameInput');
+  var guestFirst = document.getElementById('guestFirstNameInput');
+  var guestMiddle = document.getElementById('guestMiddleNameInput');
+  var guestCombined = document.getElementById('guestCombinedName');
+  if (guestLast && guestFirst && guestCombined) {
+    function syncGuestName() {
+      var last = guestLast.value.trim();
+      var first = guestFirst.value.trim();
+      var mid = guestMiddle ? guestMiddle.value.trim() : '';
+      guestCombined.value = last + ', ' + first + (mid ? ' ' + mid : '');
+    }
+    [guestLast, guestFirst, guestMiddle].filter(Boolean).forEach(function (el) {
+      el.addEventListener('input', syncGuestName);
     });
-  });
+    syncGuestName();
+  }
+
   document.getElementById('massTimeSelect').addEventListener('change', function () {
     document.getElementById('massTimeInput').value = this.value;
     refreshAvailability();
@@ -1001,10 +1002,38 @@ document.addEventListener('DOMContentLoaded', function () {
     var errorBox = document.getElementById('bookFormError');
     errorBox.style.display = 'none';
 
+    // Compose guest full name before submission
+    if (guestCombined) syncGuestName && syncGuestName();
+
+    // Guest phone validation
+    var guestPhoneEl = document.getElementById('guestPhoneInput');
+    if (guestPhoneEl && guestPhoneEl.value.trim()) {
+      if (!/^09[0-9]{9}$/.test(guestPhoneEl.value.trim())) {
+        errorBox.textContent = 'Phone number must be exactly 11 digits starting with 09 (e.g. 09XXXXXXXXX).';
+        errorBox.style.display = 'block';
+        errorBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        guestPhoneEl.focus();
+        return;
+      }
+    }
+
+    // Enforce required document uploads
+    var missingDocs = [];
+    document.querySelectorAll('#requirementRows input[type="file"][required]').forEach(function (inp) {
+      if (!inp.files || inp.files.length === 0) {
+        missingDocs.push(inp.dataset.label || 'Required document');
+      }
+    });
+    if (missingDocs.length > 0) {
+      errorBox.textContent = 'Please upload all required documents before submitting: ' + missingDocs.join(', ') + '.';
+      errorBox.style.display = 'block';
+      errorBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      return;
+    }
+
     var serviceSelect = document.getElementById('serviceSelect');
     var isMassIntention = (serviceSelect.options[serviceSelect.selectedIndex]?.dataset.category || '') === 'Mass Intention';
     if (isMassIntention) {
-      // A Mass Intention can never be submitted without a real payment.
       var amount = parseFloat(document.getElementById('offeringAmount').value);
       if (!(amount > 0)) {
         errorBox.textContent = 'Payment is required before submitting a Mass Intention. Please enter a valid amount.';

@@ -166,9 +166,9 @@ include __DIR__ . '/../includes/dash-start.php';
     <div class="form-group">
       <label>Registered Parishioner (optional)</label>
       <input type="hidden" name="parishioner_id" id="donationParishionerIdInput" value="">
-      <div class="flex gap-2" style="align-items:center;">
-        <span id="donationParishionerDisplay" class="text-muted">Walk-in / Not a member</span>
-        <button type="button" class="btn btn-outline btn-sm" onclick="openParishionerPicker()">Select Parishioner</button>
+      <div class="flex gap-2" style="align-items:center; flex-wrap:wrap;">
+        <span id="donationParishionerDisplay" class="text-muted" style="min-width:180px;">Walk-in / Not a member</span>
+        <button type="button" class="btn btn-outline btn-sm" onclick="openParishionerPicker()">Select</button>
         <button type="button" class="btn btn-outline btn-sm" id="donationParishionerClearBtn" style="display:none;" onclick="clearParishionerPicker()">Clear</button>
       </div>
     </div>

@@ -215,13 +215,13 @@ include __DIR__ . '/../includes/dash-start.php';
   try { data = JSON.parse(document.getElementById('priestSchedulesData').textContent); } catch (e) {}
 
   function section(title, items, emptyText, dangerColor) {
-    var html = '<h4 style="margin:14px 0 6px;">' + title + '</h4>';
+    var html = '<h4 style="margin:14px 0 6px; font-size:18px;">' + title + '</h4>';
     if (!items.length) {
-      html += '<p class="text-muted" style="font-size:13px;">' + emptyText + '</p>';
+      html += '<p class="text-muted" style="font-size:15px;">' + emptyText + '</p>';
       return html;
     }
     html += '<ul style="margin:0; padding-left:18px;' + (dangerColor ? ' color: var(--danger);' : '') + '">';
-    items.forEach(function (i) { html += '<li style="font-size:13.5px; margin-bottom:4px;">' + i.label + '</li>'; });
+    items.forEach(function (i) { html += '<li style="font-size:16px; margin-bottom:4px;">' + i.label + '</li>'; });
     html += '</ul>';
     return html;
   }
@@ -253,12 +253,7 @@ include __DIR__ . '/../includes/dash-start.php';
             <td><?= ($r['start_time'] || $r['end_time']) ? ($r['start_time'] ? date('g:i A', strtotime($r['start_time'])) : 'Start of day') . '–' . ($r['end_time'] ? date('g:i A', strtotime($r['end_time'])) : 'End of day') : 'Whole day' ?></td>
             <td><?= e($r['reason'] ?? '—') ?></td>
             <td>
-              <form method="POST" action="<?= url('secretary/priest-unavailability.php') ?>" onsubmit="return confirm('Remove this entry?');">
-                <?= csrfField() ?>
-                <input type="hidden" name="action" value="delete">
-                <input type="hidden" name="unavailability_id" value="<?= $r['unavailability_id'] ?>">
-                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-              </form>
+              <button type="button" class="btn btn-danger btn-sm js-delete-unavailability" data-id="<?= $r['unavailability_id'] ?>">Delete</button>
             </td>
           </tr>
         <?php endforeach; ?>
@@ -269,6 +264,28 @@ include __DIR__ . '/../includes/dash-start.php';
     </table>
   </div>
 </div>
+
+<dialog id="deleteUnavailabilityModal" style="max-width:400px;padding:24px;border-radius:8px;border:none;">
+  <h3 style="margin-top:0;">Remove Entry?</h3>
+  <p style="color:var(--text-muted,#555);">Are you sure you want to remove this unavailability entry?</p>
+  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+    <button type="button" class="btn btn-outline" onclick="document.getElementById('deleteUnavailabilityModal').close()">Cancel</button>
+    <form method="POST" action="<?= url('secretary/priest-unavailability.php') ?>">
+      <?= csrfField() ?>
+      <input type="hidden" name="action" value="delete">
+      <input type="hidden" name="unavailability_id" id="deleteUnavailabilityId">
+      <button type="submit" class="btn btn-danger">Yes, Remove</button>
+    </form>
+  </div>
+</dialog>
+<script>
+document.querySelectorAll('.js-delete-unavailability').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.getElementById('deleteUnavailabilityId').value = this.dataset.id;
+    document.getElementById('deleteUnavailabilityModal').showModal();
+  });
+});
+</script>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

@@ -20,14 +20,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_POST['slot_time'],
             $userId,
         ]);
-        flash('success', 'Regular slot added.');
+        flash('success', 'Regular schedule added.');
     } elseif ($action === 'toggle') {
         db()->prepare('UPDATE service_schedules SET is_active = ? WHERE schedule_id = ?')
             ->execute([!empty($_POST['is_active']) ? 1 : 0, $_POST['schedule_id']]);
-        flash('success', 'Slot updated.');
+        flash('success', 'Schedule updated.');
     } elseif ($action === 'delete') {
         db()->prepare('DELETE FROM service_schedules WHERE schedule_id = ?')->execute([$_POST['schedule_id']]);
-        flash('success', 'Slot removed.');
+        flash('success', 'Schedule removed.');
     }
     redirect(url('admin/service-schedules.php'));
 }
@@ -51,8 +51,8 @@ include __DIR__ . '/../includes/dash-start.php';
 ?>
 
 <div class="card">
-  <div class="card-header"><h3>Add Regular Slot</h3></div>
-  <p class="helper-text" style="margin-top:-6px;">These are the fixed slots parishioners see when they choose "Regular" for Wedding, Baptism, House Blessing, or Confirmation. Add one row per recurring slot — e.g. add "1st Saturday, 9:00 AM" and "3rd Saturday, 9:00 AM" separately for a "1st and 3rd Saturday" rule.</p>
+  <div class="card-header"><h3>Add Regular Schedule</h3></div>
+  <p class="helper-text" style="margin-top:-6px;">These are the fixed schedules parishioners see when they choose "Regular" for Wedding, Baptism, House Blessing, or Confirmation. Add one row per recurring schedule — e.g. add "1st Saturday, 9:00 AM" and "3rd Saturday, 9:00 AM" separately for a "1st and 3rd Saturday" rule.</p>
   <form method="POST" action="<?= url('admin/service-schedules.php') ?>" class="form-row" style="align-items:end;">
     <?= csrfField() ?>
     <input type="hidden" name="action" value="add">
@@ -92,7 +92,7 @@ include __DIR__ . '/../includes/dash-start.php';
 </div>
 
 <div class="card">
-  <div class="card-header"><h3>Configured Slots</h3></div>
+  <div class="card-header"><h3>Configured Schedules</h3></div>
   <div class="table-wrap">
     <table>
       <thead><tr><th>Service</th><th>Weekday</th><th>Occurrence</th><th>Time</th><th>Active</th><th></th></tr></thead>
@@ -115,22 +115,47 @@ include __DIR__ . '/../includes/dash-start.php';
               </form>
             </td>
             <td>
-              <form method="POST" action="<?= url('admin/service-schedules.php') ?>" onsubmit="return confirm('Remove this slot?');">
-                <?= csrfField() ?>
-                <input type="hidden" name="action" value="delete">
-                <input type="hidden" name="schedule_id" value="<?= $s['schedule_id'] ?>">
-                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-              </form>
+              <button type="button" class="btn btn-danger btn-sm js-delete-schedule"
+                data-id="<?= $s['schedule_id'] ?>"
+                data-label="<?= e($s['service_name'] . ' — ' . WEEKDAY_NAMES[$s['weekday']] . ' ' . date('g:i A', strtotime($s['slot_time']))) ?>">Delete</button>
             </td>
           </tr>
         <?php endforeach; ?>
         <?php if (empty($schedules)): ?>
-          <tr><td colspan="6" class="text-muted">No Regular slots configured yet.</td></tr>
+          <tr><td colspan="6" class="text-muted">No regular schedules configured yet.</td></tr>
         <?php endif; ?>
       </tbody>
     </table>
   </div>
 </div>
+
+<!-- Delete-confirm modal -->
+<dialog id="deleteScheduleModal" style="max-width:420px;padding:24px;border-radius:8px;border:none;">
+  <h3 style="margin-top:0;">Remove Schedule?</h3>
+  <p id="deleteScheduleMsg" style="color:var(--text-muted,#555);"></p>
+  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+    <button type="button" class="btn btn-outline" id="deleteScheduleCancel">Cancel</button>
+    <form method="POST" action="<?= url('admin/service-schedules.php') ?>" id="deleteScheduleForm">
+      <?= csrfField() ?>
+      <input type="hidden" name="action" value="delete">
+      <input type="hidden" name="schedule_id" id="deleteScheduleId">
+      <button type="submit" class="btn btn-danger">Yes, Remove</button>
+    </form>
+  </div>
+</dialog>
+<script>
+(function () {
+  var modal = document.getElementById('deleteScheduleModal');
+  document.querySelectorAll('.js-delete-schedule').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.getElementById('deleteScheduleId').value = this.dataset.id;
+      document.getElementById('deleteScheduleMsg').textContent = 'Remove "' + this.dataset.label + '"? This cannot be undone.';
+      modal.showModal();
+    });
+  });
+  document.getElementById('deleteScheduleCancel').addEventListener('click', function () { modal.close(); });
+})();
+</script>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

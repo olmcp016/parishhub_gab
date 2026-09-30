@@ -54,49 +54,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
     redirect(url('treasurer/payment-detail.php?id=' . $id));
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'reject_intention') {
-    // Cashier declines a Mass Intention payment (e.g. the reference doesn't
-    // match a real payment). The intention is marked Rejected and never
-    // becomes eligible for public display.
-    verifyCsrf();
-    $reason = trim($_POST['reason'] ?? '');
-    $stmt = db()->prepare(
-        "SELECT a.appointment_id, a.parishioner_id, p.payment_status FROM payments p
-         JOIN appointments a ON a.appointment_id = p.appointment_id
-         JOIN services s ON a.service_id = s.service_id
-         WHERE p.payment_id = ? AND s.category = 'Mass Intention' AND a.status_id IN (2, 4)"
-    );
-    $stmt->execute([$id]);
-    $toReject = $stmt->fetch();
-
-    if (!$toReject) {
-        flash('error', 'This Mass Intention can no longer be rejected.');
-    } elseif ($reason === '') {
-        flash('error', 'Please give a reason for rejecting this Mass Intention.');
-    } else {
-        $apptId = $toReject['appointment_id'];
-        db()->prepare('UPDATE appointments SET status_id = 3, rejection_reason = ? WHERE appointment_id = ?')->execute([$reason, $apptId]);
-        if ($toReject['payment_status'] === 'pending') {
-            markPaymentUnsuccessful($id, 'failed');
-        }
-        $stmt = db()->prepare(
-            "SELECT u.user_id FROM parishioners par JOIN users u ON par.user_id = u.user_id WHERE par.parishioner_id = ? AND u.email != 'guest@parishhub.internal'"
-        );
-        $stmt->execute([$toReject['parishioner_id']]);
-        if ($puid = $stmt->fetchColumn()) {
-            $note = "Your Mass Intention (#$apptId) was not approved. Reason: $reason";
-            if ($toReject['payment_status'] === 'verified') {
-                $note .= ' Your offering was already received — please contact the parish office about it.';
-            }
-            db()->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Mass Intention Rejected', ?)")
-                ->execute([$puid, $note]);
-        }
-        logActivity($userId, "Rejected Mass Intention #$apptId payment", 'Payments');
-        flash('success', 'Mass Intention rejected.');
-    }
-    redirect(url('treasurer/payment-detail.php?id=' . $id));
-}
-
 $stmt = db()->prepare(
     "SELECT p.*, pm.method_name, u.firstname, u.lastname, u.email, s.service_name, s.category,
             a.appointment_date, a.appointment_id, a.status_id AS appointment_status_id,
@@ -136,10 +93,14 @@ if ($payment['category'] === 'Mass Intention') {
     $donation = $stmt->fetch() ?: null;
 }
 
-$active = 'payments';
-$pageTitle = 'Payment #' . $payment['payment_id'];
-include __DIR__ . '/../includes/header.php';
-include __DIR__ . '/../includes/dash-start.php';
+<?php
+$isModal = isDetailModalRequest();
+if (!$isModal) {
+    $active = 'payments';
+    $pageTitle = 'Payment #' . $payment['payment_id'];
+    include __DIR__ . '/../includes/header.php';
+    include __DIR__ . '/../includes/dash-start.php';
+}
 ?>
 
 <div style="display:grid; grid-template-columns: 1.4fr 1fr; gap: 22px;">
@@ -178,7 +139,6 @@ include __DIR__ . '/../includes/dash-start.php';
     <?php
       $isIntention = $payment['category'] === 'Mass Intention';
       $awaitingGateway = $payment['payment_status'] === 'pending' && (int) $payment['method_id'] === 7; // PayMongo checkout not finished yet
-      $canRejectIntention = $isIntention && in_array((int) $payment['appointment_status_id'], [2, 4], true) && !$awaitingGateway;
       if ($isIntention):
         [$miLabel, $miClass] = massIntentionStatusDisplay($payment['appointment_status_name']);
     ?>
@@ -188,32 +148,42 @@ include __DIR__ . '/../includes/dash-start.php';
     <?php if ($awaitingGateway): ?>
       <p class="helper-text">This online payment hasn't been completed on PayMongo yet. It verifies automatically once the parishioner pays — nothing to do here until then.</p>
     <?php elseif ($payment['payment_status'] === 'pending'): ?>
-      <form method="POST" action="<?= url('treasurer/payment-detail.php?id=' . $id) ?>" class="mt-3" onsubmit="return confirm('Verify this payment and issue an official receipt?');">
+      <form method="POST" action="<?= url('treasurer/payment-detail.php?id=' . $id) ?>" class="mt-3" id="verifyForm">
         <?= csrfField() ?>
         <input type="hidden" name="action" value="verify">
         <div class="form-group"><label>Official Reference Number</label><input type="text" name="reference_number" value="<?= e($payment['reference_number'] ?? '') ?>" placeholder="Enter Reference/OR Number" required style="padding:8px; width:100%; max-width:300px; border:1px solid #ccc; border-radius:6px;"></div>
-        <button type="submit" class="btn btn-success">✔ Verify Payment & Issue Receipt</button>
+        <button type="button" class="btn btn-success" id="verifyBtn" onclick="document.getElementById('confirmPayModal').showModal()">&#10004; Verify Payment &amp; Issue Receipt</button>
       </form>
     <?php elseif ($payment['payment_status'] === 'verified' && (int) $payment['appointment_status_id'] === 4 && in_array($payment['category'], ['Mass Intention', 'Donation'], true)): ?>
-      <form method="POST" action="<?= url('treasurer/payment-detail.php?id=' . $id) ?>" class="mt-3" onsubmit="return confirm('Confirm this payment?');">
+      <form method="POST" action="<?= url('treasurer/payment-detail.php?id=' . $id) ?>" class="mt-3" id="confirmForm">
         <?= csrfField() ?>
         <input type="hidden" name="action" value="confirm">
         <p class="helper-text" style="margin-top:0;">
           <?= $payment['category'] === 'Mass Intention' ? 'Confirming approves this Mass Intention and makes it eligible for the public "Today\'s Mass Intentions" display on its scheduled date.' : 'Confirming finalizes this donation.' ?>
         </p>
-        <button type="submit" class="btn btn-success">✔ Confirm Payment</button>
-      </form>
-    <?php endif; ?>
-
-    <?php if ($canRejectIntention): ?>
-      <form method="POST" action="<?= url('treasurer/payment-detail.php?id=' . $id) ?>" class="mt-3" onsubmit="return confirm('Reject this Mass Intention?');">
-        <?= csrfField() ?>
-        <input type="hidden" name="action" value="reject_intention">
-        <div class="form-group"><label>Reason for rejecting</label><textarea name="reason" rows="2" required placeholder="e.g. Payment reference could not be verified"></textarea></div>
-        <button type="submit" class="btn btn-danger">✖ Reject Mass Intention</button>
+        <button type="button" class="btn btn-success" onclick="document.getElementById('confirmPayModal').showModal()">&#10004; Confirm Payment</button>
       </form>
     <?php endif; ?>
   </div>
+
+<!-- Verify/Confirm styled modal -->
+<dialog id="confirmPayModal" style="max-width:400px;padding:24px;border-radius:8px;border:none;">
+  <h3 style="margin-top:0;">Are you sure?</h3>
+  <p style="color:var(--text-muted,#555);">This action will be recorded and cannot easily be undone. Proceed?</p>
+  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+    <button type="button" class="btn btn-outline" onclick="document.getElementById('confirmPayModal').close()">Cancel</button>
+    <button type="button" class="btn btn-success" id="confirmPayProceed">Yes, Proceed</button>
+  </div>
+</dialog>
+<script>
+document.getElementById('confirmPayProceed').addEventListener('click', function () {
+  document.getElementById('confirmPayModal').close();
+  var vf = document.getElementById('verifyForm');
+  var cf = document.getElementById('confirmForm');
+  if (vf) vf.submit();
+  else if (cf) cf.submit();
+});
+</script>
 
   <div class="card">
     <div class="card-header"><h3>Official Receipt</h3></div>
@@ -227,5 +197,7 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
 </div>
 
+<?php if (!$isModal): ?>
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
+<?php endif; ?>

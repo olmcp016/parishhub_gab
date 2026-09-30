@@ -104,9 +104,8 @@ function renderNavSection(string $slug, string $title, array $items, string $act
       <?php renderNavSection('user-access', 'User & Access Management', [
         [url('admin/users.php'), 'users', 'users', 'Users & Roles'],
         [url('secretary/parishioners.php'), 'parishioners', 'user-cog', 'Parishioner Management'],
-        [url('admin/priests.php'), 'priests', 'contact', 'Priests'],
       ], $__active); ?>
-      <?php // Priest Unavailability, Locations, and Services are now Secretary-managed only (updated role structure) — Admin keeps oversight through Reports/Activity Logs instead of direct management access. ?>
+      <?php // Priest management is handled by Secretary portal ?>
       <?php renderNavSection('scheduling-appointments', 'Services & Scheduling', [
         [url('secretary/calendar.php'), 'calendar', 'calendar-days', 'Calendar'],
         [url('secretary/appointments.php'), 'appointments', 'calendar-check', 'Appointments'],
@@ -122,7 +121,6 @@ function renderNavSection(string $slug, string $title, array $items, string $act
       ], $__active); ?>
       <?php renderNavSection('system', 'System', [
         [url('admin/settings.php'), 'settings', 'settings', 'Settings'],
-        [url('admin/backup.php'), 'backup', 'database-backup', 'Backup & Restore'],
       ], $__active); ?>
     <?php elseif ($__user['role_name'] === 'Priest'): ?>
       <?php renderNavSection('overview', 'Overview', [

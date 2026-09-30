@@ -75,8 +75,6 @@ if (!$isAjax) {
     <p><strong>Birthdate:</strong> <?= formatDate($parishioner['birthdate']) ?></p>
     <p><strong>Gender:</strong> <?= e($parishioner['gender'] ?: '—') ?></p>
     <p><strong>Marital Status:</strong> <?= e($parishioner['marital_status'] ?: '—') ?></p>
-    <p><strong>Occupation:</strong> <?= e($parishioner['occupation'] ?: '—') ?></p>
-    <p><strong>Emergency Contact:</strong> <?= e($parishioner['emergency_contact_name'] ?: '—') ?> <?= $parishioner['emergency_contact_number'] ? '(' . e($parishioner['emergency_contact_number']) . ')' : '' ?></p>
     <p><strong>Member Since:</strong> <?= formatDate($parishioner['created_at']) ?></p>
   </div>
 

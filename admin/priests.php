@@ -59,6 +59,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($action === 'status') {
         db()->prepare('UPDATE priests SET status = ? WHERE priest_id = ?')->execute([$_POST['status'], $_POST['priest_id']]);
         flash('success', 'Priest status updated.');
+    } elseif ($action === 'delete') {
+        $priestId = (int) ($_POST['priest_id'] ?? 0);
+        // Ensure no active/pending appointments use this priest
+        $stmt = db()->prepare("SELECT COUNT(*) FROM appointments WHERE priest_id = ? AND status_id NOT IN (3, 6, 7)");
+        $stmt->execute([$priestId]);
+        if ($stmt->fetchColumn() > 0) {
+            flash('error', 'Cannot remove priest: they are assigned to active or upcoming appointments.');
+        } else {
+            // Unlink any user account first
+            $stmt = db()->prepare("SELECT user_id FROM priests WHERE priest_id = ?");
+            $stmt->execute([$priestId]);
+            $uid = $stmt->fetchColumn();
+            db()->prepare("DELETE FROM priests WHERE priest_id = ?")->execute([$priestId]);
+            if ($uid) {
+                db()->prepare("DELETE FROM users WHERE user_id = ?")->execute([$uid]);
+            }
+            logActivity(currentUser()['user_id'], "Removed priest #$priestId", 'Priests');
+            flash('success', 'Priest removed.');
+        }
+        redirect(url('admin/priests.php'));
     } elseif ($action === 'create_login') {
         // Gives an existing priest record a real account (role "Priest") —
         // a view-only schedule/Mass Intention portal, see priest/*.php.
@@ -132,7 +152,7 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Name</th><th>Contact</th><th>Status</th><th>Portal Login</th></tr></thead>
+      <thead><tr><th>Name</th><th>Contact</th><th>Status</th><th>Portal Login</th><th></th></tr></thead>
       <tbody id="priestsTableBody">
         <?php foreach ($priests as $p): ?>
           <tr>
@@ -158,10 +178,18 @@ include __DIR__ . '/../includes/dash-start.php';
                   <?= csrfField() ?>
                   <input type="hidden" name="action" value="create_login">
                   <input type="hidden" name="priest_id" value="<?= $p['priest_id'] ?>">
-                  <input type="email" name="login_email" value="<?= e($p['email'] ?? '') ?>" placeholder="priest@email.com" required style="width:170px;">
+                  <input type="email" name="login_email" value="<?= e($p['email'] ?? '') ?>" placeholder="priest@email.com" title="Email for login" required style="width:140px;">
                   <button type="submit" class="btn btn-outline btn-sm">Create Login</button>
                 </form>
               <?php endif; ?>
+            </td>
+            <td>
+              <form method="POST" action="<?= url('admin/priests.php') ?>" style="display:inline;" onsubmit="return confirm('Remove priest?');">
+                <?= csrfField() ?>
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="priest_id" value="<?= $p['priest_id'] ?>">
+                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+              </form>
             </td>
           </tr>
         <?php endforeach; ?>

@@ -56,11 +56,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $guestPhone = null;
     $guestReference = null;
     if ($isGuest) {
-        $guestName = trim($_POST['guest_name'] ?? '');
-        $guestPhone = trim($_POST['guest_phone'] ?? '');
-        $guestEmail = trim($_POST['guest_email'] ?? '') ?: null;
+        // Accept either split fields (new form) or the legacy combined guest_name hidden field.
+        $guestLastname  = trim($_POST['guest_lastname']  ?? '');
+        $guestFirstname = trim($_POST['guest_firstname'] ?? '');
+        $guestMiddle    = trim($_POST['guest_middlename'] ?? '') ?: null;
+        $guestPhone     = trim($_POST['guest_phone']     ?? '');
+        $guestEmail     = trim($_POST['guest_email']     ?? '') ?: null;
+
+        if ($guestLastname !== '' && $guestFirstname !== '') {
+            // Compose the full name from split fields
+            $guestName = $guestLastname . ', ' . $guestFirstname . ($guestMiddle ? ' ' . $guestMiddle : '');
+        } else {
+            // Fall back to legacy combined field
+            $guestName = trim($_POST['guest_name'] ?? '');
+        }
+
         if ($guestName === '' || $guestPhone === '') {
-            bookRespondError($isAjax, 'Please provide your name and phone number.', url('parishioner/services.php'));
+            bookRespondError($isAjax, 'Please provide your full name and phone number.', url('parishioner/services.php'));
+        }
+        if (!preg_match('/^09[0-9]{9}$/', $guestPhone)) {
+            bookRespondError($isAjax, 'Phone number must be exactly 11 digits starting with 09.', url('parishioner/services.php'));
         }
         $guestReference = generateGuestReference();
     }

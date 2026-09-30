@@ -87,12 +87,7 @@ include __DIR__ . '/../includes/dash-start.php';
             </td>
             <td class="view-mode" style="white-space:nowrap;">
               <button type="button" class="btn btn-outline btn-sm" onclick="toggleEdit(<?= $loc['location_id'] ?>, true)">Edit</button>
-              <form method="POST" action="<?= url('secretary/locations.php') ?>" onsubmit="return confirm('Delete this location?');" style="display:inline;">
-                <?= csrfField() ?>
-                <input type="hidden" name="action" value="delete">
-                <input type="hidden" name="location_id" value="<?= $loc['location_id'] ?>">
-                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-              </form>
+              <button type="button" class="btn btn-danger btn-sm js-delete-location" data-id="<?= $loc['location_id'] ?>">Delete</button>
             </td>
           </tr>
         <?php endforeach; ?>
@@ -104,12 +99,33 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
 </div>
 
+<dialog id="deleteLocationModal" style="max-width:400px;padding:24px;border-radius:8px;border:none;">
+  <h3 style="margin-top:0;">Delete Location?</h3>
+  <p style="color:var(--text-muted,#555);">Are you sure you want to delete this location?</p>
+  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+    <button type="button" class="btn btn-outline" onclick="document.getElementById('deleteLocationModal').close()">Cancel</button>
+    <form method="POST" action="<?= url('secretary/locations.php') ?>">
+      <?= csrfField() ?>
+      <input type="hidden" name="action" value="delete">
+      <input type="hidden" name="location_id" id="deleteLocationId">
+      <button type="submit" class="btn btn-danger">Yes, Delete</button>
+    </form>
+  </div>
+</dialog>
+
 <script>
 function toggleEdit(id, editing) {
   var row = document.getElementById('row-' + id);
   row.querySelectorAll('.view-mode').forEach(function (el) { el.style.display = editing ? 'none' : ''; });
   row.querySelectorAll('.edit-mode').forEach(function (el) { el.style.display = editing ? 'block' : 'none'; });
 }
+
+document.querySelectorAll('.js-delete-location').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.getElementById('deleteLocationId').value = this.dataset.id;
+    document.getElementById('deleteLocationModal').showModal();
+  });
+});
 </script>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>

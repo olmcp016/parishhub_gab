@@ -60,9 +60,9 @@ include __DIR__ . '/../includes/dash-start.php';
             <td><?= e($s['category']) ?></td>
             <td><?= money($s['fee']) ?></td>
             <td><?= $s['is_active'] ? 'Yes' : 'No' ?></td>
-            <td><button class="btn btn-outline btn-sm" onclick="document.getElementById('edit-<?= $s['service_id'] ?>').style.display='table-row'">Edit</button></td>
+            <td><button class="btn btn-outline btn-sm js-edit-service" data-id="<?= $s['service_id'] ?>">Edit</button></td>
           </tr>
-          <tr id="edit-<?= $s['service_id'] ?>" style="display:none; background: var(--cream);">
+          <tr id="edit-<?= $s['service_id'] ?>" class="service-edit-row" style="display:none; background: var(--cream);">
             <td colspan="5">
               <form method="POST" action="<?= url('secretary/services.php') ?>" class="form-row" style="align-items:end;">
                 <?= csrfField() ?>
@@ -75,7 +75,10 @@ include __DIR__ . '/../includes/dash-start.php';
                 <div class="form-group">
                   <label><input type="checkbox" name="is_active" value="1" <?= $s['is_active'] ? 'checked' : '' ?> style="width:auto; display:inline-block;"> Active</label>
                 </div>
-                <div class="form-group"><button type="submit" class="btn btn-primary btn-sm">Save</button></div>
+                <div class="form-group">
+                  <button type="button" class="btn btn-outline btn-sm js-cancel-edit" data-id="<?= $s['service_id'] ?>">Cancel</button>
+                  <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                </div>
               </form>
             </td>
           </tr>
@@ -122,6 +125,7 @@ include __DIR__ . '/../includes/dash-start.php';
 <script src="<?= url('public/js/validation.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/validation.js') ?>"></script>
 <script>
 (function () {
+  // Add service validation
   var form = document.getElementById('addServiceForm');
   var required = [
     ['[name="service_name"]', 'the service name'],
@@ -135,6 +139,24 @@ include __DIR__ . '/../includes/dash-start.php';
       e.preventDefault();
       firstInvalid.focus();
     }
+  });
+
+  // Inline edit handling
+  document.querySelectorAll('.js-edit-service').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      // Close all other edit rows
+      document.querySelectorAll('.service-edit-row').forEach(function (row) {
+        row.style.display = 'none';
+      });
+      // Open this one
+      document.getElementById('edit-' + this.dataset.id).style.display = 'table-row';
+    });
+  });
+
+  document.querySelectorAll('.js-cancel-edit').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.getElementById('edit-' + this.dataset.id).style.display = 'none';
+    });
   });
 })();
 </script>

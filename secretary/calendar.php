@@ -145,12 +145,7 @@ include __DIR__ . '/../includes/dash-start.php';
             <td><?= e($ev['location_name'] ?? $ev['location'] ?? '—') ?></td>
             <td><?= $ev['priest_name'] ? e($ev['priest_title'] . ' ' . $ev['priest_name']) : '—' ?></td>
             <td>
-              <form method="POST" action="<?= url('secretary/calendar.php') ?>" onsubmit="return confirm('Remove this event?');" style="display:inline;">
-                <?= csrfField() ?>
-                <input type="hidden" name="action" value="delete_event">
-                <input type="hidden" name="event_id" value="<?= $ev['event_id'] ?>">
-                <button type="submit" class="btn btn-danger btn-sm">Remove</button>
-              </form>
+              <button type="button" class="btn btn-danger btn-sm js-delete-event" data-id="<?= $ev['event_id'] ?>">Remove</button>
             </td>
           </tr>
         <?php endforeach; ?>
@@ -175,12 +170,7 @@ include __DIR__ . '/../includes/dash-start.php';
             <td><?= formatDate($b['calendar_date']) ?></td>
             <td><?= e($b['notes'] ?? '—') ?></td>
             <td>
-              <form method="POST" action="<?= url('secretary/calendar.php') ?>" onsubmit="return confirm('Unblock this date?');" style="display:inline;">
-                <?= csrfField() ?>
-                <input type="hidden" name="action" value="unblock_date">
-                <input type="hidden" name="calendar_id" value="<?= $b['calendar_id'] ?>">
-                <button type="submit" class="btn btn-outline btn-sm">Unblock</button>
-              </form>
+              <button type="button" class="btn btn-outline btn-sm js-unblock-date" data-id="<?= $b['calendar_id'] ?>">Unblock</button>
             </td>
           </tr>
         <?php endforeach; ?>
@@ -223,6 +213,50 @@ document.addEventListener('DOMContentLoaded', function () {
   .calendar-layout { grid-template-columns: 1fr !important; }
 }
 </style>
+
+<dialog id="deleteEventModal" style="max-width:400px;padding:24px;border-radius:8px;border:none;">
+  <h3 style="margin-top:0;">Remove Event?</h3>
+  <p style="color:var(--text-muted,#555);">Are you sure you want to remove this event?</p>
+  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+    <button type="button" class="btn btn-outline" onclick="document.getElementById('deleteEventModal').close()">Cancel</button>
+    <form method="POST" action="<?= url('secretary/calendar.php') ?>">
+      <?= csrfField() ?>
+      <input type="hidden" name="action" value="delete_event">
+      <input type="hidden" name="event_id" id="deleteEventId">
+      <button type="submit" class="btn btn-danger">Yes, Remove</button>
+    </form>
+  </div>
+</dialog>
+
+<dialog id="unblockDateModal" style="max-width:400px;padding:24px;border-radius:8px;border:none;">
+  <h3 style="margin-top:0;">Unblock Date?</h3>
+  <p style="color:var(--text-muted,#555);">Are you sure you want to unblock this date?</p>
+  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+    <button type="button" class="btn btn-outline" onclick="document.getElementById('unblockDateModal').close()">Cancel</button>
+    <form method="POST" action="<?= url('secretary/calendar.php') ?>">
+      <?= csrfField() ?>
+      <input type="hidden" name="action" value="unblock_date">
+      <input type="hidden" name="calendar_id" id="unblockDateId">
+      <button type="submit" class="btn btn-primary">Yes, Unblock</button>
+    </form>
+  </div>
+</dialog>
+
+<script>
+document.querySelectorAll('.js-delete-event').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.getElementById('deleteEventId').value = this.dataset.id;
+    document.getElementById('deleteEventModal').showModal();
+  });
+});
+
+document.querySelectorAll('.js-unblock-date').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.getElementById('unblockDateId').value = this.dataset.id;
+    document.getElementById('unblockDateModal').showModal();
+  });
+});
+</script>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

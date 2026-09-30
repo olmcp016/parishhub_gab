@@ -265,14 +265,24 @@ if (!$isAjax) {
     <?php endif; ?>
 
     <?php if (in_array($appointment['status_name'], ['Pending', 'Approved'], true)): ?>
-      <form method="POST" action="<?= url('parishioner/appointment-detail.php?id=' . $id) ?>" class="mt-3" onsubmit="return confirm('Cancel this appointment?');">
+      <form method="POST" action="<?= url('parishioner/appointment-detail.php?id=' . $id) ?>" class="mt-3" id="cancelApptForm">
         <?= csrfField() ?>
         <input type="hidden" name="action" value="cancel">
         <input type="hidden" name="reason" value="Cancelled by parishioner">
-        <button type="submit" class="btn btn-danger btn-sm">Cancel Appointment</button>
+        <button type="button" class="btn btn-danger btn-sm" onclick="document.getElementById('cancelApptModal').showModal()">Cancel Appointment</button>
       </form>
     <?php endif; ?>
   </div>
+
+<!-- Cancel confirm modal -->
+<dialog id="cancelApptModal" style="max-width:400px;padding:24px;border-radius:8px;border:none;">
+  <h3 style="margin-top:0;">Cancel Appointment?</h3>
+  <p style="color:var(--text-muted,#555);">Are you sure you want to cancel this appointment?</p>
+  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+    <button type="button" class="btn btn-outline" onclick="document.getElementById('cancelApptModal').close()">No, Keep It</button>
+    <button type="button" class="btn btn-danger" onclick="document.getElementById('cancelApptModal').close(); document.getElementById('cancelApptForm').submit();">Yes, Cancel</button>
+  </div>
+</dialog>
 
   <div>
     <div class="card">
@@ -314,28 +324,10 @@ if (!$isAjax) {
               <input type="radio" name="pay_mode" value="online" checked>
               <strong>Pay Online Now</strong> — GCash, Maya, or Card via PayMongo (secure)
             </label>
-            <label class="radio-option" style="display:block; margin-bottom:8px;">
-              <input type="radio" name="pay_mode" value="cash">
-              Pay in cash at the parish office
-            </label>
             <label class="radio-option" style="display:block;">
-              <input type="radio" name="pay_mode" value="manual">
-              I already paid by GCash / Maya / Bank Transfer — enter my reference number
+              <input type="radio" name="pay_mode" value="cash">
+              Cash (Pay at Parish Office)
             </label>
-          </div>
-          <div id="payManualFields" style="display:none;">
-            <div class="form-group">
-              <label>Payment Method</label>
-              <select name="method_id">
-                <option value="2">GCash</option>
-                <option value="3">Maya</option>
-                <option value="4">Bank Transfer</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Payment Reference Number</label>
-              <input type="text" name="payment_reference" placeholder="Reference / transaction no.">
-            </div>
           </div>
           <button type="submit" class="btn btn-primary btn-block" id="paySubmitBtn">Pay Online Now</button>
           <p class="helper-text mt-2" id="payHint">You'll be taken to PayMongo's secure page to pay. Once it's completed, our cashier and secretary take it from there.</p>
@@ -345,12 +337,10 @@ if (!$isAjax) {
           var form = document.getElementById('payForm');
           function update() {
             var mode = form.querySelector('input[name="pay_mode"]:checked').value;
-            document.getElementById('payManualFields').style.display = mode === 'manual' ? 'block' : 'none';
-            form.querySelector('[name="payment_reference"]').required = mode === 'manual';
-            document.getElementById('paySubmitBtn').textContent = mode === 'online' ? 'Pay Online Now' : 'Submit Payment';
+            document.getElementById('paySubmitBtn').textContent = mode === 'online' ? 'Pay Online Now' : 'Submit (Pay at Parish Office)';
             document.getElementById('payHint').textContent = mode === 'online'
               ? "You'll be taken to PayMongo's secure page to pay. Once it's completed, our cashier and secretary take it from there."
-              : 'After paying, please wait for our cashier to verify it, then wait for your schedule to be confirmed.';
+              : 'Please bring your payment to the parish office. Our cashier will verify it.';
           }
           form.querySelectorAll('input[name="pay_mode"]').forEach(function (r) { r.addEventListener('change', update); });
           update();
@@ -377,7 +367,7 @@ if (!$isAjax) {
       // documents without starting a brand new booking — see the
       // "wasRejected" handling above, which puts the request back under
       // review as soon as they upload something.
-      $canUpload = in_array($appointment['status_name'], ['Pending', 'Approved', 'Rejected'], true);
+      $canUpload = $appointment['status_name'] === 'Rejected';
     ?>
     <div class="card">
       <div class="card-header"><h3><?= $appointment['status_name'] === 'Rejected' ? 'Update Documents' : 'Required Documents' ?></h3></div>

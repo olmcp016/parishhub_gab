@@ -179,7 +179,7 @@ include __DIR__ . '/../includes/' . ($isGuest ? 'public-shell-start.php' : 'dash
                 <td><?= money((float) $d['amount']) ?></td>
                 <td><?= e($d['method_name'] ?? '—') ?></td>
                 <td><?php if ($d['payment_status']): ?><span class="badge badge-<?= e($d['payment_status']) ?>"><?= e($d['payment_status']) ?></span><?php else: ?><span class="text-muted">—</span><?php endif; ?></td>
-                <td><a href="<?= url('parishioner/appointment-detail.php?id=' . $d['appointment_id']) ?>" class="btn btn-outline btn-sm">View</a></td>
+                <td><a href="#" data-url="<?= url('parishioner/appointment-detail.php?id=' . $d['appointment_id']) ?>" class="btn btn-outline btn-sm js-view-modal">View</a></td>
               </tr>
             <?php endforeach; ?>
           </tbody>
@@ -403,5 +403,6 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 
+<?php include __DIR__ . '/../includes/detail-modal.php'; ?>
 <?php include __DIR__ . '/../includes/' . ($isGuest ? 'public-shell-end.php' : 'dash-end.php'); ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

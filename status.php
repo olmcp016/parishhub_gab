@@ -186,28 +186,10 @@ include __DIR__ . '/includes/header.php';
               <input type="radio" name="pay_mode" value="online" checked>
               <strong>Pay Online Now</strong> — GCash, Maya, or Card via PayMongo (secure)
             </label>
-            <label class="radio-option" style="display:block; margin-bottom:8px;">
-              <input type="radio" name="pay_mode" value="cash">
-              Pay in cash at the parish office
-            </label>
             <label class="radio-option" style="display:block;">
-              <input type="radio" name="pay_mode" value="manual">
-              I already paid by GCash / Maya / Bank Transfer — enter my reference number
+              <input type="radio" name="pay_mode" value="cash">
+              Cash (Pay at Parish Office)
             </label>
-          </div>
-          <div id="guestPayManualFields" style="display:none;">
-            <div class="form-group">
-              <label>Payment Method</label>
-              <select name="method_id">
-                <option value="2">GCash</option>
-                <option value="3">Maya</option>
-                <option value="4">Bank Transfer</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Payment Reference Number</label>
-              <input type="text" name="payment_reference" placeholder="Reference / transaction no.">
-            </div>
           </div>
           <button type="submit" class="btn btn-primary btn-block" id="guestPaySubmitBtn">Pay Online Now</button>
           <p class="helper-text mt-2" id="guestPayHint">You'll be taken to PayMongo's secure page to pay. Once it's completed, our cashier and secretary take it from there.</p>
@@ -217,12 +199,10 @@ include __DIR__ . '/includes/header.php';
           var form = document.getElementById('guestPayForm');
           function update() {
             var mode = form.querySelector('input[name="pay_mode"]:checked').value;
-            document.getElementById('guestPayManualFields').style.display = mode === 'manual' ? 'block' : 'none';
-            form.querySelector('[name="payment_reference"]').required = mode === 'manual';
-            document.getElementById('guestPaySubmitBtn').textContent = mode === 'online' ? 'Pay Online Now' : 'Submit Payment';
+            document.getElementById('guestPaySubmitBtn').textContent = mode === 'online' ? 'Pay Online Now' : 'Submit (Pay at Parish Office)';
             document.getElementById('guestPayHint').textContent = mode === 'online'
               ? "You'll be taken to PayMongo's secure page to pay. Once it's completed, our cashier and secretary take it from there."
-              : 'After paying, please wait for our cashier to verify it, then wait for your schedule to be confirmed.';
+              : 'Please bring your payment to the parish office. Our cashier will verify it.';
           }
           form.querySelectorAll('input[name="pay_mode"]').forEach(function (r) { r.addEventListener('change', update); });
           update();

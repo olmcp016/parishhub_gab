@@ -362,14 +362,14 @@ if (!$isAjax) {
           <input type="hidden" name="action" value="approve">
           <button type="submit" class="btn btn-success btn-block">✔ Approve</button>
         </form>
-        <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>" onsubmit="return confirm('Reject this appointment?');">
+        <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>" id="rejectForm">
           <?= csrfField() ?>
           <input type="hidden" name="action" value="reject">
           <div class="form-group">
             <label>Reason for Rejection</label>
-            <textarea name="reason" rows="2" placeholder="Explain why this request is being rejected..." required></textarea>
+            <textarea name="reason" rows="2" placeholder="Explain why this request is being rejected..." required id="rejectReasonField"></textarea>
           </div>
-          <button type="submit" class="btn btn-danger btn-block">✖ Reject</button>
+          <button type="button" class="btn btn-danger btn-block" onclick="if(!document.getElementById('rejectReasonField').checkValidity()){document.getElementById('rejectReasonField').reportValidity();return;} document.getElementById('rejectApptModal').showModal();">&#10006; Reject</button>
         </form>
       <?php elseif ($appointment['status_name'] === 'Payment Verified' && in_array($appointment['category'], ['Mass Intention', 'Donation'], true)): ?>
         <p class="text-muted">This request is being finalized by the Cashier — no action needed here.</p>
@@ -476,6 +476,7 @@ if (!$isAjax) {
     </div>
     <?php endif; ?>
 
+    <?php if ($appointment['category'] !== 'Mass Intention'): ?>
     <div class="card">
       <div class="card-header"><h3>Reschedule</h3></div>
       <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>">
@@ -493,8 +494,18 @@ if (!$isAjax) {
         <button type="submit" class="btn btn-outline btn-block">Move Schedule</button>
       </form>
     </div>
+    <?php endif; ?>
   </div>
 </div>
+
+<dialog id="rejectApptModal" style="max-width:400px;padding:24px;border-radius:8px;border:none;">
+  <h3 style="margin-top:0;">Reject Appointment?</h3>
+  <p style="color:var(--text-muted,#555);">Are you sure you want to reject this appointment?</p>
+  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+    <button type="button" class="btn btn-outline" onclick="document.getElementById('rejectApptModal').close()">Cancel</button>
+    <button type="button" class="btn btn-danger" onclick="document.getElementById('rejectApptModal').close(); document.getElementById('rejectForm').submit();">Yes, Reject</button>
+  </div>
+</dialog>
 
 <?php if (!$isAjax): ?>
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
