@@ -274,7 +274,7 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
           <h4 style="margin-bottom:6px;">Offering &amp; Payment</h4>
           <div class="form-group">
             <label>Offering Amount (₱) — must be more than ₱0</label>
-            <input type="number" name="amount" id="offeringAmount" min="0.01" step="0.01" placeholder="e.g. 500">
+            <input type="number" name="amount" id="offeringAmount" class="amount-no-spinner" min="0.01" step="0.01" placeholder="e.g. 500" inputmode="decimal">
           </div>
           <div class="form-group">
             <label>Payment Method</label>
@@ -646,6 +646,13 @@ function fetchRegularMonth(serviceId, yearMonth) {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
+  var offeringAmount = document.getElementById('offeringAmount');
+  if (offeringAmount) {
+    // Do not let an accidental mouse-wheel/trackpad scroll change the amount.
+    offeringAmount.addEventListener('wheel', function (event) {
+      if (document.activeElement === offeringAmount) event.preventDefault();
+    }, { passive: false });
+  }
   document.getElementById('regularDpField').addEventListener('click', openRegularDpPopup);
   document.getElementById('regularDpField').addEventListener('keydown', function (e) {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRegularDpPopup(); }
@@ -1003,7 +1010,7 @@ document.addEventListener('DOMContentLoaded', function () {
     errorBox.style.display = 'none';
 
     // Compose guest full name before submission
-    if (guestCombined) syncGuestName && syncGuestName();
+    if (guestCombined && typeof syncGuestName === 'function') syncGuestName();
 
     // Guest phone validation
     var guestPhoneEl = document.getElementById('guestPhoneInput');

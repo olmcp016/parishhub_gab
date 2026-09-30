@@ -1168,3 +1168,12 @@ dialog.modal::backdrop { background: rgba(36, 22, 17, 0.55); }
 .mini-dp-footer { display: flex; justify-content: space-between; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--cream-dark); }
 .mini-dp-footer a { font-size: 12.5px; font-weight: 600; color: var(--gold-dark); text-decoration: none; }
 .mini-dp-footer a:hover { text-decoration: underline; }
+input.amount-no-spinner::-webkit-outer-spin-button,
+input.amount-no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input.amount-no-spinner {
+  -moz-appearance: textfield;
+}
