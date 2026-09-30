@@ -14,7 +14,7 @@ $__title = isset($pageTitle) ? $pageTitle . ' | ' . APP_NAME : APP_NAME;
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="<?= url('public/css/style.css') ?>">
+  <link rel="stylesheet" href="<?= url('public/css/style.css') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/css/style.css') ?>">
   <?php if (hasParishLogo()): ?>
   <link rel="icon" type="image/png" href="<?= url('public/img/logo.png') ?>">
   <link rel="apple-touch-icon" href="<?= url('public/img/logo.png') ?>">
