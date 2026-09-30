@@ -32,6 +32,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('error', 'Please enter a valid full name and email address.');
             redirect(url('secretary/settings.php'));
         }
+        if ($phone !== null && !preg_match('/^09\d{9}$/', $phone)) {
+            flash('error', 'Enter a valid 11-digit Philippine mobile number starting with 09.');
+            redirect(url('secretary/settings.php'));
+        }
         $emailCheck = db()->prepare('SELECT 1 FROM users WHERE email = ? AND user_id <> ?');
         $emailCheck->execute([$email, $userId]);
         if ($emailCheck->fetchColumn()) {
@@ -85,6 +89,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(url('secretary/settings.php'));
     }
 
+    if ($action === 'password') {
+        $stmt = db()->prepare('SELECT password FROM users WHERE user_id = ?');
+        $stmt->execute([$userId]);
+        if (!password_verify($_POST['current_password'] ?? '', (string) $stmt->fetchColumn())) {
+            flash('error', 'Current password is incorrect.');
+            redirect(url('secretary/settings.php'));
+        }
+        if (strlen($_POST['new_password'] ?? '') < 8) {
+            flash('error', 'New password must be at least 8 characters.');
+            redirect(url('secretary/settings.php'));
+        }
+        if (($_POST['new_password'] ?? '') !== ($_POST['confirm_password'] ?? '')) {
+            flash('error', 'New passwords do not match.');
+            redirect(url('secretary/settings.php'));
+        }
+        db()->prepare('UPDATE users SET password = ? WHERE user_id = ?')->execute([password_hash($_POST['new_password'], PASSWORD_BCRYPT), $userId]);
+        flash('success', 'Password changed successfully.');
+        redirect(url('secretary/settings.php'));
+    }
+
     $enabled = !empty($_POST['donation_enabled']) ? '1' : '0';
     db()->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('donation_enabled', ?) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value")->execute([$enabled]);
     logActivity($userId, 'Updated donation feature setting (' . ($enabled === '1' ? 'enabled' : 'disabled') . ')', 'Settings');
@@ -120,7 +144,7 @@ include __DIR__ . '/../includes/dash-start.php';
     </div>
     <div class="form-group"><label>Full Name</label><input type="text" name="full_name" value="<?= e(trim(($profile['firstname'] ?? '') . ' ' . ($profile['lastname'] ?? ''))) ?>" required></div>
     <div class="form-group"><label>Email Address</label><input type="email" name="email" value="<?= e($profile['email'] ?? '') ?>" required></div>
-    <div class="form-group"><label>Contact Number</label><input type="tel" name="phone" value="<?= e($profile['phone'] ?? '') ?>"></div>
+    <div class="form-group"><label>Contact Number</label><input type="tel" name="phone" inputmode="numeric" value="<?= e($profile['phone'] ?? '') ?>"></div>
     <button type="submit" class="btn btn-primary">Save Profile Changes</button>
   </form>
 </div>
@@ -149,6 +173,17 @@ include __DIR__ . '/../includes/dash-start.php';
   document.getElementById('cancelRemoveProfile').addEventListener('click', function () { modal.close(); });
 })();
 </script>
+
+<div class="card" style="max-width: 640px;">
+  <div class="card-header"><h3>Change Password</h3></div>
+  <form method="POST" action="<?= url('secretary/settings.php') ?>">
+    <?= csrfField() ?><input type="hidden" name="action" value="password">
+    <div class="form-group"><label>Current Password *</label><input type="password" name="current_password" required autocomplete="current-password"></div>
+    <div class="form-group"><label>New Password *</label><input type="password" name="new_password" required minlength="8" autocomplete="new-password"></div>
+    <div class="form-group"><label>Confirm New Password *</label><input type="password" name="confirm_password" required minlength="8" autocomplete="new-password"></div>
+    <button type="submit" class="btn btn-primary">Change Password</button>
+  </form>
+</div>
 
 <div class="card" style="max-width: 640px;">
   <div class="card-header"><h3>Donation Feature</h3></div>
