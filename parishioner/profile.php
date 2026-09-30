@@ -14,6 +14,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $address = trim($_POST['address'] ?? '') ?: null;
     $birthdate = $_POST['birthdate'] ?: null;
     $gender = $_POST['gender'] ?: null;
+    if ($gender !== null && !in_array($gender, ['Male', 'Female'], true)) {
+        $gender = null;
+    }
 
     if ($lastname === '' || $firstname === '') {
         flash('error', 'Please enter your last name and first name.');
@@ -80,7 +83,6 @@ include __DIR__ . '/../includes/dash-start.php';
         <option value="">Select</option>
         <option <?= $user['gender']==='Male'?'selected':'' ?>>Male</option>
         <option <?= $user['gender']==='Female'?'selected':'' ?>>Female</option>
-        <option <?= $user['gender']==='Other'?'selected':'' ?>>Other</option>
       </select>
     </div>
     <div class="form-group">

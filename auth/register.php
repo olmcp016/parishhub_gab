@@ -66,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash('error', 'Please enter your birthdate.');
         redirect(url('auth/register.php'));
     }
-    if ($gender === '') {
+    if ($gender === '' || !in_array($gender, ['Male', 'Female'], true)) {
         keepOldInput($oldInputToKeep);
         flash('error', 'Please select your gender.');
         redirect(url('auth/register.php'));
@@ -232,7 +232,6 @@ include __DIR__ . '/../includes/header.php';
             <option value="">Select</option>
             <option <?= $__oldGender === 'Male' ? 'selected' : '' ?>>Male</option>
             <option <?= $__oldGender === 'Female' ? 'selected' : '' ?>>Female</option>
-            <option <?= $__oldGender === 'Other' ? 'selected' : '' ?>>Other</option>
           </select>
         </div>
 

@@ -10,7 +10,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- CUSTOM TYPES (ENUMS)
 -- ==========================================================
 DO $$ BEGIN
-    CREATE TYPE user_gender AS ENUM ('Male', 'Female', 'Other');
+    CREATE TYPE user_gender AS ENUM ('Male', 'Female');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN

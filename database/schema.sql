@@ -54,7 +54,7 @@ CREATE TABLE users (
     phone VARCHAR(20),
     address VARCHAR(255),
     birthdate DATE,
-    gender ENUM('Male','Female','Other'),
+    gender ENUM('Male','Female'),
     profile_photo VARCHAR(255) DEFAULT NULL,
     status ENUM('active','inactive','suspended') DEFAULT 'active',
     email_verified_at DATETIME DEFAULT NULL,
