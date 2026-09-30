@@ -104,14 +104,12 @@ include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/dash-start.php';
 ?>
 
-<div class="flex-between mb-3 no-print">
-  <h2 style="margin:0; font-family: var(--font-heading);">Mass Intentions</h2>
-  <?php if ($dateFilter): ?>
-    <button type="button" class="btn btn-outline btn-sm" onclick="window.print()">🖨️ Print for Mass</button>
-  <?php endif; ?>
-</div>
-
 <div class="card no-print">
+  <?php if ($dateFilter): ?>
+    <div style="display:flex; justify-content:flex-end; margin-bottom:12px;">
+      <button type="button" class="btn btn-outline btn-sm" onclick="window.print()">🖨️ Print for Mass</button>
+    </div>
+  <?php endif; ?>
   <?php if ($isSecretaryViewer): ?>
     <p class="helper-text" style="margin-top:0;">Shows Mass Intentions the Cashier has approved — the ones to be read at Mass.</p>
   <?php endif; ?>
