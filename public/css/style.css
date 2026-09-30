@@ -1230,6 +1230,11 @@ input.amount-no-spinner {
 .location-picker-option strong { font-size:15px; }
 .location-picker-option span { color:var(--text-muted,#6d665c); font-size:13px; overflow-wrap:anywhere; }
 .location-picker-empty { margin:12px 0; color:var(--text-muted,#6d665c); text-align:center; }
+.profile-photo-editor { display:flex; align-items:center; gap:20px; margin-bottom:22px; }
+.profile-photo-preview { width:110px; height:110px; flex:0 0 110px; border-radius:50%; object-fit:cover; border:3px solid var(--gold,#b99526); }
+.profile-initials-avatar { display:flex; align-items:center; justify-content:center; background:var(--gold); color:var(--brown-darkest); font-size:30px; font-weight:700; }
+.avatar-photo { object-fit:cover; }
+@media (max-width: 560px) { .profile-photo-editor { align-items:flex-start; flex-direction:column; } .profile-photo-preview { width:96px; height:96px; flex-basis:96px; } }
 @media (max-width: 760px) {
   .priest-login-summary { min-width:135px; }
   #createLoginModal, #manageLoginModal, .location-picker-modal { width:min(94vw, 520px); }
