@@ -226,9 +226,13 @@ include __DIR__ . '/../includes/dash-start.php';
             <td><?php if ($d['payment_status']): ?><span class="badge badge-<?= e($d['payment_status']) ?>"><?= e($d['payment_status']) ?></span><?php else: ?><span class="text-muted">—</span><?php endif; ?></td>
             <td>
               <?php if ($d['payment_id']): ?>
-                <a href="<?= url('treasurer/payment-detail.php?id=' . $d['payment_id']) ?>" class="btn btn-outline btn-sm">View</a>
+                <a href="<?= url('treasurer/payment-detail.php?id=' . $d['payment_id']) ?>"
+                  data-url="<?= url('treasurer/payment-detail.php?id=' . $d['payment_id']) ?>"
+                  data-title="Donation Details" class="btn btn-outline btn-sm js-view-modal">View</a>
               <?php else: ?>
-                <a href="<?= url('secretary/appointment-detail.php?id=' . $d['appointment_id']) ?>" class="btn btn-outline btn-sm">View</a>
+                <a href="<?= url('secretary/appointment-detail.php?id=' . $d['appointment_id']) ?>"
+                  data-url="<?= url('secretary/appointment-detail.php?id=' . $d['appointment_id']) ?>"
+                  data-title="Donation Details" class="btn btn-outline btn-sm js-view-modal">View</a>
               <?php endif; ?>
             </td>
           </tr>
@@ -240,6 +244,8 @@ include __DIR__ . '/../includes/dash-start.php';
     <?= renderPagination($pagination, $paginationUrl) ?>
   <?php endif; ?>
 </div>
+
+<?php include __DIR__ . '/../includes/detail-modal.php'; ?>
 
 <dialog class="modal" id="parishionerPickerModal">
   <div class="modal-head">
