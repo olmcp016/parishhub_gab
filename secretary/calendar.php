@@ -9,11 +9,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifyCsrf();
     $action = $_POST['action'] ?? '';
     if ($action === 'add_event') {
+        $locationId = (int) ($_POST['location_id'] ?? 0);
+        if ($locationId > 0) {
+            $locationCheck = db()->prepare('SELECT 1 FROM locations WHERE location_id = ? AND is_active = TRUE');
+            $locationCheck->execute([$locationId]);
+            if (!$locationCheck->fetchColumn()) {
+                flash('error', 'Please choose a valid active location.');
+                redirect(url('secretary/calendar.php'));
+            }
+        }
         db()->prepare(
             "INSERT INTO events (title, description, event_date, event_time, location_id, priest_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)"
         )->execute([
             $_POST['title'], $_POST['description'] ?: null, $_POST['event_date'],
-            $_POST['event_time'] ?: null, $_POST['location_id'] ?: null, $_POST['priest_id'] ?: null, $userId,
+            $_POST['event_time'] ?: null, $locationId ?: null, $_POST['priest_id'] ?: null, $userId,
         ]);
         logActivity($userId, "Created event: {$_POST['title']}", 'Calendar');
         flash('success', 'Event added to calendar.');
@@ -96,13 +105,11 @@ include __DIR__ . '/../includes/dash-start.php';
           <div class="form-group"><label>Time</label><input type="time" name="event_time"></div>
         </div>
         <div class="form-group">
-          <label>Location</label>
-          <select name="location_id">
-            <option value="">-- Select location --</option>
-            <?php foreach ($locations as $loc): ?>
-              <option value="<?= $loc['location_id'] ?>"><?= e($loc['name']) ?></option>
-            <?php endforeach; ?>
-          </select>
+          <label for="selectedLocationName">Location</label>
+          <button type="button" class="location-picker-trigger" id="selectedLocationName" aria-haspopup="dialog" aria-controls="locationPickerModal" <?= empty($locations) ? 'disabled' : '' ?>>
+            <span id="selectedLocationLabel">Select a location</span><span aria-hidden="true">›</span>
+          </button>
+          <input type="hidden" name="location_id" id="selectedLocationId" value="">
           <?php if (empty($locations)): ?><p class="helper-text">No locations yet — <a href="<?= url('secretary/locations.php') ?>">add one first</a>.</p><?php endif; ?>
         </div>
         <div class="form-group">
@@ -130,6 +137,15 @@ include __DIR__ . '/../includes/dash-start.php';
     </div>
   </div>
 </div>
+
+<dialog class="modal location-picker-modal" id="locationPickerModal" aria-labelledby="locationPickerTitle">
+  <div class="modal-head"><h3 id="locationPickerTitle">Select Location</h3><button type="button" class="modal-close" id="locationPickerClose" aria-label="Close">✕</button></div>
+  <div class="modal-body">
+    <label class="sr-only" for="locationSearch">Search location</label>
+    <input type="search" id="locationSearch" placeholder="Search chapel or barangay..." autocomplete="off">
+    <div class="location-picker-results" id="locationPickerResults" role="listbox" aria-label="Available locations"></div>
+  </div>
+</dialog>
 
 <div class="card">
   <div class="card-header"><h3>Upcoming Events</h3></div>
@@ -184,6 +200,62 @@ include __DIR__ . '/../includes/dash-start.php';
 <script src="<?= url('public/js/calendar.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/calendar.js') ?>"></script>
 <script src="<?= url('public/js/scheduling.js') ?>"></script>
 <script>
+var parishLocations = <?= json_encode(array_map(static function ($loc) {
+  return ['id' => (int) $loc['location_id'], 'name' => $loc['name'], 'notes' => $loc['notes'] ?? ''];
+}, $locations), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+var locationPicker = document.getElementById('locationPickerModal');
+var locationResults = document.getElementById('locationPickerResults');
+var locationSearch = document.getElementById('locationSearch');
+var selectedLocationId = document.getElementById('selectedLocationId');
+var selectedLocationLabel = document.getElementById('selectedLocationLabel');
+
+function renderLocationResults() {
+  var query = (locationSearch.value || '').trim().toLocaleLowerCase();
+  var selected = selectedLocationId.value;
+  var matches = parishLocations.filter(function (location) {
+    return !query || (location.name + ' ' + location.notes).toLocaleLowerCase().indexOf(query) !== -1;
+  });
+  locationResults.innerHTML = '';
+  if (!matches.length) {
+    var empty = document.createElement('p');
+    empty.className = 'location-picker-empty';
+    empty.textContent = parishLocations.length ? 'No matching locations found.' : 'No locations are currently available.';
+    locationResults.appendChild(empty);
+    return;
+  }
+  matches.sort(function (a, b) { return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }); });
+  matches.forEach(function (location) {
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'location-picker-option' + (String(location.id) === String(selected) ? ' is-selected' : '');
+    button.setAttribute('role', 'option');
+    button.setAttribute('aria-selected', String(location.id) === String(selected) ? 'true' : 'false');
+    var name = document.createElement('strong');
+    name.textContent = location.name;
+    button.appendChild(name);
+    if (location.notes) {
+      var notes = document.createElement('span');
+      notes.textContent = location.notes;
+      button.appendChild(notes);
+    }
+    button.addEventListener('click', function () {
+      selectedLocationId.value = location.id;
+      selectedLocationLabel.textContent = location.name;
+      locationPicker.close();
+    });
+    locationResults.appendChild(button);
+  });
+}
+
+document.getElementById('selectedLocationName').addEventListener('click', function () {
+  renderLocationResults();
+  locationPicker.showModal();
+  locationSearch.focus();
+});
+locationSearch.addEventListener('input', renderLocationResults);
+document.getElementById('locationPickerClose').addEventListener('click', function () { locationPicker.close(); });
+locationPicker.addEventListener('close', function () { locationSearch.value = ''; });
+
 document.addEventListener('DOMContentLoaded', function () {
   renderParishCalendar('parishCalendar', {
     events: <?= json_encode($calendarEvents, JSON_UNESCAPED_UNICODE) ?>,

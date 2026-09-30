@@ -1215,7 +1215,19 @@ input.amount-no-spinner {
 }
 .priest-login-summary { display:flex; flex-direction:column; align-items:flex-start; gap:6px; min-width:170px; }
 .priest-login-summary > span:first-child { max-width:220px; overflow-wrap:anywhere; }
+.location-picker-trigger { width:100%; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px; border:1px solid var(--border,#d8cdb8); border-radius:10px; background:var(--surface,#fffdf8); color:var(--text,#3f382d); font:inherit; text-align:left; cursor:pointer; }
+.location-picker-trigger:focus-visible, .location-picker-option:focus-visible { outline:3px solid rgba(190,150,35,.35); outline-offset:2px; }
+.location-picker-trigger:disabled { cursor:not-allowed; opacity:.65; }
+.location-picker-trigger > span:last-child { font-size:24px; line-height:1; color:var(--gold,#b99526); }
+.location-picker-modal { width:min(94vw, 620px); max-height:85vh; }
+.location-picker-modal .modal-body { display:flex; flex-direction:column; gap:14px; }
+.location-picker-results { max-height:52vh; overflow-y:auto; display:flex; flex-direction:column; gap:6px; padding-right:3px; }
+.location-picker-option { display:flex; flex-direction:column; align-items:flex-start; gap:3px; width:100%; padding:12px 14px; border:1px solid transparent; border-radius:9px; background:transparent; color:var(--text,#3f382d); text-align:left; cursor:pointer; font:inherit; }
+.location-picker-option:hover, .location-picker-option.is-selected { background:var(--cream-dark,#f4ecdc); border-color:var(--gold,#b99526); }
+.location-picker-option strong { font-size:15px; }
+.location-picker-option span { color:var(--text-muted,#6d665c); font-size:13px; overflow-wrap:anywhere; }
+.location-picker-empty { margin:12px 0; color:var(--text-muted,#6d665c); text-align:center; }
 @media (max-width: 760px) {
   .priest-login-summary { min-width:135px; }
-  #createLoginModal, #manageLoginModal { width:min(94vw, 520px); }
+  #createLoginModal, #manageLoginModal, .location-picker-modal { width:min(94vw, 520px); }
 }
