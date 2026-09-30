@@ -55,6 +55,7 @@ function renderNavSection(string $slug, string $title, array $items, string $act
       ], $__active); ?>
       <?php renderNavSection('account', 'Account', [
         [url('parishioner/profile.php'), 'profile', 'user-circle', 'My Profile'],
+        [url('parishioner/bec-clearance.php'), 'bec-clearance', 'file-check-2', 'BEC Clearance Form'],
       ], $__active); ?>
     <?php elseif ($__user['role_name'] === 'Secretary'): ?>
       <?php renderNavSection('overview', 'Overview', [
