@@ -394,7 +394,11 @@ function toggleServiceUI() {
   document.getElementById('intentionFields').style.display = isMassIntention ? 'block' : 'none';
   document.getElementById('offererNameInput').required = isMassIntention;
   document.getElementById('intentionForInput').required = isMassIntention;
-  document.getElementById('massTimeSelect').required = isMassIntention;
+  // The visible Mass-time picker is a UI control inside a conditionally
+  // displayed group; it is not the submitted field. Native required
+  // validation on it can block the form before our inline error handling
+  // runs, especially while the date/time options are still loading.
+  document.getElementById('massTimeSelect').required = false;
   updatePayModeUI();
   document.getElementById('dateOfDeathGroup').style.display = category === 'Funeral' ? 'block' : 'none';
   document.getElementById('dateOfDeathInput').required = (category === 'Funeral');
@@ -1044,9 +1048,20 @@ document.addEventListener('DOMContentLoaded', function () {
     var serviceSelect = document.getElementById('serviceSelect');
     var isMassIntention = (serviceSelect.options[serviceSelect.selectedIndex]?.dataset.category || '') === 'Mass Intention';
     if (isMassIntention) {
+      var massDate = document.getElementById('appointmentDateInput').value;
+      var massTime = document.getElementById('massTimeInput').value;
+      if (!massDate || !massTime) {
+        errorBox.textContent = !massDate
+          ? 'Please choose the date of the Mass.'
+          : 'Please choose an available Mass time.';
+        errorBox.style.display = 'block';
+        errorBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        document.getElementById(!massDate ? 'appointmentDateInput' : 'massTimeSelect').focus();
+        return;
+      }
       var amount = parseFloat(document.getElementById('offeringAmount').value);
       if (!(amount > 0)) {
-        errorBox.textContent = 'Payment is required before submitting a Mass Intention. Please enter a valid amount.';
+        errorBox.textContent = 'Offering amount must be greater than ₱0.';
         errorBox.style.display = 'block';
         errorBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         document.getElementById('offeringAmount').focus();
