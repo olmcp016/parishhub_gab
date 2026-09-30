@@ -439,7 +439,7 @@ if (!$isAjax) {
         <div class="priest-availability-list">
           <?php foreach ($priests as $p): ?>
             <div class="priest-availability-row">
-              <div><strong><?= e($p['title']) ?> <?= e($p['full_name']) ?></strong><span class="text-muted">Active priest</span></div>
+              <div class="priest-availability-info"><strong><?= e($p['full_name']) ?></strong><span class="priest-availability-role"><?= e($p['title'] ?: 'Priest') ?></span><span class="badge badge-approved priest-availability-status">Active</span></div>
               <button type="button" class="btn btn-outline btn-sm js-view-priest-schedule" data-priest-id="<?= (int) $p['priest_id'] ?>" data-priest-name="<?= e($p['title'] . ' ' . $p['full_name']) ?>" data-schedule-url="<?= e(url('secretary/priest-schedule.php')) ?>">View Schedule</button>
             </div>
           <?php endforeach; ?>

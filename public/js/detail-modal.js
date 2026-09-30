@@ -126,11 +126,9 @@
           .then(function (res) { return res.json(); })
           .then(function (data) {
             if (!data.success) throw new Error(data.message || 'Unable to load schedule.');
-            var html = '<p><strong>' + escapeHtml(data.priest.title + ' ' + data.priest.full_name) + '</strong></p><h4>Upcoming Appointments</h4>';
-            if (!data.appointments.length && offset === 0) html += '<p class="text-muted">No upcoming appointments scheduled for this priest.</p>';
-            html += data.appointments.map(function (item) {
-              return '<div class="priest-schedule-item"><strong>' + formatScheduleDate(item.appointment_date) + '</strong><span>' + formatScheduleTime(item.appointment_time) + '</span><span>' + escapeHtml(item.service_name) + '</span></div>';
-            }).join('');
+            var html = '<div class="priest-schedule-identity"><strong>' + escapeHtml(data.priest.full_name) + '</strong><span>' + escapeHtml(data.priest.title || 'Priest') + '</span></div><h4 class="priest-schedule-heading">Upcoming Appointments' + (data.appointments.length ? ' (' + data.appointments.length + ')' : '') + '</h4>';
+            if (!data.appointments.length && offset === 0) html += '<div class="priest-schedule-empty"><strong>No upcoming appointments</strong><span>This priest currently has no upcoming appointments scheduled.</span></div>';
+            html += renderScheduleAppointments(data.appointments);
             if (data.has_more) html += '<button type="button" class="btn btn-outline btn-block js-load-more-priest-schedule">Load More</button>';
             body.innerHTML = html;
             body.dataset.priestId = priestId;
@@ -153,9 +151,9 @@
           if (!data.success) throw new Error(data.message || 'Unable to load more appointments.');
           if (oldButton) oldButton.remove();
           data.appointments.forEach(function (item) {
-            var row = document.createElement('div'); row.className = 'priest-schedule-item';
-            row.innerHTML = '<strong>' + formatScheduleDate(item.appointment_date) + '</strong><span>' + formatScheduleTime(item.appointment_time) + '</span><span>' + escapeHtml(item.service_name) + '</span>';
-            body.appendChild(row);
+            var wrapper = document.createElement('div');
+            wrapper.innerHTML = renderScheduleAppointments([item]);
+            while (wrapper.firstChild) body.appendChild(wrapper.firstChild);
           });
           body.dataset.offset = String(Number(body.dataset.offset || '0') + data.appointments.length);
           if (data.has_more) { var more = document.createElement('button'); more.type = 'button'; more.className = 'btn btn-outline btn-block js-load-more-priest-schedule'; more.textContent = 'Load More'; body.appendChild(more); }
@@ -164,6 +162,7 @@
     }
 
     function escapeHtml(value) { return String(value).replace(/[&<>"']/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]); }); }
+    function renderScheduleAppointments(items) { return items.map(function (item) { return '<div class="priest-schedule-item"><div class="priest-schedule-date">' + formatScheduleDate(item.appointment_date) + '</div><div class="priest-schedule-time">' + formatScheduleTime(item.appointment_time) + '</div><div class="priest-schedule-service">' + escapeHtml(item.service_name) + '</div></div>'; }).join(''); }
     function formatScheduleDate(value) { var parts = String(value).split('-'); return parts.length === 3 ? new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).toLocaleDateString(undefined, { year:'numeric', month:'long', day:'numeric' }) : escapeHtml(value); }
     function formatScheduleTime(value) { var parts = String(value).split(':'); if (parts.length < 2) return escapeHtml(value); var h = Number(parts[0]); var m = parts[1]; return String((h + 11) % 12 + 1) + ':' + m + ' ' + (h >= 12 ? 'PM' : 'AM'); }
 
