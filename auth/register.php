@@ -11,10 +11,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
     $confirm = $_POST['confirm_password'] ?? '';
-    $phone = trim($_POST['phone'] ?? '') ?: null;
-    $address = trim($_POST['address'] ?? '') ?: null;
-    $birthdate = $_POST['birthdate'] ?: null;
-    $gender = $_POST['gender'] ?: null;
+    $phone = trim($_POST['phone'] ?? '');
+    $address = trim($_POST['address'] ?? '');
+    $birthdate = trim($_POST['birthdate'] ?? '');
+    $gender = trim($_POST['gender'] ?? '');
 
     // Preserved across every validation-failure redirect below so the person
     // never has to retype the form (password fields are deliberately left
@@ -26,17 +26,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash('error', 'Please enter your last name and first name.');
         redirect(url('auth/register.php'));
     }
+    if ($email === '') {
+        keepOldInput($oldInputToKeep);
+        flash('error', 'Please enter your email address.');
+        redirect(url('auth/register.php'));
+    }
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         keepOldInput($oldInputToKeep);
         flash('error', 'Invalid email address format.');
         redirect(url('auth/register.php'));
     }
-    if ($phone && !preg_match('/^09[0-9]{9}$/', $phone)) {
+    if ($password === '') {
         keepOldInput($oldInputToKeep);
-        flash('error', 'Phone number must be exactly 11 digits starting with 09.');
+        flash('error', 'Please enter a password.');
         redirect(url('auth/register.php'));
     }
-
     if ($password !== $confirm) {
         keepOldInput($oldInputToKeep);
         flash('error', 'Passwords do not match. Please re-enter them.');
@@ -45,6 +49,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (strlen($password) < 8) {
         keepOldInput($oldInputToKeep);
         flash('error', 'Password must be at least 8 characters.');
+        redirect(url('auth/register.php'));
+    }
+    if ($phone === '') {
+        keepOldInput($oldInputToKeep);
+        flash('error', 'Please enter your phone number.');
+        redirect(url('auth/register.php'));
+    }
+    if (!preg_match('/^09[0-9]{9}$/', $phone)) {
+        keepOldInput($oldInputToKeep);
+        flash('error', 'Phone number must be exactly 11 digits starting with 09.');
+        redirect(url('auth/register.php'));
+    }
+    if ($birthdate === '') {
+        keepOldInput($oldInputToKeep);
+        flash('error', 'Please enter your birthdate.');
+        redirect(url('auth/register.php'));
+    }
+    if ($gender === '') {
+        keepOldInput($oldInputToKeep);
+        flash('error', 'Please select your gender.');
+        redirect(url('auth/register.php'));
+    }
+    if ($address === '') {
+        keepOldInput($oldInputToKeep);
+        flash('error', 'Please enter your address.');
         redirect(url('auth/register.php'));
     }
 
@@ -184,14 +213,14 @@ include __DIR__ . '/../includes/header.php';
             <label>Phone Number</label>
             <div class="input-wrap">
               <span class="input-icon"><i data-lucide="smartphone"></i></span>
-              <input type="tel" name="phone" value="<?= oldInput('phone') ?>" pattern="09[0-9]{9}" maxlength="11" minlength="11" placeholder="09XXXXXXXXX" title="Must be exactly 11 digits starting with 09">
+              <input type="tel" name="phone" value="<?= oldInput('phone') ?>" pattern="09[0-9]{9}" maxlength="11" minlength="11" placeholder="09XXXXXXXXX" title="Must be exactly 11 digits starting with 09" required>
             </div>
           </div>
           <div class="form-group">
             <label>Birthdate</label>
             <div class="input-wrap">
               <span class="input-icon"><i data-lucide="calendar-heart"></i></span>
-              <input type="date" name="birthdate" value="<?= oldInput('birthdate') ?>" max="<?= date('Y-m-d') ?>">
+              <input type="date" name="birthdate" value="<?= oldInput('birthdate') ?>" max="<?= date('Y-m-d') ?>" required>
             </div>
           </div>
         </div>
@@ -199,7 +228,7 @@ include __DIR__ . '/../includes/header.php';
         <div class="form-group">
           <label>Gender</label>
           <?php $__oldGender = oldInput('gender'); ?>
-          <select name="gender">
+          <select name="gender" required>
             <option value="">Select</option>
             <option <?= $__oldGender === 'Male' ? 'selected' : '' ?>>Male</option>
             <option <?= $__oldGender === 'Female' ? 'selected' : '' ?>>Female</option>
@@ -211,7 +240,7 @@ include __DIR__ . '/../includes/header.php';
           <label>Address</label>
           <div class="input-wrap">
             <span class="input-icon"><i data-lucide="map-pin"></i></span>
-            <input type="text" name="address" value="<?= oldInput('address') ?>">
+            <input type="text" name="address" value="<?= oldInput('address') ?>" required>
           </div>
         </div>
 
@@ -241,8 +270,12 @@ function parishToggle(id, btn) {
     ['[name="email"]', 'your email address'],
     ['[name="password"]', 'a password'],
     ['[name="confirm_password"]', 'your password again'],
+    ['[name="phone"]', 'your phone number'],
+    ['[name="birthdate"]', 'your birthdate'],
+    ['[name="gender"]', 'your gender'],
+    ['[name="address"]', 'your address'],
   ];
-  clearFieldErrorOnInput(form, required.map(function (f) { return f[0]; }).concat(['[name="phone"]']));
+  clearFieldErrorOnInput(form, required.map(function (f) { return f[0]; }));
 
   form.addEventListener('submit', function (e) {
     var firstInvalid = validateRequiredFields(form, required);
