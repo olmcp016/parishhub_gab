@@ -43,7 +43,7 @@ include __DIR__ . '/../includes/dash-start.php';
   <div class="card-header"><h3>Recent Payments</h3></div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Parishioner</th><th>Service</th><th>Amount</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>Parishioner</th><th>Service</th><th>Amount</th><th>Status</th><th>View</th></tr></thead>
       <tbody>
         <?php foreach ($recent as $p): ?>
           <tr>
@@ -51,7 +51,9 @@ include __DIR__ . '/../includes/dash-start.php';
             <td><?= e($p['service_name']) ?></td>
             <td><?= money($p['amount']) ?></td>
             <td><span class="badge badge-<?= e($p['payment_status']) ?>"><?= e($p['payment_status']) ?></span></td>
-            <td><a href="<?= url('treasurer/payment-detail.php?id=' . $p['payment_id']) ?>" class="btn btn-outline btn-sm">View</a></td>
+            <td><a href="<?= url('treasurer/payment-detail.php?id=' . $p['payment_id']) ?>"
+              data-url="<?= url('treasurer/payment-detail.php?id=' . $p['payment_id']) ?>"
+              data-title="Payment Details" class="btn btn-outline btn-sm js-view-modal">View</a></td>
           </tr>
         <?php endforeach; ?>
       </tbody>
@@ -59,5 +61,6 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
 </div>
 
+<?php include __DIR__ . '/../includes/detail-modal.php'; ?>
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
