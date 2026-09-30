@@ -5,6 +5,7 @@ requireRole('Treasurer', 'Admin');
 
 $id = (int) ($_GET['id'] ?? 0);
 $userId = currentUser()['user_id'];
+$isModalRequest = isDetailModalRequest();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'verify') {
     verifyCsrf();
@@ -12,8 +13,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'verif
     $result = verifyPaymentAndIssueReceipt($id, $userId, $referenceNumber);
     if ($result['ok']) {
         logActivity($userId, "Verified payment #$id, issued receipt {$result['receipt_number']}", 'Payments');
+        if ($isModalRequest) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true, 'message' => $result['message']]);
+            exit;
+        }
         flash('success', $result['message']);
     } else {
+        if ($isModalRequest) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => $result['message']]);
+            exit;
+        }
         flash('error', $result['message']);
     }
     redirect(url('treasurer/payment-detail.php?id=' . $id));
@@ -47,8 +58,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
         db()->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Payment Confirmed', ?)")
             ->execute([$puid, "Your payment for appointment #$apptId has been confirmed. Thank you!"]);
         logActivity($userId, "Confirmed payment for appointment #$apptId", 'Payments');
+        if ($isModalRequest) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true, 'message' => 'Payment confirmed.']);
+            exit;
+        }
         flash('success', 'Payment confirmed.');
     } else {
+        if ($isModalRequest) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => 'This payment cannot be confirmed right now.']);
+            exit;
+        }
         flash('error', 'This payment cannot be confirmed right now.');
     }
     redirect(url('treasurer/payment-detail.php?id=' . $id));
@@ -93,8 +114,7 @@ if ($payment['category'] === 'Mass Intention') {
     $donation = $stmt->fetch() ?: null;
 }
 
-$isModal = isDetailModalRequest();
-if (!$isModal) {
+if (!$isModalRequest) {
     $active = 'payments';
     $pageTitle = 'Payment #' . $payment['payment_id'];
     include __DIR__ . '/../includes/header.php';
@@ -171,18 +191,10 @@ if (!$isModal) {
   <p style="color:var(--text-muted,#555);">This action will be recorded and cannot easily be undone. Proceed?</p>
   <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
     <button type="button" class="btn btn-outline" onclick="document.getElementById('confirmPayModal').close()">Cancel</button>
-    <button type="button" class="btn btn-success" id="confirmPayProceed">Yes, Proceed</button>
+    <button type="button" class="btn btn-success" id="confirmPayProceed"
+      onclick="document.getElementById('confirmPayModal').close(); var paymentForm = document.getElementById('verifyForm') || document.getElementById('confirmForm'); if (paymentForm) paymentForm.requestSubmit();">Yes, Proceed</button>
   </div>
 </dialog>
-<script>
-document.getElementById('confirmPayProceed').addEventListener('click', function () {
-  document.getElementById('confirmPayModal').close();
-  var vf = document.getElementById('verifyForm');
-  var cf = document.getElementById('confirmForm');
-  if (vf) vf.submit();
-  else if (cf) cf.submit();
-});
-</script>
 
   <div class="card">
     <div class="card-header"><h3>Official Receipt</h3></div>
@@ -196,7 +208,7 @@ document.getElementById('confirmPayProceed').addEventListener('click', function 
   </div>
 </div>
 
-<?php if (!$isModal): ?>
+<?php if (!$isModalRequest): ?>
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
 <?php endif; ?>

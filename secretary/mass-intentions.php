@@ -167,7 +167,10 @@ include __DIR__ . '/../includes/dash-start.php';
               <td><span class="badge badge-<?= $miClass ?>"><?= e($miLabel) ?></span></td>
               <td>
                 <?php if ($isCashierViewer): ?>
-                  <a href="<?= url('treasurer/payment-detail.php?id=' . $row['payment_id']) ?>" class="btn btn-outline btn-sm"><?= in_array((int) $row['status_id'], [2, 4], true) ? 'Review Payment' : 'View Payment' ?></a>
+                  <a href="<?= url('treasurer/payment-detail.php?id=' . $row['payment_id']) ?>"
+                    data-url="<?= url('treasurer/payment-detail.php?id=' . $row['payment_id']) ?>"
+                    data-title="<?= e(in_array((int) $row['status_id'], [2, 4], true) ? 'Review Mass Intention Payment' : 'Payment Details') ?>"
+                    class="btn btn-outline btn-sm js-view-modal"><?= in_array((int) $row['status_id'], [2, 4], true) ? 'Review Payment' : 'View Payment' ?></a>
                 <?php else: ?>
                   <a href="<?= url('secretary/appointment-detail.php?id=' . $row['appointment_id']) ?>" class="btn btn-outline btn-sm js-view-modal" data-url="<?= url('secretary/appointment-detail.php?id=' . $row['appointment_id']) ?>" data-title="<?= e('Mass Intention — ' . formatDate($row['appointment_date']) . ' ' . date('g:i A', strtotime($row['appointment_time']))) ?>">View</a>
                 <?php endif; ?>
@@ -196,9 +199,7 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
 <?php endif; ?>
 
-<?php if (!$isCashierViewer): ?>
 <?php include __DIR__ . '/../includes/detail-modal.php'; ?>
-<?php endif; ?>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
