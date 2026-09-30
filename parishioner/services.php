@@ -247,7 +247,7 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
 
         <div id="intentionFields" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px; margin-bottom: 16px;">
           <h4 style="margin-top:0;">Mass Intention Details</h4>
-          <p class="helper-text" style="margin-top:-4px;">No documents needed. There is no fixed fee — you choose your offering, but payment is required to submit. Our Cashier confirms it, and only then is your intention approved.</p>
+          <p class="helper-text" style="margin-top:-4px;">No documents needed. You choose the offering amount. Online payments are verified through PayMongo; cash offerings remain pending until the Cashier confirms them.</p>
           <div class="form-group">
             <label>Intention Type</label>
             <select name="intention_type">
@@ -277,12 +277,15 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
             <input type="number" name="amount" id="offeringAmount" class="amount-no-spinner" min="0.01" step="0.01" placeholder="e.g. 500" inputmode="decimal">
           </div>
           <div class="form-group">
-            <label>Payment Method</label>
-            <div style="display:flex; gap:10px; flex-wrap:wrap;">
-              <label class="choice-card"><input type="radio" name="pay_mode" value="online" checked> Pay Online Now (GCash, Maya, or Card)</label>
-              <label class="choice-card"><input type="radio" name="pay_mode" value="cash"> Cash (Pay at Parish Office)</label>
-            </div>
-            <p class="helper-text">Online payments are completed securely after submission. Cash payments remain pending until confirmed by the Cashier.</p>
+            <label>How would you like to pay?</label>
+            <label class="radio-option" style="display:block; margin-bottom:8px;">
+              <input type="radio" name="pay_mode" value="online" checked>
+              <strong>Pay Online Now</strong> — Card, GCash, or Maya via PayMongo (instant, secure)
+            </label>
+            <label class="radio-option" style="display:block;">
+              <input type="radio" name="pay_mode" value="cash">
+              <strong>Pay Later / In Person</strong> — Cash at Parish Office
+            </label>
           </div>
         </div>
 
