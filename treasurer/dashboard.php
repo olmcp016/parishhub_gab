@@ -26,10 +26,10 @@ include __DIR__ . '/../includes/dash-start.php';
 ?>
 
 <div class="stat-grid">
-  <div class="stat-card"><div class="stat-label">Today's Revenue</div><div class="stat-value"><?= money((float)$daily) ?></div></div>
-  <div class="stat-card"><div class="stat-label">This Week</div><div class="stat-value"><?= money((float)$weekly) ?></div></div>
-  <div class="stat-card"><div class="stat-label">This Month</div><div class="stat-value"><?= money((float)$monthly) ?></div></div>
-  <div class="stat-card"><div class="stat-label">This Year</div><div class="stat-value"><?= money((float)$yearly) ?></div></div>
+  <div class="stat-card"><div class="stat-label">Today's Income</div><div class="stat-value"><?= money((float)$daily) ?></div></div>
+  <div class="stat-card"><div class="stat-label">This Week's Income</div><div class="stat-value"><?= money((float)$weekly) ?></div></div>
+  <div class="stat-card"><div class="stat-label">This Month's Income</div><div class="stat-value"><?= money((float)$monthly) ?></div></div>
+  <div class="stat-card"><div class="stat-label">This Year's Income</div><div class="stat-value"><?= money((float)$yearly) ?></div></div>
 </div>
 
 <div class="card">
