@@ -48,8 +48,8 @@ if (!$donationServiceId) {
 }
 
 $purposes = ['Church Maintenance', 'Charity', 'Mass / Parish Activities', 'Other / Not Specified'];
-$manualMethods = [1 => 'Cash', 2 => 'GCash', 3 => 'Maya', 4 => 'Bank Transfer', 6 => 'PayPal'];
 const PAYMONGO_METHOD_ID = 7;
+const CASH_METHOD_ID = 1;
 
 $donorName = trim($_POST['donor_name'] ?? '') ?: null;
 $donorEmail = trim($_POST['donor_email'] ?? '') ?: null;
@@ -59,15 +59,11 @@ $purpose = in_array($_POST['purpose'] ?? '', $purposes, true) ? $_POST['purpose'
 $message = trim($_POST['message'] ?? '') ?: null;
 $projectId = (int) ($_POST['project_id'] ?? 0) ?: null;
 $payOnline = ($_POST['pay_online'] ?? '') === '1';
-$methodId = $payOnline ? PAYMONGO_METHOD_ID : (int) ($_POST['method_id'] ?? 0);
+$methodId = $payOnline ? PAYMONGO_METHOD_ID : CASH_METHOD_ID;
 
 if ($amount <= 0) {
     donateRespondError($isAjax, 'Please enter a valid donation amount.');
 }
-if (!$payOnline && !isset($manualMethods[$methodId])) {
-    donateRespondError($isAjax, 'Please choose a payment method.');
-}
-
 $pdo = db();
 $pdo->beginTransaction();
 try {

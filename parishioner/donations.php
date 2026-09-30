@@ -262,20 +262,8 @@ include __DIR__ . '/../includes/' . ($isGuest ? 'public-shell-start.php' : 'dash
           </label>
           <label class="radio-option" style="display:block;">
             <input type="radio" name="pay_online" value="0" id="payLaterRadio">
-            Pay Later / In Person — mark as pending, our cashier verifies it
+            <strong>Pay Later / In Person</strong> — Cash at Parish Office
           </label>
-        </div>
-
-        <div class="form-group" id="manualMethodGroup" style="display:none;">
-          <label>Payment Method</label>
-          <div class="radio-group">
-            <?php foreach (['1' => 'Cash', '2' => 'GCash', '3' => 'Maya', '4' => 'Bank Transfer', '6' => 'PayPal'] as $id => $label): ?>
-              <label class="radio-option">
-                <input type="radio" name="method_id" value="<?= $id ?>">
-                <?= e($label) ?>
-              </label>
-            <?php endforeach; ?>
-          </div>
         </div>
 
         <div class="form-group">
@@ -325,7 +313,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
   var payOnlineRadio = document.getElementById('payOnlineRadio');
   var payLaterRadio = document.getElementById('payLaterRadio');
-  var manualGroup = document.getElementById('manualMethodGroup');
   var submitBtn = document.getElementById('donateSubmitBtn');
   var submitHint = document.getElementById('donateSubmitHint');
 
@@ -342,8 +329,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function toggleMethodUI() {
     var online = payOnlineRadio.checked;
-    manualGroup.style.display = online ? 'none' : 'block';
-    document.querySelectorAll('#manualMethodGroup input[name="method_id"]').forEach(function (el) { el.required = !online; });
     submitBtn.textContent = online ? 'Continue to Payment' : 'Donate Now';
     submitHint.textContent = online
       ? "You'll be taken to PayMongo's secure payment page to complete your donation."
