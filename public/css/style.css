@@ -463,7 +463,7 @@ tbody tr:hover { background: #faf8f0; }
   color: var(--gold-light); font-family: var(--font-heading); font-weight: 700; font-size: 16px;
   flex-shrink: 0; overflow: hidden;
 }
-.public-nav .links { display: flex; gap: 6px; align-items: center; }
+.public-nav .links { display: flex; gap: 6px; align-items: center; margin-left: auto; }
 .public-nav .links a:not(.btn) { color: var(--brown-light); font-size: 13px; font-weight: 600; padding: 8px 16px; border-radius: 8px; transition: 0.2s var(--ease); }
 .public-nav .links a:not(.btn):hover { color: var(--brown-dark); background: rgba(201, 168, 76, 0.1); }
 .public-nav .links .nav-logout-btn {
@@ -1043,9 +1043,10 @@ tbody tr:hover { background: #faf8f0; }
   .stats-bar .stat-item { border-right: none; padding: 0 20px; }
 }
 
-@media (max-width: 700px) {
-  .public-nav-toggle { display:block; }
-  .public-nav .links { display:none; position:absolute; top:72px; left:0; right:0; padding:12px 5%; background:var(--cream); border-bottom:1px solid var(--border); box-shadow:var(--shadow-sm); flex-direction:column; align-items:stretch; gap:4px; }
+@media (max-width: 900px) {
+  .public-nav { justify-content:flex-start; }
+  .public-nav-toggle { display:block; margin-left:auto; }
+  .public-nav .links { display:none; position:absolute; top:72px; left:0; right:0; margin-left:0; padding:12px 5%; background:var(--cream); border-bottom:1px solid var(--border); box-shadow:var(--shadow-sm); flex-direction:column; align-items:stretch; gap:4px; }
   .public-nav.is-open .links { display:flex; }
   .public-nav .links a:not(.btn), .public-nav .links .nav-logout-btn { display:block; width:100%; text-align:left; }
   .public-nav .links .btn { text-align:center; }
