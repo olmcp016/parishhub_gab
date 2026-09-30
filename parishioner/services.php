@@ -278,10 +278,11 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
           </div>
           <div class="form-group">
             <label>Payment Method</label>
-            <input type="hidden" name="pay_mode" value="online" id="payModeOnline">
-            <div class="alert" style="background: var(--cream); color: var(--brown-mid); border: 1px solid var(--cream-dark); font-size: 13.5px; margin-top: 4px;">
-              <strong>Pay Online Now</strong> via PayMongo (GCash, Maya, or Card). Once our Cashier confirms your payment, your Mass Intention is approved.
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <label class="choice-card"><input type="radio" name="pay_mode" value="online" checked> Pay Online Now (GCash, Maya, or Card)</label>
+              <label class="choice-card"><input type="radio" name="pay_mode" value="cash"> Cash (Pay at Parish Office)</label>
             </div>
+            <p class="helper-text">Online payments are completed securely after submission. Cash payments remain pending until confirmed by the Cashier.</p>
           </div>
         </div>
 
@@ -391,7 +392,6 @@ function toggleServiceUI() {
   document.getElementById('offererNameInput').required = isMassIntention;
   document.getElementById('intentionForInput').required = isMassIntention;
   document.getElementById('massTimeSelect').required = isMassIntention;
-  document.getElementById('manualReference').required = isMassIntention && document.getElementById('payModeManual').checked;
   updatePayModeUI();
   document.getElementById('dateOfDeathGroup').style.display = category === 'Funeral' ? 'block' : 'none';
   document.getElementById('dateOfDeathInput').required = (category === 'Funeral');

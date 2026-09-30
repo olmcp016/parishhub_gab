@@ -106,6 +106,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         logActivity($userId, "Assigned priest to appointment #$id", 'Appointments');
         respondAjaxOrRedirect($isAjax, true, 'Priest assigned.', $redirectUrl);
     } elseif ($action === 'reschedule') {
+        $massCheck = db()->prepare('SELECT s.category FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_id = ?');
+        $massCheck->execute([$id]);
+        if ($massCheck->fetchColumn() === 'Mass Intention') {
+            respondAjaxOrRedirect($isAjax, false, 'Mass Intentions are tied to scheduled Masses and cannot be rescheduled.', $redirectUrl);
+        }
         $newDate = $_POST['appointment_date'];
         $newTime = $_POST['appointment_time'];
 

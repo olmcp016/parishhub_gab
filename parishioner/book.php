@@ -105,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // of the three official Mass times — checked by validateBooking()
         // below — and a Mass Intention can NEVER be saved without a real
         // payment: the amount, payment choice, and (for manual payments) the
-        // payment reference are all required up front, and the appointment,
+        // payment choice is required up front, and the appointment,
         // intention, and payment record are created together in one transaction.
         $priestId = null;
         $paymentRequiredMsg = 'Payment is required before submitting a Mass Intention. Please enter a valid amount.';
@@ -127,12 +127,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $payMode = $_POST['pay_mode'] ?? '';
         if ($payMode === 'online') {
             $payOnline = true;
-        } elseif ($payMode === 'manual') {
-            $manualMethodId = (int) ($_POST['method_id'] ?? 0);
-            $manualReference = trim($_POST['payment_reference'] ?? '');
-            if (!in_array($manualMethodId, [2, 3, 4], true) || strlen($manualReference) < 4) {
-                bookRespondError($isAjax, 'Please choose GCash, Maya, or Bank Transfer and enter the payment reference number of your completed payment.', url('parishioner/services.php'));
-            }
+        } elseif ($payMode === 'cash') {
+            // Cash is recorded as pending and confirmed by the Cashier at the parish office.
+            $manualMethodId = 1;
         } else {
             bookRespondError($isAjax, $paymentRequiredMsg, url('parishioner/services.php'));
         }
@@ -221,6 +218,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$result['valid']) {
                 $label = $upload['label'] ? ('"' . $upload['label'] . '": ') : '';
                 bookRespondError($isAjax, $label . documentValidationMessage($result['reason']), url('parishioner/services.php'));
+            }
+        }
+
+        // Guests must provide every service-required document before a booking
+        // can be submitted. Registered parishioners may correct documents
+        // during the secretary review workflow from the appointment page.
+        if ($isGuest && $requirementsList) {
+            $uploadedLabels = array_unique(array_filter(array_map(
+                fn($upload) => $upload['label'], $pendingUploads
+            )));
+            $missing = array_values(array_diff($requirementsList, $uploadedLabels));
+            if ($missing) {
+                bookRespondError($isAjax, 'Please upload all required documents: ' . implode(', ', $missing) . '.', url('parishioner/services.php'));
             }
         }
     }
