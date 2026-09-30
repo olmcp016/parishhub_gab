@@ -16,3 +16,9 @@ putenv('DB_PASS=ask-your-collaborator-for-this');
 putenv('BREVO_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
 putenv('BREVO_SENDER_EMAIL=your-verified-sender@example.com');
 putenv('BREVO_SENDER_NAME=PARISHHUB');
+
+// PayMongo hosted Checkout. Use a test secret key for local/test mode and
+// keep this file uncommitted. The key is read server-side only by
+// includes/paymongo.php; never place it in HTML or JavaScript.
+putenv('PAYMONGO_SECRET_KEY=sk_test_replace_me');
+putenv('PAYMONGO_WEBHOOK_SECRET=whsk_test_replace_me');
