@@ -97,6 +97,9 @@ function renderNavSection(string $slug, string $title, array $items, string $act
       <?php renderNavSection('financial-reports', 'Financial Reports', [
         [url('treasurer/reports.php'), 'reports', 'bar-chart-3', 'Financial Reports'],
       ], $__active); ?>
+      <?php renderNavSection('system', 'System', [
+        [url('treasurer/settings.php'), 'settings', 'settings', 'Settings'],
+      ], $__active); ?>
     <?php elseif ($__user['role_name'] === 'Admin'): ?>
       <?php renderNavSection('overview', 'Overview', [
         [url('admin/dashboard.php'), 'dashboard', 'layout-dashboard', 'Dashboard'],
