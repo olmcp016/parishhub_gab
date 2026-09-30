@@ -38,6 +38,9 @@ include __DIR__ . '/../includes/dash-start.php';
 ?>
 
 <div style="display:grid; grid-template-columns: auto 1fr; gap: 22px; align-items:start;" class="calendar-layout">
+  <?php if (!$priestId): ?>
+    <div class="alert" style="grid-column:1/-1;background:var(--danger-bg);color:var(--danger);border:1px solid #f5c2c2;">Your Priest Portal account is not linked to a priest profile. Please contact the parish office.</div>
+  <?php endif; ?>
   <div>
     <div id="parishCalendar"></div>
     <div class="pcal-legend">

@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('error', 'The end time must be later than the start time.');
             redirect(url('secretary/priest-unavailability.php'));
         }
-        $exists = db()->prepare("SELECT 1 FROM priests WHERE priest_id = ? AND status != 'inactive'");
+        $exists = db()->prepare("SELECT 1 FROM priests WHERE priest_id = ? AND status = 'active'");
         $exists->execute([$priestId]);
         if (!$exists->fetchColumn()) {
             flash('error', 'Please choose a valid priest.');
@@ -91,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect(url('secretary/priest-unavailability.php'));
 }
 
-$priests = db()->query("SELECT * FROM priests WHERE status != 'inactive' ORDER BY full_name")->fetchAll();
+$priests = db()->query("SELECT * FROM priests WHERE status = 'active' ORDER BY full_name")->fetchAll();
 $rows = db()->query(
     "SELECT pu.*, p.title, p.full_name FROM priest_unavailability pu
      JOIN priests p ON pu.priest_id = p.priest_id

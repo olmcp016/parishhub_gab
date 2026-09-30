@@ -1213,3 +1213,9 @@ input.amount-no-spinner::-webkit-inner-spin-button {
 input.amount-no-spinner {
   -moz-appearance: textfield;
 }
+.priest-login-summary { display:flex; flex-direction:column; align-items:flex-start; gap:6px; min-width:170px; }
+.priest-login-summary > span:first-child { max-width:220px; overflow-wrap:anywhere; }
+@media (max-width: 760px) {
+  .priest-login-summary { min-width:135px; }
+  #createLoginModal, #manageLoginModal { width:min(94vw, 520px); }
+}

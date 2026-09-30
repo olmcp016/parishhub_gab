@@ -13,6 +13,7 @@ requireRole('Priest');
  */
 $today = date('Y-m-d');
 $view = ($_GET['view'] ?? 'current') === 'archive' ? 'archive' : 'current';
+$priestId = currentPriestId();
 
 $sql = "SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.status_id, a.guest_name,
                st.status_name, u.firstname, u.lastname,
@@ -23,20 +24,23 @@ $sql = "SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.statu
         JOIN parishioners par ON a.parishioner_id = par.parishioner_id
         JOIN users u ON par.user_id = u.user_id
         JOIN appointment_status st ON a.status_id = st.status_id
-        WHERE s.category = 'Mass Intention' AND a.status_id IN (5, 6)";
+        WHERE s.category = 'Mass Intention' AND a.status_id IN (5, 6) AND a.priest_id = ?";
 
 if ($view === 'current') {
     $sql .= " AND a.appointment_date >= ?";
-    $params = [$today];
+    $params = [$priestId, $today];
 } else {
     $sql .= " AND a.appointment_date < ?";
-    $params = [$today];
+    $params = [$priestId, $today];
 }
 $sql .= " ORDER BY a.appointment_date " . ($view === 'current' ? 'ASC' : 'DESC') . ", a.appointment_time ASC";
 
-$stmt = db()->prepare($sql);
-$stmt->execute($params);
-$intentions = $stmt->fetchAll();
+$intentions = [];
+if ($priestId) {
+    $stmt = db()->prepare($sql);
+    $stmt->execute($params);
+    $intentions = $stmt->fetchAll();
+}
 
 $active = 'mass-intentions';
 $pageTitle = 'Mass Intentions';
@@ -45,6 +49,9 @@ include __DIR__ . '/../includes/dash-start.php';
 ?>
 
 <div class="card">
+  <?php if (!$priestId): ?>
+    <div class="alert" style="background:var(--danger-bg);color:var(--danger);border:1px solid #f5c2c2;">Your Priest Portal account is not linked to a priest profile. Please contact the parish office.</div>
+  <?php else: ?>
   <div class="card-header">
     <h3>Mass Intentions</h3>
     <div class="flex gap-2">
@@ -75,6 +82,7 @@ include __DIR__ . '/../includes/dash-start.php';
         </tbody>
       </table>
     </div>
+  <?php endif; ?>
   <?php endif; ?>
 </div>
 

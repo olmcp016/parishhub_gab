@@ -57,7 +57,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         flash('success', 'Priest added.');
     } elseif ($action === 'status') {
-        db()->prepare('UPDATE priests SET status = ? WHERE priest_id = ?')->execute([$_POST['status'], $_POST['priest_id']]);
+        $status = $_POST['status'] ?? '';
+        if (!in_array($status, ['active', 'on_leave', 'inactive'], true)) {
+            flash('error', 'Invalid priest status.');
+            redirect(url('admin/priests.php'));
+        }
+        db()->prepare('UPDATE priests SET status = ? WHERE priest_id = ?')->execute([$status, (int) $_POST['priest_id']]);
         flash('success', 'Priest status updated.');
     } elseif ($action === 'delete') {
         $priestId = (int) ($_POST['priest_id'] ?? 0);
@@ -67,13 +72,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($stmt->fetchColumn() > 0) {
             flash('error', 'Cannot remove priest: they are assigned to active or upcoming appointments.');
         } else {
-            // Unlink any user account first
-            $stmt = db()->prepare("SELECT user_id FROM priests WHERE priest_id = ?");
-            $stmt->execute([$priestId]);
-            $uid = $stmt->fetchColumn();
-            db()->prepare("DELETE FROM priests WHERE priest_id = ?")->execute([$priestId]);
-            if ($uid) {
-                db()->prepare("DELETE FROM users WHERE user_id = ?")->execute([$uid]);
+            $pdo = db();
+            $pdo->beginTransaction();
+            try {
+                $stmt = $pdo->prepare("SELECT user_id FROM priests WHERE priest_id = ? FOR UPDATE");
+                $stmt->execute([$priestId]);
+                $uid = $stmt->fetchColumn();
+                if ($uid === false) throw new RuntimeException('Priest not found.');
+                $pdo->prepare("DELETE FROM priests WHERE priest_id = ?")->execute([$priestId]);
+                if ($uid) $pdo->prepare("DELETE FROM users WHERE user_id = ?")->execute([$uid]);
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                error_log($e->getMessage());
+                flash('error', 'Could not remove the priest. Please try again.');
+                redirect(url('admin/priests.php'));
             }
             logActivity(currentUser()['user_id'], "Removed priest #$priestId", 'Priests');
             flash('success', 'Priest removed.');
@@ -87,34 +100,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $priestId = (int) ($_POST['priest_id'] ?? 0);
         $email = trim($_POST['login_email'] ?? '');
 
-        $stmt = db()->prepare('SELECT * FROM priests WHERE priest_id = ?');
+        $pdo = db();
+        $pdo->beginTransaction();
+        $stmt = $pdo->prepare('SELECT * FROM priests WHERE priest_id = ? FOR UPDATE');
         $stmt->execute([$priestId]);
         $priest = $stmt->fetch();
         if (!$priest) {
+            $pdo->rollBack();
             flash('error', 'Priest not found.');
             redirect(url('admin/priests.php'));
         }
         if (!empty($priest['user_id'])) {
+            $pdo->rollBack();
             flash('error', 'This priest already has a login.');
             redirect(url('admin/priests.php'));
         }
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $pdo->rollBack();
             flash('error', 'Please enter a valid email address for the login.');
             redirect(url('admin/priests.php'));
         }
-        $stmt = db()->prepare('SELECT user_id FROM users WHERE email = ?');
+        $stmt = $pdo->prepare('SELECT user_id FROM users WHERE email = ?');
         $stmt->execute([$email]);
         if ($stmt->fetch()) {
+            $pdo->rollBack();
             flash('error', "An account with $email already exists — use a different email, or that user may already be linked elsewhere.");
             redirect(url('admin/priests.php'));
         }
 
-        $priestRoleId = (int) db()->query("SELECT role_id FROM roles WHERE role_name = 'Priest'")->fetchColumn();
+        $priestRoleId = (int) $pdo->query("SELECT role_id FROM roles WHERE role_name = 'Priest'")->fetchColumn();
         $tempPassword = bin2hex(random_bytes(5)); // 10-char random, shown once below
         $hash = password_hash($tempPassword, PASSWORD_BCRYPT);
 
-        $pdo = db();
-        $pdo->beginTransaction();
         try {
             $stmt = $pdo->prepare(
                 "INSERT INTO users (role_id, firstname, lastname, email, password, phone, status) VALUES (?, ?, '', ?, ?, ?, 'active')"
@@ -122,7 +139,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$priestRoleId, trim($priest['title'] . ' ' . $priest['full_name']), $email, $hash, $priest['contact_number']]);
             $newUserId = (int) $pdo->lastInsertId();
 
-            $pdo->prepare('UPDATE priests SET user_id = ?, email = ? WHERE priest_id = ?')->execute([$newUserId, $email, $priestId]);
+            $link = $pdo->prepare('UPDATE priests SET user_id = ?, email = ? WHERE priest_id = ? AND user_id IS NULL');
+            $link->execute([$newUserId, $email, $priestId]);
+            if ($link->rowCount() !== 1) throw new RuntimeException('Priest login link changed concurrently.');
             $pdo->commit();
         } catch (Throwable $e) {
             $pdo->rollBack();
@@ -133,11 +152,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         logActivity(currentUser()['user_id'], "Created a Priest login for {$priest['title']} {$priest['full_name']} ($email)", 'Priests');
         flash('success', "Login created for {$priest['title']} {$priest['full_name']}. Email: $email — Temporary password: $tempPassword (please relay this to the priest securely; it will not be shown again).");
+    } elseif ($action === 'manage_login') {
+        $priestId = (int) ($_POST['priest_id'] ?? 0);
+        $operation = $_POST['login_operation'] ?? '';
+        if (!in_array($operation, ['activate', 'deactivate', 'reset'], true)) {
+            flash('error', 'Invalid portal login action.');
+            redirect(url('admin/priests.php'));
+        }
+        $stmt = db()->prepare('SELECT p.title, p.full_name, p.user_id, u.email, u.status AS user_status FROM priests p LEFT JOIN users u ON u.user_id = p.user_id WHERE p.priest_id = ?');
+        $stmt->execute([$priestId]);
+        $account = $stmt->fetch();
+        if (!$account || empty($account['user_id'])) {
+            flash('error', 'This priest does not have a linked portal account.');
+            redirect(url('admin/priests.php'));
+        }
+        if ($operation === 'activate' || $operation === 'deactivate') {
+            $newStatus = $operation === 'activate' ? 'active' : 'inactive';
+            db()->prepare('UPDATE users SET status = ? WHERE user_id = ?')->execute([$newStatus, (int) $account['user_id']]);
+            logActivity(currentUser()['user_id'], ucfirst($operation) . "d Priest portal access for {$account['title']} {$account['full_name']}", 'Priests');
+            flash('success', $operation === 'activate' ? 'Priest portal access reactivated.' : 'Priest portal access deactivated.');
+        } else {
+            $tempPassword = bin2hex(random_bytes(5));
+            db()->prepare('UPDATE users SET password = ?, status = \'active\' WHERE user_id = ?')->execute([password_hash($tempPassword, PASSWORD_BCRYPT), (int) $account['user_id']]);
+            logActivity(currentUser()['user_id'], "Reset Priest portal access for {$account['title']} {$account['full_name']}", 'Priests');
+            flash('success', "Portal access reset for {$account['title']} {$account['full_name']}. Temporary password: $tempPassword (please relay this securely; it will not be shown again).");
+        }
     }
     redirect(url('admin/priests.php'));
 }
 
-$priests = db()->query('SELECT * FROM priests ORDER BY full_name')->fetchAll();
+$priests = db()->query('SELECT p.*, u.email AS login_email, u.status AS login_status FROM priests p LEFT JOIN users u ON u.user_id = p.user_id ORDER BY p.full_name')->fetchAll();
 
 $active = 'priests';
 $pageTitle = 'Manage Priests';
@@ -152,7 +196,7 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Name</th><th>Contact</th><th>Status</th><th>Portal Login</th><th></th></tr></thead>
+      <thead><tr><th>Name</th><th>Contact</th><th>Status</th><th>Portal Login</th><th>Actions</th></tr></thead>
       <tbody id="priestsTableBody">
         <?php foreach ($priests as $p): ?>
           <tr>
@@ -172,15 +216,13 @@ include __DIR__ . '/../includes/dash-start.php';
             </td>
             <td>
               <?php if (!empty($p['user_id'])): ?>
-                <span class="badge badge-verified">Has Login</span>
+                <div class="priest-login-summary">
+                  <span><?= e($p['login_email'] ?? 'Account unavailable') ?></span>
+                  <span class="badge <?= ($p['login_status'] ?? '') === 'active' ? 'badge-verified' : 'badge-cancelled' ?>"><?= e(ucfirst($p['login_status'] ?? 'Unknown')) ?></span>
+                  <button type="button" class="btn btn-outline btn-sm js-manage-login" data-priest-id="<?= (int) $p['priest_id'] ?>" data-priest-name="<?= e(trim(($p['title'] ?? '') . ' ' . ($p['full_name'] ?? ''))) ?>" data-login-email="<?= e($p['login_email'] ?? '') ?>" data-login-status="<?= e($p['login_status'] ?? '') ?>">Manage Login</button>
+                </div>
               <?php else: ?>
-                <form method="POST" action="<?= url('admin/priests.php') ?>" class="flex gap-2" style="align-items:center;">
-                  <?= csrfField() ?>
-                  <input type="hidden" name="action" value="create_login">
-                  <input type="hidden" name="priest_id" value="<?= $p['priest_id'] ?>">
-                  <input type="email" name="login_email" value="<?= e($p['email'] ?? '') ?>" placeholder="priest@email.com" title="Email for login" required style="width:140px;">
-                  <button type="submit" class="btn btn-outline btn-sm">Create Login</button>
-                </form>
+                <div class="priest-login-summary"><span class="text-muted">Not Created</span><button type="button" class="btn btn-outline btn-sm js-create-login" data-priest-id="<?= (int) $p['priest_id'] ?>" data-priest-name="<?= e(trim(($p['title'] ?? '') . ' ' . ($p['full_name'] ?? ''))) ?>" data-priest-email="<?= e($p['email'] ?? '') ?>">Create Login</button></div>
               <?php endif; ?>
             </td>
             <td>
@@ -237,6 +279,32 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
 </dialog>
 
+<dialog class="modal" id="createLoginModal" aria-labelledby="createLoginTitle">
+  <div class="modal-head"><h3 id="createLoginTitle">Create Priest Portal Login</h3><button type="button" class="modal-close js-close-login-modal" aria-label="Close">✕</button></div>
+  <div class="modal-body">
+    <p><strong>Priest</strong><br><span id="createLoginPriestName"></span></p>
+    <form method="POST" action="<?= url('admin/priests.php') ?>" id="createLoginForm">
+      <?= csrfField() ?><input type="hidden" name="action" value="create_login"><input type="hidden" name="priest_id" id="createLoginPriestId">
+      <div class="form-group"><label for="createLoginEmail">Login Email</label><input type="email" name="login_email" id="createLoginEmail" required></div>
+      <p class="text-muted">This will create a Priest Portal account for this priest.</p>
+      <div class="flex gap-3" style="justify-content:flex-end;"><button type="button" class="btn btn-outline js-close-login-modal">Cancel</button><button type="submit" class="btn btn-primary" id="createLoginSubmit">Create Login</button></div>
+    </form>
+  </div>
+</dialog>
+
+<dialog class="modal" id="manageLoginModal" aria-labelledby="manageLoginTitle">
+  <div class="modal-head"><h3 id="manageLoginTitle">Manage Priest Login</h3><button type="button" class="modal-close js-close-login-modal" aria-label="Close">✕</button></div>
+  <div class="modal-body">
+    <p><strong>Priest</strong><br><span id="manageLoginPriestName"></span></p>
+    <p><strong>Portal Email</strong><br><span id="manageLoginEmail"></span></p>
+    <p><strong>Account Status</strong><br><span id="manageLoginStatus"></span></p>
+    <form method="POST" action="<?= url('admin/priests.php') ?>" id="manageLoginForm">
+      <?= csrfField() ?><input type="hidden" name="action" value="manage_login"><input type="hidden" name="priest_id" id="manageLoginPriestId"><input type="hidden" name="login_operation" id="manageLoginOperation">
+      <div class="flex gap-2" style="justify-content:flex-end; flex-wrap:wrap;"><button type="submit" class="btn btn-outline js-login-operation" data-operation="reset">Reset Access</button><button type="submit" class="btn btn-danger js-login-operation" data-operation="deactivate" id="manageLoginToggle">Deactivate Portal Access</button><button type="button" class="btn btn-outline js-close-login-modal">Close</button></div>
+    </form>
+  </div>
+</dialog>
+
 <script>
 var removePriestModal = document.getElementById('removePriestModal');
 var removePriestTrigger = null;
@@ -271,6 +339,49 @@ document.getElementById('removePriestForm').addEventListener('submit', function 
   if (submit.disabled) return;
   submit.disabled = true;
   submit.textContent = 'Removing...';
+});
+
+var createLoginModal = document.getElementById('createLoginModal');
+var manageLoginModal = document.getElementById('manageLoginModal');
+document.addEventListener('click', function (event) {
+  var create = event.target.closest('.js-create-login');
+  if (create) {
+    document.getElementById('createLoginPriestId').value = create.dataset.priestId || '';
+    document.getElementById('createLoginPriestName').textContent = create.dataset.priestName || '';
+    document.getElementById('createLoginEmail').value = create.dataset.priestEmail || '';
+    document.getElementById('createLoginSubmit').disabled = false;
+    createLoginModal.showModal();
+    document.getElementById('createLoginEmail').focus();
+    return;
+  }
+  var manage = event.target.closest('.js-manage-login');
+  if (manage) {
+    document.getElementById('manageLoginPriestId').value = manage.dataset.priestId || '';
+    document.getElementById('manageLoginPriestName').textContent = manage.dataset.priestName || '';
+    document.getElementById('manageLoginEmail').textContent = manage.dataset.loginEmail || '—';
+    var status = manage.dataset.loginStatus || 'unknown';
+    document.getElementById('manageLoginStatus').textContent = status.charAt(0).toUpperCase() + status.slice(1);
+    var toggle = document.getElementById('manageLoginToggle');
+    toggle.dataset.operation = status === 'active' ? 'deactivate' : 'activate';
+    toggle.textContent = status === 'active' ? 'Deactivate Portal Access' : 'Reactivate Portal Access';
+    toggle.className = status === 'active' ? 'btn btn-danger js-login-operation' : 'btn btn-primary js-login-operation';
+    manageLoginModal.showModal();
+  }
+});
+document.querySelectorAll('.js-close-login-modal').forEach(function (button) {
+  button.addEventListener('click', function () {
+    if (createLoginModal.open) createLoginModal.close();
+    if (manageLoginModal.open) manageLoginModal.close();
+  });
+});
+document.querySelectorAll('.js-login-operation').forEach(function (button) {
+  button.addEventListener('click', function () {
+    document.getElementById('manageLoginOperation').value = button.dataset.operation;
+  });
+});
+document.getElementById('createLoginForm').addEventListener('submit', function () {
+  document.getElementById('createLoginSubmit').disabled = true;
+  document.getElementById('createLoginSubmit').textContent = 'Creating...';
 });
 
 document.getElementById('addPriestForm').addEventListener('submit', function (e) {
@@ -323,17 +434,7 @@ document.getElementById('addPriestForm').addEventListener('submit', function (e)
         statusTd.appendChild(statusForm);
 
         var loginTd = document.createElement('td');
-        var loginForm = document.createElement('form');
-        loginForm.method = 'POST';
-        loginForm.action = '<?= url('admin/priests.php') ?>';
-        loginForm.className = 'flex gap-2';
-        loginForm.style.alignItems = 'center';
-        loginForm.innerHTML = <?= json_encode(csrfField()) ?>
-          + '<input type="hidden" name="action" value="create_login">'
-          + '<input type="hidden" name="priest_id" value="' + p.priest_id + '">'
-          + '<input type="email" name="login_email" value="' + (p.email || '') + '" placeholder="priest@email.com" required style="width:170px;">'
-          + '<button type="submit" class="btn btn-outline btn-sm">Create Login</button>';
-        loginTd.appendChild(loginForm);
+        loginTd.innerHTML = '<div class="priest-login-summary"><span class="text-muted">Not Created</span><button type="button" class="btn btn-outline btn-sm js-create-login" data-priest-id="' + p.priest_id + '" data-priest-name="' + p.title + ' ' + p.full_name + '" data-priest-email="' + (p.email || '') + '">Create Login</button></div>';
 
         tr.appendChild(nameTd);
         tr.appendChild(contactTd);

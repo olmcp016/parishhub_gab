@@ -427,8 +427,8 @@ function priestIsAvailable(int $priestId, string $date, string $time, ?int $excl
     if (!$priest) {
         return ['available' => false, 'reason' => 'Priest not found.'];
     }
-    if ($priest['status'] === 'inactive') {
-        return ['available' => false, 'reason' => $priest['title'] . ' ' . $priest['full_name'] . ' is no longer active at this parish.'];
+    if ($priest['status'] !== 'active') {
+        return ['available' => false, 'reason' => $priest['title'] . ' ' . $priest['full_name'] . ' is not currently available for new appointments.'];
     }
 
     $stmt = db()->prepare(
@@ -474,13 +474,13 @@ function priestIsAvailable(int $priestId, string $date, string $time, ?int $excl
 }
 
 /**
- * Every priest (active or on-leave — on-leave priests still show, disabled,
- * so the parishioner understands why) with an availability verdict for the
- * given date/time, for populating the booking modal's priest dropdown.
+ * Active priests with an availability verdict for the given date/time,
+ * for populating the booking modal's priest dropdown. On-leave and inactive
+ * priests remain attached to existing appointments but cannot receive new ones.
  */
 function availablePriestsFor(string $date, string $time, ?int $excludeAppointmentId = null): array
 {
-    $priests = db()->query("SELECT priest_id, title, full_name FROM priests WHERE status != 'inactive' ORDER BY full_name")->fetchAll();
+    $priests = db()->query("SELECT priest_id, title, full_name FROM priests WHERE status = 'active' ORDER BY full_name")->fetchAll();
     $result = [];
     foreach ($priests as $p) {
         $check = priestIsAvailable((int) $p['priest_id'], $date, $time, $excludeAppointmentId);
