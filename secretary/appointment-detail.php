@@ -70,9 +70,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         logActivity($userId, "Approved appointment #$id", 'Appointments');
         respondAjaxOrRedirect($isAjax, true, 'Appointment approved. The parishioner may now proceed to payment.', $redirectUrl);
     } elseif ($action === 'reject') {
-        $reason = trim($_POST['reason'] ?? '');
-        if ($reason === '') {
-            respondAjaxOrRedirect($isAjax, false, 'Please provide a reason for rejecting this appointment.', $redirectUrl);
+        $selectedReason = trim($_POST['rejection_reason'] ?? '');
+        $allowedReasons = ['Schedule Conflict', 'Incomplete Documents', 'Requirements Not Met', 'Other'];
+        if (!in_array($selectedReason, $allowedReasons, true)) {
+            respondAjaxOrRedirect($isAjax, false, 'Please select a valid reason for rejecting this appointment.', $redirectUrl);
+        }
+        $reason = $selectedReason;
+        if ($selectedReason === 'Other') {
+            $reason = trim($_POST['custom_rejection_reason'] ?? '');
+            if ($reason === '') {
+                respondAjaxOrRedirect($isAjax, false, 'Please specify the reason for rejecting this appointment.', $redirectUrl);
+            }
+            if (mb_strlen($reason) > 500) {
+                respondAjaxOrRedirect($isAjax, false, 'The custom rejection reason must be 500 characters or fewer.', $redirectUrl);
+            }
         }
 
         db()->prepare("UPDATE appointments SET status_id = 3, rejection_reason = ? WHERE appointment_id = ?")
@@ -351,10 +362,20 @@ if (!$isAjax) {
           <?= csrfField() ?>
           <input type="hidden" name="action" value="reject">
           <div class="form-group">
-            <label>Reason for Rejection</label>
-            <textarea name="reason" rows="2" placeholder="Explain why this request is being rejected..." required id="rejectReasonField"></textarea>
+            <label for="rejectionReasonSelect">Reason for Rejection</label>
+            <select name="rejection_reason" id="rejectionReasonSelect" required>
+              <option value="">Select a reason</option>
+              <option value="Schedule Conflict">Schedule Conflict</option>
+              <option value="Incomplete Documents">Incomplete Documents</option>
+              <option value="Requirements Not Met">Requirements Not Met</option>
+              <option value="Other">Other</option>
+            </select>
           </div>
-          <button type="button" class="btn btn-danger btn-block" onclick="if(!document.getElementById('rejectReasonField').checkValidity()){document.getElementById('rejectReasonField').reportValidity();return;} document.getElementById('rejectApptModal').showModal();">&#10006; Reject</button>
+          <div class="form-group" id="customRejectionReasonGroup" style="display:none;">
+            <label for="customRejectionReason">Please Specify Reason</label>
+            <textarea name="custom_rejection_reason" id="customRejectionReason" rows="3" maxlength="500" placeholder="Enter the reason for rejection..."></textarea>
+          </div>
+          <button type="button" class="btn btn-danger btn-block" id="openRejectConfirmBtn">&#10006; Reject</button>
         </form>
       <?php elseif ($appointment['status_name'] === 'Payment Verified' && in_array($appointment['category'], ['Mass Intention', 'Donation'], true)): ?>
         <p class="text-muted">This request is being finalized by the Cashier — no action needed here.</p>
@@ -506,11 +527,39 @@ if (!$isAjax) {
 <dialog id="rejectApptModal" style="max-width:400px;padding:24px;border-radius:8px;border:none;">
   <h3 style="margin-top:0;">Reject Appointment?</h3>
   <p style="color:var(--text-muted,#555);">Are you sure you want to reject this appointment?</p>
+  <p><strong>Reason:</strong> <span id="rejectConfirmReason"></span></p>
   <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
     <button type="button" class="btn btn-outline" onclick="document.getElementById('rejectApptModal').close()">Cancel</button>
     <button type="button" class="btn btn-danger" onclick="document.getElementById('rejectApptModal').close(); document.getElementById('rejectForm').submit();">Yes, Reject</button>
   </div>
 </dialog>
+
+<script>
+(function () {
+  var select = document.getElementById('rejectionReasonSelect');
+  var customGroup = document.getElementById('customRejectionReasonGroup');
+  var customField = document.getElementById('customRejectionReason');
+  var openButton = document.getElementById('openRejectConfirmBtn');
+  var confirmReason = document.getElementById('rejectConfirmReason');
+  var modal = document.getElementById('rejectApptModal');
+  if (!select || !openButton || !modal) return;
+  function updateReasonField() {
+    var isOther = select.value === 'Other';
+    customGroup.style.display = isOther ? '' : 'none';
+    customField.required = isOther;
+    if (!isOther) customField.value = '';
+  }
+  select.addEventListener('change', updateReasonField);
+  updateReasonField();
+  openButton.addEventListener('click', function () {
+    updateReasonField();
+    if (!select.value) { select.setCustomValidity('Please select a reason for rejection.'); select.reportValidity(); select.setCustomValidity(''); return; }
+    if (select.value === 'Other' && !customField.value.trim()) { customField.setCustomValidity('Please specify the reason for rejection.'); customField.reportValidity(); customField.setCustomValidity(''); return; }
+    confirmReason.textContent = select.value === 'Other' ? customField.value.trim() : select.value;
+    modal.showModal();
+  });
+})();
+</script>
 
 <?php if (!$isAjax): ?>
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>

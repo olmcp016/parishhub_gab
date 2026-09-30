@@ -103,11 +103,34 @@
         if (scheduleModal && scheduleModal.open) scheduleModal.close();
         return;
       }
+      if (e.target.closest('#openRejectConfirmBtn')) {
+        e.preventDefault();
+        var rejectSelect = document.getElementById('rejectionReasonSelect');
+        var customReason = document.getElementById('customRejectionReason');
+        var rejectModal = document.getElementById('rejectApptModal');
+        if (!rejectSelect || !rejectModal) return;
+        if (!rejectSelect.value) { rejectSelect.setCustomValidity('Please select a reason for rejection.'); rejectSelect.reportValidity(); rejectSelect.setCustomValidity(''); return; }
+        if (rejectSelect.value === 'Other' && !customReason.value.trim()) { customReason.setCustomValidity('Please specify the reason for rejection.'); customReason.reportValidity(); customReason.setCustomValidity(''); return; }
+        document.getElementById('rejectConfirmReason').textContent = rejectSelect.value === 'Other' ? customReason.value.trim() : rejectSelect.value;
+        rejectModal.showModal();
+        return;
+      }
       // A direct hit on the <dialog> element itself (not a descendant) is
       // a click on its own backdrop/padding area, i.e. "outside" the card.
       if (e.target === modal) {
         closeDetailModal();
       }
+    });
+
+    document.addEventListener('change', function (e) {
+      if (e.target.id !== 'rejectionReasonSelect') return;
+      var group = document.getElementById('customRejectionReasonGroup');
+      var field = document.getElementById('customRejectionReason');
+      if (!group || !field) return;
+      var isOther = e.target.value === 'Other';
+      group.style.display = isOther ? '' : 'none';
+      field.required = isOther;
+      if (!isOther) field.value = '';
     });
 
     function openPriestSchedule(button) {
