@@ -93,7 +93,6 @@ if ($payment['category'] === 'Mass Intention') {
     $donation = $stmt->fetch() ?: null;
 }
 
-<?php
 $isModal = isDetailModalRequest();
 if (!$isModal) {
     $active = 'payments';
