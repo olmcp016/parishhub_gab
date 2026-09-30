@@ -124,9 +124,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // point of "Update Documents" is fixing the SAME request rather
             // than starting a brand new booking from scratch.
             if ($wasRejected) {
-                db()->prepare("UPDATE appointments SET status_id = 1, rejection_reason = NULL WHERE appointment_id = ?")->execute([$id]);
+                db()->prepare("UPDATE appointments SET status_id = 1 WHERE appointment_id = ?")->execute([$id]);
                 db()->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Documents Updated', ?)")
                     ->execute([$userId, "Your updated documents for appointment #$id have been submitted and are back under review."]);
+                $secretaries = db()->query("SELECT user_id FROM users u JOIN roles r ON r.role_id = u.role_id WHERE r.role_name IN ('Secretary', 'Admin') AND u.status = 'active'")->fetchAll(PDO::FETCH_COLUMN);
+                $notify = db()->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Documents Updated', ?)");
+                foreach ($secretaries as $secretaryId) {
+                    $notify->execute([(int) $secretaryId, "Appointment #$id has updated documents and is ready for review."]);
+                }
                 logActivity($userId, "Resubmitted documents for previously rejected appointment #$id", 'Appointments');
                 $messages[] = "$uploaded document(s) uploaded — your request is back under review.";
             } else {
@@ -180,7 +185,7 @@ $onlineUnfinished = $payment && (int) $payment['method_id'] === 7 && $payment['p
 $canPay = $appointment['status_name'] === 'Approved'
     && (!$payment || $onlineUnfinished || in_array($payment['payment_status'], ['failed', 'cancelled'], true));
 
-$stmt = db()->prepare('SELECT * FROM uploaded_documents WHERE appointment_id = ?');
+$stmt = db()->prepare('SELECT * FROM uploaded_documents WHERE appointment_id = ? ORDER BY uploaded_at DESC, document_id DESC');
 $stmt->execute([$id]);
 $documents = $stmt->fetchAll();
 
@@ -384,7 +389,7 @@ if (!$isAjax) {
               <?= e($label) ?>
               <?php if (empty($matches)): ?>
                 <span class="badge badge-rejected">Missing</span>
-              <?php elseif (array_reduce($matches, fn($carry, $d) => $carry || $d['verified'], false)): ?>
+              <?php elseif (!empty($matches[0]['verified'])): ?>
                 <span class="badge badge-verified">Verified/Accepted</span>
               <?php else: ?>
                 <span class="badge badge-pending">Uploaded — Pending Review</span>
@@ -392,10 +397,11 @@ if (!$isAjax) {
             </label>
             <?php foreach ($matches as $d): ?>
               <p style="margin:2px 0;">
-                <a href="<?= documentUrl($d['file_path']) ?>" target="_blank" rel="noopener"><?= e($d['file_name']) ?></a>
+                <a href="<?= documentViewUrl((int) $d['document_id']) ?>" target="_blank" rel="noopener">View Current File: <?= e($d['file_name']) ?></a>
               </p>
             <?php endforeach; ?>
-            <?php if (empty($matches) && $canUpload): ?>
+            <?php if ($canUpload): ?>
+              <label class="helper-text" style="display:block; margin-top:8px;">Replace this document</label>
               <input type="file" form="uploadDocsForm" name="req_doc_<?= $i ?>" accept=".pdf,.jpg,.jpeg,.png">
             <?php endif; ?>
           </div>
@@ -407,9 +413,9 @@ if (!$isAjax) {
         <ul style="list-style:none; padding:0; margin:0;">
           <?php foreach ($extraDocuments as $d): ?>
             <li class="mb-2">
-              <a href="<?= documentUrl($d['file_path']) ?>" target="_blank" rel="noopener" style="display:flex; align-items:center; gap:10px;">
+              <a href="<?= documentViewUrl((int) $d['document_id']) ?>" target="_blank" rel="noopener" style="display:flex; align-items:center; gap:10px;">
                 <?php if (isImageFile($d['file_name'])): ?>
-                  <img src="<?= documentUrl($d['file_path']) ?>" alt="<?= e($d['file_name']) ?>" style="width:40px; height:40px; object-fit:cover; border-radius:6px; border:1px solid var(--cream-dark);">
+                  <img src="<?= documentViewUrl((int) $d['document_id']) ?>" alt="<?= e($d['file_name']) ?>" style="width:40px; height:40px; object-fit:cover; border-radius:6px; border:1px solid var(--cream-dark);">
                 <?php else: ?>
                   <span style="display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; background:var(--cream); border-radius:6px; font-size:16px;">📄</span>
                 <?php endif; ?>

@@ -233,6 +233,11 @@ function documentUrl(string $filePath): string
     return url($filePath);
 }
 
+function documentViewUrl(int $documentId): string
+{
+    return url('document.php?id=' . $documentId);
+}
+
 /** True if the filename's extension is a browser-viewable image type. */
 function isImageFile(string $filename): bool
 {

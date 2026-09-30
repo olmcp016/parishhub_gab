@@ -184,12 +184,9 @@ include __DIR__ . '/../includes/dash-start.php';
               <?php endif; ?>
             </td>
             <td>
-              <form method="POST" action="<?= url('admin/priests.php') ?>" style="display:inline;" onsubmit="return confirm('Remove priest?');">
-                <?= csrfField() ?>
-                <input type="hidden" name="action" value="delete">
-                <input type="hidden" name="priest_id" value="<?= $p['priest_id'] ?>">
-                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-              </form>
+              <button type="button" class="btn btn-danger btn-sm js-remove-priest"
+                data-priest-id="<?= (int) $p['priest_id'] ?>"
+                data-priest-name="<?= e(trim(($p['title'] ?? '') . ' ' . ($p['full_name'] ?? ''))) ?>">Delete</button>
             </td>
           </tr>
         <?php endforeach; ?>
@@ -219,7 +216,63 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
 </dialog>
 
+<dialog class="modal" id="removePriestModal" aria-labelledby="removePriestTitle">
+  <div class="modal-head">
+    <h3 id="removePriestTitle">Remove Priest</h3>
+    <button type="button" class="modal-close" id="removePriestClose" aria-label="Close">✕</button>
+  </div>
+  <div class="modal-body">
+    <p style="margin-top:0;">Are you sure you want to remove this priest?</p>
+    <p style="font-size:17px; font-weight:700; color:var(--brown-dark); margin:18px 0;" id="removePriestName"></p>
+    <p class="text-muted" style="margin-bottom:20px;">This removes the priest record and any linked priest portal login. Priests with active or upcoming appointments cannot be removed.</p>
+    <form method="POST" action="<?= url('admin/priests.php') ?>" id="removePriestForm">
+      <?= csrfField() ?>
+      <input type="hidden" name="action" value="delete">
+      <input type="hidden" name="priest_id" id="removePriestId" value="">
+      <div class="flex gap-3" style="justify-content:flex-end;">
+        <button type="button" class="btn btn-outline" id="removePriestCancel">Cancel</button>
+        <button type="submit" class="btn btn-danger" id="removePriestSubmit">Remove Priest</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
 <script>
+var removePriestModal = document.getElementById('removePriestModal');
+var removePriestTrigger = null;
+
+function closeRemovePriestModal() {
+  if (removePriestModal && removePriestModal.open) removePriestModal.close();
+  if (removePriestTrigger) {
+    removePriestTrigger.focus();
+    removePriestTrigger = null;
+  }
+}
+
+document.addEventListener('click', function (event) {
+  var trigger = event.target.closest('.js-remove-priest');
+  if (!trigger || !removePriestModal) return;
+  removePriestTrigger = trigger;
+  document.getElementById('removePriestId').value = trigger.dataset.priestId || '';
+  document.getElementById('removePriestName').textContent = trigger.dataset.priestName || 'this priest';
+  document.getElementById('removePriestSubmit').disabled = false;
+  document.getElementById('removePriestSubmit').textContent = 'Remove Priest';
+  removePriestModal.showModal();
+  document.getElementById('removePriestCancel').focus();
+});
+
+document.getElementById('removePriestClose').addEventListener('click', closeRemovePriestModal);
+document.getElementById('removePriestCancel').addEventListener('click', closeRemovePriestModal);
+removePriestModal.addEventListener('click', function (event) {
+  if (event.target === removePriestModal) closeRemovePriestModal();
+});
+document.getElementById('removePriestForm').addEventListener('submit', function () {
+  var submit = document.getElementById('removePriestSubmit');
+  if (submit.disabled) return;
+  submit.disabled = true;
+  submit.textContent = 'Removing...';
+});
+
 document.getElementById('addPriestForm').addEventListener('submit', function (e) {
   e.preventDefault();
   var form = e.target;

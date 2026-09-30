@@ -42,7 +42,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($hasAnyLabel) {
                 // New-style upload with per-requirement labels — every named item must be verified.
-                $verifiedLabels = array_column(array_filter($docs, fn($d) => $d['verified']), 'requirement_label');
+                $latestByLabel = [];
+                foreach ($docs as $doc) {
+                    if (!$doc['requirement_label'] || !isset($latestByLabel[$doc['requirement_label']])) {
+                        $latestByLabel[$doc['requirement_label']] = $doc;
+                    }
+                }
+                $verifiedLabels = array_keys(array_filter($latestByLabel, fn($d) => $d['verified']));
                 $missing = array_diff($requirementsList, $verifiedLabels);
                 if (!empty($missing)) {
                     respondAjaxOrRedirect($isAjax, false, 'The following required document(s) still need to be uploaded and verified before approving: ' . implode(', ', $missing) . '.', $redirectUrl);
@@ -204,7 +210,7 @@ $intention = $stmt->fetch() ?: null;
 $stmt = db()->prepare('SELECT * FROM donations WHERE appointment_id = ?');
 $stmt->execute([$id]);
 $donation = $stmt->fetch() ?: null;
-$stmt = db()->prepare('SELECT * FROM uploaded_documents WHERE appointment_id = ?');
+$stmt = db()->prepare('SELECT * FROM uploaded_documents WHERE appointment_id = ? ORDER BY uploaded_at DESC, document_id DESC');
 $stmt->execute([$id]);
 $documents = $stmt->fetchAll();
 
@@ -318,9 +324,9 @@ if (!$isAjax) {
             <?php foreach ($documents as $d): ?>
               <tr>
                 <td>
-                  <a href="<?= documentUrl($d['file_path']) ?>" target="_blank" rel="noopener" style="display:flex; align-items:center; gap:10px;">
+                  <a href="<?= url('document.php?id=' . (int) $d['document_id']) ?>" target="_blank" rel="noopener" style="display:flex; align-items:center; gap:10px;">
                     <?php if (isImageFile($d['file_name'])): ?>
-                      <img src="<?= documentUrl($d['file_path']) ?>" alt="<?= e($d['file_name']) ?>" style="width:44px; height:44px; object-fit:cover; border-radius:6px; border:1px solid var(--cream-dark);">
+                      <img src="<?= url('document.php?id=' . (int) $d['document_id']) ?>" alt="<?= e($d['file_name']) ?>" style="width:44px; height:44px; object-fit:cover; border-radius:6px; border:1px solid var(--cream-dark);">
                     <?php else: ?>
                       <span style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; background:var(--cream); border-radius:6px; font-size:18px;">📄</span>
                     <?php endif; ?>
