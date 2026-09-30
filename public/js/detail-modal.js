@@ -87,12 +87,85 @@
         closeDetailModal();
         return;
       }
+      var scheduleButton = e.target.closest('.js-view-priest-schedule');
+      if (scheduleButton) {
+        e.preventDefault();
+        openPriestSchedule(scheduleButton);
+        return;
+      }
+      if (e.target.closest('.js-load-more-priest-schedule')) {
+        e.preventDefault();
+        loadMorePriestSchedule();
+        return;
+      }
+      if (e.target.closest('.js-close-priest-schedule')) {
+        var scheduleModal = document.getElementById('priestScheduleModal');
+        if (scheduleModal && scheduleModal.open) scheduleModal.close();
+        return;
+      }
       // A direct hit on the <dialog> element itself (not a descendant) is
       // a click on its own backdrop/padding area, i.e. "outside" the card.
       if (e.target === modal) {
         closeDetailModal();
       }
     });
+
+    function openPriestSchedule(button) {
+      var scheduleModal = document.getElementById('priestScheduleModal');
+      var body = document.getElementById('priestScheduleModalBody');
+      if (!scheduleModal || !body) return;
+      var priestId = button.dataset.priestId;
+      var priestName = button.dataset.priestName || 'Priest';
+      var offset = 0;
+      scheduleModal.querySelector('h3').textContent = 'Priest Schedule';
+      body.innerHTML = '<p><strong>' + escapeHtml(priestName) + '</strong></p><p class="text-muted">Loading schedule…</p>';
+      scheduleModal.showModal();
+
+      function loadSchedule() {
+        fetch(button.dataset.scheduleUrl + '?priest_id=' + encodeURIComponent(priestId) + '&offset=' + offset, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+          .then(function (res) { return res.json(); })
+          .then(function (data) {
+            if (!data.success) throw new Error(data.message || 'Unable to load schedule.');
+            var html = '<p><strong>' + escapeHtml(data.priest.title + ' ' + data.priest.full_name) + '</strong></p><h4>Upcoming Appointments</h4>';
+            if (!data.appointments.length && offset === 0) html += '<p class="text-muted">No upcoming appointments scheduled for this priest.</p>';
+            html += data.appointments.map(function (item) {
+              return '<div class="priest-schedule-item"><strong>' + formatScheduleDate(item.appointment_date) + '</strong><span>' + formatScheduleTime(item.appointment_time) + '</span><span>' + escapeHtml(item.service_name) + '</span></div>';
+            }).join('');
+            if (data.has_more) html += '<button type="button" class="btn btn-outline btn-block js-load-more-priest-schedule">Load More</button>';
+            body.innerHTML = html;
+            body.dataset.priestId = priestId;
+            body.dataset.offset = String(offset + data.appointments.length);
+            body.dataset.scheduleUrl = button.dataset.scheduleUrl;
+          })
+          .catch(function (error) { body.innerHTML = '<p class="text-muted">' + escapeHtml(error.message) + '</p>'; });
+      }
+      loadSchedule();
+    }
+
+    function loadMorePriestSchedule() {
+      var body = document.getElementById('priestScheduleModalBody');
+      if (!body || !body.dataset.priestId || !body.dataset.scheduleUrl) return;
+      var oldButton = body.querySelector('.js-load-more-priest-schedule');
+      if (oldButton) oldButton.disabled = true;
+      fetch(body.dataset.scheduleUrl + '?priest_id=' + encodeURIComponent(body.dataset.priestId) + '&offset=' + encodeURIComponent(body.dataset.offset || '0'), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          if (!data.success) throw new Error(data.message || 'Unable to load more appointments.');
+          if (oldButton) oldButton.remove();
+          data.appointments.forEach(function (item) {
+            var row = document.createElement('div'); row.className = 'priest-schedule-item';
+            row.innerHTML = '<strong>' + formatScheduleDate(item.appointment_date) + '</strong><span>' + formatScheduleTime(item.appointment_time) + '</span><span>' + escapeHtml(item.service_name) + '</span>';
+            body.appendChild(row);
+          });
+          body.dataset.offset = String(Number(body.dataset.offset || '0') + data.appointments.length);
+          if (data.has_more) { var more = document.createElement('button'); more.type = 'button'; more.className = 'btn btn-outline btn-block js-load-more-priest-schedule'; more.textContent = 'Load More'; body.appendChild(more); }
+        })
+        .catch(function (error) { if (oldButton) { oldButton.disabled = false; } var errorNote = document.createElement('p'); errorNote.className = 'text-muted'; errorNote.textContent = error.message; body.appendChild(errorNote); });
+    }
+
+    function escapeHtml(value) { return String(value).replace(/[&<>"']/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]); }); }
+    function formatScheduleDate(value) { var parts = String(value).split('-'); return parts.length === 3 ? new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).toLocaleDateString(undefined, { year:'numeric', month:'long', day:'numeric' }) : escapeHtml(value); }
+    function formatScheduleTime(value) { var parts = String(value).split(':'); if (parts.length < 2) return escapeHtml(value); var h = Number(parts[0]); var m = parts[1]; return String((h + 11) % 12 + 1) + ':' + m + ' ' + (h >= 12 ? 'PM' : 'AM'); }
 
     // Esc key closes natively via the dialog's "cancel" event — still
     // needs the same dirty-reload follow-up as any other close path.

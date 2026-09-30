@@ -185,6 +185,8 @@ if (!$appointment) {
 }
 
 $priests = db()->query("SELECT * FROM priests WHERE status = 'active'")->fetchAll();
+$priestSchedules = [];
+$priestUnavailability = [];
 $stmt = db()->prepare('SELECT * FROM mass_intentions WHERE appointment_id = ?');
 $stmt->execute([$id]);
 $intention = $stmt->fetch() ?: null;
@@ -198,28 +200,6 @@ $documents = $stmt->fetchAll();
 // Each priest's upcoming schedule and declared unavailability, so the
 // secretary can check availability before assigning — directly at the
 // point of decision.
-$priestSchedules = [];
-$priestUnavailability = [];
-$today = date('Y-m-d');
-foreach ($priests as $p) {
-    $stmt = db()->prepare(
-        "SELECT a.appointment_id, a.appointment_date, a.appointment_time, s.service_name
-         FROM appointments a JOIN services s ON a.service_id = s.service_id
-         WHERE a.priest_id = ? AND a.status_id NOT IN (3, 7) AND a.appointment_date >= ?
-         ORDER BY a.appointment_date, a.appointment_time LIMIT 5"
-    );
-    $stmt->execute([$p['priest_id'], $today]);
-    $priestSchedules[$p['priest_id']] = $stmt->fetchAll();
-
-    $stmt = db()->prepare(
-        "SELECT unavailable_date, start_time, end_time, reason FROM priest_unavailability
-         WHERE priest_id = ? AND unavailable_date >= ?
-         ORDER BY unavailable_date LIMIT 10"
-    );
-    $stmt->execute([$p['priest_id'], $today]);
-    $priestUnavailability[$p['priest_id']] = $stmt->fetchAll();
-}
-
 $active = 'appointments';
 $pageTitle = 'Appointment #' . $appointment['appointment_id'];
 if (!$isAjax) {
@@ -455,7 +435,16 @@ if (!$isAjax) {
       <?php endif; ?>
 
       <details>
-        <summary class="text-muted" style="cursor:pointer; font-size:12.5px;">Priest availability (next 5 upcoming appointments each)</summary>
+        <summary class="text-muted" style="cursor:pointer; font-size:13px;">Priest Availability</summary>
+        <div class="priest-availability-list">
+          <?php foreach ($priests as $p): ?>
+            <div class="priest-availability-row">
+              <div><strong><?= e($p['title']) ?> <?= e($p['full_name']) ?></strong><span class="text-muted">Active priest</span></div>
+              <button type="button" class="btn btn-outline btn-sm js-view-priest-schedule" data-priest-id="<?= (int) $p['priest_id'] ?>" data-priest-name="<?= e($p['title'] . ' ' . $p['full_name']) ?>" data-schedule-url="<?= e(url('secretary/priest-schedule.php')) ?>">View Schedule</button>
+            </div>
+          <?php endforeach; ?>
+        </div>
+        <div style="display:none;">
         <?php foreach ($priests as $p): ?>
           <div class="mb-2 mt-2" style="font-size:12.5px; border-bottom: 1px solid var(--cream-dark); padding-bottom:6px;">
             <strong><?= e($p['title']) ?> <?= e($p['full_name']) ?></strong>
@@ -477,9 +466,20 @@ if (!$isAjax) {
             <?php endif; ?>
           </div>
         <?php endforeach; ?>
+        </div>
       </details>
     </div>
     <?php endif; ?>
+
+    <dialog class="modal modal-lg priest-schedule-modal" id="priestScheduleModal">
+      <div class="modal-head">
+        <h3>Priest Schedule</h3>
+        <button type="button" class="modal-close js-close-priest-schedule" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body" id="priestScheduleModalBody">
+        <p class="text-muted">Select View Schedule to load appointments.</p>
+      </div>
+    </dialog>
 
     <?php if ($appointment['category'] !== 'Mass Intention'): ?>
     <div class="card">

@@ -351,6 +351,19 @@ input:focus, select:focus, textarea:focus {
 .radio-option input[type=radio] { width: auto; accent-color: var(--gold); cursor: pointer; }
 .radio-option:has(input:checked) { border-color: var(--gold); background: rgba(201, 168, 76, 0.1); }
 
+.priest-availability-list { margin-top: 10px; }
+.priest-availability-row { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:10px 0; border-bottom:1px solid var(--cream-dark); }
+.priest-availability-row > div { min-width:0; }
+.priest-availability-row strong, .priest-availability-row .text-muted { display:block; }
+.priest-availability-row .text-muted { font-size:12px; margin-top:2px; }
+.priest-schedule-modal .modal-body { max-height:65vh; overflow-y:auto; }
+.priest-schedule-item { display:grid; grid-template-columns: minmax(150px, 1fr) minmax(90px, .6fr) minmax(150px, 1.2fr); gap:12px; padding:11px 0; border-bottom:1px solid var(--cream-dark); }
+@media (max-width:600px) {
+  .priest-availability-row { align-items:flex-start; flex-direction:column; }
+  .priest-availability-row .btn { width:100%; }
+  .priest-schedule-item { grid-template-columns:1fr; gap:3px; }
+}
+
 /* ---------- Tables ---------- */
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
