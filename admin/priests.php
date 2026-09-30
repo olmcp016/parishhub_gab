@@ -5,11 +5,11 @@ requireRole('Secretary', 'Admin');
 
 $isAjax = ($_POST['ajax'] ?? '') === '1';
 
-function priestsRespondError(bool $isAjax, string $message, string $redirectUrl): void
+function priestsRespondError(bool $isAjax, string $message, string $redirectUrl, array $fields = []): void
 {
     if ($isAjax) {
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'message' => $message]);
+        echo json_encode(['success' => false, 'message' => $message, 'errors' => $fields]);
         exit;
     }
     flash('error', $message);
@@ -21,16 +21,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     if ($action === 'add') {
         $fullName = trim($_POST['full_name'] ?? '');
-        $title = trim($_POST['title'] ?? '') ?: 'Rev. Fr.';
-        $contact = trim($_POST['contact_number'] ?? '') ?: null;
-        $email = trim($_POST['email'] ?? '') ?: null;
+        $title = trim($_POST['title'] ?? '');
+        $contact = trim($_POST['contact_number'] ?? '');
+        $email = trim($_POST['email'] ?? '');
+        $errors = [];
+        if ($fullName === '') $errors['full_name'] = 'Full name is required.';
+        if ($title === '') $errors['title'] = 'Title is required.';
+        if (!preg_match('/^09\d{9}$/', $contact)) $errors['contact_number'] = 'Enter a valid 11-digit Philippine mobile number starting with 09.';
+        if ($email === '') $errors['email'] = 'Email address is required.';
+        elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors['email'] = 'Enter a valid email address.';
+        if ($errors) priestsRespondError($isAjax, 'Please correct the highlighted fields.', url('admin/priests.php'), $errors);
 
-        if ($fullName === '') {
-            priestsRespondError($isAjax, 'Please enter the priest\'s full name.', url('admin/priests.php'));
-        }
-        if ($email !== null && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            priestsRespondError($isAjax, 'Please enter a valid email address.', url('admin/priests.php'));
-        }
+        $stmt = db()->prepare('SELECT 1 FROM users WHERE LOWER(email) = LOWER(?) UNION ALL SELECT 1 FROM priests WHERE LOWER(email) = LOWER(?) LIMIT 1');
+        $stmt->execute([$email, $email]);
+        if ($stmt->fetchColumn()) priestsRespondError($isAjax, 'This email address is already being used.', url('admin/priests.php'), ['email' => 'This email address is already being used.']);
 
         $stmt = db()->prepare(
             "INSERT INTO priests (full_name, title, contact_number, email) VALUES (?, ?, ?, ?)"
@@ -43,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Content-Type: application/json');
             echo json_encode([
                 'success' => true,
-                'message' => 'Priest added.',
+                'message' => 'Priest added successfully.',
                 'priest' => [
                     'priest_id' => $priestId,
                     'full_name' => $fullName,
@@ -55,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             exit;
         }
-        flash('success', 'Priest added.');
+        flash('success', 'Priest added successfully.');
     } elseif ($action === 'status') {
         $status = $_POST['status'] ?? '';
         if (!in_array($status, ['active', 'on_leave', 'inactive'], true)) {
@@ -244,14 +248,14 @@ include __DIR__ . '/../includes/dash-start.php';
     <button type="button" class="modal-close" onclick="document.getElementById('addPriestModal').close()">✕</button>
   </div>
   <div class="modal-body">
-    <form id="addPriestForm">
+    <form id="addPriestForm" novalidate>
       <?= csrfField() ?>
       <input type="hidden" name="ajax" value="1">
       <input type="hidden" name="action" value="add">
-      <div class="form-group"><label>Full Name</label><input type="text" name="full_name" required></div>
-      <div class="form-group"><label>Title</label><input type="text" name="title" value="Rev. Fr." required></div>
-      <div class="form-group"><label>Contact #</label><input type="tel" name="contact_number"></div>
-      <div class="form-group"><label>Email</label><input type="email" name="email"></div>
+      <div class="form-group"><label>Full Name <span aria-hidden="true">*</span></label><input type="text" name="full_name" required><small class="field-error" data-error-for="full_name"></small></div>
+      <div class="form-group"><label>Title <span aria-hidden="true">*</span></label><input type="text" name="title" value="Rev. Fr." required><small class="field-error" data-error-for="title"></small></div>
+      <div class="form-group"><label>Contact # <span aria-hidden="true">*</span></label><input type="tel" name="contact_number" inputmode="numeric" maxlength="11" pattern="09[0-9]{9}" required><small class="field-error" data-error-for="contact_number"></small></div>
+      <div class="form-group"><label>Email <span aria-hidden="true">*</span></label><input type="email" name="email" required><small class="field-error" data-error-for="email"></small></div>
       <div id="addPriestError" class="alert" style="display:none; background: var(--danger-bg); color: var(--danger); border: 1px solid #f5c2c2;"></div>
       <button type="submit" class="btn btn-primary btn-block" id="addPriestSubmitBtn">Add Priest</button>
     </form>
@@ -389,6 +393,25 @@ document.getElementById('addPriestForm').addEventListener('submit', function (e)
   var form = e.target;
   var errorBox = document.getElementById('addPriestError');
   var submitBtn = document.getElementById('addPriestSubmitBtn');
+  var fields = {
+    full_name: 'Full name is required.',
+    title: 'Title is required.',
+    contact_number: 'Enter a valid 11-digit Philippine mobile number starting with 09.',
+    email: 'Email address is required.'
+  };
+  form.querySelectorAll('[data-error-for]').forEach(function (node) { node.textContent = ''; });
+  var fullName = form.elements.full_name.value.trim();
+  var title = form.elements.title.value.trim();
+  var contact = form.elements.contact_number.value.trim();
+  var email = form.elements.email.value.trim();
+  var clientErrors = {};
+  if (!fullName) clientErrors.full_name = fields.full_name;
+  if (!title) clientErrors.title = fields.title;
+  if (!/^09\d{9}$/.test(contact)) clientErrors.contact_number = fields.contact_number;
+  if (!email) clientErrors.email = fields.email;
+  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) clientErrors.email = 'Enter a valid email address.';
+  Object.keys(clientErrors).forEach(function (name) { form.querySelector('[data-error-for="' + name + '"]').textContent = clientErrors[name]; });
+  if (Object.keys(clientErrors).length) return;
   errorBox.style.display = 'none';
   submitBtn.disabled = true;
   var originalText = submitBtn.textContent;
@@ -448,6 +471,10 @@ document.getElementById('addPriestForm').addEventListener('submit', function (e)
       } else {
         errorBox.textContent = data.message;
         errorBox.style.display = 'block';
+        Object.keys(data.errors || {}).forEach(function (name) {
+          var node = form.querySelector('[data-error-for="' + name + '"]');
+          if (node) node.textContent = data.errors[name];
+        });
       }
     })
     .catch(function () {

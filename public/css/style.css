@@ -1234,6 +1234,7 @@ input.amount-no-spinner {
 .profile-photo-preview { width:110px; height:110px; flex:0 0 110px; border-radius:50%; object-fit:cover; border:3px solid var(--gold,#b99526); }
 .profile-initials-avatar { display:flex; align-items:center; justify-content:center; background:var(--gold); color:var(--brown-darkest); font-size:30px; font-weight:700; }
 .avatar-photo { object-fit:cover; }
+.field-error { display:block; min-height:18px; margin-top:5px; color:var(--danger,#a33); font-size:12px; }
 @media (max-width: 560px) { .profile-photo-editor { align-items:flex-start; flex-direction:column; } .profile-photo-preview { width:96px; height:96px; flex-basis:96px; } }
 @media (max-width: 760px) {
   .priest-login-summary { min-width:135px; }
