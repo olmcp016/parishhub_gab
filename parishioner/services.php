@@ -366,6 +366,18 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
           </div>
         </div>
 
+        <div id="weddingFormsPreview" class="form-group" style="display:none; margin-top:16px;">
+          <label>Wedding Forms</label>
+          <div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">
+            These required forms are completed in the next step after your booking details and supporting documents are saved.
+          </div>
+          <div class="wedding-form-requirement-list">
+            <p><strong>Matrimony Application</strong><br><span class="badge badge-rejected">Required</span> <span class="helper-text">Complete in Wedding Requirements</span></p>
+            <p><strong>Katin-awan sa Kasal / Cluster Clearance</strong><br><span class="badge badge-rejected">Required</span> <span class="helper-text">Complete in Wedding Requirements</span></p>
+            <p><strong>Wedding Sponsor Clearance</strong><br><span class="badge badge-rejected">Required</span> <span class="helper-text">Complete in Wedding Requirements</span></p>
+          </div>
+        </div>
+
         <div id="bookFormError" class="alert" style="display:none; background: var(--danger-bg); color: var(--danger); border: 1px solid #f5c2c2;"></div>
 
         <button type="submit" class="btn btn-primary btn-block" id="bookSubmitBtn">Submit Appointment Request</button>
@@ -442,6 +454,8 @@ function toggleServiceUI() {
   document.getElementById('weddingSponsorCountGroup').style.display = category === 'Wedding' ? 'block' : 'none';
   document.getElementById('sponsorCountInput').required = category === 'Baptism';
   document.getElementById('weddingSponsorCountInput').required = category === 'Wedding';
+  document.getElementById('weddingFormsPreview').style.display = category === 'Wedding' ? 'block' : 'none';
+  document.getElementById('bookSubmitBtn').textContent = submitButtonLabel();
 
   var isMassIntention = category === 'Mass Intention';
   var usesToggle = SCHEDULE_TOGGLE_CATEGORIES.indexOf(category) !== -1;
