@@ -35,6 +35,12 @@ function documentStorageSupabaseRequest(string $method, string $objectKey, ?stri
 {
     documentStorageRequireSupabaseConfig();
     if (!preg_match('#^[A-Za-z0-9._/-]+$#', $objectKey) || str_contains($objectKey, '..') || str_starts_with($objectKey, '/')) throw new InvalidArgumentException('Invalid storage object key.');
+    $operation = match (strtoupper($method)) {
+        'POST', 'PUT' => 'upload',
+        'GET' => 'download',
+        'DELETE' => 'delete',
+        default => strtolower($method),
+    };
     $url = SUPABASE_URL . '/storage/v1/object/' . rawurlencode(SUPABASE_DOCUMENT_BUCKET) . '/' . str_replace('%2F', '/', rawurlencode($objectKey));
     $ch = curl_init($url);
     $headers = ['apikey: ' . SUPABASE_SECRET_KEY];
@@ -42,7 +48,24 @@ function documentStorageSupabaseRequest(string $method, string $objectKey, ?stri
     curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_CUSTOMREQUEST => $method, CURLOPT_HTTPHEADER => $headers, CURLOPT_TIMEOUT => 30]);
     if ($body !== null) curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
     $response = curl_exec($ch); $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE); $error = curl_error($ch); curl_close($ch);
-    if ($error || $status < 200 || $status >= 300) throw new RuntimeException('Private document storage request failed.');
+    if ($error || $status < 200 || $status >= 300) {
+        $safeResponse = is_string($response) ? trim($response) : '';
+        if (SUPABASE_SECRET_KEY !== '') $safeResponse = str_replace(SUPABASE_SECRET_KEY, '[redacted]', $safeResponse);
+        $safeResponse = preg_replace('/(authorization|apikey|token|secret)[^,;\s]*\s*[:=]\s*[^,;\s]+/i', '$1=[redacted]', $safeResponse);
+        if (strlen($safeResponse) > 1000) $safeResponse = substr($safeResponse, 0, 1000) . '...';
+        error_log('Supabase document storage failure: ' . json_encode([
+            'operation' => $operation,
+            'http_status' => $status,
+            'curl_error' => $error ?: null,
+            'bucket' => SUPABASE_DOCUMENT_BUCKET,
+            'object_key' => $objectKey,
+            'response' => $safeResponse,
+            'content_type' => $contentType,
+            'url_configured' => SUPABASE_URL !== '',
+            'secret_key_configured' => SUPABASE_SECRET_KEY !== '',
+        ], JSON_UNESCAPED_SLASHES));
+        throw new RuntimeException('Private document storage request failed.');
+    }
     return ['body' => $response === false ? '' : $response, 'status' => $status];
 }
 
