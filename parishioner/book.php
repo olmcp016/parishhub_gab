@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/document-storage.php';
 require_once __DIR__ . '/../includes/scheduling.php';
 require_once __DIR__ . '/../includes/document-validation.php';
 require_once __DIR__ . '/../includes/paymongo.php';
@@ -100,6 +101,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $usesScheduleToggle = in_array($category, SCHEDULE_TOGGLE_CATEGORIES, true);
     $scheduleTypeToSave = $usesScheduleToggle ? $scheduleType : null;
+    if ($category === 'Wedding' && $scheduleTypeToSave === 'Special' && !preg_match('/^\d{2}:(00|30)$/', $time)) {
+        bookRespondError($isAjax, 'Special Wedding times must use 30-minute intervals.', url('parishioner/services.php'));
+    }
     $usesFeeRules = in_array($category, ['Baptism', 'Wedding', 'Funeral'], true);
     if ($usesFeeRules && $pssClaim === null) {
         bookRespondError($isAjax, 'Please indicate whether you are claiming PSS status. The parish will verify this before payment.', url('parishioner/services.php'));
@@ -191,6 +195,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // ---- Validate every submitted file BEFORE touching the database or filesystem ----
     $requirementsList = parseRequirementsList($service['requirements']);
+    $requirementsSnapshot = null;
+    if ($category === 'Wedding') {
+        $requirementsList = ['Baptismal Certificate', 'Confirmation Certificate', "Sponsors' Baptismal Certificate"];
+        $requirementsSnapshot = json_encode($requirementsList);
+    }
     $pendingUploads = []; // [ ['file' => $_FILES-entry, 'label' => ?string], ... ]
 
     $skippedFiles = [];
@@ -254,6 +263,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $pdo = db();
     $pdo->beginTransaction();
+    $createdStorageKeys = [];
     try {
         // Manually blocked dates (holidays, etc.) still apply on top of the fixed rules
         $stmt = $pdo->prepare('SELECT * FROM calendar WHERE calendar_date = ? AND is_blocked = 1');
@@ -271,10 +281,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $approvedAtValue = $isMassIntention ? ', NOW()' : '';
 
         $stmt = $pdo->prepare(
-            "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, date_of_death, schedule_type, pss_claim, pss_classification, sponsor_count, wedding_sponsor_count, guest_name, guest_email, guest_phone, guest_reference, contact_phone, location_address{$approvedAtColumn})
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$approvedAtValue})"
+            "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, date_of_death, schedule_type, pss_claim, pss_classification, sponsor_count, wedding_sponsor_count, guest_name, guest_email, guest_phone, guest_reference, contact_phone, location_address, requirements_snapshot{$approvedAtColumn})
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$approvedAtValue})"
         );
-        $stmt->execute([$parishionerId, $serviceId, $priestId, $date, $finalTime, $initialStatusId, $remarks, $dateOfDeath, $scheduleTypeToSave, $pssClaim, $pssClassification, $sponsorCount, $weddingSponsorCount, $guestName, $guestEmail, $guestPhone, $guestReference, $contactPhone, $locationAddress]);
+        $stmt->execute([$parishionerId, $serviceId, $priestId, $date, $finalTime, $initialStatusId, $remarks, $dateOfDeath, $scheduleTypeToSave, $pssClaim, $pssClassification, $sponsorCount, $weddingSponsorCount, $guestName, $guestEmail, $guestPhone, $guestReference, $contactPhone, $locationAddress, $requirementsSnapshot]);
         $appointmentId = $pdo->lastInsertId();
 
         $checkoutUrl = null;
@@ -318,16 +328,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        $uploadDir = __DIR__ . '/../public/uploads/';
         foreach ($pendingUploads as $upload) {
             $file = $upload['file'];
-            $safeName = time() . '-' . preg_replace('/[^A-Za-z0-9._-]/', '_', $file['name']);
-            $dest = $uploadDir . $safeName;
-            if (move_uploaded_file($file['tmp_name'], $dest)) {
+            try { $stored = documentStorageMoveUpload($file['tmp_name'], pathinfo($file['name'], PATHINFO_EXTENSION)); } catch (Throwable $e) { $stored = null; }
+            if ($stored) {
+                $createdStorageKeys[] = $stored['key'];
                 $stmt = $pdo->prepare(
-                    "INSERT INTO uploaded_documents (appointment_id, file_name, file_path, file_type, requirement_label) VALUES (?, ?, ?, ?, ?)"
+                    "INSERT INTO uploaded_documents (appointment_id, file_name, file_path, file_type, requirement_label, review_status, verified) VALUES (?, ?, ?, ?, ?, 'pending', FALSE)"
                 );
-                $stmt->execute([$appointmentId, $file['name'], 'public/uploads/' . $safeName, $file['type'], $upload['label']]);
+                $stmt->execute([$appointmentId, $file['name'], $stored['key'], $stored['mime'], $upload['label']]);
             }
         }
 
@@ -405,7 +414,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         redirect($detailUrl);
     } catch (Throwable $e) {
-        $pdo->rollBack();
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        foreach ($createdStorageKeys as $storageKey) { try { documentStorageDelete($storageKey); } catch (Throwable $cleanupError) { error_log('Document cleanup failed.'); } }
         error_log($e->getMessage());
         bookRespondError($isAjax, 'Failed to submit appointment. Please try again.', url('parishioner/services.php'));
     }

@@ -1,6 +1,8 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/document-storage.php';
+require_once __DIR__ . '/../includes/wedding-forms.php';
 require_once __DIR__ . '/../includes/document-validation.php';
 requireRole('Parishioner');
 
@@ -101,16 +103,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $uploaded = 0;
-        $uploadDir = __DIR__ . '/../public/uploads/';
         foreach ($pendingUploads as $upload) {
             $file = $upload['file'];
-            $safeName = time() . '-' . preg_replace('/[^A-Za-z0-9._-]/', '_', $file['name']);
-            $dest = $uploadDir . $safeName;
-            if (move_uploaded_file($file['tmp_name'], $dest)) {
-                $stmt = db()->prepare(
-                    "INSERT INTO uploaded_documents (appointment_id, file_name, file_path, file_type, requirement_label) VALUES (?, ?, ?, ?, ?)"
-                );
-                $stmt->execute([$id, $file['name'], 'public/uploads/' . $safeName, $file['type'], $upload['label']]);
+            try { $stored = documentStorageMoveUpload($file['tmp_name'], pathinfo($file['name'], PATHINFO_EXTENSION)); } catch (Throwable $e) { $stored = null; }
+            if ($stored) {
+                try {
+                    $stmt = db()->prepare(
+                        "INSERT INTO uploaded_documents (appointment_id, file_name, file_path, file_type, requirement_label, review_status, verified) VALUES (?, ?, ?, ?, ?, 'pending', FALSE)"
+                    );
+                    $stmt->execute([$id, $file['name'], $stored['key'], $stored['mime'], $upload['label']]);
+                } catch (Throwable $e) {
+                    try { documentStorageDelete($stored['key']); } catch (Throwable $cleanupError) { error_log('Document cleanup failed.'); }
+                    throw $e;
+                }
+                $newDocumentId = (int) $pdo->lastInsertId();
+                if ($upload['label']) {
+                    $pdo->prepare("UPDATE uploaded_documents SET superseded_by = ? WHERE appointment_id = ? AND requirement_label = ? AND review_status = 'rejected' AND superseded_by IS NULL AND document_id <> ?")
+                        ->execute([$newDocumentId, $id, $upload['label'], $newDocumentId]);
+                }
                 $uploaded++;
             }
         }
@@ -188,6 +198,11 @@ $canPay = $appointment['status_name'] === 'Approved'
 $stmt = db()->prepare('SELECT * FROM uploaded_documents WHERE appointment_id = ? ORDER BY uploaded_at DESC, document_id DESC');
 $stmt->execute([$id]);
 $documents = $stmt->fetchAll();
+$generatedForms = [];
+if (($appointment['category'] ?? '') === 'Wedding') {
+    $stmt = db()->prepare('SELECT g.*, d.document_id, d.review_status, d.rejection_reason FROM generated_wedding_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.appointment_id = ? ORDER BY g.form_type');
+    $stmt->execute([$id]); $generatedForms = $stmt->fetchAll();
+}
 
 $active = 'appointments';
 $pageTitle = 'Appointment #' . $appointment['appointment_id'];
@@ -214,6 +229,18 @@ if (!$isAjax) {
     </div>
     <p><strong>Date:</strong> <?= formatDate($appointment['appointment_date']) ?> at <?= date('g:i A', strtotime($appointment['appointment_time'])) ?></p>
     <p><strong>Priest:</strong> <?= e($appointment['priest_name'] ?? 'Not yet assigned') ?></p>
+    <?php if ($appointment['category'] === 'Wedding'): ?>
+      <hr style="border-color:var(--cream-dark); margin:18px 0;"><h4>Wedding Forms</h4>
+      <?php foreach ($generatedForms as $gf): $status = $gf['review_status'] ?? 'pending'; ?>
+        <p><strong><?= e(weddingFormDefinition($gf['form_type'])['title']) ?></strong><br>
+          Status: <?= e(weddingFormStatusLabel($gf['status'])) ?>
+          <a class="btn btn-outline btn-sm" href="<?= url('wedding-form.php?appointment_id=' . $id . '&form_type=' . urlencode($gf['form_type'])) ?>">Edit / View</a>
+          <?php if ($gf['document_id']): ?><a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>">View PDF</a><?php endif; ?>
+          <?php if ($gf['rejection_reason']): ?><br><span class="text-muted">Reason: <?= e($gf['rejection_reason']) ?></span><?php endif; ?>
+        </p>
+      <?php endforeach; ?>
+      <?php if (!$generatedForms): ?><p class="text-muted">Wedding forms can be completed from the booking documents section.</p><?php endif; ?>
+    <?php endif; ?>
     <p><strong>Fee:</strong>
       <?php if ($appointment['pss_classification'] === 'pending_verification'): ?>Fee pending PSS verification
       <?php elseif (!empty($appointment['fee_snapshot'])): ?><?= feeLabel((float) (json_decode($appointment['fee_snapshot'], true)['total'] ?? 0)) ?>
@@ -362,7 +389,7 @@ if (!$isAjax) {
 
     <?php if (!in_array($appointment['category'], ['Mass Intention', 'Donation'], true)): ?>
     <?php
-      $requirementsList = parseRequirementsList($appointment['requirements']);
+      $requirementsList = !empty($appointment['requirements_snapshot']) ? (json_decode($appointment['requirements_snapshot'], true) ?: []) : parseRequirementsList($appointment['requirements']);
       $documentsByLabel = [];
       $extraDocuments = [];
       foreach ($documents as $d) {
@@ -393,7 +420,7 @@ if (!$isAjax) {
               <?= e($label) ?>
               <?php if (empty($matches)): ?>
                 <span class="badge badge-rejected">Missing</span>
-              <?php elseif (!empty($matches[0]['verified'])): ?>
+          <?php elseif (($matches[0]['review_status'] ?? ($matches[0]['verified'] ? 'approved' : 'pending')) === 'approved'): ?>
                 <span class="badge badge-verified">Verified/Accepted</span>
               <?php else: ?>
                 <span class="badge badge-pending">Uploaded — Pending Review</span>

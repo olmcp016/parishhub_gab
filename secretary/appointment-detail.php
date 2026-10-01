@@ -3,6 +3,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/scheduling.php';
 require_once __DIR__ . '/../includes/service-fees.php';
+require_once __DIR__ . '/../includes/wedding-forms.php';
 requireRole('Secretary', 'Admin');
 
 $id = (int) ($_GET['id'] ?? 0);
@@ -16,10 +17,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'verify_document') {
-        db()->prepare('UPDATE uploaded_documents SET verified = TRUE WHERE document_id = ? AND appointment_id = ?')
-            ->execute([$_POST['document_id'], $id]);
+        db()->prepare("UPDATE uploaded_documents SET review_status = 'approved', verified = TRUE, rejection_reason = NULL, reviewed_by = ?, reviewed_at = NOW() WHERE document_id = ? AND appointment_id = ? AND superseded_by IS NULL")
+            ->execute([$userId, $_POST['document_id'], $id]);
+        db()->prepare("UPDATE generated_wedding_forms SET status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$_POST['document_id'], $id]);
         logActivity($userId, "Verified a document for appointment #$id", 'Appointments');
         respondAjaxOrRedirect($isAjax, true, 'Document marked as verified.', $redirectUrl);
+    }
+
+    if ($action === 'reject_document') {
+        $reason = trim($_POST['document_rejection_reason'] ?? '');
+        if ($reason === '' || mb_strlen($reason) > 1000) {
+            respondAjaxOrRedirect($isAjax, false, 'A document rejection reason is required.', $redirectUrl);
+        }
+        db()->prepare("UPDATE uploaded_documents SET review_status = 'rejected', verified = FALSE, rejection_reason = ?, reviewed_by = ?, reviewed_at = NOW() WHERE document_id = ? AND appointment_id = ? AND superseded_by IS NULL")
+            ->execute([$reason, $userId, $_POST['document_id'], $id]);
+        db()->prepare("UPDATE generated_wedding_forms SET status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$_POST['document_id'], $id]);
+        logActivity($userId, "Rejected a document for appointment #$id", 'Appointments');
+        respondAjaxOrRedirect($isAjax, true, 'Document rejected with instructions.', $redirectUrl);
     }
 
     if ($action === 'verify_pss') {
@@ -59,11 +73,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // auto-approved on submission anyway, but this also covers any
         // legacy pending records.
         $stmt = db()->prepare(
-            "SELECT s.requirements, s.category FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_id = ?"
+            "SELECT a.requirements_snapshot, s.requirements, s.category FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_id = ?"
         );
         $stmt->execute([$id]);
         $svc = $stmt->fetch();
-        $requirementsList = parseRequirementsList($svc['requirements']);
+        $requirementsList = !empty($appointment['requirements_snapshot']) ? (json_decode($appointment['requirements_snapshot'], true) ?: []) : parseRequirementsList($svc['requirements']);
 
         if (!in_array($svc['category'], ['Mass Intention', 'Donation'], true) && !empty($requirementsList)) {
             $stmt = db()->prepare('SELECT requirement_label, verified FROM uploaded_documents WHERE appointment_id = ?');
@@ -241,9 +255,15 @@ $intention = $stmt->fetch() ?: null;
 $stmt = db()->prepare('SELECT * FROM donations WHERE appointment_id = ?');
 $stmt->execute([$id]);
 $donation = $stmt->fetch() ?: null;
-$stmt = db()->prepare('SELECT * FROM uploaded_documents WHERE appointment_id = ? ORDER BY uploaded_at DESC, document_id DESC');
+$stmt = db()->prepare("SELECT * FROM uploaded_documents WHERE appointment_id = ? AND superseded_by IS NULL AND (document_source IS NULL OR document_source <> 'generated') ORDER BY uploaded_at DESC, document_id DESC");
 $stmt->execute([$id]);
 $documents = $stmt->fetchAll();
+$generatedForms = [];
+if (($appointment['category'] ?? '') === 'Wedding') {
+    $stmt = db()->prepare("SELECT g.*, d.document_id, d.file_name, d.review_status, d.rejection_reason FROM generated_wedding_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.appointment_id = ? ORDER BY g.form_type");
+    $stmt->execute([$id]);
+    $generatedForms = $stmt->fetchAll();
+}
 
 // Each priest's upcoming schedule and declared unavailability, so the
 // secretary can check availability before assigning — directly at the
@@ -356,12 +376,29 @@ if (!$isAjax) {
     <?php endif; ?>
 
     <?php if (!in_array($appointment['category'], ['Mass Intention', 'Donation'], true)): ?>
+    <?php if ($appointment['category'] === 'Wedding'): ?>
+      <hr style="border-color: var(--cream-dark); margin: 18px 0;">
+      <h4>Wedding Generated Forms</h4>
+      <?php foreach ($generatedForms as $gf): $formStatus = $gf['review_status'] ?? 'pending'; ?>
+        <div class="card" style="background:var(--cream); margin:10px 0;">
+          <strong><?= e(weddingFormDefinition($gf['form_type'])['title']) ?></strong>
+          <span class="badge badge-<?= $formStatus === 'approved' ? 'verified' : ($formStatus === 'rejected' ? 'rejected' : 'pending') ?>"><?= $formStatus === 'approved' ? 'Approved' : ($formStatus === 'rejected' ? 'Needs Revision' : 'Pending Review') ?></span>
+          <?php if ($gf['document_id']): ?><a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>">View PDF</a><?php endif; ?>
+          <?php if ($gf['rejection_reason']): ?><p class="text-muted">Reason: <?= e($gf['rejection_reason']) ?></p><?php endif; ?>
+          <?php if ($gf['document_id'] && $formStatus === 'pending'): ?>
+            <form method="POST" style="display:inline;"> <?= csrfField() ?><input type="hidden" name="action" value="verify_document"><input type="hidden" name="document_id" value="<?= (int) $gf['document_id'] ?>"><button class="btn btn-outline btn-sm">Approve</button></form>
+            <form method="POST" style="margin-top:8px;"><?= csrfField() ?><input type="hidden" name="action" value="reject_document"><input type="hidden" name="document_id" value="<?= (int) $gf['document_id'] ?>"><textarea name="document_rejection_reason" required maxlength="1000" placeholder="Reason for rejection"></textarea><button class="btn btn-danger btn-sm">Reject</button></form>
+          <?php endif; ?>
+        </div>
+      <?php endforeach; ?>
+      <?php if (!$generatedForms): ?><p class="text-muted">No generated Wedding forms have been submitted.</p><?php endif; ?>
+    <?php endif; ?>
     <hr style="border-color: var(--cream-dark); margin: 18px 0;">
     <h4>Uploaded Documents</h4>
     <?php
-      $requirementsList = parseRequirementsList($appointment['requirements']);
+      $requirementsList = !empty($appointment['requirements_snapshot']) ? (json_decode($appointment['requirements_snapshot'], true) ?: []) : parseRequirementsList($appointment['requirements']);
       if (!empty($requirementsList)):
-        $verifiedLabels = array_column(array_filter($documents, fn($d) => $d['verified']), 'requirement_label');
+        $verifiedLabels = array_column(array_filter($documents, fn($d) => ($d['review_status'] ?? ($d['verified'] ? 'approved' : 'pending')) === 'approved'), 'requirement_label');
         $uploadedLabels = array_column($documents, 'requirement_label');
     ?>
       <div class="flex gap-2" style="flex-wrap:wrap; margin-bottom:12px;">
@@ -394,14 +431,20 @@ if (!$isAjax) {
                     <span><?= e($d['file_name']) ?></span>
                   </a>
                 </td>
-                <td><?= $d['verified'] ? '<span class="badge badge-verified">Verified</span>' : '<span class="badge badge-pending">Pending Review</span>' ?></td>
+                <?php $docStatus = $d['review_status'] ?? ($d['verified'] ? 'approved' : 'pending'); ?>
+                <td><?= $docStatus === 'approved' ? '<span class="badge badge-verified">Approved</span>' : ($docStatus === 'rejected' ? '<span class="badge badge-rejected">Needs Replacement</span>' : '<span class="badge badge-pending">Pending Review</span>') ?></td>
                 <td>
-                  <?php if (!$d['verified']): ?>
+                  <?php if ($docStatus === 'pending' && $d['superseded_by'] === null): ?>
                     <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>" style="display:inline;">
                       <?= csrfField() ?>
                       <input type="hidden" name="action" value="verify_document">
                       <input type="hidden" name="document_id" value="<?= $d['document_id'] ?>">
                       <button type="submit" class="btn btn-outline btn-sm">Mark Verified</button>
+                    </form>
+                    <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>" style="margin-top:6px;">
+                      <?= csrfField() ?><input type="hidden" name="action" value="reject_document"><input type="hidden" name="document_id" value="<?= (int) $d['document_id'] ?>">
+                      <textarea name="document_rejection_reason" rows="2" required maxlength="1000" placeholder="Reason for rejection"></textarea>
+                      <button type="submit" class="btn btn-danger btn-sm">Reject</button>
                     </form>
                   <?php endif; ?>
                 </td>

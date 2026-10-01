@@ -38,6 +38,13 @@ $requirementsByService = [];
 foreach ($services as $s) {
     $policies[$s['category']] = schedulingPolicyText($s['category'], (int) $s['service_id']);
     $requirementsByService[$s['service_id']] = parseRequirementsList($s['requirements']);
+    if ($s['category'] === 'Wedding') {
+        $requirementsByService[$s['service_id']] = [
+            'Baptismal Certificate',
+            'Confirmation Certificate',
+            "Sponsors' Baptismal Certificate"
+        ];
+    }
 }
 foreach (['Mass Intention', 'Funeral', 'First Communion'] as $cat) {
     if (!isset($policies[$cat])) {
@@ -256,7 +263,7 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
             <label>Preferred Time</label>
 
             <div id="freeTimeGroup">
-              <input type="time" name="appointment_time" id="freeTimeInput">
+              <input type="time" name="appointment_time" id="freeTimeInput" step="1800">
               <p class="helper-text" id="occupiedTimesHint"></p>
             </div>
 

@@ -32,12 +32,25 @@ function validateUploadedFile(array $file): array
     if (($file['size'] ?? 0) <= 0) {
         return ['valid' => false, 'mime' => null, 'reason' => 'unreadable'];
     }
+    if ((int) $file['size'] > (defined('MAX_DOCUMENT_UPLOAD_MB') ? MAX_DOCUMENT_UPLOAD_MB : 2) * 1024 * 1024) {
+        return ['valid' => false, 'mime' => null, 'reason' => 'too_large'];
+    }
 
     $finfo = finfo_open(FILEINFO_MIME_TYPE);
     $mime = finfo_file($finfo, $file['tmp_name']);
     finfo_close($finfo);
 
     if (!in_array($mime, ALLOWED_DOCUMENT_MIME_TYPES, true)) {
+        return ['valid' => false, 'mime' => $mime, 'reason' => 'invalid_type'];
+    }
+    $extension = strtolower(pathinfo((string) ($file['name'] ?? ''), PATHINFO_EXTENSION));
+    $validExtensions = match ($mime) {
+        'application/pdf' => ['pdf'],
+        'image/jpeg' => ['jpg', 'jpeg'],
+        'image/png' => ['png'],
+        default => [],
+    };
+    if (!in_array($extension, $validExtensions, true)) {
         return ['valid' => false, 'mime' => $mime, 'reason' => 'invalid_type'];
     }
 
@@ -79,6 +92,7 @@ function documentValidationMessage(?string $reason): string
         'invalid_type' => 'Unsupported file type. Please upload a JPG, PNG, or PDF file.',
         'corrupted' => 'This file could not be read — it may be corrupted. Please upload a different copy.',
         'unreadable' => 'This file could not be uploaded. Please try again.',
+        'too_large' => 'This document exceeds the 2 MB file-size limit. Please choose a smaller file.',
         default => 'Document validation failed. Please upload the correct required document.',
     };
 }

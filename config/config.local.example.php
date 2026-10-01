@@ -10,6 +10,13 @@ putenv('DB_NAME=postgres');
 putenv('DB_USER=postgres.gzyupwzalamtnehaywwh');
 putenv('DB_PASS=ask-your-collaborator-for-this');
 
+// Private appointment-document storage. Use local only for development;
+// production should use a private Supabase Storage bucket.
+putenv('DOCUMENT_STORAGE_DRIVER=local');
+putenv('SUPABASE_URL=https://your-project.supabase.co');
+putenv('SUPABASE_SECRET_KEY=server-only-secret');
+putenv('SUPABASE_DOCUMENT_BUCKET=parish-documents');
+
 // Brevo (transactional email) — used to email guests (no account, so no
 // in-app notification) when their appointment is approved/rescheduled/etc.
 // See includes/mailer.php. Leave unset/placeholder to disable email sending.

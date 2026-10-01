@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/includes/wedding-forms.php';
 
 /**
  * Public, no-account status lookup for a guest booking/Mass Intention/
@@ -20,7 +21,7 @@ if ($searched) {
     $code = strtoupper($reference);
     if ($contact !== '') {
         $stmt = db()->prepare(
-            "SELECT a.*, s.service_name, s.fee, s.category, st.status_name, p.full_name AS priest_name
+            "SELECT a.*, s.service_name, s.fee, s.category, s.requirements, st.status_name, p.full_name AS priest_name
              FROM appointments a
              JOIN services s ON a.service_id = s.service_id
              JOIN appointment_status st ON a.status_id = st.status_id
@@ -30,7 +31,7 @@ if ($searched) {
         $stmt->execute([$code, $contact, $contact]);
     } else {
         $stmt = db()->prepare(
-            "SELECT a.*, s.service_name, s.fee, s.category, st.status_name, p.full_name AS priest_name
+            "SELECT a.*, s.service_name, s.fee, s.category, s.requirements, st.status_name, p.full_name AS priest_name
              FROM appointments a
              JOIN services s ON a.service_id = s.service_id
              JOIN appointment_status st ON a.status_id = st.status_id
@@ -42,7 +43,22 @@ if ($searched) {
     $appointment = $stmt->fetch() ?: null;
     $notFound = !$appointment;
 
+    if ($appointment && $contact !== '') {
+        $_SESSION['guest_status_verification'] = [
+            'appointment_id' => (int) $appointment['appointment_id'],
+            'expires_at' => time() + 900,
+        ];
+    }
+
     if ($appointment) {
+        $stmt = db()->prepare('SELECT * FROM uploaded_documents WHERE appointment_id = ? AND superseded_by IS NULL ORDER BY requirement_label, document_id');
+        $stmt->execute([$appointment['appointment_id']]);
+        $documents = $stmt->fetchAll();
+        $generatedForms = [];
+        if (($appointment['category'] ?? '') === 'Wedding') {
+            $stmt = db()->prepare('SELECT g.*, d.document_id, d.review_status, d.rejection_reason FROM generated_wedding_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.appointment_id = ? ORDER BY g.form_type');
+            $stmt->execute([$appointment['appointment_id']]); $generatedForms = $stmt->fetchAll();
+        }
         $stmt = db()->prepare('SELECT * FROM mass_intentions WHERE appointment_id = ?');
         $stmt->execute([$appointment['appointment_id']]);
         $intention = $stmt->fetch() ?: null;
@@ -115,6 +131,16 @@ include __DIR__ . '/includes/header.php';
         <?php endif; ?>
       </div>
       <p><strong>Reference:</strong> <?= e($appointment['guest_reference']) ?></p>
+      <?php if ($appointment['category'] === 'Wedding'): ?>
+        <hr style="border-color:var(--cream-dark); margin:18px 0;"><h4>Wedding Forms</h4>
+        <?php foreach ($generatedForms as $gf): ?>
+          <p><strong><?= e(weddingFormDefinition($gf['form_type'])['title']) ?></strong><br>
+          Status: <?= e(weddingFormStatusLabel($gf['status'])) ?>
+          <a class="btn btn-outline btn-sm" href="<?= url('wedding-form.php?appointment_id=' . (int) $appointment['appointment_id'] . '&form_type=' . urlencode($gf['form_type'])) ?>">Edit / View</a>
+          <?php if ($gf['document_id']): ?><a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>">View PDF</a><?php endif; ?>
+          <?php if ($gf['rejection_reason']): ?><br><span class="text-muted">Reason: <?= e($gf['rejection_reason']) ?></span><?php endif; ?></p>
+        <?php endforeach; ?>
+      <?php endif; ?>
       <p><strong>Date:</strong> <?= formatDate($appointment['appointment_date']) ?> at <?= date('g:i A', strtotime($appointment['appointment_time'])) ?></p>
       <?php if ($appointment['category'] !== 'Donation'): ?>
         <p><strong>Priest:</strong> <?= e($appointment['priest_name'] ?? 'Not yet assigned') ?></p>
@@ -123,6 +149,34 @@ include __DIR__ . '/includes/header.php';
           <?php elseif ($appointmentSnapshot): ?><?= feeLabel($displayFee) ?>
           <?php else: ?><?= feeLabel((float) $appointment['fee']) ?><?php endif; ?>
         </p>
+        <?php if ($documents && $contact !== ''): ?>
+          <div class="card" style="margin-top:18px;">
+            <div class="card-header"><h3>Submitted Documents</h3></div>
+            <?php foreach ($documents as $document): ?>
+              <?php $docStatus = $document['review_status'] ?? ($document['verified'] ? 'approved' : 'pending'); ?>
+              <div style="padding:12px 0; border-bottom:1px solid var(--cream-dark);">
+                <strong><?= e($document['requirement_label'] ?: $document['file_name']) ?></strong>
+                <span class="badge badge-<?= $docStatus === 'approved' ? 'verified' : ($docStatus === 'rejected' ? 'rejected' : 'pending') ?>">
+                  <?= $docStatus === 'approved' ? 'Approved' : ($docStatus === 'rejected' ? 'Needs Replacement' : 'Pending Review') ?>
+                </span>
+                <div class="text-muted" style="font-size:13px; margin-top:4px;">File: <?= e($document['file_name']) ?> · <?= e(formatDate($document['uploaded_at'])) ?></div>
+                <?php if ($docStatus === 'rejected' && $document['rejection_reason']): ?>
+                  <p style="margin:6px 0;"><strong>Secretary's Note:</strong> <?= e($document['rejection_reason']) ?></p>
+                <?php endif; ?>
+                <div class="flex gap-2" style="margin-top:8px; flex-wrap:wrap;">
+                  <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $document['document_id']) ?>">View Document</a>
+                  <?php if ($docStatus === 'rejected'): ?>
+                    <form method="POST" action="<?= url('guest-document-replace.php') ?>" enctype="multipart/form-data" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                      <?= csrfField() ?><input type="hidden" name="appointment_id" value="<?= (int) $appointment['appointment_id'] ?>"><input type="hidden" name="document_id" value="<?= (int) $document['document_id'] ?>"><input type="hidden" name="ref" value="<?= e($reference) ?>">
+                      <input type="file" name="replacement" accept=".pdf,.jpg,.jpeg,.png" required>
+                      <button class="btn btn-primary btn-sm" type="submit">Replace Document</button>
+                    </form>
+                  <?php endif; ?>
+                </div>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        <?php endif; ?>
       <?php endif; ?>
       <?php if (!empty($appointment['location_address'])): ?><p><strong>Address to Bless:</strong> <?= nl2br(e($appointment['location_address'])) ?></p><?php endif; ?>
       <?php if (!empty($appointment['contact_phone'])): ?><p><strong>Contact Phone:</strong> <?= e($appointment['contact_phone']) ?></p><?php endif; ?>
