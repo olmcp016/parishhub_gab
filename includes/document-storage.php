@@ -41,7 +41,13 @@ function documentStorageSupabaseRequest(string $method, string $objectKey, ?stri
         'DELETE' => 'delete',
         default => strtolower($method),
     };
-    $url = SUPABASE_URL . '/storage/v1/object/' . rawurlencode(SUPABASE_DOCUMENT_BUCKET) . '/' . str_replace('%2F', '/', rawurlencode($objectKey));
+    // SUPABASE_URL must be the project root. Normalize API suffixes here so a
+    // mistakenly configured /rest/v1 or /storage/v1 value cannot route this
+    // request through PostgREST and produce PGRST125.
+    $baseUrl = rtrim(SUPABASE_URL, '/');
+    $baseUrl = preg_replace('#/(?:rest/v1|storage/v1)$#i', '', $baseUrl);
+    $encodedObjectKey = implode('/', array_map('rawurlencode', explode('/', $objectKey)));
+    $url = $baseUrl . '/storage/v1/object/' . rawurlencode(SUPABASE_DOCUMENT_BUCKET) . '/' . $encodedObjectKey;
     $ch = curl_init($url);
     $headers = ['apikey: ' . SUPABASE_SECRET_KEY];
     if ($contentType) $headers[] = 'Content-Type: ' . $contentType;
