@@ -6,6 +6,7 @@ require_once __DIR__ . '/../includes/scheduling.php';
 require_once __DIR__ . '/../includes/document-validation.php';
 require_once __DIR__ . '/../includes/paymongo.php';
 require_once __DIR__ . '/../includes/service-fees.php';
+require_once __DIR__ . '/../includes/wedding-draft.php';
 $identity = requireParishionerOrGuest();
 $userId = $identity['user_id'];
 $parishionerId = $identity['parishioner_id'];
@@ -32,7 +33,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     redirect($redirectUrl);
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // PHP silently empties $_POST and $_FILES entirely when the total upload
     // exceeds post_max_size — even though real data WAS sent. Detect this
     // specific case first, before verifyCsrf() runs, so the parishioner sees
@@ -250,7 +251,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Guests must provide every service-required document before a booking
         // can be submitted. Registered parishioners may correct documents
         // during the secretary review workflow from the appointment page.
-        if ($isGuest && $requirementsList) {
+        if ($isGuest && $requirementsList && !($category === 'Wedding' && ($_POST['draft_mode'] ?? '') === '1')) {
             $uploadedLabels = array_unique(array_filter(array_map(
                 fn($upload) => $upload['label'], $pendingUploads
             )));
@@ -258,6 +259,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($missing) {
                 bookRespondError($isAjax, 'Please upload all required documents: ' . implode(', ', $missing) . '.', url('parishioner/services.php'));
             }
+        }
+    }
+
+    if ($category === 'Wedding' && ($_POST['draft_mode'] ?? '') === '1') {
+        $pdo = db();
+        $createdStorageKeys = [];
+        try {
+            $pdo->beginTransaction();
+            $rawGuestToken = $isGuest ? bin2hex(random_bytes(32)) : null;
+            $stmt = $pdo->prepare("INSERT INTO wedding_booking_drafts (parishioner_id, guest_access_token_hash, guest_name, guest_email, guest_phone, service_id, priest_id, appointment_date, appointment_time, schedule_type, pss_claim, wedding_sponsor_count, remarks, contact_phone, location_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$isGuest ? null : $parishionerId, $rawGuestToken ? hash('sha256', $rawGuestToken) : null, $guestName, $guestEmail, $guestPhone, $serviceId, $priestId, $date, $finalTime, $scheduleTypeToSave, $pssClaim, $weddingSponsorCount, $remarks, $contactPhone, $locationAddress]);
+            $draftId = (int) $pdo->lastInsertId();
+            if ($rawGuestToken) $_SESSION['wedding_draft_tokens'][$draftId] = $rawGuestToken;
+            foreach ($pendingUploads as $upload) {
+                $stored = documentStorageMoveUpload($upload['file']['tmp_name'], pathinfo($upload['file']['name'], PATHINFO_EXTENSION));
+                $createdStorageKeys[] = $stored['key'];
+                $stmt = $pdo->prepare("INSERT INTO uploaded_documents (appointment_id, draft_id, file_name, file_path, file_type, requirement_label, review_status, verified) VALUES (NULL, ?, ?, ?, ?, ?, 'pending', FALSE)");
+                $stmt->execute([$draftId, $upload['file']['name'], $stored['key'], $stored['mime'], $upload['label']]);
+            }
+            $pdo->commit();
+            $redirect = url('wedding-draft.php?draft_id=' . $draftId);
+            if ($isAjax) { header('Content-Type: application/json'); echo json_encode(['success' => true, 'redirect' => $redirect]); exit; }
+            redirect($redirect);
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            foreach ($createdStorageKeys as $key) { try { documentStorageDelete($key); } catch (Throwable $cleanupError) { error_log('Document cleanup failed.'); } }
+            error_log($e->getMessage());
+            bookRespondError($isAjax, 'Unable to save the Wedding booking draft. Please try again.', url('parishioner/services.php'));
         }
     }
 

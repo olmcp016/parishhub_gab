@@ -1,4 +1,8 @@
 <?php
+if (isset($_REQUEST['draft_id'])) {
+    require __DIR__ . '/wedding-draft-form.php';
+    exit;
+}
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/wedding-forms.php';

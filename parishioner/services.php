@@ -137,6 +137,7 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
       <form method="POST" action="<?= url('parishioner/book.php') ?>" enctype="multipart/form-data" id="bookForm">
         <?= csrfField() ?>
         <input type="hidden" name="ajax" value="1">
+        <input type="hidden" name="draft_mode" id="draftModeInput" value="0">
 
         <?php if ($identity['is_guest']): ?>
         <div class="form-row">
@@ -990,6 +991,9 @@ function autoAssignMassTime() {
 function submitButtonLabel() {
   var select = document.getElementById('serviceSelect');
   var category = select.options[select.selectedIndex]?.dataset.category || '';
+  var draftMode = document.getElementById('draftModeInput');
+  if (draftMode) draftMode.value = category === 'Wedding' ? '1' : '0';
+  if (category === 'Wedding') return 'Continue to Wedding Requirements';
   return category === 'Mass Intention' ? 'Pay & Submit Mass Intention' : 'Submit Appointment Request';
 }
 

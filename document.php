@@ -2,6 +2,7 @@
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/document-storage.php';
+require_once __DIR__ . '/includes/wedding-draft.php';
 
 $documentId = (int) ($_GET['id'] ?? 0);
 if ($documentId < 1) {
@@ -10,8 +11,8 @@ if ($documentId < 1) {
 }
 
 $stmt = db()->prepare(
-    'SELECT d.document_id, d.appointment_id, d.file_name, d.file_path, d.file_type, a.parishioner_id
-     FROM uploaded_documents d JOIN appointments a ON a.appointment_id = d.appointment_id
+    'SELECT d.document_id, d.appointment_id, d.draft_id, d.file_name, d.file_path, d.file_type, a.parishioner_id
+     FROM uploaded_documents d LEFT JOIN appointments a ON a.appointment_id = d.appointment_id
      WHERE d.document_id = ?'
 );
 $stmt->execute([$documentId]);
@@ -22,11 +23,15 @@ if (!$document) {
 }
 
 $user = currentUser();
-$authorized = $user && in_array($user['role_name'], ['Secretary', 'Admin'], true);
+$authorized = $document && $document['appointment_id'] !== null && $user && in_array($user['role_name'], ['Secretary', 'Admin'], true);
 if (!$authorized && $user && $user['role_name'] === 'Parishioner') {
     $stmt = db()->prepare('SELECT 1 FROM parishioners WHERE parishioner_id = ? AND user_id = ?');
     $stmt->execute([$document['parishioner_id'], $user['user_id']]);
     $authorized = (bool) $stmt->fetchColumn();
+}
+if (!$authorized && $document && $document['appointment_id'] === null && $document['draft_id'] !== null) {
+    $draft = weddingDraftLoad(db(), (int) $document['draft_id'], $user, weddingDraftGuestToken((int) $document['draft_id']));
+    $authorized = (bool) $draft;
 }
 if (!$authorized && !$user) {
     $guest = $_SESSION['guest_status_verification'] ?? null;
