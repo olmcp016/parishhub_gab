@@ -11,7 +11,7 @@ if ($documentId < 1) {
 }
 
 $stmt = db()->prepare(
-    'SELECT d.document_id, d.appointment_id, d.draft_id, d.file_name, d.file_path, d.file_type, a.parishioner_id
+    'SELECT d.document_id, d.appointment_id, d.draft_id, d.file_name, d.file_path, d.file_type, d.generated_form_type, a.parishioner_id
      FROM uploaded_documents d LEFT JOIN appointments a ON a.appointment_id = d.appointment_id
      WHERE d.document_id = ?'
 );
@@ -64,6 +64,14 @@ $allowedMimes = ['image/jpeg', 'image/png', 'application/pdf'];
 if (!in_array($mime, $allowedMimes, true)) $mime = 'application/octet-stream';
 header('Content-Type: ' . $mime);
 if ($filePath) header('Content-Length: ' . (string) filesize($filePath)); else header('Content-Length: ' . strlen($stored['body']));
-header('Content-Disposition: inline; filename="' . str_replace('"', '', basename($document['file_name'])) . '"');
+$generatedFilenames = [
+    'matrimony_application' => 'Matrimony-Application.pdf',
+    'cluster_clearance' => 'Katin-awan-sa-Kasal.pdf',
+    'wedding_sponsor_clearance' => 'Cluster-Clearance-Wedding-Sponsors.pdf',
+];
+$download = ($_GET['download'] ?? '') === '1';
+$filename = $generatedFilenames[$document['generated_form_type'] ?? ''] ?? basename((string) $document['file_name']);
+$filename = str_replace(["\"", "\r", "\n"], '', $filename);
+header('Content-Disposition: ' . ($download ? 'attachment' : 'inline') . '; filename="' . $filename . '"');
 header('X-Content-Type-Options: nosniff');
 if ($filePath) readfile($filePath); else echo $stored['body'];

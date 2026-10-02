@@ -8,11 +8,13 @@ require_once __DIR__ . '/includes/wedding-forms.php';
 require_once __DIR__ . '/includes/scheduling.php';
 
 $draftId = (int) ($_REQUEST['draft_id'] ?? 0);
-$user = currentUser(); $guestToken = weddingDraftGuestToken($draftId);
-$pdo = db(); $draft = weddingDraftLoad($pdo, $draftId, $user, $guestToken);
+$user = currentUser();
+$guestToken = weddingDraftGuestToken($draftId);
+$pdo = db();
+$draft = weddingDraftLoad($pdo, $draftId, $user, $guestToken);
 if (!$draft) { http_response_code(403); exit('Wedding draft not found or access denied.'); }
-if ($draft['status'] === 'finalized' && !empty($draft['finalized_appointment_id'])) { redirect(url('parishioner/appointment-detail.php?id=' . (int) $draft['finalized_appointment_id'])); }
-if (strtotime($draft['expires_at']) <= time()) { exit('This Wedding booking draft has expired. Please start again.'); }
+if ($draft['status'] === 'finalized' && !empty($draft['finalized_appointment_id'])) redirect(url('parishioner/appointment-detail.php?id=' . (int) $draft['finalized_appointment_id']));
+if (strtotime($draft['expires_at']) <= time()) exit('This Wedding booking draft has expired. Please start again.');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifyCsrf();
@@ -66,8 +68,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($pdo->inTransaction()) $pdo->rollBack(); error_log($e->getMessage()); flash('error', 'The Wedding booking could not be submitted.'); redirect(url('wedding-draft.php?draft_id=' . $draftId));
     }
 }
-$docs = $pdo->prepare('SELECT requirement_label FROM uploaded_documents WHERE draft_id = ? AND superseded_by IS NULL'); $docs->execute([$draftId]); $uploaded = array_unique($docs->fetchAll(PDO::FETCH_COLUMN));
-$forms = $pdo->prepare('SELECT form_type, status FROM generated_wedding_forms WHERE draft_id = ?'); $forms->execute([$draftId]); $formRows = []; foreach ($forms->fetchAll() as $row) $formRows[$row['form_type']] = $row;
-$pageTitle = 'Wedding Requirements'; include __DIR__ . '/includes/header.php'; include __DIR__ . '/includes/dash-start.php';
-?><div class="card" style="max-width:850px;margin:auto;"><h2>Supporting Documents</h2><form method="POST" enctype="multipart/form-data"><?= csrfField() ?><input type="hidden" name="action" value="upload_documents"><?php foreach (weddingDraftRequiredDocuments($draft) as $index => $label): if (!in_array($label, $uploaded, true)): ?><p><?= e($label) ?> <input type="file" name="req_doc_<?= $index ?>" accept=".pdf,.jpg,.jpeg,.png" required></p><?php endif; endforeach; ?><button class="btn btn-secondary" type="submit">Save Documents</button></form></div><?php
-?><div class="card" style="max-width:850px;margin:auto;"><h2>Wedding Requirements</h2><h3>Supporting Documents</h3><?php foreach (weddingDraftRequiredDocuments($draft) as $label): ?><p><?= in_array($label, $uploaded, true) ? '✓' : '○' ?> <?= e($label) ?> — <?= in_array($label, $uploaded, true) ? 'Uploaded' : 'Required' ?></p><?php endforeach; ?><h3>Wedding Forms</h3><?php foreach (WEDDING_DRAFT_FORMS as $type): $row=$formRows[$type]??null; $title=weddingFormDefinition($type)['title']; ?><p><?= $row ? '✓' : '○' ?> <?= e($title) ?> — <?= $row ? 'Completed' : 'Not completed' ?> <a class="btn btn-outline btn-sm" href="<?= url('wedding-draft-form.php?draft_id=' . $draftId . '&form_type=' . urlencode($type)) ?>"><?= $row ? 'Edit Form' : 'Complete Form' ?></a></p><?php endforeach; ?><form method="POST"><?= csrfField() ?><button class="btn btn-primary" type="submit">Submit Appointment Request</button></form></div><?php include __DIR__ . '/includes/footer.php';
+
+$docs = $pdo->prepare('SELECT requirement_label FROM uploaded_documents WHERE draft_id = ? AND superseded_by IS NULL');
+$docs->execute([$draftId]);
+$uploaded = array_unique($docs->fetchAll(PDO::FETCH_COLUMN));
+$forms = $pdo->prepare('SELECT form_type, status, document_id FROM generated_wedding_forms WHERE draft_id = ?');
+$forms->execute([$draftId]);
+$formRows = [];
+foreach ($forms->fetchAll() as $row) $formRows[$row['form_type']] = $row;
+$pageTitle = 'Wedding Requirements';
+include __DIR__ . '/includes/header.php';
+include __DIR__ . '/includes/dash-start.php';
+?>
+<div class="card" style="max-width:850px;margin:auto;"><h2>Supporting Documents</h2><form method="POST" enctype="multipart/form-data"><?= csrfField() ?><input type="hidden" name="action" value="upload_documents"><?php foreach (weddingDraftRequiredDocuments($draft) as $index => $label): if (!in_array($label, $uploaded, true)): ?><p><?= e($label) ?> <input type="file" name="req_doc_<?= $index ?>" accept=".pdf,.jpg,.jpeg,.png" required></p><?php endif; endforeach; ?><button class="btn btn-secondary" type="submit">Save Documents</button></form></div>
+<div class="card" style="max-width:850px;margin:auto;"><h2>Wedding Forms</h2><?php foreach (WEDDING_DRAFT_FORMS as $type): $row = $formRows[$type] ?? null; $title = weddingFormDefinition($type)['title']; $documentId = $row && !empty($row['document_id']) ? (int) $row['document_id'] : 0; ?><p><?= $documentId ? '✓' : '○' ?> <?= e($title) ?> — <?= $documentId ? 'Generated' : ($row ? 'Draft' : 'Not completed') ?> <a class="btn btn-outline btn-sm" href="<?= url('wedding-draft-form.php?draft_id=' . $draftId . '&form_type=' . urlencode($type)) ?>"><?= $row ? 'Edit Form' : 'Complete Form' ?></a><?php if ($documentId): ?> <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . $documentId) ?>">View PDF</a> <a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . $documentId . '&download=1') ?>">Download PDF</a><?php endif; ?></p><?php endforeach; ?><form method="POST"><?= csrfField() ?><button class="btn btn-primary" type="submit">Submit Appointment Request</button></form></div>
+<?php include __DIR__ . '/includes/footer.php';
