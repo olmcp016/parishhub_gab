@@ -43,7 +43,15 @@ function weddingDraftComplete(PDO $pdo, array $draft): array
     $q = $pdo->prepare("SELECT requirement_label FROM uploaded_documents WHERE draft_id = ? AND superseded_by IS NULL AND review_status = 'pending'");
     $q->execute([$draft['draft_id']]); $labels = array_unique($q->fetchAll(PDO::FETCH_COLUMN));
     $missing = array_values(array_diff($required, $labels));
-    $q = $pdo->prepare("SELECT form_type FROM generated_wedding_forms WHERE draft_id = ? AND status IN ('generated','pending_review','approved') AND document_id IS NOT NULL");
+    $q = $pdo->prepare("SELECT f.form_type
+        FROM generated_wedding_forms f
+        INNER JOIN uploaded_documents d ON d.document_id = f.document_id
+        WHERE f.draft_id = ?
+          AND f.document_id IS NOT NULL
+          AND d.superseded_by IS NULL
+          AND d.document_source = 'generated'
+          AND d.generated_form_type = f.form_type
+          AND d.file_type = 'application/pdf'");
     $q->execute([$draft['draft_id']]); $forms = array_unique($q->fetchAll(PDO::FETCH_COLUMN));
     foreach (WEDDING_DRAFT_FORMS as $form) if (!in_array($form, $forms, true)) $missing[] = match ($form) {
         'matrimony_application' => 'Matrimony / Marriage Application Form',

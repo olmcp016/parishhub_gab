@@ -36,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'uploa
             $stored = documentStorageMoveUpload($file['tmp_name'], pathinfo($file['name'], PATHINFO_EXTENSION));
             $storedKeys[] = $stored['key'];
             $stmt = $pdo->prepare("INSERT INTO uploaded_documents (appointment_id, draft_id, baptism_draft_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source) VALUES (NULL, NULL, ?, ?, ?, ?, ?, 'pending', FALSE, 'uploaded')");
-            $stmt->execute([$id, $file['name'], $stored['reference'], $stored['mime'], $label]);
+            $stmt->execute([$id, $file['name'], $stored['key'], $stored['mime'], $label]);
         }
         $pdo->commit();
         redirect(url('baptism-draft.php?draft_id=' . $id));

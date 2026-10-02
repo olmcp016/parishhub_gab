@@ -45,27 +45,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $missing = weddingDraftComplete($pdo, $draft);
     if ($missing) { flash('error', 'Please complete: ' . implode(', ', $missing) . '.'); redirect(url('wedding-draft.php?draft_id=' . $draftId)); }
+    $finalizationStage = 'begin_transaction';
     $pdo->beginTransaction();
     try {
+        $finalizationStage = 'lock_and_authorize_draft';
         $locked = weddingDraftLoad($pdo, $draftId, $user, $guestToken, true);
         if (!$locked || $locked['status'] !== 'draft' || strtotime($locked['expires_at']) <= time()) throw new RuntimeException('Draft is no longer available.');
+        $finalizationStage = 'validate_requirements';
         $missing = weddingDraftComplete($pdo, $locked);
         if ($missing) throw new RuntimeException('Please complete: ' . implode(', ', $missing) . '.');
         if ($locked['wedding_sponsor_count'] === null || (int) $locked['wedding_sponsor_count'] < 0) throw new RuntimeException('Please provide a valid number of wedding sponsors.');
+        $finalizationStage = 'revalidate_schedule';
         $schedule = validateBooking('Wedding', $locked['appointment_date'], $locked['appointment_time'], null, $locked['schedule_type'], (int) $locked['service_id']);
         if (!$schedule['valid']) throw new RuntimeException($schedule['message']);
         $finalTime = $schedule['forcedTime'] ?: $locked['appointment_time'];
         $guestReference = $locked['parishioner_id'] ? null : generateGuestReference();
+        $finalizationStage = 'insert_appointment';
         $stmt = $pdo->prepare("INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, schedule_type, pss_claim, pss_classification, wedding_sponsor_count, guest_name, guest_email, guest_phone, guest_reference, contact_phone, location_address, requirements_snapshot) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 'pending_verification', ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([$locked['parishioner_id'], $locked['service_id'], $locked['priest_id'], $locked['appointment_date'], $finalTime, $locked['remarks'], $locked['schedule_type'], $locked['pss_claim'], $locked['wedding_sponsor_count'], $locked['guest_name'], $locked['guest_email'], $locked['guest_phone'], $guestReference, $locked['contact_phone'], $locked['location_address'], json_encode(weddingDraftRequiredDocuments($locked))]);
         $appointmentId = (int) $pdo->lastInsertId();
+        $finalizationStage = 'transfer_supporting_documents';
         $pdo->prepare('UPDATE uploaded_documents SET appointment_id = ?, draft_id = NULL WHERE draft_id = ?')->execute([$appointmentId, $draftId]);
+        $finalizationStage = 'transfer_generated_forms';
         $pdo->prepare('UPDATE generated_wedding_forms SET appointment_id = ?, draft_id = NULL WHERE draft_id = ?')->execute([$appointmentId, $draftId]);
+        $finalizationStage = 'finalize_draft';
         $pdo->prepare("UPDATE wedding_booking_drafts SET status = 'finalized', finalized_appointment_id = ?, updated_at = CURRENT_TIMESTAMP WHERE draft_id = ?")->execute([$appointmentId, $draftId]);
+        $finalizationStage = 'commit';
         $pdo->commit();
         redirect($guestReference ? url('status.php?ref=' . urlencode($guestReference) . '&contact=' . urlencode((string) ($locked['guest_phone'] ?: $locked['guest_email']))) : url('parishioner/appointment-detail.php?id=' . $appointmentId));
     } catch (Throwable $e) {
-        if ($pdo->inTransaction()) $pdo->rollBack(); error_log($e->getMessage()); flash('error', 'The Wedding booking could not be submitted.'); redirect(url('wedding-draft.php?draft_id=' . $draftId));
+        $rolledBack = false;
+        if ($pdo->inTransaction()) { $pdo->rollBack(); $rolledBack = true; }
+        $sqlState = $e instanceof PDOException ? ($e->errorInfo[0] ?? $e->getCode()) : $e->getCode();
+        error_log(sprintf(
+            'Wedding finalization failed: stage=%s draft_id=%d exception=%s sqlstate=%s transaction_active=%s rolled_back=%s message=%s',
+            $finalizationStage,
+            $draftId,
+            get_class($e),
+            (string) $sqlState,
+            $pdo->inTransaction() ? 'yes' : 'no',
+            $rolledBack ? 'yes' : 'no',
+            preg_replace('/\s+/', ' ', $e->getMessage())
+        ));
+        flash('error', 'The Wedding booking could not be submitted.'); redirect(url('wedding-draft.php?draft_id=' . $draftId));
     }
 }
 
