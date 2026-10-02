@@ -40,10 +40,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'verify_pss') {
+        $stage = 'validate_request';
         $classification = $_POST['pss_classification'] ?? '';
         if (!in_array($classification, ['pss', 'non_pss'], true)) {
             respondAjaxOrRedirect($isAjax, false, 'Please choose a valid PSS classification.', $redirectUrl);
         }
+        $stage = 'load_appointment';
         $stmt = db()->prepare("SELECT a.schedule_type, a.sponsor_count, a.wedding_sponsor_count, s.category FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_id = ? FOR UPDATE");
         $pdo = db();
         $pdo->beginTransaction();
@@ -53,18 +55,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$feeAppointment || !in_array($feeAppointment['category'], ['Baptism', 'Wedding', 'Funeral'], true)) {
                 throw new RuntimeException('This appointment does not use the PSS fee rules.');
             }
+            $stage = 'calculate_fee';
             $sponsors = $feeAppointment['category'] === 'Wedding' ? (int) $feeAppointment['wedding_sponsor_count'] : (int) $feeAppointment['sponsor_count'];
             $calculation = calculateServiceFee($feeAppointment['category'], $feeAppointment['schedule_type'], $classification, $sponsors);
             if (!$calculation) throw new RuntimeException('No fee rule is configured for this appointment.');
             $calculation['verified_by'] = $userId;
+            $stage = 'update_appointment';
             $pdo->prepare('UPDATE appointments SET pss_classification = ?, pss_verified_by = ?, pss_verified_at = NOW(), fee_snapshot = ? WHERE appointment_id = ?')
                 ->execute([$classification, $userId, json_encode($calculation), $id]);
+            $stage = 'commit';
             $pdo->commit();
             logActivity($userId, "Verified PSS classification for appointment #$id as $classification", 'Appointments');
             respondAjaxOrRedirect($isAjax, true, 'PSS classification verified and fee calculated.', $redirectUrl);
         } catch (Throwable $e) {
-            if ($pdo->inTransaction()) $pdo->rollBack();
-            error_log($e->getMessage());
+            $rolledBack = false;
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+                $rolledBack = true;
+            }
+            $sqlState = $e instanceof PDOException ? $e->getCode() : '';
+            error_log(sprintf(
+                'PSS classification verification failed: appointment_id=%d stage=%s exception=%s code=%s sqlstate=%s transaction_active=%s rolled_back=%s message=%s file=%s line=%d',
+                $id,
+                $stage,
+                get_class($e),
+                (string) $e->getCode(),
+                (string) $sqlState,
+                $pdo->inTransaction() ? 'yes' : 'no',
+                $rolledBack ? 'yes' : 'no',
+                preg_replace('/\s+/', ' ', $e->getMessage()),
+                $e->getFile(),
+                $e->getLine()
+            ));
             respondAjaxOrRedirect($isAjax, false, 'Unable to verify the PSS classification.', $redirectUrl);
         }
     }
