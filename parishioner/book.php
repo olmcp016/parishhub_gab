@@ -21,6 +21,7 @@ const SCHEDULE_TOGGLE_CATEGORIES = ['Baptism', 'Wedding', 'Blessing', 'Confirmat
  * if JS is unavailable — same endpoint, same validation, either way.
  */
 $isAjax = ($_POST['ajax'] ?? '') === '1';
+$massIntentionStage = 'initial_request';
 
 function bookRespondError(bool $isAjax, string $message, string $redirectUrl): void
 {
@@ -89,6 +90,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     }
 
     $stmt = db()->prepare('SELECT category, requirements FROM services WHERE service_id = ?');
+    $massIntentionStage = 'load_service';
     $stmt->execute([$serviceId]);
     $service = $stmt->fetch();
     $category = $service['category'] ?? null;
@@ -123,6 +125,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     $manualMethodId = null;
     $manualReference = null;
     if ($isMassIntention) {
+        $massIntentionStage = 'validate_mass_intention';
         // Priests do not personally read Mass Intentions. The time must be one
         // of the three official Mass times — checked by validateBooking()
         // below — and a Mass Intention can NEVER be saved without a real
@@ -148,8 +151,10 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
 
         $payMode = $_POST['pay_mode'] ?? '';
         if ($payMode === 'online') {
+            $massIntentionStage = 'validate_payment_method';
             $payOnline = true;
         } elseif ($payMode === 'cash') {
+            $massIntentionStage = 'validate_payment_method';
             // Cash is recorded as pending and confirmed by the Cashier at the parish office.
             $manualMethodId = 1;
         } else {
@@ -176,6 +181,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
 
     // ---- Enforce the parish's fixed scheduling rules (Regular/Special, Mass conflicts, staff day-off, funeral mourning period, ...) ----
     $check = validateBooking($category, $date, $time, $dateOfDeath, $scheduleTypeToSave, $serviceId);
+    if ($isMassIntention) $massIntentionStage = 'validate_schedule';
     if (!$check['valid']) {
         bookRespondError($isAjax, $check['message'], url('parishioner/services.php'));
     }
@@ -331,6 +337,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     }
 
     $pdo = db();
+    if ($isMassIntention) $massIntentionStage = 'begin_transaction';
     $pdo->beginTransaction();
     $createdStorageKeys = [];
     try {
@@ -353,11 +360,13 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
             "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, date_of_death, schedule_type, pss_claim, pss_classification, sponsor_count, wedding_sponsor_count, guest_name, guest_email, guest_phone, guest_reference, contact_phone, location_address, requirements_snapshot{$approvedAtColumn})
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$approvedAtValue})"
         );
+        if ($isMassIntention) $massIntentionStage = 'insert_appointment';
         $stmt->execute([$parishionerId, $serviceId, $priestId, $date, $finalTime, $initialStatusId, $remarks, $dateOfDeath, $scheduleTypeToSave, $pssClaim, $pssClassification, $sponsorCount, $weddingSponsorCount, $guestName, $guestEmail, $guestPhone, $guestReference, $contactPhone, $locationAddress, $requirementsSnapshot]);
         $appointmentId = $pdo->lastInsertId();
 
         $checkoutUrl = null;
         if ($isMassIntention) {
+            $massIntentionStage = 'insert_mass_intention';
             $stmt = $pdo->prepare(
                 "INSERT INTO mass_intentions (appointment_id, intention_type, offerer_name, intention_for, message)
                  VALUES (?, ?, ?, ?, ?)"
@@ -371,10 +380,12 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
                 "INSERT INTO payments (appointment_id, reference_number, amount, method_id, payment_status, payment_date)
                  VALUES (?, ?, ?, ?, 'pending', NOW())"
             );
+            $massIntentionStage = 'create_payment_record';
             $stmt->execute([$appointmentId, $payOnline ? null : $manualReference, $offeringAmount, $methodId]);
             $paymentId = $pdo->lastInsertId();
 
             if ($payOnline) {
+                $massIntentionStage = 'create_paymongo_checkout';
                 $returnBase = absoluteUrl('parishioner/mass-intention-return.php') . '?appointment_id=' . $appointmentId;
                 $checkout = paymongoCreateCheckoutSession(
                     $offeringAmount,
@@ -391,6 +402,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
                 $stmt = $pdo->prepare(
                     "INSERT INTO transactions (payment_id, gateway, gateway_transaction_id, status, raw_response) VALUES (?, 'paymongo', ?, 'pending', ?)"
                 );
+                $massIntentionStage = 'insert_paymongo_transaction';
                 $stmt->execute([$paymentId, $checkout['session_id'], json_encode($checkout['raw'])]);
                 $checkoutUrl = $checkout['checkout_url'];
                 $_SESSION['mi_checkout'][$appointmentId] = true; // lets only THIS browser cancel it on return
@@ -436,6 +448,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
             }
         }
 
+        if ($isMassIntention) $massIntentionStage = 'commit';
         $pdo->commit();
         logActivity($userId, ($isMassIntention ? "Submitted Mass Intention #$appointmentId with an offering of ₱" . number_format($offeringAmount, 2) : "Booked appointment #$appointmentId") . ($isGuest ? ' (guest)' : ''), 'Appointments');
 
@@ -485,7 +498,25 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         foreach ($createdStorageKeys as $storageKey) { try { documentStorageDelete($storageKey); } catch (Throwable $cleanupError) { error_log('Document cleanup failed.'); } }
-        error_log($e->getMessage());
+        if ($isMassIntention ?? false) {
+            $sqlState = $e instanceof PDOException ? $e->getCode() : '';
+            error_log(sprintf(
+                'Mass Intention submission failed: stage=%s exception=%s code=%s sqlstate=%s service_id=%d payment_method=%s transaction_active=%s rolled_back=%s message=%s file=%s line=%d',
+                $massIntentionStage,
+                get_class($e),
+                (string) $e->getCode(),
+                (string) $sqlState,
+                (int) ($serviceId ?? 0),
+                (string) ($payMode ?? ''),
+                $pdo->inTransaction() ? 'yes' : 'no',
+                'yes',
+                preg_replace('/\s+/', ' ', $e->getMessage()),
+                $e->getFile(),
+                $e->getLine()
+            ));
+        } else {
+            error_log($e->getMessage());
+        }
         bookRespondError($isAjax, 'Failed to submit appointment. Please try again.', url('parishioner/services.php'));
     }
 }
