@@ -415,8 +415,7 @@ if (!$isAjax) {
           <?php if ($gf['document_id']): ?><a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>">View PDF</a><?php endif; ?>
           <?php if ($gf['rejection_reason']): ?><p class="text-muted">Reason: <?= e($gf['rejection_reason']) ?></p><?php endif; ?>
           <?php if ($gf['document_id'] && $formStatus === 'pending'): ?>
-            <form method="POST" style="display:inline;"> <?= csrfField() ?><input type="hidden" name="action" value="verify_document"><input type="hidden" name="document_id" value="<?= (int) $gf['document_id'] ?>"><button class="btn btn-outline btn-sm">Approve</button></form>
-            <form method="POST" style="margin-top:8px;"><?= csrfField() ?><input type="hidden" name="action" value="reject_document"><input type="hidden" name="document_id" value="<?= (int) $gf['document_id'] ?>"><textarea name="document_rejection_reason" required maxlength="1000" placeholder="Reason for rejection"></textarea><button class="btn btn-danger btn-sm">Reject</button></form>
+            <form method="POST" action="<?= e($redirectUrl) ?>" style="display:inline;"> <?= csrfField() ?><input type="hidden" name="action" value="verify_document"><input type="hidden" name="document_id" value="<?= (int) $gf['document_id'] ?>"><button class="btn btn-outline btn-sm">Approve</button></form>
           <?php endif; ?>
         </div>
       <?php endforeach; ?>
@@ -482,11 +481,6 @@ if (!$isAjax) {
                       <input type="hidden" name="action" value="verify_document">
                       <input type="hidden" name="document_id" value="<?= $d['document_id'] ?>">
                       <button type="submit" class="btn btn-outline btn-sm">Mark Verified</button>
-                    </form>
-                    <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>" style="margin-top:6px;">
-                      <?= csrfField() ?><input type="hidden" name="action" value="reject_document"><input type="hidden" name="document_id" value="<?= (int) $d['document_id'] ?>">
-                      <textarea name="document_rejection_reason" rows="2" required maxlength="1000" placeholder="Reason for rejection"></textarea>
-                      <button type="submit" class="btn btn-danger btn-sm">Reject</button>
                     </form>
                   <?php endif; ?>
                 </td>
