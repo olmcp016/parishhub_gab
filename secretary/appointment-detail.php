@@ -4,6 +4,7 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/scheduling.php';
 require_once __DIR__ . '/../includes/service-fees.php';
 require_once __DIR__ . '/../includes/wedding-forms.php';
+require_once __DIR__ . '/../includes/wedding-draft.php';
 require_once __DIR__ . '/../includes/baptism-forms.php';
 requireRole('Secretary', 'Admin');
 
@@ -102,7 +103,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         );
         $stmt->execute([$id]);
         $svc = $stmt->fetch();
-        $requirementsList = !empty($appointment['requirements_snapshot']) ? (json_decode($appointment['requirements_snapshot'], true) ?: []) : parseRequirementsList($svc['requirements']);
+        $requirementsList = $svc['category'] === 'Wedding'
+            ? weddingDraftRequiredDocuments(['category' => 'Wedding'])
+            : (!empty($appointment['requirements_snapshot']) ? (json_decode($appointment['requirements_snapshot'], true) ?: []) : parseRequirementsList($svc['requirements']));
 
         if (!in_array($svc['category'], ['Mass Intention', 'Donation'], true) && !empty($requirementsList)) {
             $stmt = db()->prepare('SELECT requirement_label, verified FROM uploaded_documents WHERE appointment_id = ?');
@@ -437,7 +440,9 @@ if (!$isAjax) {
     <hr style="border-color: var(--cream-dark); margin: 18px 0;">
     <h4>Uploaded Documents</h4>
     <?php
-      $requirementsList = !empty($appointment['requirements_snapshot']) ? (json_decode($appointment['requirements_snapshot'], true) ?: []) : parseRequirementsList($appointment['requirements']);
+      $requirementsList = $appointment['category'] === 'Wedding'
+          ? weddingDraftRequiredDocuments(['category' => 'Wedding'])
+          : (!empty($appointment['requirements_snapshot']) ? (json_decode($appointment['requirements_snapshot'], true) ?: []) : parseRequirementsList($appointment['requirements']));
       if (!empty($requirementsList)):
         $verifiedLabels = array_column(array_filter($documents, fn($d) => ($d['review_status'] ?? ($d['verified'] ? 'approved' : 'pending')) === 'approved'), 'requirement_label');
         $uploadedLabels = array_column($documents, 'requirement_label');
