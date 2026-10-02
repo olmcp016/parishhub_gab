@@ -298,7 +298,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         try {
             $pdo->beginTransaction();
             $rawGuestToken = $isGuest ? bin2hex(random_bytes(32)) : null;
-            $stmt = $pdo->prepare("INSERT INTO wedding_booking_drafts (parishioner_id, guest_access_token_hash, guest_name, guest_email, guest_phone, service_id, priest_id, appointment_date, appointment_time, schedule_type, pss_claim, sponsor_count, wedding_sponsor_count, remarks, contact_phone, location_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt = $pdo->prepare("INSERT INTO wedding_booking_drafts (parishioner_id, guest_access_token_hash, guest_name, guest_email, guest_phone, service_id, priest_id, appointment_date, appointment_time, schedule_type, pss_claim, sponsor_count, wedding_sponsor_count, remarks, contact_phone, location_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING draft_id");
             $stmt->execute([$isGuest ? null : $parishionerId, $rawGuestToken ? hash('sha256', $rawGuestToken) : null, $guestName, $guestEmail, $guestPhone, $serviceId, $priestId, $date, $finalTime, $scheduleTypeToSave, $pssClaim, null, $weddingSponsorCount, $remarks, $contactPhone, $locationAddress]);
             $draftId = (int) $stmt->fetchColumn();
             if ($draftId < 1) throw new RuntimeException('Wedding draft could not be created.');
@@ -316,7 +316,16 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             foreach ($createdStorageKeys as $key) { try { documentStorageDelete($key); } catch (Throwable $cleanupError) { error_log('Document cleanup failed.'); } }
-            error_log($e->getMessage());
+            $sqlState = $e instanceof PDOException ? ($e->errorInfo[0] ?? $e->getCode()) : $e->getCode();
+            error_log(sprintf(
+                '[Wedding draft creation] operation=insert_or_stage exception=%s code=%s sqlstate=%s file=%s line=%d message=%s',
+                get_class($e),
+                (string) $e->getCode(),
+                (string) $sqlState,
+                $e->getFile(),
+                $e->getLine(),
+                preg_replace('/\s+/', ' ', $e->getMessage())
+            ));
             bookRespondError($isAjax, 'Unable to save the Wedding booking draft. Please try again.', url('parishioner/services.php'));
         }
     }
