@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $insert->execute([$draftId, basename((string) $_FILES[$field]['name']), $stored['key'], $validation['mime'], $label]);
             }
             $pdo->commit();
-            flash('success', 'Wedding documents saved to your booking draft.');
+            flash('success', 'Wedding supporting documents saved successfully.');
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             foreach ($storedKeys as $key) { try { documentStorageDelete($key); } catch (Throwable $cleanupError) { error_log('Draft document cleanup failed.'); } }
@@ -98,10 +98,16 @@ $forms = $pdo->prepare('SELECT form_type, status, document_id FROM generated_wed
 $forms->execute([$draftId]);
 $formRows = [];
 foreach ($forms->fetchAll() as $row) $formRows[$row['form_type']] = $row;
+$requiredDocumentsComplete = count(array_intersect(weddingDraftRequiredDocuments($draft), $uploaded)) === count(weddingDraftRequiredDocuments($draft));
+$generatedFormsComplete = true;
+foreach (WEDDING_DRAFT_FORMS as $requiredForm) {
+    if (empty($formRows[$requiredForm]['document_id'])) { $generatedFormsComplete = false; break; }
+}
+$canSubmit = $requiredDocumentsComplete && $generatedFormsComplete;
 $pageTitle = 'Wedding Requirements';
 include __DIR__ . '/includes/header.php';
 include __DIR__ . '/includes/dash-start.php';
 ?>
-<div class="card" style="max-width:850px;margin:auto;"><h2>Supporting Documents</h2><form method="POST" enctype="multipart/form-data"><?= csrfField() ?><input type="hidden" name="action" value="upload_documents"><?php foreach (weddingDraftRequiredDocuments($draft) as $index => $label): if (!in_array($label, $uploaded, true)): ?><p><?= e($label) ?> <input type="file" name="req_doc_<?= $index ?>" accept=".pdf,.jpg,.jpeg,.png" required></p><?php endif; endforeach; ?><button class="btn btn-secondary" type="submit">Save Documents</button></form></div>
-<div class="card" style="max-width:850px;margin:auto;"><h2>Wedding Forms</h2><?php foreach (WEDDING_DRAFT_FORMS as $type): $row = $formRows[$type] ?? null; $title = weddingFormDefinition($type)['title']; $documentId = $row && !empty($row['document_id']) ? (int) $row['document_id'] : 0; ?><p><?= $documentId ? '✓' : '○' ?> <?= e($title) ?> — <?= $documentId ? 'Generated' : ($row ? 'Draft' : 'Not completed') ?> <a class="btn btn-outline btn-sm" href="<?= url('wedding-draft-form.php?draft_id=' . $draftId . '&form_type=' . urlencode($type)) ?>"><?= $row ? 'Edit Form' : 'Complete Form' ?></a><?php if ($documentId): ?> <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . $documentId) ?>">View PDF</a> <a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . $documentId . '&download=1') ?>">Download PDF</a><?php endif; ?></p><?php endforeach; ?><form method="POST"><?= csrfField() ?><button class="btn btn-primary" type="submit">Submit Appointment Request</button></form></div>
+<div class="card" style="max-width:850px;margin:auto;"><h2>Supporting Documents</h2><form method="POST" enctype="multipart/form-data"><?= csrfField() ?><input type="hidden" name="action" value="upload_documents"><?php foreach (weddingDraftRequiredDocuments($draft) as $index => $label): if (in_array($label, $uploaded, true)): ?><p style="margin:8px 0;">✓ <?= e($label) ?> — <strong>Uploaded</strong></p><?php else: ?><p style="margin:8px 0;">○ <?= e($label) ?> — <strong>Required</strong><br><input type="file" name="req_doc_<?= $index ?>" accept=".pdf,.jpg,.jpeg,.png" required></p><?php endif; endforeach; ?><button class="btn btn-secondary" type="submit">Save Documents</button></form></div>
+<div class="card" style="max-width:850px;margin:auto;"><h2>Wedding Forms</h2><?php foreach (WEDDING_DRAFT_FORMS as $type): $row = $formRows[$type] ?? null; $title = weddingFormDefinition($type)['title']; $documentId = $row && !empty($row['document_id']) ? (int) $row['document_id'] : 0; ?><p><?= $documentId ? '✓' : '○' ?> <?= e($title) ?> — <?= $documentId ? 'Generated' : ($row ? 'Draft' : 'Not completed') ?> <a class="btn btn-outline btn-sm" href="<?= url('wedding-draft-form.php?draft_id=' . $draftId . '&form_type=' . urlencode($type)) ?>"><?= $row ? 'Edit Form' : 'Complete Form' ?></a><?php if ($documentId): ?> <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . $documentId) ?>">View PDF</a> <a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . $documentId . '&download=1') ?>">Download PDF</a><?php endif; ?></p><?php endforeach; ?><form method="POST"><?= csrfField() ?><?php if (!$canSubmit): ?><p class="helper-text">Save all required documents and complete all Wedding forms before submitting the appointment request.</p><?php endif; ?><button class="btn btn-primary" type="submit" <?= $canSubmit ? '' : 'disabled' ?>>Submit Appointment Request</button></form></div>
 <?php include __DIR__ . '/includes/footer.php';
