@@ -32,14 +32,7 @@ function weddingDraftLoad(PDO $pdo, int $draftId, ?array $user, ?string $guestTo
 function weddingDraftRequiredDocuments(array $draft): array
 {
     if (($draft['category'] ?? '') === 'Wedding') {
-        // Legacy drafts created before bride parish status was introduced keep
-        // their historical three-document requirement set until edited.
-        if (!array_key_exists('bride_parish_status', $draft) || $draft['bride_parish_status'] === null) {
-            return ['Baptismal Certificate', 'Confirmation Certificate', "Sponsors' Baptismal Certificate"];
-        }
-        $required = ["Groom's Baptismal Certificate", "Bride's Baptismal Certificate", "Groom's Confirmation Certificate", "Bride's Confirmation Certificate", "Sponsors' Baptismal Certificate"];
-        if (($draft['bride_parish_status'] ?? null) === 'another_parish') $required[] = 'Permit / Recommendation';
-        return $required;
+        return ["Groom's Baptismal Certificate", "Bride's Baptismal Certificate", "Groom's Confirmation Certificate", "Bride's Confirmation Certificate", "Sponsors' Baptismal Certificate"];
     }
     return parseRequirementsList($draft['requirements'] ?? '');
 }

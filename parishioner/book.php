@@ -56,8 +56,6 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     $pssClaim = in_array($_POST['pss_claim'] ?? '', ['pss', 'non_pss'], true) ? $_POST['pss_claim'] : null;
     $rawSponsorCount = trim((string) ($_POST['sponsor_count'] ?? ''));
     $rawWeddingSponsorCount = trim((string) ($_POST['wedding_sponsor_count'] ?? ''));
-    $brideParishStatus = in_array($_POST['bride_parish_status'] ?? '', ['this_parish', 'another_parish'], true)
-        ? $_POST['bride_parish_status'] : null;
     $sponsorCount = $rawSponsorCount === '' ? null : filter_var($rawSponsorCount, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0, 'max_range' => 100]]);
     $weddingSponsorCount = $rawWeddingSponsorCount === '' ? null : filter_var($rawWeddingSponsorCount, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0, 'max_range' => 200]]);
 
@@ -116,9 +114,6 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     }
     if ($category === 'Wedding' && ($weddingSponsorCount === null || $weddingSponsorCount === false)) {
         bookRespondError($isAjax, 'Please enter a valid non-negative individual sponsor count.', url('parishioner/services.php'));
-    }
-    if ($category === 'Wedding' && $brideParishStatus === null) {
-        bookRespondError($isAjax, 'Please indicate whether the Bride belongs to this parish or another parish.', url('parishioner/services.php'));
     }
     $pssClassification = $usesFeeRules ? 'pending_verification' : null;
 
@@ -303,8 +298,8 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         try {
             $pdo->beginTransaction();
             $rawGuestToken = $isGuest ? bin2hex(random_bytes(32)) : null;
-            $stmt = $pdo->prepare("INSERT INTO wedding_booking_drafts (parishioner_id, guest_access_token_hash, guest_name, guest_email, guest_phone, service_id, priest_id, appointment_date, appointment_time, schedule_type, pss_claim, sponsor_count, wedding_sponsor_count, bride_parish_status, remarks, contact_phone, location_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING draft_id");
-            $stmt->execute([$isGuest ? null : $parishionerId, $rawGuestToken ? hash('sha256', $rawGuestToken) : null, $guestName, $guestEmail, $guestPhone, $serviceId, $priestId, $date, $finalTime, $scheduleTypeToSave, $pssClaim, null, $weddingSponsorCount, $brideParishStatus, $remarks, $contactPhone, $locationAddress]);
+            $stmt = $pdo->prepare("INSERT INTO wedding_booking_drafts (parishioner_id, guest_access_token_hash, guest_name, guest_email, guest_phone, service_id, priest_id, appointment_date, appointment_time, schedule_type, pss_claim, sponsor_count, wedding_sponsor_count, remarks, contact_phone, location_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$isGuest ? null : $parishionerId, $rawGuestToken ? hash('sha256', $rawGuestToken) : null, $guestName, $guestEmail, $guestPhone, $serviceId, $priestId, $date, $finalTime, $scheduleTypeToSave, $pssClaim, null, $weddingSponsorCount, $remarks, $contactPhone, $locationAddress]);
             $draftId = (int) $stmt->fetchColumn();
             if ($draftId < 1) throw new RuntimeException('Wedding draft could not be created.');
             if ($rawGuestToken) $_SESSION['wedding_draft_tokens'][$draftId] = $rawGuestToken;

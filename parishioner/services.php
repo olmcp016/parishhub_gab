@@ -371,10 +371,6 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
         </div>
 
         <div id="weddingFormsPreview" class="form-group" style="display:none; margin-top:16px;">
-          <label>Bride Parish Membership</label>
-          <label style="font-weight:400;display:block;"><input type="radio" name="bride_parish_status" value="this_parish"> This Parish</label>
-          <label style="font-weight:400;display:block;"><input type="radio" name="bride_parish_status" value="another_parish"> Another Parish</label>
-          <p id="bridePermitNotice" class="helper-text" style="display:none;">Permit / Recommendation is required because the Bride belongs to another parish.</p>
           <label>Wedding Forms</label>
           <div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">
             These required forms are completed in the next step after your booking details and supporting documents are saved.
@@ -471,10 +467,6 @@ function toggleServiceUI() {
   document.getElementById('sponsorCountInput').required = category === 'Baptism';
   document.getElementById('weddingSponsorCountInput').required = category === 'Wedding';
   document.getElementById('weddingFormsPreview').style.display = category === 'Wedding' ? 'block' : 'none';
-  document.querySelectorAll('input[name="bride_parish_status"]').forEach(function (input) {
-    input.required = category === 'Wedding';
-    input.onchange = function () { document.getElementById('bridePermitNotice').style.display = this.value === 'another_parish' ? 'block' : 'none'; };
-  });
   document.getElementById('bookSubmitBtn').textContent = submitButtonLabel();
 
   var isMassIntention = category === 'Mass Intention';
