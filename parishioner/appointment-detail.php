@@ -3,6 +3,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/document-storage.php';
 require_once __DIR__ . '/../includes/wedding-forms.php';
+require_once __DIR__ . '/../includes/baptism-forms.php';
 require_once __DIR__ . '/../includes/document-validation.php';
 requireRole('Parishioner');
 
@@ -202,6 +203,9 @@ $generatedForms = [];
 if (($appointment['category'] ?? '') === 'Wedding') {
     $stmt = db()->prepare('SELECT g.*, d.document_id, d.review_status, d.rejection_reason FROM generated_wedding_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.appointment_id = ? ORDER BY g.form_type');
     $stmt->execute([$id]); $generatedForms = $stmt->fetchAll();
+} elseif (($appointment['category'] ?? '') === 'Baptism') {
+    $stmt = db()->prepare('SELECT g.*, d.document_id, d.review_status, d.rejection_reason FROM generated_baptism_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.appointment_id = ? ORDER BY g.form_type');
+    $stmt->execute([$id]); $generatedForms = $stmt->fetchAll();
 }
 
 $active = 'appointments';
@@ -240,6 +244,16 @@ if (!$isAjax) {
         </p>
       <?php endforeach; ?>
       <?php if (!$generatedForms): ?><p class="text-muted">Wedding forms can be completed from the booking documents section.</p><?php endif; ?>
+    <?php elseif ($appointment['category'] === 'Baptism'): ?>
+      <hr style="border-color:var(--cream-dark); margin:18px 0;"><h4>Baptism Forms</h4>
+      <?php $baptismTitles = ['katin_awan_bunyag' => 'KATIN-AWAN SA BUNYAG', 'cluster_clearance_baptism_sponsor' => 'CLUSTER CLEARANCE FOR BAPTISM SPONSOR']; ?>
+      <?php foreach ($generatedForms as $gf): ?>
+        <p><strong><?= e($baptismTitles[$gf['form_type']] ?? $gf['form_type']) ?></strong><br>
+          Status: <?= e($gf['review_status'] ?? 'Pending Review') ?>
+          <?php if ($gf['document_id']): ?><a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>">View PDF</a><a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . (int) $gf['document_id'] . '&download=1') ?>">Download PDF</a><?php endif; ?>
+        </p>
+      <?php endforeach; ?>
+      <?php if (!$generatedForms): ?><p class="text-muted">Baptism forms are not available.</p><?php endif; ?>
     <?php endif; ?>
     <p><strong>Fee:</strong>
       <?php if ($appointment['pss_classification'] === 'pending_verification'): ?>Fee pending PSS verification

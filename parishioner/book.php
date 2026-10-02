@@ -251,7 +251,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         // Guests must provide every service-required document before a booking
         // can be submitted. Registered parishioners may correct documents
         // during the secretary review workflow from the appointment page.
-        if ($isGuest && $requirementsList && !($category === 'Wedding' && ($_POST['draft_mode'] ?? '') === '1')) {
+        if ($isGuest && $requirementsList && !in_array($category, ['Baptism', 'Wedding'], true)) {
             $uploadedLabels = array_unique(array_filter(array_map(
                 fn($upload) => $upload['label'], $pendingUploads
             )));
@@ -259,6 +259,36 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
             if ($missing) {
                 bookRespondError($isAjax, 'Please upload all required documents: ' . implode(', ', $missing) . '.', url('parishioner/services.php'));
             }
+        }
+    }
+
+    // Baptism always uses the draft workflow. The service category is
+    // authoritative so stale forms or missing/tampered draft_mode cannot
+    // fall through to the legacy appointment INSERT below.
+    if ($category === 'Baptism') {
+        $pdo = db(); $createdStorageKeys = [];
+        try {
+            $pdo->beginTransaction();
+            $rawGuestToken = $isGuest ? bin2hex(random_bytes(32)) : null;
+            $stmt = $pdo->prepare("INSERT INTO baptism_booking_drafts (parishioner_id, guest_access_token_hash, guest_name, guest_email, guest_phone, service_id, priest_id, appointment_date, appointment_time, schedule_type, pss_claim, sponsor_count, remarks, contact_phone, location_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING draft_id");
+            $stmt->execute([$isGuest ? null : $parishionerId, $rawGuestToken ? hash('sha256', $rawGuestToken) : null, $guestName, $guestEmail, $guestPhone, $serviceId, $priestId, $date, $finalTime, $scheduleTypeToSave, $pssClaim, $sponsorCount, $remarks, $contactPhone, $locationAddress]);
+            $draftId = (int) $stmt->fetchColumn();
+            if ($rawGuestToken) $_SESSION['baptism_draft_tokens'][$draftId] = $rawGuestToken;
+            foreach ($pendingUploads as $upload) {
+                $stored = documentStorageMoveUpload($upload['file']['tmp_name'], pathinfo($upload['file']['name'], PATHINFO_EXTENSION));
+                $createdStorageKeys[] = $stored['key'];
+                $stmt = $pdo->prepare("INSERT INTO uploaded_documents (appointment_id, draft_id, baptism_draft_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source) VALUES (NULL, NULL, ?, ?, ?, ?, ?, 'pending', FALSE, 'uploaded')");
+                $stmt->execute([$draftId, $upload['file']['name'], $stored['reference'], $stored['mime'], $upload['label']]);
+            }
+            $pdo->commit();
+            $redirect = url('baptism-draft.php?draft_id=' . $draftId);
+            if ($isAjax) { header('Content-Type: application/json'); echo json_encode(['success' => true, 'redirect' => $redirect]); exit; }
+            redirect($redirect);
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            foreach ($createdStorageKeys as $key) { try { documentStorageDelete($key); } catch (Throwable $cleanupError) { error_log('Document cleanup failed.'); } }
+            error_log($e->getMessage());
+            bookRespondError($isAjax, 'Unable to save the Baptism booking draft. Please try again.', url('parishioner/services.php'));
         }
     }
 

@@ -3,6 +3,7 @@ require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/document-storage.php';
 require_once __DIR__ . '/includes/wedding-draft.php';
+require_once __DIR__ . '/includes/baptism-draft.php';
 
 $documentId = (int) ($_GET['id'] ?? 0);
 if ($documentId < 1) {
@@ -11,7 +12,7 @@ if ($documentId < 1) {
 }
 
 $stmt = db()->prepare(
-    'SELECT d.document_id, d.appointment_id, d.draft_id, d.file_name, d.file_path, d.file_type, d.generated_form_type, a.parishioner_id
+    'SELECT d.document_id, d.appointment_id, d.draft_id, d.baptism_draft_id, d.file_name, d.file_path, d.file_type, d.generated_form_type, a.parishioner_id
      FROM uploaded_documents d LEFT JOIN appointments a ON a.appointment_id = d.appointment_id
      WHERE d.document_id = ?'
 );
@@ -31,6 +32,10 @@ if (!$authorized && $user && $user['role_name'] === 'Parishioner') {
 }
 if (!$authorized && $document && $document['appointment_id'] === null && $document['draft_id'] !== null) {
     $draft = weddingDraftLoad(db(), (int) $document['draft_id'], $user, weddingDraftGuestToken((int) $document['draft_id']));
+    $authorized = (bool) $draft;
+}
+if (!$authorized && $document && $document['appointment_id'] === null && !empty($document['baptism_draft_id'])) {
+    $draft = baptismDraftLoad(db(), (int) $document['baptism_draft_id'], $user, baptismDraftToken((int) $document['baptism_draft_id']));
     $authorized = (bool) $draft;
 }
 if (!$authorized && !$user) {
@@ -68,6 +73,8 @@ $generatedFilenames = [
     'matrimony_application' => 'Matrimony-Application.pdf',
     'cluster_clearance' => 'Katin-awan-sa-Kasal.pdf',
     'wedding_sponsor_clearance' => 'Cluster-Clearance-Wedding-Sponsors.pdf',
+    'katin_awan_bunyag' => 'Katin-awan-sa-Bunyag.pdf',
+    'cluster_clearance_baptism_sponsor' => 'Cluster-Clearance-Baptism-Sponsor.pdf',
 ];
 $download = ($_GET['download'] ?? '') === '1';
 $filename = $generatedFilenames[$document['generated_form_type'] ?? ''] ?? basename((string) $document['file_name']);

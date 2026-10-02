@@ -377,6 +377,14 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
             <p><strong>Wedding Sponsor Clearance</strong><br><span class="badge badge-rejected">Required</span> <span class="helper-text">Complete in Wedding Requirements</span></p>
           </div>
         </div>
+        <div id="baptismFormsPreview" class="form-group" style="display:none; margin-top:16px;">
+          <label>Baptism Forms</label>
+          <div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">These required forms are completed after your booking details and supporting documents are saved.</div>
+          <div class="wedding-form-requirement-list">
+            <p><strong>Katin-awan sa Bunyag</strong><br><span class="badge badge-rejected">Required</span> <span class="helper-text">Complete in Baptism Requirements</span></p>
+            <p><strong>Cluster Clearance for Baptism Sponsor</strong><br><span class="badge badge-rejected">Required</span> <span class="helper-text">Complete in Baptism Requirements</span></p>
+          </div>
+        </div>
 
         <div id="bookFormError" class="alert" style="display:none; background: var(--danger-bg); color: var(--danger); border: 1px solid #f5c2c2;"></div>
 
@@ -489,8 +497,10 @@ function toggleServiceUI() {
 
   // No documents are required for Mass Intentions — they're approved instantly.
   var uploadGroup = document.getElementById('uploadGroup');
-  uploadGroup.style.display = isMassIntention ? 'none' : 'block';
-  if (!isMassIntention) rebuildRequirementRows(serviceId);
+  var draftService = category === 'Baptism' || category === 'Wedding';
+  uploadGroup.style.display = isMassIntention || draftService ? 'none' : 'block';
+  document.getElementById('extraDocumentsInput').disabled = isMassIntention || draftService;
+  if (!isMassIntention && !draftService) rebuildRequirementRows(serviceId);
 
   var policyBox = document.getElementById('policyBox');
   if (POLICIES[category]) {
@@ -1006,8 +1016,11 @@ function submitButtonLabel() {
   var select = document.getElementById('serviceSelect');
   var category = select.options[select.selectedIndex]?.dataset.category || '';
   var draftMode = document.getElementById('draftModeInput');
-  if (draftMode) draftMode.value = category === 'Wedding' ? '1' : '0';
+  if (draftMode) draftMode.value = ['Wedding', 'Baptism'].indexOf(category) !== -1 ? '1' : '0';
+  var baptismPreview = document.getElementById('baptismFormsPreview');
+  if (baptismPreview) baptismPreview.style.display = category === 'Baptism' ? 'block' : 'none';
   if (category === 'Wedding') return 'Continue to Wedding Requirements';
+  if (category === 'Baptism') return 'Continue to Baptism Requirements';
   return category === 'Mass Intention' ? 'Pay & Submit Mass Intention' : 'Submit Appointment Request';
 }
 

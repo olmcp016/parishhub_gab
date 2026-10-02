@@ -4,6 +4,7 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/scheduling.php';
 require_once __DIR__ . '/../includes/service-fees.php';
 require_once __DIR__ . '/../includes/wedding-forms.php';
+require_once __DIR__ . '/../includes/baptism-forms.php';
 requireRole('Secretary', 'Admin');
 
 $id = (int) ($_GET['id'] ?? 0);
@@ -20,6 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         db()->prepare("UPDATE uploaded_documents SET review_status = 'approved', verified = TRUE, rejection_reason = NULL, reviewed_by = ?, reviewed_at = NOW() WHERE document_id = ? AND appointment_id = ? AND superseded_by IS NULL")
             ->execute([$userId, $_POST['document_id'], $id]);
         db()->prepare("UPDATE generated_wedding_forms SET status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$_POST['document_id'], $id]);
+        db()->prepare("UPDATE generated_baptism_forms SET status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$_POST['document_id'], $id]);
         logActivity($userId, "Verified a document for appointment #$id", 'Appointments');
         respondAjaxOrRedirect($isAjax, true, 'Document marked as verified.', $redirectUrl);
     }
@@ -32,6 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         db()->prepare("UPDATE uploaded_documents SET review_status = 'rejected', verified = FALSE, rejection_reason = ?, reviewed_by = ?, reviewed_at = NOW() WHERE document_id = ? AND appointment_id = ? AND superseded_by IS NULL")
             ->execute([$reason, $userId, $_POST['document_id'], $id]);
         db()->prepare("UPDATE generated_wedding_forms SET status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$_POST['document_id'], $id]);
+        db()->prepare("UPDATE generated_baptism_forms SET status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$_POST['document_id'], $id]);
         logActivity($userId, "Rejected a document for appointment #$id", 'Appointments');
         respondAjaxOrRedirect($isAjax, true, 'Document rejected with instructions.', $redirectUrl);
     }
@@ -263,6 +266,10 @@ if (($appointment['category'] ?? '') === 'Wedding') {
     $stmt = db()->prepare("SELECT g.*, d.document_id, d.file_name, d.review_status, d.rejection_reason FROM generated_wedding_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.appointment_id = ? ORDER BY g.form_type");
     $stmt->execute([$id]);
     $generatedForms = $stmt->fetchAll();
+} elseif (($appointment['category'] ?? '') === 'Baptism') {
+    $stmt = db()->prepare("SELECT g.*, d.document_id, d.file_name, d.review_status, d.rejection_reason FROM generated_baptism_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.appointment_id = ? ORDER BY g.form_type");
+    $stmt->execute([$id]);
+    $generatedForms = $stmt->fetchAll();
 }
 
 // Each priest's upcoming schedule and declared unavailability, so the
@@ -392,6 +399,19 @@ if (!$isAjax) {
         </div>
       <?php endforeach; ?>
       <?php if (!$generatedForms): ?><p class="text-muted">No generated Wedding forms have been submitted.</p><?php endif; ?>
+    <?php elseif ($appointment['category'] === 'Baptism'): ?>
+      <hr style="border-color: var(--cream-dark); margin: 18px 0;">
+      <h4>Baptism Generated Forms</h4>
+      <?php $baptismTitles = ['katin_awan_bunyag' => 'KATIN-AWAN SA BUNYAG', 'cluster_clearance_baptism_sponsor' => 'CLUSTER CLEARANCE FOR BAPTISM SPONSOR']; ?>
+      <?php foreach ($generatedForms as $gf): $formStatus = $gf['review_status'] ?? 'pending'; ?>
+        <div class="card" style="background:var(--cream); margin:10px 0;">
+          <strong><?= e($baptismTitles[$gf['form_type']] ?? $gf['form_type']) ?></strong>
+          <span class="badge badge-<?= $formStatus === 'approved' ? 'verified' : ($formStatus === 'rejected' ? 'rejected' : 'pending') ?>"><?= $formStatus === 'approved' ? 'Approved' : ($formStatus === 'rejected' ? 'Needs Revision' : 'Pending Review') ?></span>
+          <?php if ($gf['document_id']): ?><a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>">View PDF</a><a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . (int) $gf['document_id'] . '&download=1') ?>">Download PDF</a><?php endif; ?>
+          <?php if ($gf['rejection_reason']): ?><p class="text-muted">Reason: <?= e($gf['rejection_reason']) ?></p><?php endif; ?>
+        </div>
+      <?php endforeach; ?>
+      <?php if (!$generatedForms): ?><p class="text-muted">No generated Baptism forms have been submitted.</p><?php endif; ?>
     <?php endif; ?>
     <hr style="border-color: var(--cream-dark); margin: 18px 0;">
     <h4>Uploaded Documents</h4>
