@@ -43,6 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         redirect(url('wedding-draft.php?draft_id=' . $draftId));
     }
+    $finalizationStage = 'initial_validation';
     $missing = weddingDraftComplete($pdo, $draft);
     if ($missing) { flash('error', 'Please complete: ' . implode(', ', $missing) . '.'); redirect(url('wedding-draft.php?draft_id=' . $draftId)); }
     $finalizationStage = 'begin_transaction';
@@ -51,21 +52,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $finalizationStage = 'lock_and_authorize_draft';
         $locked = weddingDraftLoad($pdo, $draftId, $user, $guestToken, true);
         if (!$locked || $locked['status'] !== 'draft' || strtotime($locked['expires_at']) <= time()) throw new RuntimeException('Draft is no longer available.');
-        $finalizationStage = 'validate_requirements';
+        $finalizationStage = 'validate_locked_draft';
+        $finalizationStage = 'validate_documents';
         $missing = weddingDraftComplete($pdo, $locked);
         if ($missing) throw new RuntimeException('Please complete: ' . implode(', ', $missing) . '.');
         if ($locked['wedding_sponsor_count'] === null || (int) $locked['wedding_sponsor_count'] < 0) throw new RuntimeException('Please provide a valid number of wedding sponsors.');
-        $finalizationStage = 'revalidate_schedule';
+        $finalizationStage = 'validate_generated_forms';
+        $finalizationStage = 'validate_schedule';
         $schedule = validateBooking('Wedding', $locked['appointment_date'], $locked['appointment_time'], null, $locked['schedule_type'], (int) $locked['service_id']);
         if (!$schedule['valid']) throw new RuntimeException($schedule['message']);
         $finalTime = $schedule['forcedTime'] ?: $locked['appointment_time'];
         $guestReference = $locked['parishioner_id'] ? null : generateGuestReference();
         $finalizationStage = 'insert_appointment';
-        $stmt = $pdo->prepare("INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, schedule_type, pss_claim, pss_classification, wedding_sponsor_count, guest_name, guest_email, guest_phone, guest_reference, contact_phone, location_address, requirements_snapshot) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 'pending_verification', ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt = $pdo->prepare("INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, schedule_type, pss_claim, pss_classification, wedding_sponsor_count, guest_name, guest_email, guest_phone, guest_reference, contact_phone, location_address, requirements_snapshot) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 'pending_verification', ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING appointment_id");
         $stmt->execute([$locked['parishioner_id'], $locked['service_id'], $locked['priest_id'], $locked['appointment_date'], $finalTime, $locked['remarks'], $locked['schedule_type'], $locked['pss_claim'], $locked['wedding_sponsor_count'], $locked['guest_name'], $locked['guest_email'], $locked['guest_phone'], $guestReference, $locked['contact_phone'], $locked['location_address'], json_encode(weddingDraftRequiredDocuments($locked))]);
-        $appointmentId = (int) $pdo->lastInsertId();
+        $appointmentId = (int) $stmt->fetchColumn();
+        if ($appointmentId < 1) throw new RuntimeException('Wedding appointment could not be created.');
         $finalizationStage = 'transfer_supporting_documents';
         $pdo->prepare('UPDATE uploaded_documents SET appointment_id = ?, draft_id = NULL WHERE draft_id = ?')->execute([$appointmentId, $draftId]);
+        $finalizationStage = 'transfer_generated_documents';
+        // Generated PDF metadata is included in uploaded_documents and was
+        // transferred by the ownership update above.
         $finalizationStage = 'transfer_generated_forms';
         $pdo->prepare('UPDATE generated_wedding_forms SET appointment_id = ?, draft_id = NULL WHERE draft_id = ?')->execute([$appointmentId, $draftId]);
         $finalizationStage = 'finalize_draft';
