@@ -39,9 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach (weddingFormDefinition($type)['fields'] as $key => $label) {
         $data[$key] = trim((string) ($_POST[$key] ?? ''));
     }
-    if ($type === 'wedding_sponsor_clearance') {
-        $data['service_requested'] = 'Kasal';
-    }
+    if ($type === 'wedding_sponsor_clearance' && !isset($data['service_requested'])) $data['service_requested'] = 'Kasal';
     if ($action === 'generate') {
         $missing = [];
         foreach (weddingFormRequiredFields($type) as $key) {
@@ -116,7 +114,9 @@ include __DIR__ . '/includes/dash-start.php';
       <?php $inputType = in_array($key, ['date_applied', 'groom_birth_date', 'bride_birth_date', 'kaslonon_birth_date', 'marriage_date', 'service_date'], true) ? 'date' : 'text'; ?>
       <div class="form-group"><label for="<?= e($key) ?>"><?= e($label) ?><?php if (in_array($key, weddingFormRequiredFields($type), true)): ?> *<?php endif; ?></label>
         <?php if ($key === 'parent_marriage'): ?>
-          <select id="<?= e($key) ?>" name="<?= e($key) ?>" required><option value="">Select</option><?php foreach (['Simbahan', 'Sibil', 'Wala'] as $option): ?><option value="<?= e($option) ?>" <?= ($data[$key] ?? '') === $option ? 'selected' : '' ?>><?= e($option) ?></option><?php endforeach; ?></select>
+          <div class="form-row" role="group" aria-label="Unsang Kasala ang Nadawat sa Ginikanan?">
+            <?php foreach (['Simbahan', 'Sibil', 'Wala'] as $option): ?><label><input type="radio" name="<?= e($key) ?>" value="<?= e($option) ?>" <?= ($data[$key] ?? '') === $option ? 'checked' : '' ?> required> <?= e($option) ?></label><?php endforeach; ?>
+          </div>
         <?php elseif ($key === 'active_status'): ?>
           <select id="<?= e($key) ?>" name="<?= e($key) ?>" required><option value="">Select</option><?php foreach (['Active', 'Inactive'] as $option): ?><option value="<?= e($option) ?>" <?= ($data[$key] ?? '') === $option ? 'selected' : '' ?>><?= e($option) ?></option><?php endforeach; ?></select>
         <?php elseif ($key === 'service_requested'): ?>

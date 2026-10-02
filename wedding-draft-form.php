@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach (weddingFormDefinition($type)['fields'] as $key => $label) {
         $data[$key] = trim((string) ($_POST[$key] ?? ''));
     }
-    if ($type === 'wedding_sponsor_clearance') $data['service_requested'] = 'Kasal';
+    if ($type === 'wedding_sponsor_clearance' && !isset($data['service_requested'])) $data['service_requested'] = 'Kasal';
     if (($_POST['action'] ?? '') === 'generate') {
         foreach (weddingFormRequiredFields($type) as $key) {
             if (($data[$key] ?? '') === '') $error = 'Please complete all required fields before generating the form.';
@@ -86,7 +86,17 @@ include __DIR__ . '/includes/dash-start.php';
         <?php foreach ($definition['fields'] as $key => $label): ?>
             <div class="form-group">
                 <label><?= e($label) ?></label>
-                <input name="<?= e($key) ?>" value="<?= e($data[$key] ?? '') ?>" <?= in_array($key, weddingFormRequiredFields($type), true) ? 'required' : '' ?>>
+                <?php if ($key === 'parent_marriage'): ?>
+                    <div class="form-row" role="group" aria-label="Unsang Kasala ang Nadawat sa Ginikanan?">
+                        <?php foreach (['Simbahan', 'Sibil', 'Wala'] as $option): ?><label><input type="radio" name="<?= e($key) ?>" value="<?= e($option) ?>" <?= ($data[$key] ?? '') === $option ? 'checked' : '' ?> required> <?= e($option) ?></label><?php endforeach; ?>
+                    </div>
+                <?php elseif ($key === 'active_status'): ?>
+                    <select name="<?= e($key) ?>" required><option value="">Select</option><?php foreach (['Active', 'Inactive'] as $option): ?><option value="<?= e($option) ?>" <?= ($data[$key] ?? '') === $option ? 'selected' : '' ?>><?= e($option) ?></option><?php endforeach; ?></select>
+                <?php elseif ($key === 'service_requested'): ?>
+                    <select name="<?= e($key) ?>" required><?php foreach (['Bunyag', 'Confirmation', 'Kasal', 'Ninong/Ninang', 'Others'] as $option): ?><option value="<?= e($option) ?>" <?= ($data[$key] ?? 'Kasal') === $option ? 'selected' : '' ?>><?= e($option) ?></option><?php endforeach; ?></select>
+                <?php else: ?>
+                    <input name="<?= e($key) ?>" value="<?= e($data[$key] ?? '') ?>" <?= in_array($key, weddingFormRequiredFields($type), true) ? 'required' : '' ?>>
+                <?php endif; ?>
             </div>
         <?php endforeach; ?>
         <button class="btn btn-outline" name="action" value="save">Save Draft</button>

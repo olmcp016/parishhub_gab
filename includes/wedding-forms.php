@@ -1,6 +1,8 @@
 <?php
 const WEDDING_FORM_TYPES = ['matrimony_application', 'cluster_clearance', 'wedding_sponsor_clearance'];
 
+if (is_file(__DIR__ . '/../vendor/autoload.php')) require_once __DIR__ . '/../vendor/autoload.php';
+
 function weddingFormDefinition(string $type): array
 {
     return match ($type) {
@@ -38,14 +40,22 @@ function weddingFormStatusLabel(?string $status): string
 
 function weddingFormPdf(string $type, array $data): string
 {
+    if (class_exists('FPDF')) {
+        if ($type === 'cluster_clearance') return weddingKatinPdf($data);
+        if ($type === 'wedding_sponsor_clearance') return weddingSponsorPdf($data);
+    }
     $def = weddingFormDefinition($type);
     $lines = ['Our Lady of Mt. Carmel Parish', '6342 Balilihan, Bohol, Philippines', '', $def['title'], str_repeat('=', 72), ''];
     foreach ($def['fields'] as $key => $label) {
+        if ($type === 'cluster_clearance' && in_array($key, ['parent_marriage'], true)) continue;
+        if ($type === 'wedding_sponsor_clearance' && $key === 'service_requested') continue;
         $value = is_array($data[$key] ?? null) ? implode(', ', $data[$key]) : (string) ($data[$key] ?? '');
         $lines[] = $label . ': ' . $value;
     }
     if ($type === 'cluster_clearance') {
-        $lines[] = 'Parent marriage received:  [ ] Simbahan   [ ] Sibil   [ ] Wala';
+        $selectedMarriage = (string) ($data['parent_marriage'] ?? '');
+        $lines[] = 'UNSANG KASALA ANG NADAWAT SA GINIKANAN?';
+        $lines[] = 'SIMBAHAN: ' . ($selectedMarriage === 'Simbahan' ? '[X]' : '[ ]') . '    SIBIL: ' . ($selectedMarriage === 'Sibil' ? '[X]' : '[ ]') . '    WALA: ' . ($selectedMarriage === 'Wala' ? '[X]' : '[ ]');
         $lines[] = '';
         $lines[] = 'PAHINUDOM: Human mamatud-i kining tanan, kini pagapirmahan sa Cluster Leader, Cluster Treasurer ug Chapel Chairman, Chapel Treasurer ug dad-on sa mga hingtungdan ngadto sa simbahan (apil na ang mga papeles nga gikinahanglan alang sa kasal ug mga sponsors) ug ihatag ngadto sa Parish Clerk.';
         $lines[] = '';
@@ -57,9 +67,11 @@ function weddingFormPdf(string $type, array $data): string
         $lines[] = 'Chapel Treasurer: ____________________________________';
         $lines[] = 'Parish Priest: _______________________________________';
     } elseif ($type === 'wedding_sponsor_clearance') {
-        $lines[] = 'SERVICE REQUESTED (Please check):';
-        $lines[] = '[ ] Bunyag   [ ] Confirmation   [X] Kasal   [ ] Ninong/Ninang';
-        $lines[] = '[ ] Others, please specify: ' . (string) ($data['other_service'] ?? '');
+        $selectedService = (string) ($data['service_requested'] ?? 'Kasal');
+        $serviceOptions = ['Bunyag', 'Confirmation', 'Kasal', 'Ninong/Ninang'];
+        $lines[] = 'SERVICE REQUESTED: (Please check)';
+        $lines[] = implode('   ', array_map(static fn(string $option): string => '[' . ($selectedService === $option ? 'X' : ' ') . '] ' . $option, $serviceOptions));
+        $lines[] = '[ ' . ($selectedService === 'Others' ? 'X' : ' ') . ' ] Others, please specify: ' . (string) ($data['other_service'] ?? '');
         $lines[] = 'Pls. Check:  [ ] Active   [ ] Inactive';
         $lines[] = '';
         $lines[] = 'VERIFIED BY:';
@@ -69,6 +81,109 @@ function weddingFormPdf(string $type, array $data): string
         $lines[] = 'Ngalan ug pirma sa Chapel Chairman: ___________________________';
     }
     return minimalTextPdf($lines);
+}
+
+function weddingPdfHeader(FPDF $pdf, string $title): void
+{
+    $pdf->SetMargins(16, 10, 16);
+    $pdf->SetAutoPageBreak(false);
+    $pdf->AddPage('P', 'A4');
+    $logo = dirname(__DIR__) . '/public/img/logo.png';
+    if (is_file($logo)) $pdf->Image($logo, 18, 10, 28, 28, 'PNG');
+    $pdf->SetTextColor(20, 92, 18);
+    $pdf->SetFont('Times', 'B', 18);
+    $pdf->SetXY(48, 14); $pdf->Cell(145, 8, 'Our Lady of Mt. Carmel Parish', 0, 1, 'C');
+    $pdf->SetFont('Times', 'B', 10); $pdf->SetX(48); $pdf->Cell(145, 5, '6342 BALILIHAN, BOHOL PHILIPPINES', 0, 1, 'C');
+    $pdf->SetFont('Times', '', 9); $pdf->SetX(48); $pdf->Cell(145, 5, 'Email address: mountcarmelbalilihan@gmail.com', 0, 1, 'C');
+    $pdf->SetDrawColor(20, 92, 18); $pdf->SetLineWidth(0.8); $pdf->Line(15, 42, 195, 42);
+    $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('Times', 'B', 15); $pdf->SetXY(15, 47); $pdf->Cell(180, 8, $title, 0, 1, 'C');
+}
+
+function weddingPdfField(FPDF $pdf, string $label, string $value, float $x, float $y, float $width, float $labelWidth = 38, float $height = 6): void
+{
+    $value = weddingPdfFit($pdf, $value, $width - $labelWidth - 2, 9);
+    $pdf->SetFont('Times', 'B', 9); $pdf->SetXY($x, $y); $pdf->Cell($labelWidth, $height, weddingPdfText($label), 0, 0);
+    $pdf->SetFont('Times', '', 9); $pdf->Cell($width - $labelWidth, $height, $value, 'B', 0);
+}
+
+function weddingPdfText(string $value): string
+{
+    $converted = iconv('UTF-8', 'Windows-1252//TRANSLIT', $value);
+    return $converted === false ? '?' : $converted;
+}
+
+function weddingPdfFit(FPDF $pdf, string $value, float $maxWidth, float $fontSize): string
+{
+    $value = weddingPdfText(trim($value));
+    $pdf->SetFont('Times', '', $fontSize);
+    if ($pdf->GetStringWidth($value) <= $maxWidth) return $value;
+    $ellipsis = '...';
+    while ($value !== '' && $pdf->GetStringWidth($value . $ellipsis) > $maxWidth) $value = substr($value, 0, -1);
+    return rtrim($value) . $ellipsis;
+}
+
+function weddingChoice(FPDF $pdf, string $label, bool $selected, float $x, float $y): void
+{
+    $pdf->SetFont('Times', '', 9); $pdf->SetXY($x, $y); $pdf->Cell(6, 5, $selected ? 'X' : '', 1, 0, 'C'); $pdf->Cell(25, 5, $label, 0, 0);
+}
+
+function weddingKatinPdf(array $data): string
+{
+    $pdf = new FPDF('P', 'mm', 'A4'); weddingPdfHeader($pdf, 'KATIN-AWAN SA KASAL');
+    $v = static fn(string $key): string => trim((string) ($data[$key] ?? ''));
+    // Keep the EDAD column protected: the name underline ends at x=138,
+    // leaving a fixed gap before the EDAD field begins at x=143.
+    weddingPdfField($pdf, 'NGALAN SA KASLONON:', $v('kaslonon_name'), 18, 61, 120, 48);
+    weddingPdfField($pdf, 'EDAD:', $v('kaslonon_age'), 143, 61, 49, 17);
+    weddingPdfField($pdf, 'ESTADO:', $v('kaslonon_status'), 18, 70, 52, 24);
+    weddingPdfField($pdf, 'PETSA NATAWO:', $v('kaslonon_birth_date'), 74, 70, 73, 34);
+    weddingPdfField($pdf, 'RELIHIYON:', $v('kaslonon_religion'), 149, 70, 43, 25);
+    weddingPdfField($pdf, 'AMAHAN:', $v('father_name'), 18, 79, 132, 25);
+    weddingPdfField($pdf, 'RELIHIYON:', $v('father_religion'), 153, 79, 39, 25);
+    weddingPdfField($pdf, 'INAHAN:', $v('mother_name'), 18, 88, 132, 25);
+    weddingPdfField($pdf, 'RELIHIYON:', $v('mother_religion'), 153, 88, 39, 25);
+    weddingPdfField($pdf, 'SPONSORS: 1.', $v('sponsor_1'), 18, 97, 88, 30);
+    weddingPdfField($pdf, '2.', $v('sponsor_2'), 108, 97, 84, 10);
+    $pdf->SetFont('Times', 'B', 9); $pdf->SetXY(18, 107); $pdf->Cell(174, 5, 'UNSANG KASALA ANG NADAWAT SA GINIKANAN?', 0, 1);
+    weddingChoice($pdf, 'SIMBAHAN', $v('parent_marriage') === 'Simbahan', 18, 114);
+    weddingChoice($pdf, 'SIBIL', $v('parent_marriage') === 'Sibil', 75, 114);
+    weddingChoice($pdf, 'WALA', $v('parent_marriage') === 'Wala', 125, 114);
+    weddingPdfField($pdf, 'DIIN:', $v('marriage_place'), 18, 123, 90, 20); weddingPdfField($pdf, 'KANUS-A:', $v('marriage_date'), 111, 123, 81, 27);
+    weddingPdfField($pdf, 'PINUY-ANAN:', $v('address'), 18, 132, 174, 30);
+    weddingPdfField($pdf, 'SAKOP SA KAPILYA SA:', $v('chapel'), 18, 141, 174, 47);
+    weddingPdfField($pdf, 'NGALAN SA CLUSTER:', $v('cluster_name'), 18, 150, 174, 38);
+    weddingPdfField($pdf, 'NGALAN SA PAMANHUNON/PANGASAW-ONON:', $v('spouse_name'), 18, 159, 174, 78);
+    weddingPdfField($pdf, 'EDAD:', $v('spouse_age'), 18, 168, 48, 17); weddingPdfField($pdf, 'ESTADO:', $v('spouse_status'), 69, 168, 61, 25); weddingPdfField($pdf, 'RELIHIYON:', $v('spouse_religion'), 133, 168, 59, 25);
+    weddingPdfField($pdf, 'PINUY-ANAN:', $v('spouse_address'), 18, 177, 174, 30);
+    $pdf->SetFont('Times', 'B', 8); $pdf->SetXY(18, 186); $pdf->MultiCell(174, 4, 'PAHINUDOM: Human mamatud-i kining tanan, kini pagapirmahan sa Cluster Leader, Cluster Treasurer ug Chapel Chairman, Chapel Treasurer ug dad-on sa mga hingtungdan ngadto sa simbahan (apil na ang mga papeles nga gikinahanglan alang sa kasal ug mga sponsors) ug ihatag ngadto sa Parish Clerk.');
+    $pdf->SetFont('Times', '', 8); $pdf->SetXY(18, 207); $pdf->Cell(80, 5, '__________________________', 0, 0); $pdf->Cell(80, 5, '__________________________', 0, 1);
+    $pdf->Cell(80, 5, 'Cluster Family and Life', 0, 0, 'C'); $pdf->Cell(80, 5, 'Chapel Family and Life', 0, 1, 'C');
+    $pdf->SetXY(18, 220); $pdf->Cell(80, 5, '__________________________', 0, 0); $pdf->Cell(80, 5, '__________________________', 0, 1);
+    $pdf->Cell(80, 5, 'Cluster Leader', 0, 0, 'C'); $pdf->Cell(80, 5, 'Chapel Chairman', 0, 1, 'C');
+    $pdf->SetXY(18, 233); $pdf->Cell(80, 5, '__________________________', 0, 0); $pdf->Cell(80, 5, '__________________________', 0, 1);
+    $pdf->Cell(80, 5, 'Cluster Treasurer', 0, 0, 'C'); $pdf->Cell(80, 5, 'Chapel Treasurer', 0, 1, 'C');
+    $pdf->SetFont('Times', 'B', 10); $pdf->SetXY(70, 257); $pdf->Cell(70, 5, weddingPdfText('REV. FR. AL JOHN A. MIÑOZA'), 0, 1, 'C'); $pdf->SetFont('Times', '', 9); $pdf->SetX(70); $pdf->Cell(70, 5, 'Parish Priest', 0, 1, 'C');
+    return $pdf->Output('S');
+}
+
+function weddingSponsorPdf(array $data): string
+{
+    $pdf = new FPDF('P', 'mm', 'A4'); weddingPdfHeader($pdf, 'CLUSTER CLEARANCE FOR WEDDING SPONSORS');
+    $v = static fn(string $key): string => trim((string) ($data[$key] ?? ''));
+    weddingPdfField($pdf, 'NAME OF RECIPIENT:', $v('recipient_name'), 18, 64, 174, 43);
+    weddingPdfField($pdf, 'PINUY-ANAN:', $v('address'), 18, 75, 174, 30);
+    weddingPdfField($pdf, 'NAME OF THE GROOM:', $v('groom_name'), 18, 88, 174, 45);
+    weddingPdfField($pdf, 'NAME OF THE BRIDE:', $v('bride_name'), 18, 99, 174, 45);
+    $pdf->SetFont('Times', 'B', 10); $pdf->SetXY(18, 113); $pdf->Cell(174, 5, 'SERVICE REQUESTED: (Please check)', 0, 1);
+    $options = ['Bunyag', 'Confirmation', 'Kasal', 'Ninong/Ninang', 'Others']; $selected = $v('service_requested') ?: 'Kasal';
+    $x = 20; foreach ($options as $option) { weddingChoice($pdf, $option, $selected === $option, $x, 121); $x += $option === 'Ninong/Ninang' ? 43 : 31; }
+    weddingPdfField($pdf, 'Others, please specify:', $v('other_service'), 18, 130, 174, 48);
+    weddingPdfField($pdf, 'DATE OF SERVICE/ADLAW SA SERBISYO:', $v('service_date'), 18, 141, 108, 76);
+    weddingChoice($pdf, 'Active', $v('active_status') === 'Active', 130, 141); weddingChoice($pdf, 'Inactive', $v('active_status') === 'Inactive', 163, 141);
+    weddingPdfField($pdf, 'Member of Cluster No.:', $v('cluster_number'), 18, 151, 58, 43); weddingPdfField($pdf, 'Cluster Name:', $v('cluster_name'), 82, 151, 110, 30);
+    $pdf->SetFont('Times', 'B', 10); $pdf->SetXY(18, 171); $pdf->Cell(174, 5, 'VERIFIED BY:', 0, 1);
+    $pdf->SetFont('Times', '', 9); $y = 184; foreach (['Ngalan ug pirma sa Cluster Treasurer', 'Ngalan ug pirma sa Cluster Leader', 'Ngalan ug pirma sa Chapel Treasurer', 'Ngalan ug pirma sa Chapel Chairman'] as $label) { $pdf->SetXY(18, $y); $pdf->Cell(174, 5, $label . ' ________________________________', 0, 1); $y += 14; }
+    return $pdf->Output('S');
 }
 
 function minimalTextPdf(array $lines): string
