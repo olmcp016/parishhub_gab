@@ -177,6 +177,12 @@ if (!$appointment) {
     redirect(url('parishioner/appointments.php'));
 }
 
+$feeSnapshot = !empty($appointment['fee_snapshot']) ? json_decode($appointment['fee_snapshot'], true) : null;
+$hasAuthoritativeFee = is_array($feeSnapshot)
+    && array_key_exists('total', $feeSnapshot)
+    && is_numeric($feeSnapshot['total']);
+$authoritativeFee = $hasAuthoritativeFee ? (float) $feeSnapshot['total'] : null;
+
 $stmt = db()->prepare('SELECT * FROM mass_intentions WHERE appointment_id = ?');
 $stmt->execute([$id]);
 $intention = $stmt->fetch() ?: null;
@@ -257,7 +263,7 @@ if (!$isAjax) {
     <?php endif; ?>
     <p><strong>Fee:</strong>
       <?php if ($appointment['pss_classification'] === 'pending_verification'): ?>Fee pending PSS verification
-      <?php elseif (!empty($appointment['fee_snapshot'])): ?><?= feeLabel((float) (json_decode($appointment['fee_snapshot'], true)['total'] ?? 0)) ?>
+      <?php elseif ($hasAuthoritativeFee): ?><?= money($authoritativeFee) ?>
       <?php else: ?><?= feeLabel((float) $appointment['fee']) ?><?php endif; ?>
     </p>
     <?php if ($appointment['category'] === 'Funeral' && $appointment['date_of_death']): ?>
@@ -365,7 +371,7 @@ if (!$isAjax) {
           <?php else: ?>
             <div class="form-group">
               <label>Amount</label>
-              <input type="number" value="<?= e((string)$appointment['fee']) ?>" step="0.01" readonly disabled>
+              <input type="number" value="<?= e((string) ($hasAuthoritativeFee ? $authoritativeFee : $appointment['fee'])) ?>" step="0.01" readonly disabled>
             </div>
           <?php endif; ?>
           <div class="form-group">
