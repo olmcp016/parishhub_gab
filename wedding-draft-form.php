@@ -75,8 +75,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $definition = weddingFormDefinition($type);
 $pageTitle = $definition['title'];
+$usesPublicShell = !$user;
 include __DIR__ . '/includes/header.php';
-include __DIR__ . '/includes/dash-start.php';
+include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 'dash-start.php');
 ?>
 <div class="card" style="max-width:900px;margin:auto;">
     <h2><?= e($definition['title']) ?></h2>
@@ -103,4 +104,4 @@ include __DIR__ . '/includes/dash-start.php';
         <button class="btn btn-primary" name="action" value="generate">Generate Form</button>
     </form>
 </div>
-<?php include __DIR__ . '/includes/footer.php';
+<?php include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-end.php' : 'dash-end.php'); include __DIR__ . '/includes/footer.php';

@@ -105,8 +105,9 @@ $stmt->execute([$id]);
 $forms = [];
 foreach ($stmt->fetchAll() as $row) $forms[$row['form_type']] = $row;
 $pageTitle = 'Baptism Requirements';
+$usesPublicShell = !$user;
 include __DIR__ . '/includes/header.php';
-include __DIR__ . '/includes/dash-start.php';
+include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 'dash-start.php');
 ?>
 <div class="card"><h2>Supporting Documents</h2>
 <?php foreach (baptismDraftRequiredDocuments($draft) as $label): ?>
@@ -124,4 +125,4 @@ include __DIR__ . '/includes/dash-start.php';
 <?php if ($documentId): ?><a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . $documentId) ?>">View PDF</a>
 <a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . $documentId . '&download=1') ?>">Download PDF</a><?php endif; ?></p>
 <?php endforeach; ?><form method="POST"><?= csrfField() ?><button class="btn btn-primary" type="submit">Submit Appointment Request</button></form></div>
-<?php include __DIR__ . '/includes/footer.php';
+<?php include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-end.php' : 'dash-end.php'); include __DIR__ . '/includes/footer.php';
