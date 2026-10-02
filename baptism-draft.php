@@ -11,6 +11,7 @@ require_once __DIR__ . '/includes/scheduling.php';
 $id = (int) ($_REQUEST['draft_id'] ?? 0);
 $pdo = db();
 $user = currentUser();
+$baptismFinalizationStage = 'initial_request';
 $token = baptismDraftToken($id);
 $draft = baptismDraftLoad($pdo, $id, $user, $token);
 if (!$draft) { http_response_code(403); exit('Baptism draft not found or access denied.'); }
@@ -49,21 +50,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'uploa
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $baptismFinalizationStage = 'validate_request';
     verifyCsrf();
+    $baptismFinalizationStage = 'validate_documents';
     $missing = baptismDraftComplete($pdo, $draft);
     if ($missing) {
         flash('error', 'Please complete: ' . implode(', ', $missing) . '.');
         redirect(url('baptism-draft.php?draft_id=' . $id));
     }
+    $baptismFinalizationStage = 'begin_transaction';
     $pdo->beginTransaction();
     try {
+        $baptismFinalizationStage = 'lock_draft';
         $locked = baptismDraftLoad($pdo, $id, $user, $token, true);
         if (!$locked || $locked['status'] !== 'draft') throw new RuntimeException('Draft unavailable.');
         if (!empty($locked['expires_at']) && strtotime((string) $locked['expires_at']) <= time()) throw new RuntimeException('This Baptism booking draft has expired.');
+        $baptismFinalizationStage = 'validate_locked_documents';
         $missing = baptismDraftComplete($pdo, $locked);
         if ($missing) throw new RuntimeException('Please complete: ' . implode(', ', $missing) . '.');
+        $baptismFinalizationStage = 'validate_schedule';
         $check = validateBooking('Baptism', $locked['appointment_date'], $locked['appointment_time'], null, $locked['schedule_type'], (int) $locked['service_id']);
         if (!$check['valid']) throw new RuntimeException($check['message']);
+        $baptismFinalizationStage = 'resolve_appointment_owner';
+        $appointmentParishionerId = !empty($locked['parishioner_id'])
+            ? (int) $locked['parishioner_id']
+            : guestParishionerId();
+        if ($appointmentParishionerId <= 0) {
+            throw new RuntimeException('Guest appointment owner could not be resolved.');
+        }
         $guestReference = $locked['parishioner_id'] ? null : generateGuestReference();
         $stmt = $pdo->prepare(
             "INSERT INTO appointments
@@ -74,8 +88,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
              VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 'pending_verification',
                      ?, ?, ?, ?, ?, ?, ?, ?)"
         );
+        $baptismFinalizationStage = 'insert_appointment';
         $stmt->execute([
-            $locked['parishioner_id'], $locked['service_id'], $locked['priest_id'],
+            $appointmentParishionerId, $locked['service_id'], $locked['priest_id'],
             $locked['appointment_date'], $check['forcedTime'] ?: $locked['appointment_time'],
             $locked['remarks'], $locked['schedule_type'], $locked['pss_claim'],
             $locked['sponsor_count'], $locked['guest_name'], $locked['guest_email'],
@@ -83,15 +98,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $locked['location_address'], json_encode(baptismDraftRequiredDocuments($locked))
         ]);
         $appointmentId = (int) $pdo->lastInsertId();
+        $baptismFinalizationStage = 'transfer_documents';
         $pdo->prepare('UPDATE uploaded_documents SET appointment_id = ?, baptism_draft_id = NULL WHERE baptism_draft_id = ?')->execute([$appointmentId, $id]);
+        $baptismFinalizationStage = 'transfer_generated_forms';
         $pdo->prepare('UPDATE generated_baptism_forms SET appointment_id = ?, draft_id = NULL WHERE draft_id = ?')->execute([$appointmentId, $id]);
+        $baptismFinalizationStage = 'finalize_draft';
         $pdo->prepare("UPDATE baptism_booking_drafts SET status = 'finalized', finalized_appointment_id = ?, updated_at = CURRENT_TIMESTAMP WHERE draft_id = ?")->execute([$appointmentId, $id]);
+        $baptismFinalizationStage = 'commit';
         $pdo->commit();
         redirect($guestReference
             ? url('status.php?ref=' . urlencode($guestReference) . '&contact=' . urlencode((string) ($locked['guest_phone'] ?: $locked['guest_email'])))
             : url('parishioner/appointment-detail.php?id=' . $appointmentId));
     } catch (Throwable $e) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
+        $rolledBack = false;
+        if ($pdo->inTransaction()) { $pdo->rollBack(); $rolledBack = true; }
+        $sqlState = $e instanceof PDOException ? ($e->errorInfo[0] ?? $e->getCode()) : $e->getCode();
+        error_log(sprintf(
+            'Baptism finalization failed: stage=%s draft_id=%d exception=%s sqlstate=%s transaction_active=%s rolled_back=%s message=%s file=%s line=%d',
+            $baptismFinalizationStage,
+            $id,
+            get_class($e),
+            (string) $sqlState,
+            $pdo->inTransaction() ? 'yes' : 'no',
+            $rolledBack ? 'yes' : 'no',
+            preg_replace('/\s+/', ' ', $e->getMessage()),
+            $e->getFile(),
+            $e->getLine()
+        ));
         flash('error', 'The Baptism booking could not be submitted.');
         redirect(url('baptism-draft.php?draft_id=' . $id));
     }
