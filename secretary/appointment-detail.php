@@ -359,7 +359,7 @@ if (!$isAjax) {
         </div>
       <?php endif; ?>
       <?php if ($appointment['pss_classification'] === 'pending_verification'): ?>
-        <form method="POST" class="card" style="background:var(--cream); margin:16px 0;">
+        <form method="POST" action="<?= e($redirectUrl) ?>" class="card" style="background:var(--cream); margin:16px 0;">
           <?= csrfField() ?><input type="hidden" name="action" value="verify_pss">
           <h4 style="margin-top:0;">Verify PSS Classification</h4>
           <p class="text-muted">Applicant claim: <?= e($appointment['pss_claim'] ? ($appointment['pss_claim'] === 'pss' ? 'PSS Giver' : 'Non-PSS Giver') : 'Not provided') ?></p>
