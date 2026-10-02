@@ -1221,6 +1221,9 @@ input.amount-no-spinner {
 .location-picker-trigger > span:last-child { font-size:24px; line-height:1; color:var(--gold,#b99526); }
 .location-picker-modal { width:min(94vw, 620px); max-height:85vh; }
 .location-picker-modal .modal-body { display:flex; flex-direction:column; gap:14px; }
+.location-picker-filters { display:flex; flex-wrap:wrap; gap:8px; }
+.location-picker-filters .location-filter { flex:1 1 auto; min-width:76px; }
+.location-picker-filters .location-filter.is-active { background:var(--gold,#b99526); border-color:var(--gold,#b99526); color:#fff; }
 .location-picker-modal #locationSearch { box-sizing:border-box; width:100%; min-height:50px; padding:13px 16px; margin:0 0 2px; border:1px solid var(--gold,#b99526); border-radius:10px; background:var(--surface,#fffdf8); color:var(--text,#3f382d); font:inherit; font-size:16px; line-height:1.4; }
 .location-picker-modal #locationSearch::placeholder { color:var(--text-muted,#6d665c); opacity:1; }
 .location-picker-modal #locationSearch:focus { outline:3px solid rgba(190,150,35,.25); outline-offset:1px; border-color:var(--gold,#b99526); box-shadow:0 0 0 1px var(--gold,#b99526); }
@@ -1239,4 +1242,5 @@ input.amount-no-spinner {
 @media (max-width: 760px) {
   .priest-login-summary { min-width:135px; }
   #createLoginModal, #manageLoginModal, .location-picker-modal { width:min(94vw, 520px); }
+  .location-picker-filters .location-filter { min-width:calc(50% - 4px); }
 }

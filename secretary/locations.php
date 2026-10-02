@@ -4,19 +4,26 @@ require_once __DIR__ . '/../includes/functions.php';
 requireRole('Secretary');
 
 $userId = currentUser()['user_id'];
+$locationCategories = ['barangay' => 'Barangay', 'school' => 'School', 'chapel' => 'Chapel', 'other' => 'Other'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifyCsrf();
     $action = $_POST['action'] ?? '';
 
+    $category = $_POST['location_category'] ?? 'other';
+    if (in_array($action, ['add', 'update'], true) && !array_key_exists($category, $locationCategories)) {
+        flash('error', 'Please choose a valid location category.');
+        redirect(url('secretary/locations.php'));
+    }
+
     if ($action === 'add') {
-        db()->prepare('INSERT INTO locations (name, notes) VALUES (?, ?)')
-            ->execute([trim($_POST['name']), trim($_POST['notes'] ?? '') ?: null]);
+        db()->prepare('INSERT INTO locations (name, location_category, notes) VALUES (?, ?, ?)')
+            ->execute([trim($_POST['name']), $category, trim($_POST['notes'] ?? '') ?: null]);
         logActivity($userId, "Added location: " . trim($_POST['name']), 'Locations');
         flash('success', 'Location added.');
     } elseif ($action === 'update') {
-        db()->prepare('UPDATE locations SET name = ?, notes = ? WHERE location_id = ?')
-            ->execute([trim($_POST['name']), trim($_POST['notes'] ?? '') ?: null, $_POST['location_id']]);
+        db()->prepare('UPDATE locations SET name = ?, location_category = ?, notes = ? WHERE location_id = ?')
+            ->execute([trim($_POST['name']), $category, trim($_POST['notes'] ?? '') ?: null, $_POST['location_id']]);
         flash('success', 'Location updated.');
     } elseif ($action === 'toggle') {
         db()->prepare('UPDATE locations SET is_active = ? WHERE location_id = ?')
@@ -48,6 +55,7 @@ include __DIR__ . '/../includes/dash-start.php';
     <?= csrfField() ?>
     <input type="hidden" name="action" value="add">
     <div class="form-group"><label>Name</label><input type="text" name="name" required placeholder="e.g. Barangay Chapel"></div>
+    <div class="form-group"><label>Category</label><select name="location_category" required><?php foreach ($locationCategories as $value => $label): ?><option value="<?= e($value) ?>"><?= e($label) ?></option><?php endforeach; ?></select></div>
     <div class="form-group"><label>Notes (optional)</label><input type="text" name="notes" placeholder="e.g. Seats 50"></div>
     <div class="form-group"><button type="submit" class="btn btn-primary">Add</button></div>
   </form>
@@ -57,7 +65,7 @@ include __DIR__ . '/../includes/dash-start.php';
   <div class="card-header"><h3>All Locations</h3></div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Name</th><th>Notes</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>Name</th><th>Category</th><th>Notes</th><th>Status</th><th></th></tr></thead>
       <tbody>
         <?php foreach ($locations as $loc): ?>
           <tr id="row-<?= $loc['location_id'] ?>">
@@ -68,11 +76,13 @@ include __DIR__ . '/../includes/dash-start.php';
                 <input type="hidden" name="action" value="update">
                 <input type="hidden" name="location_id" value="<?= $loc['location_id'] ?>">
                 <input type="text" name="name" value="<?= e($loc['name']) ?>" required style="margin-bottom:6px;">
+                <select name="location_category" required style="margin-bottom:6px;"><?php foreach ($locationCategories as $value => $label): ?><option value="<?= e($value) ?>" <?= ($loc['location_category'] ?? 'other') === $value ? 'selected' : '' ?>><?= e($label) ?></option><?php endforeach; ?></select>
                 <input type="text" name="notes" value="<?= e($loc['notes'] ?? '') ?>" placeholder="Notes">
                 <button type="submit" class="btn btn-primary btn-sm mt-2">Save</button>
                 <button type="button" class="btn btn-outline btn-sm mt-2" onclick="toggleEdit(<?= $loc['location_id'] ?>, false)">Cancel</button>
               </form>
             </td>
+            <td class="view-mode"><?= e($locationCategories[$loc['location_category'] ?? 'other'] ?? 'Other') ?></td>
             <td class="view-mode"><?= e($loc['notes'] ?? '—') ?></td>
             <td>
               <form method="POST" action="<?= url('secretary/locations.php') ?>">
@@ -92,7 +102,7 @@ include __DIR__ . '/../includes/dash-start.php';
           </tr>
         <?php endforeach; ?>
         <?php if (empty($locations)): ?>
-          <tr><td colspan="4" class="text-muted">No locations added yet.</td></tr>
+          <tr><td colspan="5" class="text-muted">No locations added yet.</td></tr>
         <?php endif; ?>
       </tbody>
     </table>

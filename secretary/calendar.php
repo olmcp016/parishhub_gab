@@ -141,6 +141,12 @@ include __DIR__ . '/../includes/dash-start.php';
 <dialog class="modal location-picker-modal" id="locationPickerModal" aria-labelledby="locationPickerTitle">
   <div class="modal-head"><h3 id="locationPickerTitle">Select Location</h3><button type="button" class="modal-close" id="locationPickerClose" aria-label="Close">✕</button></div>
   <div class="modal-body">
+    <div class="location-picker-filters" role="group" aria-label="Location category">
+      <button type="button" class="btn btn-outline location-filter is-active" data-category="all">All</button>
+      <button type="button" class="btn btn-outline location-filter" data-category="barangay">Barangay</button>
+      <button type="button" class="btn btn-outline location-filter" data-category="school">School</button>
+      <button type="button" class="btn btn-outline location-filter" data-category="chapel">Chapel</button>
+    </div>
     <label class="sr-only" for="locationSearch">Search location</label>
     <input type="search" id="locationSearch" placeholder="Search chapel or barangay..." autocomplete="off">
     <div class="location-picker-results" id="locationPickerResults" role="listbox" aria-label="Available locations"></div>
@@ -201,25 +207,27 @@ include __DIR__ . '/../includes/dash-start.php';
 <script src="<?= url('public/js/scheduling.js') ?>"></script>
 <script>
 var parishLocations = <?= json_encode(array_map(static function ($loc) {
-  return ['id' => (int) $loc['location_id'], 'name' => $loc['name'], 'notes' => $loc['notes'] ?? ''];
+  return ['id' => (int) $loc['location_id'], 'name' => $loc['name'], 'notes' => $loc['notes'] ?? '', 'category' => $loc['location_category'] ?? 'other'];
 }, $locations), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 var locationPicker = document.getElementById('locationPickerModal');
 var locationResults = document.getElementById('locationPickerResults');
 var locationSearch = document.getElementById('locationSearch');
 var selectedLocationId = document.getElementById('selectedLocationId');
 var selectedLocationLabel = document.getElementById('selectedLocationLabel');
+var selectedLocationCategory = 'all';
 
 function renderLocationResults() {
   var query = (locationSearch.value || '').trim().toLocaleLowerCase();
   var selected = selectedLocationId.value;
   var matches = parishLocations.filter(function (location) {
+    if (selectedLocationCategory !== 'all' && location.category !== selectedLocationCategory) return false;
     return !query || (location.name + ' ' + location.notes).toLocaleLowerCase().indexOf(query) !== -1;
   });
   locationResults.innerHTML = '';
   if (!matches.length) {
     var empty = document.createElement('p');
     empty.className = 'location-picker-empty';
-    empty.textContent = parishLocations.length ? 'No matching locations found.' : 'No locations are currently available.';
+    empty.textContent = query ? 'No locations found for your search.' : 'No locations available in this category.';
     locationResults.appendChild(empty);
     return;
   }
@@ -253,6 +261,13 @@ document.getElementById('selectedLocationName').addEventListener('click', functi
   locationSearch.focus();
 });
 locationSearch.addEventListener('input', renderLocationResults);
+document.querySelectorAll('.location-filter').forEach(function (button) {
+  button.addEventListener('click', function () {
+    selectedLocationCategory = this.dataset.category;
+    document.querySelectorAll('.location-filter').forEach(function (item) { item.classList.toggle('is-active', item === button); });
+    renderLocationResults();
+  });
+});
 document.getElementById('locationPickerClose').addEventListener('click', function () { locationPicker.close(); });
 locationPicker.addEventListener('close', function () { locationSearch.value = ''; });
 
