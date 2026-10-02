@@ -343,7 +343,7 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
           <textarea name="remarks" rows="2" placeholder="Any special requests..."></textarea>
         </div>
 
-        <div class="form-group" id="uploadGroup">
+        <div class="form-group" id="documentRequirementsNote" style="display:none;">
           <label>Required Documents</label>
           <div class="alert" style="background: var(--cream); color: var(--brown-mid); border: 1px solid var(--cream-dark); font-size:13px; margin-bottom:12px;">
             <strong>Document Requirements:</strong>
@@ -356,6 +356,10 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
             </ul>
             <p style="margin:8px 0 0;">These automated checks confirm a file is readable and correctly formatted — they do not verify authenticity. Our parish staff will do a final manual review before approval.</p>
           </div>
+        </div>
+
+        <div class="form-group" id="uploadGroup">
+          <label>Required Documents</label>
 
           <div id="requirementRows"></div>
 
@@ -367,6 +371,10 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
         </div>
 
         <div id="weddingFormsPreview" class="form-group" style="display:none; margin-top:16px;">
+          <label>Bride Parish Membership</label>
+          <label style="font-weight:400;display:block;"><input type="radio" name="bride_parish_status" value="this_parish"> This Parish</label>
+          <label style="font-weight:400;display:block;"><input type="radio" name="bride_parish_status" value="another_parish"> Another Parish</label>
+          <p id="bridePermitNotice" class="helper-text" style="display:none;">Permit / Recommendation is required because the Bride belongs to another parish.</p>
           <label>Wedding Forms</label>
           <div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">
             These required forms are completed in the next step after your booking details and supporting documents are saved.
@@ -463,6 +471,10 @@ function toggleServiceUI() {
   document.getElementById('sponsorCountInput').required = category === 'Baptism';
   document.getElementById('weddingSponsorCountInput').required = category === 'Wedding';
   document.getElementById('weddingFormsPreview').style.display = category === 'Wedding' ? 'block' : 'none';
+  document.querySelectorAll('input[name="bride_parish_status"]').forEach(function (input) {
+    input.required = category === 'Wedding';
+    input.onchange = function () { document.getElementById('bridePermitNotice').style.display = this.value === 'another_parish' ? 'block' : 'none'; };
+  });
   document.getElementById('bookSubmitBtn').textContent = submitButtonLabel();
 
   var isMassIntention = category === 'Mass Intention';
@@ -498,6 +510,7 @@ function toggleServiceUI() {
   // No documents are required for Mass Intentions — they're approved instantly.
   var uploadGroup = document.getElementById('uploadGroup');
   var draftService = category === 'Baptism' || category === 'Wedding';
+  document.getElementById('documentRequirementsNote').style.display = isMassIntention ? 'none' : 'block';
   uploadGroup.style.display = isMassIntention || draftService ? 'none' : 'block';
   document.getElementById('extraDocumentsInput').disabled = isMassIntention || draftService;
   if (!isMassIntention && !draftService) rebuildRequirementRows(serviceId);

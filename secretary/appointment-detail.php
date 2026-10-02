@@ -317,6 +317,7 @@ if (!$isAjax) {
     <?php else: ?>
       <p><strong>Parishioner:</strong> <?= e($appointment['firstname']) ?> <?= e($appointment['lastname']) ?> (<?= e($appointment['email']) ?>, <?= e($appointment['phone']) ?>)</p>
     <?php endif; ?>
+    <?php if ($appointment['category'] === 'Wedding'): ?><p><strong>Bride Parish Membership:</strong> <?= $appointment['bride_parish_status'] === 'this_parish' ? 'This Parish' : ($appointment['bride_parish_status'] === 'another_parish' ? 'Another Parish' : 'Legacy / Not recorded') ?></p><?php endif; ?>
     <p><strong>Date:</strong> <?= formatDate($appointment['appointment_date']) ?> at <?= date('g:i A', strtotime($appointment['appointment_time'])) ?></p>
     <p><strong>Fee:</strong>
       <?php if ($appointment['pss_classification'] === 'pending_verification'): ?>Fee pending PSS verification

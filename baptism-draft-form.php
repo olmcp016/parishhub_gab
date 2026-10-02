@@ -60,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stored = documentStorageWriteBytes($pdf);
             $label = baptismFormDefinition($type)['title'] . '.pdf';
             $pdo->prepare("INSERT INTO uploaded_documents (appointment_id, draft_id, baptism_draft_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source, generated_form_type) VALUES (NULL, NULL, ?, ?, ?, 'application/pdf', ?, 'pending', FALSE, 'generated', ?)")
-                ->execute([$id, $label, $stored['reference'], $label, $type]);
+                ->execute([$id, $label, $stored['key'], $label, $type]);
             $newId = (int) $pdo->lastInsertId();
             if ($form && !empty($form['document_id'])) {
                 $pdo->prepare('UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ? AND baptism_draft_id = ?')
