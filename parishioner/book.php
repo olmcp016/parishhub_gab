@@ -14,6 +14,7 @@ require_once __DIR__ . '/../includes/document-validation.php';
 require_once __DIR__ . '/../includes/paymongo.php';
 require_once __DIR__ . '/../includes/service-fees.php';
 require_once __DIR__ . '/../includes/wedding-draft.php';
+require_once __DIR__ . '/../includes/funeral-forms.php';
 $identity = requireParishionerOrGuest();
 $userId = $identity['user_id'];
 $parishionerId = $identity['parishioner_id'];
@@ -104,8 +105,8 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
 
     $isMassIntention = ($category === 'Mass Intention');
     
-    // Confirmation and First Communion have no parishioner-selected date/time
-    $isNoScheduleCategory = in_array($category, ['Confirmation', 'First Communion'], true);
+    // Confirmation, First Communion, Funeral, and Wake have no parishioner-selected date/time
+    $isNoScheduleCategory = in_array($category, ['Confirmation', 'First Communion', 'Funeral', 'Wake'], true);
     
     if (!$category || (!$isNoScheduleCategory && (!$date || !$time))) {
         bookRespondError($isAjax, $isMassIntention
@@ -287,6 +288,19 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
             }
         }
     }
+    
+    $katinAwanPayload = [];
+    if ($category === 'Funeral') {
+        $rawPayload = trim((string) ($_POST['katin_awan_payload'] ?? ''));
+        if (!$rawPayload) {
+            bookRespondError($isAjax, 'Please complete the Katin-awan sa Paglubong form before submitting your Funeral request.', url('parishioner/services.php'));
+        }
+        $katinAwanPayload = json_decode($rawPayload, true) ?: [];
+        $kaErrors = funeralKatinAwanValidationErrors($katinAwanPayload);
+        if ($kaErrors) {
+            bookRespondError($isAjax, implode(' ', $kaErrors), url('parishioner/services.php'));
+        }
+    }
 
     // Baptism always uses the draft workflow. The service category is
     // authoritative so stale forms or missing/tampered draft_mode cannot
@@ -446,6 +460,16 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         $documentsReminder = null;
         if (!$isMassIntention && !empty($requirementsList) && empty($pendingUploads)) {
             $documentsReminder = 'Reminder: this service requires documents (' . implode(', ', $requirementsList) . '). You can upload them now or later from your appointment page — your request just won\'t be approved until they\'re submitted and verified.';
+        }
+        
+        if ($category === 'Funeral') {
+            try {
+                processFuneralGeneratedForm($appointmentId, 'katin_awan_paglubong', $katinAwanPayload);
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                error_log('Funeral Generated Form Error: ' . $e->getMessage());
+                bookRespondError($isAjax, 'Could not generate the Katin-awan form. Please try again.', url('parishioner/services.php'));
+            }
         }
 
         // Guests have no account to receive an in-app notification —

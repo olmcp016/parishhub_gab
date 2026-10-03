@@ -395,9 +395,16 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
         </div>
         <div id="funeralFormsPreview" class="form-group" style="display:none; margin-top:16px;">
           <label>Funeral Forms</label>
-          <div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">This required form is completed after your booking details and supporting documents are saved.</div>
+          <div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">
+            This required form must be completed before submitting your appointment request.
+          </div>
           <div class="wedding-form-requirement-list">
-            <p><strong>Katin-awan sa Paglubong</strong><br><span class="badge badge-rejected">Required</span> <span class="helper-text">Complete in Appointment Status Page</span></p>
+            <p>
+              <strong>Katin-awan sa Paglubong</strong><br>
+              <span id="katinAwanStatusBadge" class="badge badge-rejected">Required</span>
+            </p>
+            <button type="button" class="btn btn-outline btn-sm" id="btnFillKatinAwan" onclick="openKatinAwanModal()">Fill Out Form</button>
+            <input type="hidden" name="katin_awan_payload" id="katinAwanPayload" value="">
           </div>
         </div>
 
@@ -560,7 +567,7 @@ function toggleServiceUI() {
   var specialMsgBox = document.getElementById('specialSchedulingMessage');
   specialMsgBox.style.display = 'none';
 
-  if (category === 'Confirmation' || category === 'First Communion') {
+  if (category === 'Confirmation' || category === 'First Communion' || category === 'Funeral' || category === 'Wake') {
     dateTimeRow.style.display = 'none';
     dateInput.disabled = true;
     dateInput.required = false;
@@ -574,14 +581,13 @@ function toggleServiceUI() {
     specialMsgBox.style.display = 'block';
     if (category === 'Confirmation') {
       specialMsgBox.textContent = "Schedule will be arranged by the parish office based on the Bishop's availability.";
-    } else {
+    } else if (category === 'First Communion') {
       specialMsgBox.textContent = "First Communion is scheduled during February. The parish office will assign the final date and time.";
+    } else if (category === 'Funeral') {
+      specialMsgBox.textContent = "Funeral schedule will be arranged by the parish office after reviewing your documents.";
+    } else if (category === 'Wake') {
+      specialMsgBox.textContent = "Wake and Death Anniversary schedules are arranged at the parish office.";
     }
-  } else if (category === 'Funeral') {
-    fixedGroup.style.display = 'block';
-    fixedHidden.disabled = false;
-    document.getElementById('fixedTimeDisplay').value = formatTimeLabel('13:00') + ' (fixed)';
-    fixedHidden.value = '13:00';
   } else if (isMassIntention) {
     massGroup.style.display = 'block';
     massHidden.disabled = false;
@@ -1179,6 +1185,16 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     var serviceSelect = document.getElementById('serviceSelect');
+    var category = serviceSelect.options[serviceSelect.selectedIndex]?.dataset.category || '';
+    if (category === 'Funeral') {
+      var payloadStr = document.getElementById('katinAwanPayload').value;
+      if (!payloadStr) {
+        errorBox.textContent = 'Please complete the Katin-awan sa Paglubong form.';
+        errorBox.style.display = 'block';
+        errorBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        return;
+      }
+    }
     var isMassIntention = (serviceSelect.options[serviceSelect.selectedIndex]?.dataset.category || '') === 'Mass Intention';
     if (isMassIntention) {
       var massDate = document.getElementById('appointmentDateInput').value;
@@ -1255,7 +1271,144 @@ document.addEventListener('DOMContentLoaded', function () {
       });
   });
 });
+
+function openKatinAwanModal() {
+  document.getElementById('katinAwanModal').style.display = 'flex';
+}
+function closeKatinAwanModal() {
+  document.getElementById('katinAwanModal').style.display = 'none';
+}
+function submitKatinAwanModal() {
+  var errorBox = document.getElementById('katinAwanError');
+  errorBox.style.display = 'none';
+  
+  var form = document.getElementById('katinAwanForm');
+  var fd = new FormData(form);
+  var payload = Object.fromEntries(fd.entries());
+  
+  var required = [
+    {key: 'ngalan_sa_ilubong', label: 'Ngalan sa Ilubong'},
+    {key: 'edad', label: 'Edad'},
+    {key: 'pinuy_anan', label: 'Pinuy-anan'},
+    {key: 'kanus_a_namatay', label: 'Kanus-a Namatay'},
+    {key: 'unsay_namatyan', label: 'Unsay Namatyan'},
+    {key: 'responde', label: 'Responde'}
+  ];
+  for (var i = 0; i < required.length; i++) {
+    if (!payload[required[i].key] || payload[required[i].key].trim() === '') {
+      errorBox.textContent = 'Please provide ' + required[i].label + '.';
+      errorBox.style.display = 'block';
+      return;
+    }
+  }
+  
+  document.getElementById('katinAwanPayload').value = JSON.stringify(payload);
+  
+  var badge = document.getElementById('katinAwanStatusBadge');
+  badge.textContent = 'Completed';
+  badge.className = 'badge badge-approved';
+  
+  var btn = document.getElementById('btnFillKatinAwan');
+  btn.textContent = 'Edit Form';
+  
+  closeKatinAwanModal();
+}
 </script>
+
+<!-- Katin-awan sa Paglubong Modal -->
+<div id="katinAwanModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+  <div style="background:#fff; width:100%; max-width:800px; max-height:90vh; overflow-y:auto; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.1); display:flex; flex-direction:column;">
+    <div style="padding:20px; border-bottom:1px solid var(--cream-dark); display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; background:#fff; z-index:10;">
+      <h3 style="margin:0; color:var(--brown);">Katin-awan sa Paglubong</h3>
+      <button type="button" onclick="closeKatinAwanModal()" style="background:none; border:none; font-size:24px; cursor:pointer; color:var(--brown-mid);">&times;</button>
+    </div>
+    <div style="padding:20px;">
+      <div id="katinAwanError" class="alert" style="display:none; background: var(--danger-bg); color: var(--danger); border: 1px solid #f5c2c2;"></div>
+      <form id="katinAwanForm">
+        <style>
+          .ka-section { margin-bottom: 24px; }
+          .ka-section h4 { margin-top: 0; color: var(--brown); margin-bottom: 16px; border-bottom: 2px solid var(--cream); padding-bottom: 8px; }
+          .ka-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+          @media (max-width: 600px) { .ka-grid { grid-template-columns: 1fr; } }
+        </style>
+        
+        <div class="ka-section">
+          <h4>Deceased Information</h4>
+          <div class="ka-grid">
+            <div class="form-group"><label>Ngalan sa Ilubong *</label><input type="text" name="ngalan_sa_ilubong" required></div>
+            <div class="form-group"><label>Edad *</label><input type="text" name="edad" required></div>
+            <div class="form-group"><label>Pinuy-anan *</label><input type="text" name="pinuy_anan" required></div>
+            <div class="form-group"><label>Relihiyon</label><input type="text" name="relihiyon"></div>
+            <div class="form-group"><label>Sakop sa Kapilya</label><input type="text" name="sakop_sa_kapilya"></div>
+            <div class="form-group"><label>Ngalan sa Cluster</label><input type="text" name="ngalan_sa_cluster"></div>
+          </div>
+        </div>
+        
+        <div class="ka-section">
+          <h4>Religious / Last Rites</h4>
+          <div class="form-group">
+            <label>Katapusan nga Sakramento</label>
+            <select name="katapusan_nga_sakramento">
+              <option value="">-- Select --</option>
+              <option value="Hilog/Hulog">Hilog/Hulog</option>
+              <option value="Kumpisal">Kumpisal</option>
+              <option value="Wala">Wala</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="ka-section">
+          <h4>Death</h4>
+          <div class="ka-grid">
+            <div class="form-group"><label>Kanus-a Namatay *</label><input type="text" name="kanus_a_namatay" required></div>
+            <div class="form-group"><label>Unsay Namatyan *</label><input type="text" name="unsay_namatyan" required></div>
+          </div>
+        </div>
+
+        <div class="ka-section">
+          <h4>Burial</h4>
+          <div class="ka-grid">
+            <div class="form-group"><label>Kanus-a Ilubong</label><input type="text" name="kanus_a_ilubong"></div>
+            <div class="form-group"><label>Oras</label><input type="text" name="oras_sa_lubong"></div>
+          </div>
+        </div>
+        
+        <div class="ka-section">
+          <h4>Respondent / Family</h4>
+          <div class="ka-grid">
+            <div class="form-group"><label>Responde *</label><input type="text" name="responde" required></div>
+            <div class="form-group"><label>Ginikanan / Anak</label><input type="text" name="ginikanan_anak"></div>
+            <div class="form-group"><label>Cell #</label><input type="text" name="ginikanan_anak_cell"></div>
+            <div class="form-group"><label>Asawa / Bana</label><input type="text" name="asawa_bana"></div>
+            <div class="form-group"><label>Cell #</label><input type="text" name="asawa_bana_cell"></div>
+          </div>
+        </div>
+
+        <div class="ka-section">
+          <h4>Marriage</h4>
+          <div class="ka-grid">
+            <div class="form-group">
+              <label>Simbahan / Sibil / Wala</label>
+              <select name="kasal">
+                <option value="">-- Select --</option>
+                <option value="Simbahan">Simbahan</option>
+                <option value="Sibil">Sibil</option>
+                <option value="Wala">Wala</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Petsa sa Kasal</label><input type="text" name="petsa_sa_kasal"></div>
+            <div class="form-group" style="grid-column: 1 / -1;"><label>Diin</label><input type="text" name="diin_kasal"></div>
+          </div>
+        </div>
+        
+      </form>
+    </div>
+    <div style="padding:20px; border-top:1px solid var(--cream-dark); position:sticky; bottom:0; background:#fff; z-index:10; display:flex; justify-content:flex-end; gap:10px;">
+      <button type="button" class="btn btn-outline" onclick="closeKatinAwanModal()">Cancel</button>
+      <button type="button" class="btn btn-primary" onclick="submitKatinAwanModal()">Save Katin-awan Form</button>
+    </div>
+  </div>
+</div>
 
 <?php include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-end.php' : 'dash-end.php'); ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

@@ -70,23 +70,48 @@ function processFuneralGeneratedForm(int $appointmentId, string $type, array $da
 
 function funeralKatinAwanNormalizeData(array $data): array {
     return [
-        'deceased_name' => trim((string) ($data['deceased_name'] ?? '')),
-        'deceased_age' => trim((string) ($data['deceased_age'] ?? '')),
-        'cause_of_death' => trim((string) ($data['cause_of_death'] ?? '')),
-        'place_of_wake' => trim((string) ($data['place_of_wake'] ?? '')),
-        'burial_date' => trim((string) ($data['burial_date'] ?? '')),
-        'burial_time' => trim((string) ($data['burial_time'] ?? '')),
-        'cemetery' => trim((string) ($data['cemetery'] ?? '')),
+        'ngalan_sa_ilubong' => trim((string) ($data['ngalan_sa_ilubong'] ?? '')),
+        'edad' => trim((string) ($data['edad'] ?? '')),
+        'pinuy_anan' => trim((string) ($data['pinuy_anan'] ?? '')),
+        'relihiyon' => trim((string) ($data['relihiyon'] ?? '')),
+        'sakop_sa_kapilya' => trim((string) ($data['sakop_sa_kapilya'] ?? '')),
+        'ngalan_sa_cluster' => trim((string) ($data['ngalan_sa_cluster'] ?? '')),
         
-        'spouse_name' => trim((string) ($data['spouse_name'] ?? '')),
-        'father_name' => trim((string) ($data['father_name'] ?? '')),
-        'mother_name' => trim((string) ($data['mother_name'] ?? '')),
+        'katapusan_nga_sakramento' => trim((string) ($data['katapusan_nga_sakramento'] ?? '')), // Hilog, Kumpisal, Wala
         
-        'informant_name' => trim((string) ($data['informant_name'] ?? '')),
-        'informant_relationship' => trim((string) ($data['informant_relationship'] ?? '')),
-        'informant_address' => trim((string) ($data['informant_address'] ?? '')),
-        'informant_phone' => trim((string) ($data['informant_phone'] ?? ''))
+        'kanus_a_namatay' => trim((string) ($data['kanus_a_namatay'] ?? '')),
+        'unsay_namatyan' => trim((string) ($data['unsay_namatyan'] ?? '')),
+        
+        'kanus_a_ilubong' => trim((string) ($data['kanus_a_ilubong'] ?? '')),
+        'oras_sa_lubong' => trim((string) ($data['oras_sa_lubong'] ?? '')),
+        
+        'responde' => trim((string) ($data['responde'] ?? '')),
+        'ginikanan_anak' => trim((string) ($data['ginikanan_anak'] ?? '')),
+        'ginikanan_anak_cell' => trim((string) ($data['ginikanan_anak_cell'] ?? '')),
+        'asawa_bana' => trim((string) ($data['asawa_bana'] ?? '')),
+        'asawa_bana_cell' => trim((string) ($data['asawa_bana_cell'] ?? '')),
+        
+        'kasal' => trim((string) ($data['kasal'] ?? '')), // Simbahan, Sibil, Wala
+        'petsa_sa_kasal' => trim((string) ($data['petsa_sa_kasal'] ?? '')),
+        'diin_kasal' => trim((string) ($data['diin_kasal'] ?? '')),
     ];
+}
+
+function funeralKatinAwanValidationErrors(array $data): array {
+    $errors = [];
+    $data = funeralKatinAwanNormalizeData($data);
+    $required = [
+        'ngalan_sa_ilubong' => 'Ngalan sa Ilubong',
+        'edad' => 'Edad',
+        'pinuy_anan' => 'Pinuy-anan',
+        'kanus_a_namatay' => 'Kanus-a Namatay',
+        'unsay_namatyan' => 'Unsay Namatyan',
+        'responde' => 'Responde'
+    ];
+    foreach ($required as $key => $label) {
+        if ($data[$key] === '') $errors[] = "Please provide $label.";
+    }
+    return $errors;
 }
 
 function funeralKatinAwanPdf(array $data): string {
@@ -115,35 +140,43 @@ function funeralKatinAwanPdf(array $data): string {
         $pdf->Ln(2);
     };
     
-    $row('Ngalan sa Namatay', $data['deceased_name']);
-    $row('Edad', $data['deceased_age']);
-    $row('Sakit/Hinungdan sa Kamatayon', $data['cause_of_death']);
-    $row('Lugar sa Minatay', $data['place_of_wake']);
+    $row('Ngalan sa Ilubong', $data['ngalan_sa_ilubong']);
+    $row('Edad', $data['edad']);
+    $row('Pinuy-anan', $data['pinuy_anan']);
+    $row('Relihiyon', $data['relihiyon']);
+    $row('Sakop sa Kapilya', $data['sakop_sa_kapilya']);
+    $row('Ngalan sa Cluster', $data['ngalan_sa_cluster']);
+    $row('Katapusan nga Sakramento', $data['katapusan_nga_sakramento']);
+    
+    $row('Kanus-a Namatay', $data['kanus_a_namatay']);
+    $row('Unsay Namatyan', $data['unsay_namatyan']);
     
     // Date and Time on same row
     $pdf->SetFont('Arial', 'B', 11);
-    $pdf->Cell(45, 8, 'PETSA SA PAGLUBONG:', 0, 0, 'L');
+    $pdf->Cell(45, 8, 'PETSA SA LUBONG:', 0, 0, 'L');
     $pdf->SetFont('Arial', '', 11);
-    $pdf->Cell(50, 8, strtoupper($data['burial_date']), 'B', 0, 'L');
+    $pdf->Cell(50, 8, strtoupper($data['kanus_a_ilubong']), 'B', 0, 'L');
     
     $pdf->SetFont('Arial', 'B', 11);
-    $pdf->Cell(45, 8, 'ORAS SA PAGLUBONG:', 0, 0, 'L');
+    $pdf->Cell(45, 8, 'ORAS SA LUBONG:', 0, 0, 'L');
     $pdf->SetFont('Arial', '', 11);
-    $pdf->Cell(0, 8, strtoupper($data['burial_time']), 'B', 1, 'L');
+    $pdf->Cell(0, 8, strtoupper($data['oras_sa_lubong']), 'B', 1, 'L');
     $pdf->Ln(2);
     
-    $row('Sementeryo nga Pagalubngan', $data['cemetery']);
+    $pdf->Ln(5);
+    $pdf->SetFont('Arial', 'B', 11);
+    $pdf->Cell(0, 8, 'RESPONDENTE / BANAY:', 0, 1, 'L');
+    
+    $row('Responde', $data['responde']);
+    $row('Ginikanan / Anak', $data['ginikanan_anak']);
+    $row('Cell #', $data['ginikanan_anak_cell']);
+    $row('Asawa / Bana', $data['asawa_bana']);
+    $row('Cell #', $data['asawa_bana_cell']);
     
     $pdf->Ln(5);
-    $row('Ngalan sa Bana/Asawa', $data['spouse_name']);
-    $row('Ngalan sa Amahan', $data['father_name']);
-    $row('Ngalan sa Inahan', $data['mother_name']);
-    
-    $pdf->Ln(5);
-    $row('Pangalan sa Nagpa-lubong', $data['informant_name']);
-    $row('Relasyon', $data['informant_relationship']);
-    $row('Address', $data['informant_address']);
-    $row('Telepono', $data['informant_phone']);
+    $row('Kasal', $data['kasal']);
+    $row('Petsa sa Kasal', $data['petsa_sa_kasal']);
+    $row('Diin', $data['diin_kasal']);
     
     // Note for signatures
     $pdf->Ln(15);
