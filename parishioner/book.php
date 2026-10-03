@@ -74,25 +74,25 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     $guestReference = null;
     if ($isGuest) {
         // Accept either split fields (new form) or the legacy combined guest_name hidden field.
-        $guestLastname  = trim($_POST['guest_lastname']  ?? '');
-        $guestFirstname = trim($_POST['guest_firstname'] ?? '');
-        $guestMiddle    = trim($_POST['guest_middlename'] ?? '') ?: null;
-        $guestPhone     = trim($_POST['guest_phone']     ?? '');
-        $guestEmail     = trim($_POST['guest_email']     ?? '') ?: null;
+        $guestLastname  = validateName($_POST['guest_lastname']  ?? '');
+        $guestFirstname = validateName($_POST['guest_firstname'] ?? '');
+        $guestMiddle    = validateName($_POST['guest_middlename'] ?? '') ?: null;
+        $guestPhone     = validatePhilippineMobile($_POST['guest_phone'] ?? '');
+        $guestEmail     = validateEmail($_POST['guest_email'] ?? '') ?: null;
 
-        if ($guestLastname !== '' && $guestFirstname !== '') {
+        if ($guestLastname && $guestFirstname) {
             // Compose the full name from split fields
             $guestName = $guestLastname . ', ' . $guestFirstname . ($guestMiddle ? ' ' . $guestMiddle : '');
         } else {
             // Fall back to legacy combined field
-            $guestName = trim($_POST['guest_name'] ?? '');
+            $guestName = validateName($_POST['guest_name'] ?? '');
         }
 
-        if ($guestName === '' || $guestPhone === '') {
-            bookRespondError($isAjax, 'Please provide your full name and phone number.', url('parishioner/services.php'));
+        if (!$guestName) {
+            bookRespondError($isAjax, 'Please provide a valid full name (no numbers).', url('parishioner/services.php'));
         }
-        if (!preg_match('/^09[0-9]{9}$/', $guestPhone)) {
-            bookRespondError($isAjax, 'Phone number must be exactly 11 digits starting with 09.', url('parishioner/services.php'));
+        if (!$guestPhone) {
+            bookRespondError($isAjax, 'Enter a valid 11-digit mobile number starting with 09.', url('parishioner/services.php'));
         }
         $guestReference = generateGuestReference();
     }

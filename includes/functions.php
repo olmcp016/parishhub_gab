@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/validation.php';
 /**
  * PARISHHUB — Shared helper functions
  */
