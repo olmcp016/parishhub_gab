@@ -19,4 +19,37 @@ CREATE TABLE IF NOT EXISTS generated_funeral_forms (
     CONSTRAINT funeral_forms_uniq UNIQUE (appointment_id, form_type)
 );
 
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE connamespace = 'public'::regnamespace
+          AND conrelid = 'public.uploaded_documents'::regclass
+          AND conname = 'uploaded_documents_generated_form_type_check_v2'
+    ) THEN
+        ALTER TABLE uploaded_documents DROP CONSTRAINT uploaded_documents_generated_form_type_check_v2;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE connamespace = 'public'::regnamespace
+          AND conrelid = 'public.uploaded_documents'::regclass
+          AND conname = 'uploaded_documents_generated_form_type_check_v3'
+    ) THEN
+        ALTER TABLE uploaded_documents
+            ADD CONSTRAINT uploaded_documents_generated_form_type_check_v3
+            CHECK (
+                generated_form_type IS NULL
+                OR generated_form_type IN (
+                    'matrimony_application',
+                    'cluster_clearance',
+                    'wedding_sponsor_clearance',
+                    'katin_awan_bunyag',
+                    'cluster_clearance_baptism_sponsor',
+                    'katin_awan_paglubong'
+                )
+            );
+    END IF;
+END $$;
+
 COMMIT;

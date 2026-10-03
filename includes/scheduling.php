@@ -499,8 +499,8 @@ function availablePriestsFor(string $date, string $time, ?int $excludeAppointmen
  * Validates a proposed booking against the parish's scheduling rules.
  *
  * @param string      $category     Service category (Mass Intention, Wedding, Baptism, Funeral, Confirmation, Blessing, First Communion)
- * @param string      $date         Proposed appointment_date (Y-m-d)
- * @param string      $time         Proposed appointment_time (H:i or H:i:s)
+ * @param string|null $date         Proposed appointment_date (Y-m-d)
+ * @param string|null $time         Proposed appointment_time (H:i or H:i:s)
  * @param string|null $dateOfDeath  Required only for Funeral Mass (Y-m-d)
  * @param string|null $scheduleType 'Regular' or 'Special' — only meaningful for
  *                                  Baptism/Wedding/Blessing/Confirmation. NULL
@@ -516,12 +516,16 @@ function availablePriestsFor(string $date, string $time, ?int $excludeAppointmen
  */
 function validateBooking(
     string $category,
-    string $date,
-    string $time,
+    ?string $date,
+    ?string $time,
     ?string $dateOfDeath = null,
     ?string $scheduleType = null,
     ?int $serviceId = null
 ): array {
+    if (empty($date) || empty($time)) {
+        return ['valid' => true, 'message' => '', 'forcedTime' => null];
+    }
+    
     $time5 = substr($time, 0, 5); // normalize to H:i for comparisons
 
     // Staff day-off applies to every category — the office is simply closed.

@@ -52,9 +52,9 @@ foreach (['Mass Intention', 'Funeral', 'First Communion'] as $cat) {
     }
 }
 
-// These 4 categories offer a Regular (parish-fixed slot) vs Special
+// These 2 categories offer a Regular (parish-fixed slot) vs Special
 // (custom date/time, availability-checked) choice — see includes/scheduling.php.
-$scheduleToggleCategories = ['Baptism', 'Wedding', 'Blessing', 'Confirmation'];
+$scheduleToggleCategories = ['Baptism', 'Wedding'];
 
 $active = 'services';
 $pageTitle = 'Available Services';
@@ -280,6 +280,10 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
             </div>
           </div>
         </div>
+
+        <div id="specialSchedulingMessage" class="alert" style="display:none; background: var(--cream); color: var(--brown-mid); border: 1px solid var(--cream-dark); margin-bottom:18px;">
+        </div>
+
 
         <div id="availabilityMsg" class="alert" style="display:none; background: var(--danger-bg); color: var(--danger); border: 1px solid #f5c2c2;"></div>
 
@@ -551,9 +555,29 @@ function toggleServiceUI() {
   fixedGroup.style.display = 'none'; fixedHidden.disabled = true;
   massGroup.style.display = 'none'; massHidden.disabled = true;
   regularGroup.style.display = 'none'; regularDateHidden.disabled = true; regularTimeHidden.disabled = true;
-  dateTimeRow.style.display = 'flex'; dateInput.disabled = false;
+  dateTimeRow.style.display = 'flex'; dateInput.disabled = false; dateInput.required = true;
 
-  if (category === 'Funeral') {
+  var specialMsgBox = document.getElementById('specialSchedulingMessage');
+  specialMsgBox.style.display = 'none';
+
+  if (category === 'Confirmation' || category === 'First Communion') {
+    dateTimeRow.style.display = 'none';
+    dateInput.disabled = true;
+    dateInput.required = false;
+    
+    // Hide Priest selector
+    var priestGroup = document.getElementById('priestFieldGroup');
+    var priestSelect = document.getElementById('priestSelect');
+    priestGroup.style.display = 'none';
+    priestSelect.disabled = true;
+    
+    specialMsgBox.style.display = 'block';
+    if (category === 'Confirmation') {
+      specialMsgBox.textContent = "Schedule will be arranged by the parish office based on the Bishop's availability.";
+    } else {
+      specialMsgBox.textContent = "First Communion is scheduled during February. The parish office will assign the final date and time.";
+    }
+  } else if (category === 'Funeral') {
     fixedGroup.style.display = 'block';
     fixedHidden.disabled = false;
     document.getElementById('fixedTimeDisplay').value = formatTimeLabel('13:00') + ' (fixed)';
@@ -565,12 +589,13 @@ function toggleServiceUI() {
   } else if (usesToggle && scheduleType === 'Regular') {
     dateTimeRow.style.display = 'none';
     dateInput.disabled = true;
+    dateInput.required = false;
     regularGroup.style.display = 'block';
     regularDateHidden.disabled = false;
     regularTimeHidden.disabled = false;
     initRegularCalendar(serviceId);
   } else {
-    // Special mode for the 4 toggle categories, or First Communion (always free-form).
+    // Special mode for toggle categories, or free-form categories like House Blessing.
     freeGroup.style.display = 'block';
     freeInput.disabled = false;
     updateOccupiedTimesHint();

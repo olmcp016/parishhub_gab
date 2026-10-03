@@ -96,10 +96,20 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     $category = $service['category'] ?? null;
 
     $isMassIntention = ($category === 'Mass Intention');
-    if (!$category || !$date || !$time) {
+    
+    // Confirmation and First Communion have no parishioner-selected date/time
+    $isNoScheduleCategory = in_array($category, ['Confirmation', 'First Communion'], true);
+    
+    if (!$category || (!$isNoScheduleCategory && (!$date || !$time))) {
         bookRespondError($isAjax, $isMassIntention
             ? 'Please select a Mass date and one of the available Mass times.'
             : 'Please fill in the service, date, and time.', url('parishioner/services.php'));
+    }
+    
+    // Allow empty date/time for these
+    if ($isNoScheduleCategory) {
+        $date = null;
+        $time = null;
     }
 
     $usesScheduleToggle = in_array($category, SCHEDULE_TOGGLE_CATEGORIES, true);
@@ -180,15 +190,18 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     }
 
     // ---- Enforce the parish's fixed scheduling rules (Regular/Special, Mass conflicts, staff day-off, funeral mourning period, ...) ----
-    $check = validateBooking($category, $date, $time, $dateOfDeath, $scheduleTypeToSave, $serviceId);
-    if ($isMassIntention) $massIntentionStage = 'validate_schedule';
-    if (!$check['valid']) {
-        bookRespondError($isAjax, $check['message'], url('parishioner/services.php'));
+    $finalTime = $time;
+    if (!$isNoScheduleCategory) {
+        $check = validateBooking($category, $date, $time, $dateOfDeath, $scheduleTypeToSave, $serviceId);
+        if ($isMassIntention) $massIntentionStage = 'validate_schedule';
+        if (!$check['valid']) {
+            bookRespondError($isAjax, $check['message'], url('parishioner/services.php'));
+        }
+        $finalTime = $check['forcedTime'] ?? $time;
     }
-    $finalTime = $check['forcedTime'] ?? $time;
 
     // ---- Re-check that this exact service+date+time hasn't just been taken by someone else ----
-    if (!$isMassIntention && serviceSlotIsBooked($serviceId, $date, $finalTime)) {
+    if (!$isMassIntention && !$isNoScheduleCategory && serviceSlotIsBooked($serviceId, $date, $finalTime)) {
         bookRespondError($isAjax, 'That exact date and time was just booked by someone else for this service. Please choose another slot.', url('parishioner/services.php'));
     }
 
@@ -342,11 +355,13 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     $createdStorageKeys = [];
     try {
         // Manually blocked dates (holidays, etc.) still apply on top of the fixed rules
-        $stmt = $pdo->prepare('SELECT * FROM calendar WHERE calendar_date = ? AND is_blocked = 1');
-        $stmt->execute([$date]);
-        if ($stmt->fetch()) {
-            $pdo->rollBack();
-            bookRespondError($isAjax, 'The selected date is not available for booking. Please choose another date.', url('parishioner/services.php'));
+        if ($date) {
+            $stmt = $pdo->prepare('SELECT * FROM calendar WHERE calendar_date = ? AND is_blocked = 1');
+            $stmt->execute([$date]);
+            if ($stmt->fetch()) {
+                $pdo->rollBack();
+                bookRespondError($isAjax, 'The selected date is not available for booking. Please choose another date.', url('parishioner/services.php'));
+            }
         }
 
         // Mass Intentions skip manual secretary review entirely: they're

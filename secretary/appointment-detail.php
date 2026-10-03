@@ -300,8 +300,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($massCheck->fetchColumn() === 'Mass Intention') {
             respondAjaxOrRedirect($isAjax, false, 'Mass Intentions are tied to scheduled Masses and cannot be rescheduled.', $redirectUrl);
         }
-        $newDate = $_POST['appointment_date'];
-        $newTime = $_POST['appointment_time'];
+        $newDate = empty($_POST['appointment_date']) ? null : $_POST['appointment_date'];
+        $newTime = empty($_POST['appointment_time']) ? null : $_POST['appointment_time'];
 
         $stmt = db()->prepare(
             "SELECT s.category, s.service_id, a.schedule_type, a.date_of_death FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_id = ?"
