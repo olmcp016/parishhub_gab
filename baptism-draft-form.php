@@ -53,7 +53,9 @@ $error = null;
 if ($type === 'katin_awan_bunyag' && !$form) {
     $contactPhone = trim((string) ($draft['contact_phone'] ?? ''));
     if (!$contactPhone && $user && ($user['role_name'] ?? '') === 'Parishioner') {
-        $pq = $pdo->prepare('SELECT phone FROM parishioners WHERE user_id = ?');
+        // Phone numbers belong to users in the current schema; parishioners
+        // stores the profile relation and baptism-specific metadata only.
+        $pq = $pdo->prepare('SELECT phone FROM users WHERE user_id = ?');
         $pq->execute([$user['user_id']]);
         $pPhone = $pq->fetchColumn();
         if ($pPhone) $contactPhone = trim((string) $pPhone);
