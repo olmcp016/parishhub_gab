@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/includes/funeral-draft.php';
 require_once __DIR__ . '/includes/funeral-forms.php';
 
 $appointmentId = (int) ($_GET['appointment_id'] ?? $_POST['appointment_id'] ?? 0);
@@ -12,23 +13,9 @@ $isDraft = !empty($draftId);
 $error = null;
 
 if ($isDraft) {
-    if (!isset($_SESSION['funeral_booking_drafts'][$draftId])) {
-        exit('Funeral booking draft not found or expired.');
-    }
-    $draft = $_SESSION['funeral_booking_drafts'][$draftId];
-    if ($draft['is_guest']) {
-        $guestToken = $_SESSION['funeral_draft_tokens'][$draftId] ?? null;
-        if (!$guestToken || hash('sha256', $guestToken) !== $draft['guest_token']) exit('Access denied.');
-    } else {
-        if (!$user) {
-            exit('Access denied.');
-        }
-        $q = db()->prepare('SELECT parishioner_id FROM parishioners WHERE user_id = ?');
-        $q->execute([$user['user_id']]);
-        if ((int)$q->fetchColumn() !== (int)$draft['parishioner_id']) {
-            exit('Access denied.');
-        }
-    }
+    $draftId = (int) $draftId;
+    $draft = funeralDraftLoad($draftId, $user);
+    if (!$draft) { http_response_code(403); exit('Funeral booking draft not found, expired, or access denied.'); }
     
     $data = funeralKatinAwanNormalizeData($draft['katin_awan_payload'] ?: [
         'kanus_a_ilubong' => (string) ($draft['date'] ?? ''),
@@ -46,9 +33,29 @@ if ($isDraft) {
         if ($errors) {
             $error = implode(' ', $errors);
         } else {
-            $_SESSION['funeral_booking_drafts'][$draftId]['katin_awan_payload'] = $data;
-            flash('success', 'Katin-awan sa Paglubong form saved.');
-            redirect(url('funeral-draft.php?draft_id=' . $draftId));
+            $stored = null;
+            try {
+                $stored = documentStorageWriteBytes(funeralKatinAwanPdf($data));
+                $oldDocument = $draft['generated_document'] ?? null;
+                $_SESSION['funeral_booking_drafts'][$draftId]['katin_awan_payload'] = $data;
+                $_SESSION['funeral_booking_drafts'][$draftId]['generated_document'] = [
+                    'key' => $stored['key'],
+                    'mime' => 'application/pdf',
+                    'file_name' => 'Katin-awan_sa_Paglubong_Draft_' . $draftId . '.pdf',
+                    'generated_at' => time(),
+                ];
+                if (is_array($oldDocument) && !empty($oldDocument['key']) && $oldDocument['key'] !== $stored['key']) {
+                    try { documentStorageDelete((string) $oldDocument['key']); } catch (Throwable $cleanupError) { error_log('Old Funeral draft PDF cleanup failed.'); }
+                }
+                flash('success', 'Katin-awan sa Paglubong PDF generated successfully.');
+                redirect(url('funeral-draft.php?draft_id=' . $draftId));
+            } catch (Throwable $e) {
+                if ($stored && !empty($stored['key'])) {
+                    try { documentStorageDelete((string) $stored['key']); } catch (Throwable $cleanupError) { error_log('Funeral draft PDF cleanup failed.'); }
+                }
+                error_log('Funeral draft PDF generation failed: ' . $e->getMessage());
+                $error = 'The Funeral form PDF could not be generated. Please try again.';
+            }
         }
     }
 } else {
@@ -112,8 +119,11 @@ $definition = funeralFormDefinition($type);
 $backLink = $isDraft 
     ? url('funeral-draft.php?draft_id=' . $draftId)
     : ($isGuest ? url('status.php?ref=' . urlencode($appointment['guest_reference'] ?? '')) : url('parishioner/appointment-detail.php?id=' . $appointmentId));
+$pageTitle = $definition['title'];
+$usesPublicShell = $isDraft ? !empty($draft['is_guest']) : $isGuest;
+include __DIR__ . '/includes/header.php';
+include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 'dash-start.php');
 ?>
-<?php ob_start(); ?>
 <style>
 .form-section { background:#fff; padding:24px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.05); margin-bottom:24px; border:1px solid var(--cream-dark); }
 .form-section h3 { margin-top:0; color:var(--brown); margin-bottom:20px; font-size:1.1rem; border-bottom:2px solid var(--cream); padding-bottom:10px; }
@@ -124,13 +134,13 @@ $backLink = $isDraft
 <div style="max-width:850px; margin:0 auto; padding:20px;">
   <a href="<?= $backLink ?>" class="back-link">← Back</a>
   <div style="text-align:center; margin-bottom:30px;"><h1 style="margin:0 0 10px; color:var(--brown);"><?= e($definition['title']) ?></h1><p class="text-muted" style="margin:0;">Complete the fields printed on the official parish form. Signature and verification lines remain blank.</p></div>
-  <?php include __DIR__ . '/includes/flash.php'; ?>
   <?php if ($error): ?><div class="alert" style="background:var(--danger-bg); color:var(--danger); border:1px solid #f5c2c2;"><?= e($error) ?></div><?php endif; ?>
   <?php if (!empty($previewDocumentId)): ?><div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">The form was generated. If the PDF did not open automatically, <a href="<?= url('document.php?id=' . $previewDocumentId) ?>" target="_blank" rel="noopener"><strong>View Generated Form</strong></a>.</div><?php endif; ?>
   <?php if (!empty($form) && $form['status'] === 'rejected' && $form['rejection_reason']): ?><div class="alert" style="background:var(--danger-bg); color:var(--danger);"><strong>Secretary requested revisions:</strong> <?= e($form['rejection_reason']) ?></div><?php endif; ?>
 
   <form method="POST" id="funeralGeneratedForm">
     <?= csrfField() ?>
+    <?php if ($isDraft): ?><input type="hidden" name="draft_id" value="<?= (int) $draftId ?>"><?php else: ?><input type="hidden" name="appointment_id" value="<?= $appointmentId ?>"><?php endif; ?>
     <div class="form-section">
       <h3>Deceased Information</h3>
       <div class="form-group"><label for="ngalan_sa_ilubong">Ngalan sa Ilubong *</label><input id="ngalan_sa_ilubong" name="ngalan_sa_ilubong" type="text" maxlength="150" value="<?= e($data['ngalan_sa_ilubong']) ?>" required></div>
@@ -191,7 +201,7 @@ $backLink = $isDraft
     </div>
 
     <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
-      <button type="submit" class="btn btn-primary" style="width: 100%;">Generate Application Form</button>
+      <button type="submit" class="btn btn-primary" style="width: 100%;">Generate PDF</button>
       <?php if ($form && $form['document_id']): ?>
         <a href="<?= documentViewUrl((int) $form['document_id']) ?>" target="_blank" rel="noopener" class="btn btn-outline" style="width: 100%;">Preview Current Form</a>
       <?php endif; ?>
@@ -225,11 +235,9 @@ $backLink = $isDraft
   form.addEventListener('submit', function (event) {
     if (!form.checkValidity()) return;
     if (!hilog.checked && !kumpisal.checked && !wala.checked) { event.preventDefault(); alert('Select the sacrament received, or select Wala.'); return; }
-    window.open('about:blank', 'parishhubFuneralPdf');
+    <?php if (!$isDraft): ?>window.open('about:blank', 'parishhubFuneralPdf');<?php endif; ?>
   });
   <?php if ($previewDocumentId): ?>window.open(<?= json_encode(url('document.php?id=' . $previewDocumentId)) ?>, 'parishhubFuneralPdf');<?php endif; ?>
 }());
 </script>
-<?php
-$content = ob_get_clean();
-require __DIR__ . '/includes/layout.php';
+<?php include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-end.php' : 'dash-end.php'); include __DIR__ . '/includes/footer.php';

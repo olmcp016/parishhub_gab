@@ -349,7 +349,8 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
             'dateOfDeath' => $dateOfDeath,
             'requirementsSnapshot' => $requirementsSnapshot,
             'uploaded_keys' => [],
-            'katin_awan_payload' => null
+            'katin_awan_payload' => null,
+            'generated_document' => null
         ];
 
         $createdStorageKeys = [];

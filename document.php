@@ -4,6 +4,33 @@ require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/document-storage.php';
 require_once __DIR__ . '/includes/wedding-draft.php';
 require_once __DIR__ . '/includes/baptism-draft.php';
+require_once __DIR__ . '/includes/funeral-draft.php';
+
+$funeralDraftId = (int) ($_GET['funeral_draft_id'] ?? 0);
+if ($funeralDraftId > 0) {
+    $draft = funeralDraftLoad($funeralDraftId, currentUser());
+    if (!$draft) { http_response_code(403); exit('You are not authorized to view this document.'); }
+    $draftDocument = $draft['generated_document'] ?? null;
+    if (!is_array($draftDocument) || empty($draftDocument['key']) || ($draftDocument['mime'] ?? '') !== 'application/pdf') {
+        http_response_code(404); exit('Document not found.');
+    }
+    try {
+        $storedDraftDocument = documentStorageRead((string) $draftDocument['key']);
+    } catch (Throwable $e) {
+        error_log('Funeral draft document read failed: ' . $e->getMessage());
+        http_response_code(404); exit('Document file is no longer available.');
+    }
+    $draftFilename = basename((string) ($draftDocument['file_name'] ?? 'Katin-awan_sa_Paglubong.pdf'));
+    $draftFilename = str_replace(["\"", "\r", "\n", "/", "\\"], '', $draftFilename) ?: 'Katin-awan_sa_Paglubong.pdf';
+    $draftDownload = ($_GET['download'] ?? '') === '1';
+    header('Content-Type: application/pdf');
+    header('Content-Length: ' . strlen((string) $storedDraftDocument['body']));
+    header('Cache-Control: private, no-store, max-age=0');
+    header('X-Content-Type-Options: nosniff');
+    header('Content-Disposition: ' . ($draftDownload ? 'attachment' : 'inline') . '; filename="' . $draftFilename . '"; filename*=UTF-8\'\'' . rawurlencode($draftFilename));
+    echo $storedDraftDocument['body'];
+    exit;
+}
 
 $documentId = (int) ($_GET['id'] ?? 0);
 if ($documentId < 1) {

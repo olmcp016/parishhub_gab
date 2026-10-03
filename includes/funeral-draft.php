@@ -15,7 +15,12 @@ function funeralDraftLoad(int $draftId, ?array $user): ?array
     }
 
     $draft = $_SESSION['funeral_booking_drafts'][$draftId];
-    if ((int) ($draft['id'] ?? 0) !== $draftId || (int) ($draft['expires_at'] ?? 0) <= time()) {
+    if ((int) ($draft['id'] ?? 0) !== $draftId) {
+        return null;
+    }
+    if ((int) ($draft['expires_at'] ?? 0) <= time()) {
+        funeralDraftDeleteAbandonedArtifacts($draft);
+        unset($_SESSION['funeral_booking_drafts'][$draftId], $_SESSION['funeral_draft_tokens'][$draftId]);
         return null;
     }
 
@@ -72,5 +77,19 @@ function funeralDraftDeletePreview(array $draft): void
         documentStorageDelete($key);
     } catch (Throwable $e) {
         error_log('Funeral draft preview cleanup failed: ' . $e->getMessage());
+    }
+}
+
+function funeralDraftDeleteAbandonedArtifacts(array $draft): void
+{
+    funeralDraftDeletePreview($draft);
+    foreach (array_filter($draft['uploaded_keys'] ?? [], 'is_array') as $upload) {
+        $key = trim((string) ($upload['key'] ?? ''));
+        if ($key === '') continue;
+        try {
+            documentStorageDelete($key);
+        } catch (Throwable $e) {
+            error_log('Expired Funeral draft upload cleanup failed: ' . $e->getMessage());
+        }
     }
 }
