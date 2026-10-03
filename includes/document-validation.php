@@ -64,11 +64,21 @@ function validateUploadedFile(array $file): array
 
     // JPEG/PNG: must actually decode as an image, and be portrait-oriented
     // (height >= width) per the upload instructions shown to parishioners.
+    // Phone cameras commonly store a portrait photo with landscape pixel
+    // dimensions plus a JPEG EXIF orientation flag. Honor that flag for the
+    // orientation check without changing the accepted file formats.
     $dimensions = @getimagesize($file['tmp_name']);
     if ($dimensions === false) {
         return ['valid' => false, 'mime' => $mime, 'reason' => 'corrupted'];
     }
     [$width, $height] = $dimensions;
+    if ($mime === 'image/jpeg' && function_exists('exif_read_data')) {
+        $exif = @exif_read_data($file['tmp_name'], 'IFD0', true);
+        $orientation = (int) ($exif['IFD0']['Orientation'] ?? $exif['Orientation'] ?? 1);
+        if (in_array($orientation, [5, 6, 7, 8], true)) {
+            [$width, $height] = [$height, $width];
+        }
+    }
     if ($height < $width) {
         return ['valid' => false, 'mime' => $mime, 'reason' => 'orientation'];
     }

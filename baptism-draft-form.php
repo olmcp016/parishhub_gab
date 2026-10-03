@@ -109,6 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ->execute([$isAppointmentForm ? $appointmentId : null, $isAppointmentForm ? null : $id, $type, $json]);
                 }
                 $pdo->commit();
+                flash('success', 'Baptism form draft saved. You can continue editing it from Baptism Requirements.');
                 $contextQuery = $isAppointmentForm ? 'appointment_id=' . $appointmentId : 'draft_id=' . $id;
                 redirect(url('baptism-draft-form.php?' . $contextQuery . '&form_type=' . urlencode($type)));
             }
@@ -133,6 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ->execute([$isAppointmentForm ? $appointmentId : null, $isAppointmentForm ? null : $id, $type, $json, $newId]);
             }
             $pdo->commit();
+            flash('success', 'Baptism form generated and submitted for review.');
             $contextQuery = $isAppointmentForm ? 'appointment_id=' . $appointmentId : 'draft_id=' . $id;
             redirect(url('baptism-draft-form.php?' . $contextQuery . '&form_type=' . urlencode($type) . '&generated_document_id=' . $newId));
         } catch (Throwable $e) {
@@ -159,10 +161,17 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
 ?>
 <div class="card">
   <h2><?= e($def['title']) ?></h2>
+  <?php include __DIR__ . '/includes/flash.php'; ?>
   <?php if ($error): ?><div class="alert"><?= e($error) ?></div><?php endif; ?>
   <?php if ($previewDocumentId): ?><div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">The form was generated. If the PDF did not open automatically, <a href="<?= url('document.php?id=' . $previewDocumentId) ?>" target="_blank" rel="noopener"><strong>View Generated Form</strong></a>.</div><?php endif; ?>
   <form method="POST" id="baptismGeneratedForm">
     <?= csrfField() ?>
+    <?php if ($isAppointmentForm): ?>
+      <input type="hidden" name="appointment_id" value="<?= $appointmentId ?>">
+    <?php else: ?>
+      <input type="hidden" name="draft_id" value="<?= $id ?>">
+    <?php endif; ?>
+    <input type="hidden" name="form_type" value="<?= e($type) ?>">
     <?php if ($type === 'katin_awan_bunyag'): ?>
       <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">
         <legend style="font-weight:700; padding:0 8px;">CHILD INFORMATION</legend>
@@ -267,6 +276,9 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
       <button class="btn btn-outline" style="width: 100%;" name="action" value="save" formnovalidate>Save Draft</button>
     </div>
   </form>
+  <?php if (!$isAppointmentForm): ?>
+    <p style="margin-top:14px;"><a href="<?= url('baptism-draft.php?draft_id=' . $id) ?>">← Back to Baptism Requirements</a></p>
+  <?php endif; ?>
 </div>
 <script>
 (function () {

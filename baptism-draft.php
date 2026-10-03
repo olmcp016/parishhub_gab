@@ -152,14 +152,27 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
 <button class="btn btn-outline" type="submit">Save Documents</button>
 </form></div>
 <div class="card"><h2>Baptism Forms</h2>
-<?php foreach (BAPTISM_DRAFT_FORMS as $type): $row = $forms[$type] ?? null; $isGenerated = $row && !empty($row['document_id']) && in_array($row['status'] ?? '', ['pending_review', 'approved'], true); $documentId = $isGenerated ? (int) $row['document_id'] : 0; $title = baptismFormDefinition($type)['title']; ?>
+<?php foreach (BAPTISM_DRAFT_FORMS as $type):
+  $row = $forms[$type] ?? null;
+  $documentId = $row && !empty($row['document_id']) ? (int) $row['document_id'] : 0;
+  $formStatus = (string) ($row['status'] ?? '');
+  $isGenerated = $documentId > 0;
+  $statusLabel = match ($formStatus) {
+      'draft' => 'Draft saved',
+      'pending_review' => 'Generated',
+      'approved' => 'Approved',
+      'rejected' => 'Needs Revision',
+      default => 'Not completed',
+  };
+  $title = baptismFormDefinition($type)['title'];
+?>
 <div class="generated-form-item">
   <div class="generated-form-header">
     <span class="generated-form-title"><?= e($title) ?></span>
-    <span class="generated-form-status"><?= $documentId ? '✓ Generated' : ($row ? '○ Draft' : '○ Not completed') ?></span>
+    <span class="generated-form-status"><?= $isGenerated ? '✓ ' : '○ ' ?><?= e($statusLabel) ?></span>
   </div>
   <div class="generated-form-actions">
-    <a class="btn btn-outline btn-sm" href="<?= url('baptism-draft-form.php?draft_id=' . $id . '&form_type=' . urlencode($type)) ?>"><?= $row ? 'Edit Form' : 'Complete Form' ?></a>
+    <a class="btn btn-outline btn-sm" href="<?= url('baptism-draft-form.php?draft_id=' . $id . '&form_type=' . urlencode($type)) ?>"><?= !$row ? 'Complete Form' : ($formStatus === 'draft' ? 'Continue Editing' : ($formStatus === 'rejected' ? 'Edit and Regenerate' : 'Edit Form')) ?></a>
     <?php if ($documentId): ?>
       <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . $documentId) ?>">View PDF</a>
       <a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . $documentId . '&download=1') ?>">Download PDF</a>
