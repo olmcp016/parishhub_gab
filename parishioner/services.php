@@ -459,6 +459,13 @@ function openBookModal(serviceId) {
   document.getElementById('appointmentDateInput').value = <?= json_encode($preselectedDate) ?>;
   <?php endif; ?>
 
+  // Reset Funeral-specific generated-form state every time the modal opens
+  document.getElementById('katinAwanPayload').value = '';
+  var katinBadge = document.getElementById('katinAwanStatusBadge');
+  katinBadge.textContent = 'Required';
+  katinBadge.className = 'badge badge-rejected';
+  document.getElementById('btnFillKatinAwan').textContent = 'Fill Out Form';
+
   toggleServiceUI();
   modal.showModal();
 }
@@ -476,6 +483,9 @@ function toggleServiceUI() {
   var selectedOption = select.options[select.selectedIndex];
   var category = selectedOption ? selectedOption.dataset.category || '' : '';
   var serviceId = selectedOption ? selectedOption.value : '';
+
+  // Clear any stale error from a previous service selection
+  document.getElementById('bookFormError').style.display = 'none';
 
   var needsClassification = ['Baptism', 'Wedding', 'Funeral'].indexOf(category) !== -1;
   document.getElementById('feeClassificationGroup').style.display = needsClassification ? 'block' : 'none';
@@ -525,6 +535,10 @@ function toggleServiceUI() {
   document.getElementById('documentRequirementsNote').style.display = isMassIntention ? 'none' : 'block';
   uploadGroup.style.display = isMassIntention || draftService ? 'none' : 'block';
   document.getElementById('extraDocumentsInput').disabled = isMassIntention || draftService;
+  // ALWAYS clear old requirement rows first — prevents stale required inputs
+  // from a previous service (e.g. Funeral's "Death Certificate") from
+  // blocking a different service (e.g. Wedding) via hidden required fields.
+  document.getElementById('requirementRows').innerHTML = '';
   if (!isMassIntention && !draftService) rebuildRequirementRows(serviceId);
 
   var policyBox = document.getElementById('policyBox');
