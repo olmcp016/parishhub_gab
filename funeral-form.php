@@ -83,15 +83,13 @@ $definition = funeralFormDefinition($type);
     <?= csrfField() ?>
     <div class="form-section">
       <h3>Deceased Information</h3>
-      <div class="grid-2">
-        <div class="form-group"><label for="ngalan_sa_ilubong">Ngalan sa Ilubong *</label><input id="ngalan_sa_ilubong" name="ngalan_sa_ilubong" type="text" maxlength="150" value="<?= e($data['ngalan_sa_ilubong']) ?>" required></div>
+      <div class="form-group"><label for="ngalan_sa_ilubong">Ngalan sa Ilubong *</label><input id="ngalan_sa_ilubong" name="ngalan_sa_ilubong" type="text" maxlength="150" value="<?= e($data['ngalan_sa_ilubong']) ?>" required></div>
+      <div class="form-row">
         <div class="form-group"><label for="edad">Edad *</label><input id="edad" name="edad" type="number" min="0" max="120" step="1" value="<?= e($data['edad']) ?>" required></div>
-      </div>
-      <div class="grid-2">
-        <div class="form-group"><label for="pinuy_anan">Pinuy-anan *</label><input id="pinuy_anan" name="pinuy_anan" type="text" maxlength="255" value="<?= e($data['pinuy_anan']) ?>" required></div>
         <div class="form-group"><label for="relihiyon">Relihiyon</label><input id="relihiyon" name="relihiyon" type="text" maxlength="80" value="<?= e($data['relihiyon']) ?>"></div>
       </div>
-      <div class="grid-2">
+      <div class="form-group"><label for="pinuy_anan">Pinuy-anan *</label><input id="pinuy_anan" name="pinuy_anan" type="text" maxlength="255" value="<?= e($data['pinuy_anan']) ?>" required></div>
+      <div class="form-row">
         <div class="form-group"><label for="sakop_sa_kapilya">Sakop sa Kapilya sa</label><input id="sakop_sa_kapilya" name="sakop_sa_kapilya" type="text" maxlength="150" value="<?= e($data['sakop_sa_kapilya']) ?>"></div>
         <div class="form-group"><label for="ngalan_sa_cluster">Ngalan sa Cluster</label><input id="ngalan_sa_cluster" name="ngalan_sa_cluster" type="text" maxlength="150" value="<?= e($data['ngalan_sa_cluster']) ?>"></div>
       </div>
@@ -108,9 +106,11 @@ $definition = funeralFormDefinition($type);
 
     <div class="form-section">
       <h3>Death and Burial</h3>
-      <div class="grid-2">
+      <div class="form-row">
         <div class="form-group"><label for="kanus_a_namatay">Kanus-a Namatay *</label><input id="kanus_a_namatay" name="kanus_a_namatay" type="date" value="<?= e($data['kanus_a_namatay']) ?>" required></div>
         <div class="form-group"><label for="unsay_namatyan">Unsay Namatyan *</label><input id="unsay_namatyan" name="unsay_namatyan" type="text" maxlength="255" value="<?= e($data['unsay_namatyan']) ?>" required></div>
+      </div>
+      <div class="form-row">
         <div class="form-group"><label for="kanus_a_ilubong">Kanus-a Ilubong *</label><input id="kanus_a_ilubong" name="kanus_a_ilubong" type="date" value="<?= e($data['kanus_a_ilubong']) ?>" required></div>
         <div class="form-group"><label for="oras_sa_lubong">Oras *</label><input id="oras_sa_lubong" name="oras_sa_lubong" type="time" value="<?= e($data['oras_sa_lubong']) ?>" required></div>
       </div>
@@ -119,9 +119,11 @@ $definition = funeralFormDefinition($type);
     <div class="form-section">
       <h3>Respondent / Family</h3>
       <div class="form-group"><label for="responde">Responde *</label><input id="responde" name="responde" type="text" maxlength="150" value="<?= e($data['responde']) ?>" required></div>
-      <div class="grid-2">
+      <div class="form-row">
         <div class="form-group"><label for="ginikanan_anak">Ginikanan / Anak</label><input id="ginikanan_anak" name="ginikanan_anak" type="text" maxlength="150" value="<?= e($data['ginikanan_anak']) ?>"></div>
         <div class="form-group"><label for="ginikanan_anak_cell">Cell #</label><input id="ginikanan_anak_cell" name="ginikanan_anak_cell" type="tel" inputmode="numeric" maxlength="11" pattern="^09\d{9}$" title="Enter a valid 11-digit mobile number starting with 09" value="<?= e($data['ginikanan_anak_cell']) ?>"></div>
+      </div>
+      <div class="form-row">
         <div class="form-group"><label for="asawa_bana">Asawa / Bana</label><input id="asawa_bana" name="asawa_bana" type="text" maxlength="150" value="<?= e($data['asawa_bana']) ?>"></div>
         <div class="form-group"><label for="asawa_bana_cell">Cell #</label><input id="asawa_bana_cell" name="asawa_bana_cell" type="tel" inputmode="numeric" maxlength="11" pattern="^09\d{9}$" title="Enter a valid 11-digit mobile number starting with 09" value="<?= e($data['asawa_bana_cell']) ?>"></div>
       </div>
@@ -132,7 +134,7 @@ $definition = funeralFormDefinition($type);
       <div class="form-group"><label>Unsang Kasala ang Nadawat? *</label><div class="choice-row">
         <?php foreach (['Simbahan', 'Sibil', 'Wala'] as $option): ?><label><input type="radio" name="kasal" value="<?= e($option) ?>" <?= $data['kasal'] === $option ? 'checked' : '' ?> required> <?= e($option) ?></label><?php endforeach; ?>
       </div></div>
-      <div class="grid-2">
+      <div class="form-row">
         <div class="form-group"><label for="petsa_sa_kasal">Petsa sa Kasal <span data-marriage-required>*</span></label><input id="petsa_sa_kasal" name="petsa_sa_kasal" type="date" value="<?= e($data['petsa_sa_kasal']) ?>"></div>
         <div class="form-group"><label for="diin_kasal">Diin <span data-marriage-required>*</span></label><input id="diin_kasal" name="diin_kasal" type="text" maxlength="150" value="<?= e($data['diin_kasal']) ?>"></div>
       </div>

@@ -191,20 +191,38 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
             ] as $prefix => $heading): ?>
                 <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">
                     <legend style="font-weight:700; padding:0 8px;"><?= e($heading) ?></legend>
-                    <?php foreach ([
-                        'name' => ['Full Name', 'text', 150],
-                        'birth_date' => ['Date of Birth', 'date', null],
-                        'father' => ['Father', 'text', 150],
-                        'mother' => ['Mother', 'text', 150],
-                        'mother_maiden_name' => ["Mother's Maiden Name", 'text', 150],
-                        'address' => ['Address', 'text', 255],
-                        'cell' => ['Cell Number', 'tel', 11],
-                    ] as $suffix => [$label, $inputType, $maxLength]): $key = $prefix . '_' . $suffix; ?>
+                    <div class="form-group">
+                        <label for="<?= $prefix ?>_name">Full Name *</label>
+                        <input id="<?= $prefix ?>_name" name="<?= $prefix ?>_name" type="text" value="<?= e($data[$prefix.'_name'] ?? '') ?>" maxlength="150" required>
+                    </div>
+                    <div class="form-row">
                         <div class="form-group">
-                            <label for="<?= e($key) ?>"><?= e($label) ?> *</label>
-                            <input id="<?= e($key) ?>" name="<?= e($key) ?>" type="<?= e($inputType) ?>" value="<?= e($data[$key] ?? '') ?>"<?= $maxLength ? ' maxlength="' . (int) $maxLength . '"' : '' ?><?= $inputType === 'tel' ? ' pattern="^09\d{9}$" title="Must be a valid 11-digit mobile number starting with 09" inputmode="numeric"' : '' ?> required>
+                            <label for="<?= $prefix ?>_birth_date">Date of Birth *</label>
+                            <input id="<?= $prefix ?>_birth_date" name="<?= $prefix ?>_birth_date" type="date" value="<?= e($data[$prefix.'_birth_date'] ?? '') ?>" required>
                         </div>
-                    <?php endforeach; ?>
+                        <div class="form-group">
+                            <label for="<?= $prefix ?>_cell">Cell Number *</label>
+                            <input id="<?= $prefix ?>_cell" name="<?= $prefix ?>_cell" type="tel" value="<?= e($data[$prefix.'_cell'] ?? '') ?>" maxlength="11" pattern="^09\d{9}$" title="Must be a valid 11-digit mobile number starting with 09" inputmode="numeric" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="<?= $prefix ?>_father">Father *</label>
+                            <input id="<?= $prefix ?>_father" name="<?= $prefix ?>_father" type="text" value="<?= e($data[$prefix.'_father'] ?? '') ?>" maxlength="150" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="<?= $prefix ?>_mother">Mother *</label>
+                            <input id="<?= $prefix ?>_mother" name="<?= $prefix ?>_mother" type="text" value="<?= e($data[$prefix.'_mother'] ?? '') ?>" maxlength="150" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="<?= $prefix ?>_mother_maiden_name">Mother's Maiden Name *</label>
+                        <input id="<?= $prefix ?>_mother_maiden_name" name="<?= $prefix ?>_mother_maiden_name" type="text" value="<?= e($data[$prefix.'_mother_maiden_name'] ?? '') ?>" maxlength="150" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="<?= $prefix ?>_address">Address *</label>
+                        <input id="<?= $prefix ?>_address" name="<?= $prefix ?>_address" type="text" value="<?= e($data[$prefix.'_address'] ?? '') ?>" maxlength="255" required>
+                    </div>
                 </fieldset>
             <?php endforeach; ?>
             <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">

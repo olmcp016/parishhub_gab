@@ -159,17 +159,10 @@ include __DIR__ . '/../includes/header.php';
         <?= csrfField() ?>
         <div class="form-row">
           <div class="form-group">
-            <label>Last Name</label>
-            <div class="input-wrap">
-              <span class="input-icon"><i data-lucide="user"></i></span>
-              <input type="text" name="lastname" value="<?= oldInput('lastname') ?>" required autofocus>
-            </div>
-          </div>
-          <div class="form-group">
             <label>First Name</label>
             <div class="input-wrap">
               <span class="input-icon"><i data-lucide="user"></i></span>
-              <input type="text" name="firstname" value="<?= oldInput('firstname') ?>" required>
+              <input type="text" name="firstname" value="<?= oldInput('firstname') ?>" required autofocus>
             </div>
           </div>
           <div class="form-group">
@@ -177,6 +170,13 @@ include __DIR__ . '/../includes/header.php';
             <div class="input-wrap">
               <span class="input-icon"><i data-lucide="user"></i></span>
               <input type="text" name="middlename" value="<?= oldInput('middlename') ?>">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Last Name</label>
+            <div class="input-wrap">
+              <span class="input-icon"><i data-lucide="user"></i></span>
+              <input type="text" name="lastname" value="<?= oldInput('lastname') ?>" required>
             </div>
           </div>
         </div>

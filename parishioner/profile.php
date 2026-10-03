@@ -51,16 +51,16 @@ include __DIR__ . '/../includes/dash-start.php';
     <?= csrfField() ?>
     <div class="form-row">
       <div class="form-group">
-        <label>Last Name</label>
-        <input type="text" name="lastname" value="<?= e($user['lastname']) ?>" required>
-      </div>
-      <div class="form-group">
         <label>First Name</label>
         <input type="text" name="firstname" value="<?= e($user['firstname']) ?>" required>
       </div>
       <div class="form-group">
         <label>Middle Name <span class="text-muted" style="font-weight:400;">(optional)</span></label>
         <input type="text" name="middlename" value="<?= e($user['middlename'] ?? '') ?>">
+      </div>
+      <div class="form-group">
+        <label>Last Name</label>
+        <input type="text" name="lastname" value="<?= e($user['lastname']) ?>" required>
       </div>
     </div>
     <div class="form-group">

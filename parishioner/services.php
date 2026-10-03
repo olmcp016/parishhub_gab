@@ -146,32 +146,35 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
         <input type="hidden" name="draft_mode" id="draftModeInput" value="0">
 
         <?php if ($identity['is_guest']): ?>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Last Name</label>
-            <input type="text" name="guest_lastname" id="guestLastNameInput" required placeholder="Dela Cruz">
+        <div style="background: var(--cream); padding: 14px; border-radius: 8px; margin-bottom: 16px; border: 1px solid var(--cream-dark);">
+          <h4 style="margin-top:0; margin-bottom:12px;">Guest Information</h4>
+          <div class="form-row">
+            <div class="form-group">
+              <label>First Name</label>
+              <input type="text" name="guest_firstname" id="guestFirstNameInput" required placeholder="Juan">
+            </div>
+            <div class="form-group">
+              <label>Middle Name <span class="text-muted" style="font-weight:400;">(optional)</span></label>
+              <input type="text" name="guest_middlename" id="guestMiddleNameInput" placeholder="Santos">
+            </div>
+            <div class="form-group">
+              <label>Last Name</label>
+              <input type="text" name="guest_lastname" id="guestLastNameInput" required placeholder="Dela Cruz">
+            </div>
           </div>
-          <div class="form-group">
-            <label>First Name</label>
-            <input type="text" name="guest_firstname" id="guestFirstNameInput" required placeholder="Juan">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Phone Number</label>
+              <input type="tel" name="guest_phone" id="guestPhoneInput" required pattern="09[0-9]{9}" maxlength="11" minlength="11" placeholder="09XXXXXXXXX" title="Must be exactly 11 digits starting with 09">
+            </div>
+            <div class="form-group">
+              <label>Email Address <span class="text-muted" style="font-weight:400;">(optional)</span></label>
+              <input type="email" name="guest_email" id="guestEmailInput" placeholder="you@example.com">
+            </div>
           </div>
-          <div class="form-group">
-            <label>Middle Name <span class="text-muted" style="font-weight:400;">(optional)</span></label>
-            <input type="text" name="guest_middlename" id="guestMiddleNameInput" placeholder="Santos">
-          </div>
+          <input type="hidden" name="guest_name" id="guestCombinedName">
+          <p class="helper-text" style="margin-top:-6px; margin-bottom:0;">We'll use your name and phone number to identify your request — you'll get a reference code to check its status anytime.</p>
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Phone Number</label>
-            <input type="tel" name="guest_phone" id="guestPhoneInput" required pattern="09[0-9]{9}" maxlength="11" minlength="11" placeholder="09XXXXXXXXX" title="Must be exactly 11 digits starting with 09">
-          </div>
-          <div class="form-group">
-            <label>Email Address <span class="text-muted" style="font-weight:400;">(optional)</span></label>
-            <input type="email" name="guest_email" id="guestEmailInput" placeholder="you@example.com">
-          </div>
-        </div>
-        <input type="hidden" name="guest_name" id="guestCombinedName">
-        <p class="helper-text" style="margin-top:-6px; margin-bottom:14px;">We'll use your name and phone number to identify your request — you'll get a reference code to check its status anytime.</p>
         <?php endif; ?>
 
         <div class="form-group">
@@ -307,19 +310,21 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
         <div id="intentionFields" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px; margin-bottom: 16px;">
           <h4 style="margin-top:0;">Mass Intention Details</h4>
           <p class="helper-text" style="margin-top:-4px;">No documents needed. You choose the offering amount. Online payments are verified through PayMongo; cash offerings remain pending until the Cashier confirms them.</p>
-          <div class="form-group">
-            <label>Intention Type</label>
-            <select name="intention_type">
-              <option>Living</option>
-              <option>Dead</option>
-              <option>Thanksgiving</option>
-              <option>Healing</option>
-              <option>Birthday</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Offerer Name</label>
-            <input type="text" name="offerer_name" id="offererNameInput" placeholder="Your full name">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Intention Type</label>
+              <select name="intention_type">
+                <option>Living</option>
+                <option>Dead</option>
+                <option>Thanksgiving</option>
+                <option>Healing</option>
+                <option>Birthday</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Offerer Name</label>
+              <input type="text" name="offerer_name" id="offererNameInput" placeholder="Your full name">
+            </div>
           </div>
           <div class="form-group">
             <label>Intention For</label>
