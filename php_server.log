@@ -1,0 +1,7 @@
+[Sat Oct  3 17:08:25 2026] PHP 8.0.28 Development Server (http://localhost:8000) started
+[Sat Oct  3 17:14:53 2026] [::1]:56005 Accepted
+[Sat Oct  3 17:14:53 2026] [::1]:56005 [404]: HEAD /login.php - No such file or directory
+[Sat Oct  3 17:14:53 2026] [::1]:56005 Closing
+[Sat Oct  3 17:15:05 2026] [::1]:56007 Accepted
+[Sat Oct  3 17:15:06 2026] [::1]:56007 [200]: HEAD /auth/login.php
+[Sat Oct  3 17:15:06 2026] [::1]:56007 Closing
