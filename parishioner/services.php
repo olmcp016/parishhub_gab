@@ -1329,3 +1329,7 @@ function currentScheduleSelection() {
   return { date: '', time: '' };
 }
 
+</script>
+
+<?php include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-end.php' : 'dash-end.php'); ?>
+<?php include __DIR__ . '/../includes/footer.php'; ?>
