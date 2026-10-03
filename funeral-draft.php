@@ -160,6 +160,7 @@ $pageTitle = 'Funeral Requirements';
 $publicNavActive = 'services';
 include __DIR__ . '/includes/header.php';
 include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 'dash-start.php');
+?>
 
 <div class="content-wrapper <?php echo $draft['is_guest'] ? 'guest-draft-container' : ''; ?>">
   <div class="page-header" style="display:flex; justify-content:space-between; align-items:center;">

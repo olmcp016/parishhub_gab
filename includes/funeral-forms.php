@@ -1,7 +1,11 @@
 <?php
 require_once __DIR__ . '/document-storage.php';
 require_once __DIR__ . '/validation.php';
-if (is_file(__DIR__ . '/../vendor/autoload.php')) require_once __DIR__ . '/../vendor/autoload.php';
+if (is_file(__DIR__ . '/../vendor/autoload.php')) {
+    require_once __DIR__ . '/../vendor/autoload.php';
+} elseif (is_file(__DIR__ . '/../fpdf.php')) {
+    require_once __DIR__ . '/../fpdf.php';
+}
 // Suppress utf8_encode deprecation warnings from FPDF (PHP 8.2+) which break output headers
 error_reporting(E_ALL & ~E_DEPRECATED);
 
