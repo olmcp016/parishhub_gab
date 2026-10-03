@@ -297,7 +297,7 @@ if (!$isAjax) {
       <?php foreach ($generatedForms as $gf): $status = $gf['review_status'] ?? 'pending'; ?>
         <p><strong><?= e(weddingFormDefinition($gf['form_type'])['title']) ?></strong><br>
           Status: <?= e(weddingFormStatusLabel($gf['status'])) ?>
-          <a class="btn btn-outline btn-sm" href="<?= url('wedding-form.php?appointment_id=' . $id . '&form_type=' . urlencode($gf['form_type'])) ?>"><?= $gf['form_type'] === 'matrimony_application' ? ($status === 'rejected' ? 'Edit and Regenerate Form' : 'Edit Form') : 'Edit / View' ?></a>
+          <?php if (($gf['status'] ?? '') !== 'approved'): ?><a class="btn btn-outline btn-sm" href="<?= url('wedding-form.php?appointment_id=' . $id . '&form_type=' . urlencode($gf['form_type'])) ?>"><?= $status === 'rejected' ? 'Edit and Regenerate Form' : 'Edit Form' ?></a><?php endif; ?>
           <?php if ($gf['document_id']): ?><a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>"><?= $gf['form_type'] === 'matrimony_application' ? 'View Generated Form' : 'View PDF' ?></a><?php endif; ?>
           <?php if ($gf['rejection_reason']): ?><br><span class="text-muted">Reason: <?= e($gf['rejection_reason']) ?></span><?php endif; ?>
         </p>
@@ -306,10 +306,12 @@ if (!$isAjax) {
     <?php elseif ($appointment['category'] === 'Baptism'): ?>
       <hr style="border-color:var(--cream-dark); margin:18px 0;"><h4>Baptism Forms</h4>
       <?php $baptismTitles = ['katin_awan_bunyag' => 'KATIN-AWAN SA BUNYAG', 'cluster_clearance_baptism_sponsor' => 'CLUSTER CLEARANCE FOR BAPTISM SPONSOR']; ?>
-      <?php foreach ($generatedForms as $gf): ?>
+      <?php foreach ($generatedForms as $gf): $baptismStatus = $gf['review_status'] ?? 'pending'; ?>
         <p><strong><?= e($baptismTitles[$gf['form_type']] ?? $gf['form_type']) ?></strong><br>
-          Status: <?= e($gf['review_status'] ?? 'Pending Review') ?>
+          Status: <?= e($baptismStatus === 'rejected' ? 'Needs Revision' : ($baptismStatus === 'approved' ? 'Approved' : 'Pending Review')) ?>
+          <?php if (($gf['status'] ?? '') !== 'approved'): ?><a class="btn btn-outline btn-sm" href="<?= url('baptism-draft-form.php?appointment_id=' . $id . '&form_type=' . urlencode($gf['form_type'])) ?>"><?= $baptismStatus === 'rejected' ? 'Edit and Regenerate Form' : 'Edit Form' ?></a><?php endif; ?>
           <?php if ($gf['document_id']): ?><a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>">View PDF</a><a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . (int) $gf['document_id'] . '&download=1') ?>">Download PDF</a><?php endif; ?>
+          <?php if ($gf['rejection_reason']): ?><br><span class="text-muted">Reason: <?= e($gf['rejection_reason']) ?></span><?php endif; ?>
         </p>
       <?php endforeach; ?>
       <?php if (!$generatedForms): ?><p class="text-muted">Baptism forms are not available.</p><?php endif; ?>
@@ -495,6 +497,7 @@ if (!$isAjax) {
                 $gf = $gfQuery->fetch() ?: null;
                 $gfStatus = $gf ? $gf['status'] : 'draft';
                 if (!empty($matches)) { $gfStatus = 'generated'; }
+                $funeralApproved = !empty($matches) && (($matches[0]['review_status'] ?? 'pending') === 'approved' || ($matches[0]['verified'] ?? false));
             ?>
             <div class="form-group doc-req-row">
               <label>
@@ -516,7 +519,7 @@ if (!$isAjax) {
                   </p>
                 <?php endforeach; ?>
               <?php endif; ?>
-              <?php if ($canUpload || $gfStatus === 'draft' || $gfStatus === 'rejected'): ?>
+              <?php if (!$funeralApproved && ($canUpload || $gfStatus === 'draft' || $gfStatus === 'rejected')): ?>
                 <p style="margin-top:8px;">
                   <a href="<?= url('funeral-form.php?appointment_id=' . (int) $appointment['appointment_id']) ?>" class="btn btn-outline btn-sm">
                     <?= $gfStatus === 'rejected' ? 'Edit and Regenerate Form' : ($gfStatus === 'generated' ? 'Edit Form' : 'Fill Out Form') ?>

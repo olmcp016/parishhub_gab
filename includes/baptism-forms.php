@@ -78,6 +78,12 @@ function baptismFormValidationErrors(string $type, array $data, bool $requireCom
         $clusterNumber = trim((string) ($data['cluster_number'] ?? ''));
         if ($clusterNumber !== '' && validatePositiveInteger($clusterNumber, 9999) === false) $errors[] = 'Member of Cluster No. must be a positive whole number.';
     }
+    $limits = $type === 'katin_awan_bunyag'
+        ? ['child_name'=>150,'birth_place'=>150,'father_name'=>150,'father_religion'=>50,'mother_name'=>150,'mother_religion'=>50,'marriage_place'=>150,'sponsor_1'=>150,'sponsor_2'=>150,'chapel'=>150,'cluster_name'=>150,'barangay'=>150]
+        : ['sponsor_name'=>150,'address'=>255,'child_name'=>150,'father_name'=>150,'mother_maiden_name'=>150,'cluster_name'=>150];
+    foreach ($limits as $key => $limit) {
+        if (mb_strlen((string) ($data[$key] ?? '')) > $limit) $errors[] = $definition['fields'][$key] . " must not exceed {$limit} characters.";
+    }
     return array_values(array_unique($errors));
 }
 
@@ -158,12 +164,13 @@ function baptismKatinPdf(array $data): string
         $pdf->SetXY(18, $y); $pdf->Cell(80, 5, '__________________________', 0, 0); $pdf->Cell(80, 5, '__________________________', 0, 1);
         $pdf->Cell(80, 5, $row[0], 0, 0, 'C'); $pdf->Cell(80, 5, $row[1], 0, 1, 'C'); $y += 13;
     }
-    $pdf->SetFont('Times', 'B', 9); $pdf->SetXY(54, 240); $pdf->Cell(90, 5, baptismPdfText('REV. FR. AL JOHN A. MINOZA, SThL'), 0, 1, 'C');
+    $pdf->SetFont('Times', 'B', 9); $pdf->SetXY(54, 240); $pdf->Cell(90, 5, baptismPdfText('REV. FR. AL JOHN A. MIÑOZA, SThL'), 0, 1, 'C');
     $pdf->SetFont('Times', '', 9); $pdf->SetX(54); $pdf->Cell(90, 5, 'Parish Priest', 0, 1, 'C');
 
-    $pdf->SetFont('Times', 'B', 8); $pdf->SetXY(18, 255); $pdf->Cell(135, 5, baptismPdfText('PAHINUMDOM: Isukip niining maong katin-awan ang Certificate of Live Birth sa bata- original og usa ka Xerox copy .'), 0, 0);
-    $pdf->SetFont('Times', 'B', 9); $pdf->Cell(28, 5, baptismPdfText('Cellphone Number:'), 0, 0);
-    $pdf->SetFont('Times', '', 9); $pdf->Cell(0, 5, baptismPdfFit($pdf, $v('cellphone'), 35, 9), 'B', 1);
+    $pdf->SetFont('Times', 'B', 7.5); $pdf->SetXY(18, 253);
+    $pdf->MultiCell(116, 4, baptismPdfText('PAHINUMDOM: Isukip niining maong katin-awan ang Certificate of Live Birth sa bata - original og usa ka Xerox copy.'), 0, 'L');
+    $pdf->SetFont('Times', 'B', 8.5); $pdf->SetXY(137, 253); $pdf->Cell(31, 5, baptismPdfText('Cellphone Number:'), 0, 0);
+    $pdf->SetFont('Times', '', 8.5); $pdf->Cell(24, 5, baptismPdfFit($pdf, $v('cellphone'), 22, 8.5), 'B', 1);
     return $pdf->Output('S');
 }
 
@@ -180,9 +187,9 @@ function baptismSponsorPdf(array $data): string
     $selected = 'Bunyag'; $x = 20;
     foreach (['Bunyag', 'Confirmation', 'Kasal', 'Ninong/Ninang', 'Others'] as $option) { baptismPdfChoice($pdf, $option, $selected === $option, $x, 127); $x += $option === 'Ninong/Ninang' ? 43 : 31; }
     baptismPdfField($pdf, 'Others, please specify:', '', 18, 137, 174, 48);
-    baptismPdfField($pdf, 'DATE OF SERVICE/ADLAW SA SERBISYO', baptismPdfDate($v('service_date')), 18, 148, 112, 76);
-    $pdf->SetFont('Times', 'B', 9); $pdf->SetXY(120, 148); $pdf->Cell(20, 6, 'Pls.Check:', 0, 0);
-    baptismPdfChoice($pdf, 'Active', false, 142, 149); baptismPdfChoice($pdf, 'Inactive', false, 170, 149);
+    baptismPdfField($pdf, 'DATE OF SERVICE/ADLAW SA SERBISYO', baptismPdfDate($v('service_date')), 18, 148, 108, 72, 8);
+    $pdf->SetFont('Times', 'B', 8.5); $pdf->SetXY(128, 148); $pdf->Cell(19, 6, 'Pls.Check:', 0, 0);
+    baptismPdfChoice($pdf, 'Active', false, 149, 149); baptismPdfChoice($pdf, 'Inactive', false, 174, 149);
     baptismPdfField($pdf, 'Member of Cluster No.:', $v('cluster_number'), 18, 159, 76, 43, 8.5);
     baptismPdfField($pdf, 'Cluster Name:', $v('cluster_name'), 98, 159, 94, 30, 8.5);
     $pdf->SetFont('Times', 'B', 10); $pdf->SetXY(18, 174); $pdf->Cell(174, 5, 'VERIFIED BY:', 0, 1);

@@ -7,18 +7,44 @@ require_once __DIR__ . '/includes/wedding-forms.php';
 require_once __DIR__ . '/includes/document-storage.php';
 
 $id = (int) ($_REQUEST['draft_id'] ?? 0);
+$appointmentId = (int) ($_REQUEST['appointment_id'] ?? 0);
+$isAppointmentForm = $appointmentId > 0;
 $type = (string) ($_REQUEST['form_type'] ?? '');
 if (!in_array($type, BAPTISM_DRAFT_FORMS, true)) { http_response_code(400); exit('Invalid form.'); }
+$user = currentUser();
 $pdo = db();
-$draft = baptismDraftLoad($pdo, $id, currentUser(), baptismDraftToken($id));
-if (!$draft) { http_response_code(403); exit('Not authorized.'); }
-if (($draft['status'] ?? '') !== 'draft' || strtotime((string) $draft['expires_at']) <= time()) {
-    http_response_code(410);
-    exit('This Baptism booking draft has expired or is no longer editable.');
-}
+$guest = $_SESSION['guest_status_verification'] ?? null;
+$isGuest = !$user && is_array($guest) && (int) ($guest['appointment_id'] ?? 0) === $appointmentId && (int) ($guest['expires_at'] ?? 0) >= time();
 
-$q = $pdo->prepare('SELECT * FROM generated_baptism_forms WHERE draft_id = ? AND form_type = ?');
-$q->execute([$id, $type]);
+if ($isAppointmentForm) {
+    if ($user && ($user['role_name'] ?? '') !== 'Parishioner') { http_response_code(403); exit('Only the appointment owner may edit this form.'); }
+    $aq = $pdo->prepare("SELECT a.*, s.category FROM appointments a JOIN services s ON s.service_id = a.service_id WHERE a.appointment_id = ? AND s.category = 'Baptism'");
+    $aq->execute([$appointmentId]);
+    $appointment = $aq->fetch();
+    if (!$appointment) { http_response_code(404); exit('Appointment not found.'); }
+    if ($user) {
+        $ownerQuery = $pdo->prepare('SELECT 1 FROM parishioners WHERE parishioner_id = ? AND user_id = ?');
+        $ownerQuery->execute([$appointment['parishioner_id'], $user['user_id']]);
+        if (!$ownerQuery->fetchColumn()) { http_response_code(403); exit('Not authorized.'); }
+    } elseif (!$isGuest) {
+        http_response_code(403); exit('Verify the guest appointment before accessing this form.');
+    }
+    $draft = [
+        'contact_phone' => (string) (($appointment['contact_phone'] ?? '') ?: ($appointment['guest_phone'] ?? '')),
+        'appointment_date' => (string) ($appointment['appointment_date'] ?? ''),
+    ];
+    $q = $pdo->prepare('SELECT * FROM generated_baptism_forms WHERE appointment_id = ? AND form_type = ?');
+    $q->execute([$appointmentId, $type]);
+} else {
+    $draft = baptismDraftLoad($pdo, $id, $user, baptismDraftToken($id));
+    if (!$draft) { http_response_code(403); exit('Not authorized.'); }
+    if (($draft['status'] ?? '') !== 'draft' || strtotime((string) $draft['expires_at']) <= time()) {
+        http_response_code(410);
+        exit('This Baptism booking draft has expired or is no longer editable.');
+    }
+    $q = $pdo->prepare('SELECT * FROM generated_baptism_forms WHERE draft_id = ? AND form_type = ?');
+    $q->execute([$id, $type]);
+}
 $form = $q->fetch() ?: null;
 $data = $form ? (json_decode($form['form_data'], true) ?: []) : [];
 $data = baptismNormalizeData($data);
@@ -36,8 +62,10 @@ if ($type === 'katin_awan_bunyag' && !$form) {
         'cellphone' => $contactPhone
     ];
 } elseif ($type === 'cluster_clearance_baptism_sponsor' && !$form) {
-    $kq = $pdo->prepare('SELECT form_data FROM generated_baptism_forms WHERE draft_id = ? AND form_type = ?');
-    $kq->execute([$id, 'katin_awan_bunyag']);
+    $kq = $pdo->prepare($isAppointmentForm
+        ? 'SELECT form_data FROM generated_baptism_forms WHERE appointment_id = ? AND form_type = ?'
+        : 'SELECT form_data FROM generated_baptism_forms WHERE draft_id = ? AND form_type = ?');
+    $kq->execute([$isAppointmentForm ? $appointmentId : $id, 'katin_awan_bunyag']);
     $katin = $kq->fetchColumn();
     if ($katin) {
         $kData = json_decode($katin, true) ?: [];
@@ -62,46 +90,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
             $pdo->beginTransaction();
-            $lockedQuery = $pdo->prepare('SELECT * FROM generated_baptism_forms WHERE draft_id = ? AND form_type = ? FOR UPDATE');
-            $lockedQuery->execute([$id, $type]);
+            $lockedQuery = $pdo->prepare($isAppointmentForm
+                ? 'SELECT * FROM generated_baptism_forms WHERE appointment_id = ? AND form_type = ? FOR UPDATE'
+                : 'SELECT * FROM generated_baptism_forms WHERE draft_id = ? AND form_type = ? FOR UPDATE');
+            $lockedQuery->execute([$isAppointmentForm ? $appointmentId : $id, $type]);
             $form = $lockedQuery->fetch() ?: $form;
+
+            if ($isAppointmentForm && $form && ($form['status'] ?? '') === 'approved') {
+                throw new RuntimeException('Approved forms require Secretary review before they can be changed.');
+            }
 
             if ($action === 'save') {
                 if ($form) {
                     $pdo->prepare("UPDATE generated_baptism_forms SET form_data = ?, status = 'draft', updated_at = CURRENT_TIMESTAMP WHERE generated_form_id = ?")
                         ->execute([$json, $form['generated_form_id']]);
                 } else {
-                    $pdo->prepare("INSERT INTO generated_baptism_forms (appointment_id, draft_id, form_type, form_data, document_id, status) VALUES (NULL, ?, ?, ?, NULL, 'draft')")
-                        ->execute([$id, $type, $json]);
+                    $pdo->prepare("INSERT INTO generated_baptism_forms (appointment_id, draft_id, form_type, form_data, document_id, status) VALUES (?, ?, ?, ?, NULL, 'draft')")
+                        ->execute([$isAppointmentForm ? $appointmentId : null, $isAppointmentForm ? null : $id, $type, $json]);
                 }
                 $pdo->commit();
-                redirect(url('baptism-draft-form.php?draft_id=' . $id . '&form_type=' . urlencode($type)));
+                $contextQuery = $isAppointmentForm ? 'appointment_id=' . $appointmentId : 'draft_id=' . $id;
+                redirect(url('baptism-draft-form.php?' . $contextQuery . '&form_type=' . urlencode($type)));
             }
 
             $pdf = baptismFormPdf($type, $data);
             $stored = documentStorageWriteBytes($pdf);
             $label = baptismFormDefinition($type)['title'] . '.pdf';
-            $pdo->prepare("INSERT INTO uploaded_documents (appointment_id, draft_id, baptism_draft_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source, generated_form_type) VALUES (NULL, NULL, ?, ?, ?, 'application/pdf', ?, 'pending', FALSE, 'generated', ?)")
-                ->execute([$id, $label, $stored['key'], $label, $type]);
+            $pdo->prepare("INSERT INTO uploaded_documents (appointment_id, draft_id, baptism_draft_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source, generated_form_type) VALUES (?, NULL, ?, ?, ?, 'application/pdf', ?, 'pending', FALSE, 'generated', ?)")
+                ->execute([$isAppointmentForm ? $appointmentId : null, $isAppointmentForm ? null : $id, $label, $stored['key'], $label, $type]);
             $newId = (int) $pdo->lastInsertId();
             if ($form && !empty($form['document_id'])) {
-                $pdo->prepare('UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ? AND baptism_draft_id = ?')
-                    ->execute([$newId, $form['document_id'], $id]);
+                $supersede = $pdo->prepare($isAppointmentForm
+                    ? 'UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ? AND appointment_id = ? AND superseded_by IS NULL'
+                    : 'UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ? AND baptism_draft_id = ? AND superseded_by IS NULL');
+                $supersede->execute([$newId, $form['document_id'], $isAppointmentForm ? $appointmentId : $id]);
             }
             if ($form) {
                 $pdo->prepare("UPDATE generated_baptism_forms SET form_data = ?, document_id = ?, status = 'pending_review', updated_at = CURRENT_TIMESTAMP WHERE generated_form_id = ?")
                     ->execute([$json, $newId, $form['generated_form_id']]);
             } else {
-                $pdo->prepare("INSERT INTO generated_baptism_forms (appointment_id, draft_id, form_type, form_data, document_id, status) VALUES (NULL, ?, ?, ?, ?, 'pending_review')")
-                    ->execute([$id, $type, $json, $newId]);
+                $pdo->prepare("INSERT INTO generated_baptism_forms (appointment_id, draft_id, form_type, form_data, document_id, status) VALUES (?, ?, ?, ?, ?, 'pending_review')")
+                    ->execute([$isAppointmentForm ? $appointmentId : null, $isAppointmentForm ? null : $id, $type, $json, $newId]);
             }
             $pdo->commit();
-            redirect(url('baptism-draft-form.php?draft_id=' . $id . '&form_type=' . urlencode($type) . '&generated_document_id=' . $newId));
+            $contextQuery = $isAppointmentForm ? 'appointment_id=' . $appointmentId : 'draft_id=' . $id;
+            redirect(url('baptism-draft-form.php?' . $contextQuery . '&form_type=' . urlencode($type) . '&generated_document_id=' . $newId));
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) { $pdo->rollBack(); }
             if ($stored) { try { documentStorageDelete($stored['key']); } catch (Throwable $cleanupError) { error_log('Baptism generated-document cleanup failed.'); } }
             error_log('Baptism form save/generate failed: ' . $e->getMessage());
-            $error = $action === 'generate' ? 'The Baptism form could not be generated.' : 'The Baptism form draft could not be saved.';
+            $error = $e->getMessage() === 'Approved forms require Secretary review before they can be changed.'
+                ? $e->getMessage()
+                : ($action === 'generate' ? 'The Baptism form could not be generated.' : 'The Baptism form draft could not be saved.');
         }
     }
 }

@@ -75,6 +75,7 @@ $generatedFilenames = [
     'wedding_sponsor_clearance' => 'Cluster-Clearance-Wedding-Sponsors.pdf',
     'katin_awan_bunyag' => 'Katin-awan-sa-Bunyag.pdf',
     'cluster_clearance_baptism_sponsor' => 'Cluster-Clearance-Baptism-Sponsor.pdf',
+    'katin_awan_paglubong' => 'Katin-awan-sa-Paglubong.pdf',
 ];
 $download = ($_GET['download'] ?? '') === '1';
 $filename = $generatedFilenames[$document['generated_form_type'] ?? ''] ?? basename((string) $document['file_name']);

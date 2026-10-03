@@ -185,9 +185,9 @@ function weddingMarriageValidationErrors(array $data, bool $requireComplete = tr
 
     $limits = [
         'groom_name' => 150, 'groom_father' => 150, 'groom_mother' => 150,
-        'groom_mother_maiden_name' => 150, 'groom_address' => 255, 'groom_cell' => 30,
+        'groom_mother_maiden_name' => 150, 'groom_address' => 255, 'groom_cell' => 11,
         'bride_name' => 150, 'bride_father' => 150, 'bride_mother' => 150,
-        'bride_mother_maiden_name' => 150, 'bride_address' => 255, 'bride_cell' => 30,
+        'bride_mother_maiden_name' => 150, 'bride_address' => 255, 'bride_cell' => 11,
     ];
     foreach ($limits as $key => $limit) {
         if (mb_strlen((string) ($data[$key] ?? '')) > $limit) {
@@ -203,6 +203,10 @@ function weddingMarriageValidationErrors(array $data, bool $requireComplete = tr
         }
     }
     $weddingDate = (string) ($data['wedding_date'] ?? '');
+    $dateApplied = (string) ($data['date_applied'] ?? '');
+    if (validateCalendarDate($dateApplied) !== false && validateCalendarDate($weddingDate) !== false && $dateApplied > $weddingDate) {
+        $errors[] = 'Date Applied cannot be after the Date of Wedding.';
+    }
     foreach (['groom_birth_date', 'bride_birth_date'] as $key) {
         $birthDate = (string) ($data[$key] ?? '');
         $age = weddingMarriageAge($birthDate, $weddingDate);
@@ -251,6 +255,12 @@ function weddingFormValidationErrors(string $type, array $data, bool $requireCom
         $value = trim((string) ($data[$key] ?? ''));
         if ($value !== '' && validateName($value) === false) $errors[] = $definition['fields'][$key] . ' contains invalid characters.';
     }
+    if ($type === 'cluster_clearance') {
+        foreach (['kaslonon_status', 'kaslonon_religion', 'father_religion', 'mother_religion', 'spouse_status', 'spouse_religion'] as $key) {
+            $value = trim((string) ($data[$key] ?? ''));
+            if ($value !== '' && validateName($value) === false) $errors[] = $definition['fields'][$key] . ' contains invalid characters.';
+        }
+    }
 
     $placeKeys = $type === 'cluster_clearance'
         ? ['address', 'chapel', 'cluster_name', 'spouse_address']
@@ -288,6 +298,13 @@ function weddingFormValidationErrors(string $type, array $data, bool $requireCom
         if ($clusterNumber !== '' && validatePositiveInteger($clusterNumber, 9999) === false) $errors[] = 'Member of Cluster No. must be a positive whole number.';
     }
 
+    $limits = $type === 'cluster_clearance'
+        ? ['kaslonon_name'=>150,'kaslonon_status'=>50,'kaslonon_religion'=>50,'father_name'=>150,'father_religion'=>50,'mother_name'=>150,'mother_religion'=>50,'sponsor_1'=>150,'sponsor_2'=>150,'marriage_place'=>150,'address'=>255,'chapel'=>150,'cluster_name'=>150,'spouse_name'=>150,'spouse_status'=>50,'spouse_religion'=>50,'spouse_address'=>255]
+        : ['recipient_name'=>150,'address'=>255,'groom_name'=>150,'bride_name'=>150,'cluster_name'=>150];
+    foreach ($limits as $key => $limit) {
+        if (mb_strlen((string) ($data[$key] ?? '')) > $limit) $errors[] = $definition['fields'][$key] . " must not exceed {$limit} characters.";
+    }
+
     return array_values(array_unique($errors));
 }
 
@@ -307,11 +324,11 @@ function weddingPdfHeader(FPDF $pdf, string $title): void
     $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('Times', 'B', 15); $pdf->SetXY(15, 47); $pdf->Cell(180, 8, $title, 0, 1, 'C');
 }
 
-function weddingPdfField(FPDF $pdf, string $label, string $value, float $x, float $y, float $width, float $labelWidth = 38, float $height = 6): void
+function weddingPdfField(FPDF $pdf, string $label, string $value, float $x, float $y, float $width, float $labelWidth = 38, float $height = 6, float $fontSize = 9): void
 {
-    $value = weddingPdfFit($pdf, $value, $width - $labelWidth - 2, 9);
-    $pdf->SetFont('Times', 'B', 9); $pdf->SetXY($x, $y); $pdf->Cell($labelWidth, $height, weddingPdfText($label), 0, 0);
-    $pdf->SetFont('Times', '', 9); $pdf->Cell($width - $labelWidth, $height, $value, 'B', 0);
+    $value = weddingPdfFit($pdf, $value, $width - $labelWidth - 2, $fontSize);
+    $pdf->SetFont('Times', 'B', $fontSize); $pdf->SetXY($x, $y); $pdf->Cell($labelWidth, $height, weddingPdfText($label), 0, 0);
+    $pdf->SetFont('Times', '', $fontSize); $pdf->Cell($width - $labelWidth, $height, $value, 'B', 0);
 }
 
 function weddingPdfText(string $value): string
@@ -323,8 +340,10 @@ function weddingPdfText(string $value): string
 function weddingPdfFit(FPDF $pdf, string $value, float $maxWidth, float $fontSize): string
 {
     $value = weddingPdfText(trim($value));
-    $pdf->SetFont('Times', '', $fontSize);
-    if ($pdf->GetStringWidth($value) <= $maxWidth) return $value;
+    for ($size = $fontSize; $size >= 6.5; $size -= 0.5) {
+        $pdf->SetFont('Times', '', $size);
+        if ($pdf->GetStringWidth($value) <= $maxWidth) return $value;
+    }
     $ellipsis = '...';
     while ($value !== '' && $pdf->GetStringWidth($value . $ellipsis) > $maxWidth) $value = substr($value, 0, -1);
     return rtrim($value) . $ellipsis;
@@ -479,11 +498,11 @@ function weddingKatinPdf(array $data): string
     weddingPdfField($pdf, 'EDAD:', $kaslononAge, 143, 61, 49, 17);
     weddingPdfField($pdf, 'ESTADO:', $v('kaslonon_status'), 18, 70, 52, 24);
     weddingPdfField($pdf, 'PETSA NATAWO:', weddingMarriagePdfDate($v('kaslonon_birth_date')), 74, 70, 73, 34);
-    weddingPdfField($pdf, 'RELIHIYON:', $v('kaslonon_religion'), 149, 70, 43, 25);
+    weddingPdfField($pdf, 'RELIHIYON:', $v('kaslonon_religion'), 148, 70, 44, 20, 6, 7.5);
     weddingPdfField($pdf, 'AMAHAN:', $v('father_name'), 18, 79, 132, 25);
-    weddingPdfField($pdf, 'RELIHIYON:', $v('father_religion'), 153, 79, 39, 25);
+    weddingPdfField($pdf, 'RELIHIYON:', $v('father_religion'), 149, 79, 43, 20, 6, 7.5);
     weddingPdfField($pdf, 'INAHAN:', $v('mother_name'), 18, 88, 132, 25);
-    weddingPdfField($pdf, 'RELIHIYON:', $v('mother_religion'), 153, 88, 39, 25);
+    weddingPdfField($pdf, 'RELIHIYON:', $v('mother_religion'), 149, 88, 43, 20, 6, 7.5);
     weddingPdfField($pdf, 'SPONSORS: 1.', $v('sponsor_1'), 18, 97, 88, 30);
     weddingPdfField($pdf, '2.', $v('sponsor_2'), 108, 97, 84, 10);
     $pdf->SetFont('Times', 'B', 9); $pdf->SetXY(18, 107); $pdf->Cell(174, 5, 'UNSANG KASALA ANG NADAWAT SA GINIKANAN?', 0, 1);

@@ -56,6 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $pdo->prepare("UPDATE generated_wedding_forms SET status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$documentId, $id]);
             $pdo->prepare("UPDATE generated_baptism_forms SET status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$documentId, $id]);
+            $pdo->prepare("UPDATE generated_funeral_forms SET status = 'generated', rejection_reason = NULL, updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$documentId, $id]);
             $pdo->commit();
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
@@ -96,6 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $pdo->prepare("UPDATE generated_wedding_forms SET status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$documentId, $id]);
             $pdo->prepare("UPDATE generated_baptism_forms SET status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$documentId, $id]);
+            $pdo->prepare("UPDATE generated_funeral_forms SET status = 'rejected', rejection_reason = ?, updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$reason, $documentId, $id]);
             $pdo->commit();
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
@@ -535,16 +537,14 @@ if (!$isAjax) {
           <?php if ($gf['rejection_reason']): ?><p class="text-muted">Reason: <?= e($gf['rejection_reason']) ?></p><?php endif; ?>
           <?php if ($gf['document_id'] && $formStatus === 'pending' && (int) $appointment['status_id'] === 1): ?>
             <form method="POST" action="<?= e($redirectUrl) ?>" style="display:inline;"> <?= csrfField() ?><input type="hidden" name="action" value="verify_document"><input type="hidden" name="document_id" value="<?= (int) $gf['document_id'] ?>"><button class="btn btn-outline btn-sm">Approve</button></form>
-            <?php if ($gf['form_type'] === 'matrimony_application'): ?>
-              <form method="POST" action="<?= e($redirectUrl) ?>" style="margin-top:10px;">
-                <?= csrfField() ?>
-                <input type="hidden" name="action" value="reject_document">
-                <input type="hidden" name="document_id" value="<?= (int) $gf['document_id'] ?>">
-                <label for="marriageFormRejectionReason<?= (int) $gf['document_id'] ?>">Reason for revision</label>
-                <textarea id="marriageFormRejectionReason<?= (int) $gf['document_id'] ?>" name="document_rejection_reason" rows="2" maxlength="1000" required placeholder="Explain what the applicant needs to correct."></textarea>
-                <button class="btn btn-danger btn-sm" type="submit" style="margin-top:6px;">Reject with Reason</button>
-              </form>
-            <?php endif; ?>
+            <form method="POST" action="<?= e($redirectUrl) ?>" style="margin-top:10px;">
+              <?= csrfField() ?>
+              <input type="hidden" name="action" value="reject_document">
+              <input type="hidden" name="document_id" value="<?= (int) $gf['document_id'] ?>">
+              <label for="generatedFormRejectionReason<?= (int) $gf['document_id'] ?>">Reason for revision</label>
+              <textarea id="generatedFormRejectionReason<?= (int) $gf['document_id'] ?>" name="document_rejection_reason" rows="2" maxlength="1000" required placeholder="Explain what the applicant needs to correct."></textarea>
+              <button class="btn btn-danger btn-sm" type="submit" style="margin-top:6px;">Reject with Reason</button>
+            </form>
           <?php endif; ?>
         </div>
       <?php endforeach; ?>
@@ -559,6 +559,10 @@ if (!$isAjax) {
           <span class="badge badge-<?= $formStatus === 'approved' ? 'verified' : ($formStatus === 'rejected' ? 'rejected' : 'pending') ?>"><?= $formStatus === 'approved' ? 'Approved' : ($formStatus === 'rejected' ? 'Needs Revision' : 'Pending Review') ?></span>
           <?php if ($gf['document_id']): ?><a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>">View PDF</a><a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . (int) $gf['document_id'] . '&download=1') ?>">Download PDF</a><?php endif; ?>
           <?php if ($gf['rejection_reason']): ?><p class="text-muted">Reason: <?= e($gf['rejection_reason']) ?></p><?php endif; ?>
+          <?php if ($gf['document_id'] && $formStatus === 'pending' && (int) $appointment['status_id'] === 1): ?>
+            <form method="POST" action="<?= e($redirectUrl) ?>" style="display:inline;"><?= csrfField() ?><input type="hidden" name="action" value="verify_document"><input type="hidden" name="document_id" value="<?= (int) $gf['document_id'] ?>"><button class="btn btn-outline btn-sm">Approve</button></form>
+            <form method="POST" action="<?= e($redirectUrl) ?>" style="margin-top:10px;"><?= csrfField() ?><input type="hidden" name="action" value="reject_document"><input type="hidden" name="document_id" value="<?= (int) $gf['document_id'] ?>"><label for="generatedFormRejectionReason<?= (int) $gf['document_id'] ?>">Reason for revision</label><textarea id="generatedFormRejectionReason<?= (int) $gf['document_id'] ?>" name="document_rejection_reason" rows="2" maxlength="1000" required></textarea><button class="btn btn-danger btn-sm" type="submit">Reject with Reason</button></form>
+          <?php endif; ?>
         </div>
       <?php endforeach; ?>
       <?php if (!$generatedForms): ?><p class="text-muted">No generated Baptism forms have been submitted.</p><?php endif; ?>
@@ -623,10 +627,9 @@ if (!$isAjax) {
       </div>
     <?php endif; ?>
     <?php endif; ?>
-    <?php endif; ?>
       <?php if ($appointment['category'] === 'Funeral'): ?>
         <?php
-          $gfQuery = db()->prepare("SELECT f.*, d.review_status, d.verified FROM generated_funeral_forms f LEFT JOIN uploaded_documents d ON d.document_id = f.document_id WHERE f.appointment_id = ? AND f.form_type = 'katin_awan_paglubong'");
+          $gfQuery = db()->prepare("SELECT f.*, d.review_status, d.verified, d.rejection_reason AS document_rejection_reason FROM generated_funeral_forms f LEFT JOIN uploaded_documents d ON d.document_id = f.document_id WHERE f.appointment_id = ? AND f.form_type = 'katin_awan_paglubong'");
           $gfQuery->execute([$appointment['appointment_id']]);
           $gf = $gfQuery->fetch() ?: null;
           $gfStatus = $gf ? $gf['status'] : 'draft';
@@ -643,6 +646,10 @@ if (!$isAjax) {
           <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>">View Generated Form</a>
         <?php endif; ?>
         <?php if ($gf && $gf['rejection_reason']): ?><br><span class="text-muted">Reason: <?= e($gf['rejection_reason']) ?></span><?php endif; ?></p>
+        <?php if ($gf && $gf['document_id'] && ($gf['review_status'] ?? 'pending') === 'pending' && (int) $appointment['status_id'] === 1): ?>
+          <form method="POST" action="<?= e($redirectUrl) ?>" style="display:inline;"><?= csrfField() ?><input type="hidden" name="action" value="verify_document"><input type="hidden" name="document_id" value="<?= (int) $gf['document_id'] ?>"><button class="btn btn-outline btn-sm">Approve</button></form>
+          <form method="POST" action="<?= e($redirectUrl) ?>" style="margin-top:10px;"><?= csrfField() ?><input type="hidden" name="action" value="reject_document"><input type="hidden" name="document_id" value="<?= (int) $gf['document_id'] ?>"><label for="funeralFormRejectionReason<?= (int) $gf['document_id'] ?>">Reason for revision</label><textarea id="funeralFormRejectionReason<?= (int) $gf['document_id'] ?>" name="document_rejection_reason" rows="2" maxlength="1000" required></textarea><button class="btn btn-danger btn-sm" type="submit">Reject with Reason</button></form>
+        <?php endif; ?>
       <?php endif; ?>
   </div>
 

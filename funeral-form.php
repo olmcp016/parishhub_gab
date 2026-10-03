@@ -21,7 +21,7 @@ if ($user) {
     if (!$q->fetchColumn()) { http_response_code(403); exit('Not authorized.'); }
 } elseif (!$isGuest) { http_response_code(403); exit('Verify the guest appointment before accessing this form.'); }
 
-$formQuery = $pdo->prepare('SELECT * FROM generated_funeral_forms WHERE appointment_id = ? AND form_type = ?');
+$formQuery = $pdo->prepare('SELECT f.*, d.review_status FROM generated_funeral_forms f LEFT JOIN uploaded_documents d ON d.document_id = f.document_id WHERE f.appointment_id = ? AND f.form_type = ?');
 $formQuery->execute([$appointmentId, $type]);
 $form = $formQuery->fetch() ?: null;
 $data = $form ? funeralKatinAwanNormalizeData(json_decode($form['form_data'], true) ?: []) : funeralKatinAwanNormalizeData([
@@ -34,7 +34,9 @@ $error = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifyCsrf();
     $data = funeralKatinAwanNormalizeData($_POST);
-    $errors = funeralKatinAwanValidationErrors($data);
+    $errors = ($form && ($form['review_status'] ?? '') === 'approved')
+        ? ['Approved forms require Secretary review before they can be changed.']
+        : funeralKatinAwanValidationErrors($data);
     if ($errors) {
         $error = implode(' ', $errors);
     } else {
@@ -47,7 +49,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect(url('funeral-form.php?appointment_id=' . $appointmentId . '&generated_document_id=' . $newDocumentId));
         } catch (Throwable $e) {
             error_log('Funeral form generation failed: ' . $e->getMessage());
-            $error = 'The Funeral form could not be generated. Please try again.';
+            $error = $e->getMessage() === 'Approved forms require Secretary review before they can be changed.'
+                ? $e->getMessage()
+                : 'The Funeral form could not be generated. Please try again.';
         }
     }
 }

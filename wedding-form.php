@@ -185,7 +185,10 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
       </fieldset>
     <?php else: ?>
     <?php foreach ($def['fields'] as $key => $label): ?>
-      <?php $inputType = in_array($key, ['date_applied', 'groom_birth_date', 'bride_birth_date', 'kaslonon_birth_date', 'marriage_date', 'service_date'], true) ? 'date' : 'text'; ?>
+      <?php
+        $inputType = in_array($key, ['date_applied', 'groom_birth_date', 'bride_birth_date', 'kaslonon_birth_date', 'spouse_birth_date', 'marriage_date', 'service_date'], true) ? 'date' : 'text';
+        $maxLength = in_array($key, ['address', 'spouse_address'], true) ? 255 : (in_array($key, ['kaslonon_status', 'kaslonon_religion', 'father_religion', 'mother_religion', 'spouse_status', 'spouse_religion'], true) ? 50 : 150);
+      ?>
       <div class="form-group"><label for="<?= e($key) ?>"><?= e($label) ?><?php if (in_array($key, weddingFormRequiredFields($type), true)): ?> *<?php endif; ?></label>
         <?php if ($key === 'parent_marriage'): ?>
           <div class="form-row" role="group" aria-label="Unsang Kasala ang Nadawat sa Ginikanan?">
@@ -196,7 +199,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
         <?php elseif ($key === 'service_requested'): ?>
           <select id="<?= e($key) ?>" name="<?= e($key) ?>" required><option value="Kasal" selected>Kasal</option></select>
         <?php else: ?>
-          <input id="<?= e($key) ?>" name="<?= e($key) ?>" value="<?= e($data[$key] ?? '') ?>" type="<?= $key === 'cluster_number' ? 'number' : $inputType ?>"<?= $key === 'cluster_number' ? ' min="1" max="9999" step="1"' : '' ?> <?= in_array($key, weddingFormRequiredFields($type), true) ? 'required' : '' ?>>
+          <input id="<?= e($key) ?>" name="<?= e($key) ?>" value="<?= e($data[$key] ?? '') ?>" type="<?= $key === 'cluster_number' ? 'number' : $inputType ?>"<?= $key === 'cluster_number' ? ' min="1" max="9999" step="1"' : ($inputType === 'text' ? ' maxlength="' . (int) $maxLength . '"' : '') ?> <?= in_array($key, weddingFormRequiredFields($type), true) ? 'required' : '' ?>>
         <?php endif; ?>
       </div>
     <?php endforeach; ?>

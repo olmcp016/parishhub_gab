@@ -25,10 +25,17 @@ function processFuneralGeneratedForm(int $appointmentId, string $type, array $da
     $definition = funeralFormDefinition($type);
     $fileName = $definition['file_prefix'] . '_' . $appointmentId . '_' . time() . '.pdf';
     $stored = null;
+    $ownsTransaction = !$pdo->inTransaction();
     try {
+        if ($ownsTransaction) $pdo->beginTransaction();
+        if ($existingDocumentId) {
+            $reviewQuery = $pdo->prepare('SELECT review_status FROM uploaded_documents WHERE document_id = ? AND appointment_id = ? FOR UPDATE');
+            $reviewQuery->execute([$existingDocumentId, $appointmentId]);
+            if ($reviewQuery->fetchColumn() === 'approved') throw new RuntimeException('Approved forms require Secretary review before they can be changed.');
+        }
         $stored = documentStorageWriteBytes(funeralKatinAwanPdf($data));
         $insert = $pdo->prepare("INSERT INTO uploaded_documents (appointment_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source, generated_form_type) VALUES (?, ?, ?, 'application/pdf', ?, 'pending', FALSE, 'generated', ?)");
-        $insert->execute([$appointmentId, $fileName, $stored['key'], $definition['title'] . '.pdf', $type]);
+        $insert->execute([$appointmentId, $fileName, $stored['key'], $definition['title'], $type]);
         $documentId = (int) $pdo->lastInsertId();
         if ($existingDocumentId) {
             $pdo->prepare('UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ? AND appointment_id = ? AND superseded_by IS NULL')
@@ -45,7 +52,9 @@ function processFuneralGeneratedForm(int $appointmentId, string $type, array $da
             $pdo->prepare("INSERT INTO generated_funeral_forms (appointment_id, form_type, form_data, document_id, status) VALUES (?, ?, ?, ?, 'generated')")
                 ->execute([$appointmentId, $type, $json, $documentId]);
         }
+        if ($ownsTransaction) $pdo->commit();
     } catch (Throwable $e) {
+        if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
         if ($stored && !empty($stored['key'])) {
             try { documentStorageDelete($stored['key']); } catch (Throwable $ignored) { error_log('Funeral generated-document cleanup failed.'); }
         }
@@ -121,6 +130,9 @@ function funeralKatinAwanValidationErrors(array $data): array
         $errors[] = 'Select a valid marriage date.';
     }
     if ($data['diin_kasal'] !== '' && validateAddress($data['diin_kasal']) === false) $errors[] = 'Diin contains invalid characters.';
+    foreach (['ngalan_sa_ilubong'=>150,'edad'=>3,'pinuy_anan'=>255,'relihiyon'=>80,'sakop_sa_kapilya'=>150,'ngalan_sa_cluster'=>150,'unsay_namatyan'=>255,'responde'=>150,'ginikanan_anak'=>150,'ginikanan_anak_cell'=>11,'asawa_bana'=>150,'asawa_bana_cell'=>11,'diin_kasal'=>150] as $key => $limit) {
+        if (mb_strlen((string) ($data[$key] ?? '')) > $limit) $errors[] = ucwords(str_replace('_', ' ', $key)) . " must not exceed {$limit} characters.";
+    }
     return array_values(array_unique($errors));
 }
 
