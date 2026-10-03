@@ -129,6 +129,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
 .form-section h3 { margin-top:0; color:var(--brown); margin-bottom:20px; font-size:1.1rem; border-bottom:2px solid var(--cream); padding-bottom:10px; }
 .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
 .choice-row { display:flex; flex-wrap:wrap; gap:18px; margin-top:8px; }
+.field-translation { display:block; font-size:0.85em; color:#6c757d; font-weight:normal; margin-top:2px; line-height:1.2; }
 @media (max-width:600px) { .grid-2 { grid-template-columns:1fr; } }
 </style>
 <div style="max-width:850px; margin:0 auto; padding:20px;">
@@ -143,60 +144,62 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
     <?php if ($isDraft): ?><input type="hidden" name="draft_id" value="<?= (int) $draftId ?>"><?php else: ?><input type="hidden" name="appointment_id" value="<?= $appointmentId ?>"><?php endif; ?>
     <div class="form-section">
       <h3>Deceased Information</h3>
-      <div class="form-group"><label for="ngalan_sa_ilubong">Ngalan sa Ilubong *</label><input id="ngalan_sa_ilubong" name="ngalan_sa_ilubong" type="text" maxlength="150" value="<?= e($data['ngalan_sa_ilubong']) ?>" required></div>
+      <div class="form-group"><label for="ngalan_sa_ilubong">NGALAN SA ILUBONG *<span class="field-translation">Name of the deceased</span></label><input id="ngalan_sa_ilubong" name="ngalan_sa_ilubong" type="text" maxlength="150" value="<?= e($data['ngalan_sa_ilubong']) ?>" placeholder="e.g., Juan Dela Cruz" required></div>
       <div class="form-row">
-        <div class="form-group"><label for="edad">Edad *</label><input id="edad" name="edad" type="number" min="0" max="120" step="1" value="<?= e($data['edad']) ?>" required></div>
-        <div class="form-group"><label for="relihiyon">Relihiyon</label><input id="relihiyon" name="relihiyon" type="text" maxlength="80" value="<?= e($data['relihiyon']) ?>"></div>
+        <div class="form-group"><label for="edad">EDAD *<span class="field-translation">Age</span></label><input id="edad" name="edad" type="number" min="0" max="120" step="1" value="<?= e($data['edad']) ?>" placeholder="e.g., 75" required></div>
+        <div class="form-group"><label for="relihiyon">RELIHIYON<span class="field-translation">Religion</span></label><input id="relihiyon" name="relihiyon" type="text" maxlength="80" value="<?= e($data['relihiyon']) ?>" placeholder="e.g., Roman Catholic"></div>
       </div>
-      <div class="form-group"><label for="pinuy_anan">Pinuy-anan *</label><input id="pinuy_anan" name="pinuy_anan" type="text" maxlength="255" value="<?= e($data['pinuy_anan']) ?>" required></div>
+      <div class="form-group"><label for="pinuy_anan">PINUY-ANAN *<span class="field-translation">Home address / Residence</span></label><input id="pinuy_anan" name="pinuy_anan" type="text" maxlength="255" value="<?= e($data['pinuy_anan']) ?>" placeholder="e.g., Poblacion, Balilihan, Bohol" required></div>
       <div class="form-row">
-        <div class="form-group"><label for="sakop_sa_kapilya">Sakop sa Kapilya sa</label><input id="sakop_sa_kapilya" name="sakop_sa_kapilya" type="text" maxlength="150" value="<?= e($data['sakop_sa_kapilya']) ?>"></div>
-        <div class="form-group"><label for="ngalan_sa_cluster">Ngalan sa Cluster</label><input id="ngalan_sa_cluster" name="ngalan_sa_cluster" type="text" maxlength="150" value="<?= e($data['ngalan_sa_cluster']) ?>"></div>
+        <div class="form-group"><label for="sakop_sa_kapilya">SAKOP SA KAPILYA SA<span class="field-translation">Parish membership / Parish jurisdiction</span></label><input id="sakop_sa_kapilya" name="sakop_sa_kapilya" type="text" maxlength="150" value="<?= e($data['sakop_sa_kapilya']) ?>" placeholder="Enter parish or chapel"></div>
+        <div class="form-group"><label for="ngalan_sa_cluster">NGALAN SA CLUSTER<span class="field-translation">Cluster name</span></label><input id="ngalan_sa_cluster" name="ngalan_sa_cluster" type="text" maxlength="150" value="<?= e($data['ngalan_sa_cluster']) ?>" placeholder="Enter cluster name"></div>
       </div>
     </div>
 
     <div class="form-section">
       <h3>Religious / Last Rites</h3>
-      <div class="form-group"><label>Unsang Sakramentoha ang Nadawat? *</label><div class="choice-row">
-        <label><input type="checkbox" name="sakramento_hilog" value="1" <?= $data['sakramento_hilog'] ? 'checked' : '' ?>> Hilog</label>
-        <label><input type="checkbox" name="sakramento_kumpisal" value="1" <?= $data['sakramento_kumpisal'] ? 'checked' : '' ?>> Kumpisal</label>
-        <label><input type="checkbox" name="sakramento_wala" value="1" <?= $data['sakramento_wala'] ? 'checked' : '' ?>> Wala</label>
+      <div class="form-group"><label>UNSANG SAKRAMENTOHA ANG NADAWAT? *<span class="field-translation">Sacraments / Last rites received</span></label><div class="choice-row">
+        <label><input type="checkbox" name="sakramento_hilog" value="1" <?= $data['sakramento_hilog'] ? 'checked' : '' ?>> Hilog <span class="text-muted" style="font-size:0.9em;">— Anointing of the sick</span></label>
+        <label><input type="checkbox" name="sakramento_kumpisal" value="1" <?= $data['sakramento_kumpisal'] ? 'checked' : '' ?>> Kumpisal <span class="text-muted" style="font-size:0.9em;">— Confession</span></label>
+        <label><input type="checkbox" name="sakramento_wala" value="1" <?= $data['sakramento_wala'] ? 'checked' : '' ?>> Wala <span class="text-muted" style="font-size:0.9em;">— None</span></label>
       </div></div>
     </div>
 
     <div class="form-section">
       <h3>Death and Burial</h3>
       <div class="form-row">
-        <div class="form-group"><label for="kanus_a_namatay">Kanus-a Namatay *</label><input id="kanus_a_namatay" name="kanus_a_namatay" type="date" value="<?= e($data['kanus_a_namatay']) ?>" required></div>
-        <div class="form-group"><label for="unsay_namatyan">Unsay Namatyan *</label><input id="unsay_namatyan" name="unsay_namatyan" type="text" maxlength="255" value="<?= e($data['unsay_namatyan']) ?>" required></div>
+        <div class="form-group"><label for="kanus_a_namatay">KANUS-A NAMATAY *<span class="field-translation">Date of death</span></label><input id="kanus_a_namatay" name="kanus_a_namatay" type="date" value="<?= e($data['kanus_a_namatay']) ?>" required></div>
+        <div class="form-group"><label for="unsay_namatyan">UNSAY NAMATYAN *<span class="field-translation">Cause of death</span></label><input id="unsay_namatyan" name="unsay_namatyan" type="text" maxlength="255" value="<?= e($data['unsay_namatyan']) ?>" placeholder="Enter cause of death" required></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label for="kanus_a_ilubong">Kanus-a Ilubong *</label><input id="kanus_a_ilubong" name="kanus_a_ilubong" type="date" value="<?= e($data['kanus_a_ilubong']) ?>" required></div>
-        <div class="form-group"><label for="oras_sa_lubong">Oras *</label><input id="oras_sa_lubong" name="oras_sa_lubong" type="time" value="<?= e($data['oras_sa_lubong']) ?>" required></div>
+        <div class="form-group"><label for="kanus_a_ilubong">KANUS-A ILUBONG *<span class="field-translation">Burial date</span></label><input id="kanus_a_ilubong" name="kanus_a_ilubong" type="date" value="<?= e($data['kanus_a_ilubong']) ?>" required></div>
+        <div class="form-group"><label for="oras_sa_lubong">ORAS *<span class="field-translation">Burial time</span></label><input id="oras_sa_lubong" name="oras_sa_lubong" type="time" value="<?= e($data['oras_sa_lubong']) ?>" required></div>
       </div>
     </div>
 
     <div class="form-section">
       <h3>Respondent / Family</h3>
-      <div class="form-group"><label for="responde">Responde *</label><input id="responde" name="responde" type="text" maxlength="150" value="<?= e($data['responde']) ?>" required></div>
+      <div class="form-group"><label for="responde">RESPONDE *<span class="field-translation">Informant / Person reporting</span></label><input id="responde" name="responde" type="text" maxlength="150" value="<?= e($data['responde']) ?>" placeholder="e.g., Maria Dela Cruz" required></div>
       <div class="form-row">
-        <div class="form-group"><label for="ginikanan_anak">Ginikanan / Anak</label><input id="ginikanan_anak" name="ginikanan_anak" type="text" maxlength="150" value="<?= e($data['ginikanan_anak']) ?>"></div>
-        <div class="form-group"><label for="ginikanan_anak_cell">Cell #</label><input id="ginikanan_anak_cell" name="ginikanan_anak_cell" type="tel" inputmode="numeric" maxlength="11" pattern="^09\d{9}$" title="Enter a valid 11-digit mobile number starting with 09" value="<?= e($data['ginikanan_anak_cell']) ?>"></div>
+        <div class="form-group"><label for="ginikanan_anak">GINIKANAN / ANAK<span class="field-translation">Parent / Child</span></label><input id="ginikanan_anak" name="ginikanan_anak" type="text" maxlength="150" value="<?= e($data['ginikanan_anak']) ?>" placeholder="e.g., Pedro Dela Cruz"></div>
+        <div class="form-group"><label for="ginikanan_anak_cell">Cell #<span class="field-translation">Mobile number</span></label><input id="ginikanan_anak_cell" name="ginikanan_anak_cell" type="tel" inputmode="numeric" maxlength="11" pattern="^09\d{9}$" title="Enter a valid 11-digit mobile number starting with 09" value="<?= e($data['ginikanan_anak_cell']) ?>" placeholder="09XXXXXXXXX"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label for="asawa_bana">Asawa / Bana</label><input id="asawa_bana" name="asawa_bana" type="text" maxlength="150" value="<?= e($data['asawa_bana']) ?>"></div>
-        <div class="form-group"><label for="asawa_bana_cell">Cell #</label><input id="asawa_bana_cell" name="asawa_bana_cell" type="tel" inputmode="numeric" maxlength="11" pattern="^09\d{9}$" title="Enter a valid 11-digit mobile number starting with 09" value="<?= e($data['asawa_bana_cell']) ?>"></div>
+        <div class="form-group"><label for="asawa_bana">ASAWA / BANA<span class="field-translation">Spouse (Wife / Husband)</span></label><input id="asawa_bana" name="asawa_bana" type="text" maxlength="150" value="<?= e($data['asawa_bana']) ?>" placeholder="e.g., Josefa Dela Cruz"></div>
+        <div class="form-group"><label for="asawa_bana_cell">Cell #<span class="field-translation">Mobile number</span></label><input id="asawa_bana_cell" name="asawa_bana_cell" type="tel" inputmode="numeric" maxlength="11" pattern="^09\d{9}$" title="Enter a valid 11-digit mobile number starting with 09" value="<?= e($data['asawa_bana_cell']) ?>" placeholder="09XXXXXXXXX"></div>
       </div>
     </div>
 
     <div class="form-section">
       <h3>Marriage</h3>
-      <div class="form-group"><label>Unsang Kasala ang Nadawat? *</label><div class="choice-row">
-        <?php foreach (['Simbahan', 'Sibil', 'Wala'] as $option): ?><label><input type="radio" name="kasal" value="<?= e($option) ?>" <?= $data['kasal'] === $option ? 'checked' : '' ?> required> <?= e($option) ?></label><?php endforeach; ?>
+      <div class="form-group"><label>UNSANG KASALA ANG NADAWAT? *<span class="field-translation">Marriage type</span></label><div class="choice-row">
+        <?php foreach (['Simbahan' => 'Church marriage', 'Sibil' => 'Civil marriage', 'Wala' => 'None'] as $option => $eng): ?>
+          <label><input type="radio" name="kasal" value="<?= e($option) ?>" <?= $data['kasal'] === $option ? 'checked' : '' ?> required> <?= e($option) ?> <span class="text-muted" style="font-size:0.9em;">— <?= e($eng) ?></span></label>
+        <?php endforeach; ?>
       </div></div>
       <div class="form-row">
-        <div class="form-group"><label for="petsa_sa_kasal">Petsa sa Kasal <span data-marriage-required>*</span></label><input id="petsa_sa_kasal" name="petsa_sa_kasal" type="date" value="<?= e($data['petsa_sa_kasal']) ?>"></div>
-        <div class="form-group"><label for="diin_kasal">Diin <span data-marriage-required>*</span></label><input id="diin_kasal" name="diin_kasal" type="text" maxlength="150" value="<?= e($data['diin_kasal']) ?>"></div>
+        <div class="form-group"><label for="petsa_sa_kasal">PETSA SA KASAL <span data-marriage-required>*</span><span class="field-translation">Date of marriage</span></label><input id="petsa_sa_kasal" name="petsa_sa_kasal" type="date" value="<?= e($data['petsa_sa_kasal']) ?>"></div>
+        <div class="form-group"><label for="diin_kasal">DIIN <span data-marriage-required>*</span><span class="field-translation">Place of marriage</span></label><input id="diin_kasal" name="diin_kasal" type="text" maxlength="150" value="<?= e($data['diin_kasal']) ?>" placeholder="e.g., Balilihan Parish Church"></div>
       </div>
     </div>
 

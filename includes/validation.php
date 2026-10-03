@@ -16,7 +16,7 @@ function validateName($name) {
     $name = trim($name);
     if ($name === '') return false;
     if (!preg_match('/[\p{L}\p{M}]/u', $name)) return false;
-    if (!preg_match("/^[\\p{L}\\p{M} .'-]+$/u", $name)) return false;
+    if (!preg_match("/^[\\p{L}\\p{M} .,'-]+$/u", $name)) return false;
     return $name;
 }
 

@@ -109,16 +109,16 @@ function funeralKatinAwanValidationErrors(array $data): array
     ];
     foreach ($required as $key => $label) if ($data[$key] === '') $errors[] = $label . ' is required.';
 
-    if ($data['ngalan_sa_ilubong'] !== '' && validateName($data['ngalan_sa_ilubong']) === false) $errors[] = 'Ngalan sa Ilubong contains invalid characters.';
+    if ($data['ngalan_sa_ilubong'] !== '' && validateName($data['ngalan_sa_ilubong']) === false) $errors[] = 'Name of the deceased must contain letters and may only use common name punctuation.';
     if ($data['edad'] !== '' && validateAge($data['edad']) === false) $errors[] = 'Enter a valid whole-number age from 0 to 120.';
-    if ($data['pinuy_anan'] !== '' && validateAddress($data['pinuy_anan']) === false) $errors[] = 'Pinuy-anan contains invalid characters.';
+    if ($data['pinuy_anan'] !== '' && validateAddress($data['pinuy_anan']) === false) $errors[] = 'Home address contains invalid characters.';
     foreach (['kanus_a_namatay' => 'Select a valid date of death.', 'kanus_a_ilubong' => 'Select a valid burial date.'] as $key => $message) {
         if ($data[$key] !== '' && validateCalendarDate($data[$key]) === false) $errors[] = $message;
     }
     if ($data['oras_sa_lubong'] !== '' && validateTimeValue($data['oras_sa_lubong']) === false) $errors[] = 'Select a valid burial time.';
     if (validateCalendarDate($data['kanus_a_namatay']) !== false && validateCalendarDate($data['kanus_a_ilubong']) !== false && $data['kanus_a_ilubong'] < $data['kanus_a_namatay']) $errors[] = 'Burial date cannot be earlier than the date of death.';
-    foreach (['responde', 'ginikanan_anak', 'asawa_bana'] as $key) {
-        if ($data[$key] !== '' && validateName($data[$key]) === false) $errors[] = ucfirst(str_replace('_', ' ', $key)) . ' contains invalid characters.';
+    foreach (['responde' => 'Respondent name', 'ginikanan_anak' => 'Parent/Child name', 'asawa_bana' => 'Spouse name'] as $key => $labelName) {
+        if ($data[$key] !== '' && validateName($data[$key]) === false) $errors[] = $labelName . ' must contain letters and may only use common name punctuation.';
     }
     foreach (['ginikanan_anak_cell', 'asawa_bana_cell'] as $key) {
         if ($data[$key] !== '' && validatePhilippineMobile($data[$key]) === false) $errors[] = 'Enter a valid 11-digit mobile number starting with 09.';
