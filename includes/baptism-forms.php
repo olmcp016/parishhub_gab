@@ -9,14 +9,14 @@ function baptismFormDefinition(string $type): array
 {
     return $type === 'katin_awan_bunyag'
         ? ['title' => 'KATIN-AWAN SA BUNYAG', 'fields' => ['child_name'=>'Ngalan sa Bunyagan','birth_date'=>'Petsa Natawo','birth_place'=>'Diin Natawo','father_name'=>'Amahan','father_religion'=>"Father's Religion",'mother_name'=>'Inahan','mother_religion'=>"Mother's Religion",'parent_marriage'=>'Unsang Kasala ang Nadawat sa Ginikanan?','marriage_place'=>'Diin','sponsor_1'=>'Sponsor 1','sponsor_2'=>'Sponsor 2','chapel'=>'Sakop sa Kapilya sa','cluster_name'=>'Ngalan sa Cluster','barangay'=>'Ngalan sa Barangay','cellphone'=>'Cellphone Number']]
-        : ['title' => 'CLUSTER CLEARANCE FOR BAPTISM SPONSOR', 'fields' => ['sponsor_name'=>'Name of Sponsor','address'=>'Pinuy-anan','child_name'=>'Name of the Child','father_name'=>'Father','mother_maiden_name'=>'Mother Maiden Name','service_requested'=>'Service Requested','other_service'=>'Others, please specify','service_date'=>'Date of Service / Adlaw sa Serbisyo','active_status'=>'Active / Inactive','cluster_number'=>'Member of Cluster No.','cluster_name'=>'Cluster Name']];
+        : ['title' => 'CLUSTER CLEARANCE FOR BAPTISM SPONSOR', 'fields' => ['sponsor_name'=>'Name of Sponsor','address'=>'Pinuy-anan','child_name'=>'Name of the Child','father_name'=>'Father','mother_maiden_name'=>'Mother Maiden Name','service_date'=>'Date of Service / Adlaw sa Serbisyo','cluster_number'=>'Member of Cluster No.','cluster_name'=>'Cluster Name']];
 }
 
 function baptismFormRequiredFields(string $type): array
 {
     return $type === 'katin_awan_bunyag'
         ? ['child_name','birth_date','birth_place','father_name','father_religion','mother_name','mother_religion','parent_marriage','marriage_place','sponsor_1','sponsor_2','chapel','cluster_name','barangay','cellphone']
-        : ['sponsor_name','address','child_name','father_name','mother_maiden_name','service_date','active_status','cluster_number','cluster_name'];
+        : ['sponsor_name','address','child_name','father_name','mother_maiden_name','service_date','cluster_number','cluster_name'];
 }
 
 function baptismPdfText(string $value): string
@@ -108,16 +108,20 @@ function baptismSponsorPdf(array $data): string
     baptismPdfField($pdf, 'FATHER:', $v('father_name'), 18, 97, 174, 22);
     baptismPdfField($pdf, 'MOTHER MAIDEN NAME:', $v('mother_maiden_name'), 18, 108, 174, 50);
     $pdf->SetFont('Times', 'B', 9); $pdf->SetXY(18, 119); $pdf->Cell(174, 5, 'SERVICE REQUESTED: (Please check)', 0, 1);
-    $selected = $v('service_requested') ?: 'Bunyag'; $x = 20;
+    $selected = 'Bunyag'; $x = 20;
     foreach (['Bunyag', 'Confirmation', 'Kasal', 'Ninong/Ninang', 'Others'] as $option) { baptismPdfChoice($pdf, $option, $selected === $option, $x, 127); $x += $option === 'Ninong/Ninang' ? 43 : 31; }
-    baptismPdfField($pdf, 'Others, please specify:', $v('other_service'), 18, 137, 174, 48);
+    baptismPdfField($pdf, 'Others, please specify:', '', 18, 137, 174, 48);
     baptismPdfField($pdf, 'DATE OF SERVICE/ADLAW SA SERBISYO', $v('service_date'), 18, 148, 112, 76);
-    baptismPdfChoice($pdf, 'Active', $v('active_status') === 'Active', 132, 148); baptismPdfChoice($pdf, 'Inactive', $v('active_status') === 'Inactive', 165, 148);
+    $pdf->SetFont('Times', 'B', 9); $pdf->SetXY(120, 148); $pdf->Cell(20, 6, 'Pls.Check:', 0, 0);
+    baptismPdfChoice($pdf, 'Active', false, 142, 149); baptismPdfChoice($pdf, 'Inactive', false, 170, 149);
     baptismPdfField($pdf, 'Member of Cluster No.:', $v('cluster_number'), 18, 159, 76, 43, 8.5);
     baptismPdfField($pdf, 'Cluster Name:', $v('cluster_name'), 98, 159, 94, 30, 8.5);
     $pdf->SetFont('Times', 'B', 10); $pdf->SetXY(18, 174); $pdf->Cell(174, 5, 'VERIFIED BY:', 0, 1);
-    $pdf->SetFont('Times', '', 8); $y = 187;
-    foreach (['Ngalan ug pirma sa Cluster Treasurer', 'Ngalan ug pirma sa Cluster Leader', 'Ngalan ug pirma sa Chapel Treasurer', 'Ngalan ug pirma sa Chapel Chairman'] as $label) { $pdf->SetXY(18, $y); $pdf->Cell(174, 5, baptismPdfText($label . ' ________________________________'), 0, 1); $y += 12; }
+    $pdf->SetFont('Times', '', 9); $y = 195;
+    foreach ([['Ngalan ug pirma sa Cluster Treasurer', 'Ngalan ug pirma sa Cluster Leader'], ['Ngalan ug pirma sa Chapel Treasurer', 'Ngalan ug pirma sa Chapel Chairman']] as $row) {
+        $pdf->SetXY(18, $y); $pdf->Cell(85, 5, '___________________________________', 0, 0); $pdf->Cell(85, 5, '___________________________________', 0, 1);
+        $pdf->Cell(85, 5, baptismPdfText($row[0]), 0, 0, 'C'); $pdf->Cell(85, 5, baptismPdfText($row[1]), 0, 1, 'C'); $y += 18;
+    }
     return $pdf->Output('S');
 }
 

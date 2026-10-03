@@ -34,6 +34,17 @@ if ($type === 'katin_awan_bunyag' && !$form) {
     $data = [
         'cellphone' => $contactPhone
     ];
+} elseif ($type === 'cluster_clearance_baptism_sponsor' && !$form) {
+    $kq = $pdo->prepare('SELECT form_data FROM generated_baptism_forms WHERE draft_id = ? AND form_type = ?');
+    $kq->execute([$id, 'katin_awan_bunyag']);
+    $katin = $kq->fetchColumn();
+    if ($katin) {
+        $kData = json_decode($katin, true) ?: [];
+        $data['child_name'] = $kData['child_name'] ?? '';
+        $data['father_name'] = $kData['father_name'] ?? '';
+        $data['mother_maiden_name'] = $kData['mother_name'] ?? '';
+    }
+    $data['service_date'] = $draft['appointment_date'] ? date('F j, Y', strtotime($draft['appointment_date'])) : '';
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -160,6 +171,37 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
             <div class="form-group"><label for="cellphone">Cellphone Number *</label><input id="cellphone" name="cellphone" type="text" value="<?= e($data['cellphone'] ?? '') ?>" maxlength="50" required></div>
         </div>
       </fieldset>
+    <?php elseif ($type === 'cluster_clearance_baptism_sponsor'): ?>
+      <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">
+        <legend style="font-weight:700; padding:0 8px;">SPONSOR INFORMATION</legend>
+        <div class="form-group"><label for="sponsor_name">Name of Sponsor *</label><input id="sponsor_name" name="sponsor_name" type="text" value="<?= e($data['sponsor_name'] ?? '') ?>" maxlength="150" required></div>
+        <div class="form-group"><label for="address">Pinuy-anan (Address) *</label><input id="address" name="address" type="text" value="<?= e($data['address'] ?? '') ?>" maxlength="255" required></div>
+      </fieldset>
+
+      <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">
+        <legend style="font-weight:700; padding:0 8px;">CHILD INFORMATION</legend>
+        <div class="form-group"><label for="child_name">Name of the Child *</label><input id="child_name" name="child_name" type="text" value="<?= e($data['child_name'] ?? '') ?>" maxlength="150" required></div>
+        <div class="form-row">
+            <div class="form-group"><label for="father_name">Father *</label><input id="father_name" name="father_name" type="text" value="<?= e($data['father_name'] ?? '') ?>" maxlength="150" required></div>
+            <div class="form-group"><label for="mother_maiden_name">Mother Maiden Name *</label><input id="mother_maiden_name" name="mother_maiden_name" type="text" value="<?= e($data['mother_maiden_name'] ?? '') ?>" maxlength="150" required></div>
+        </div>
+      </fieldset>
+
+      <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">
+        <legend style="font-weight:700; padding:0 8px;">SERVICE INFORMATION</legend>
+        <div class="form-row">
+            <div class="form-group"><label for="service_date">Date of Service / Adlaw sa Serbisyo *</label><input id="service_date" name="service_date" type="text" value="<?= e($data['service_date'] ?? '') ?>" maxlength="50" required></div>
+            <div class="form-group"><label>Service Requested</label><input type="text" value="Bunyag" disabled style="background:#eee; cursor:not-allowed;"></div>
+        </div>
+      </fieldset>
+
+      <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">
+        <legend style="font-weight:700; padding:0 8px;">CLUSTER INFORMATION</legend>
+        <div class="form-row">
+            <div class="form-group"><label for="cluster_number">Member of Cluster No. *</label><input id="cluster_number" name="cluster_number" type="text" value="<?= e($data['cluster_number'] ?? '') ?>" maxlength="50" required></div>
+            <div class="form-group"><label for="cluster_name">Cluster Name *</label><input id="cluster_name" name="cluster_name" type="text" value="<?= e($data['cluster_name'] ?? '') ?>" maxlength="150" required></div>
+        </div>
+      </fieldset>
     <?php else: ?>
     <?php foreach ($def['fields'] as $key => $label): ?>
       <div class="form-group">
@@ -176,8 +218,8 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
       </div>
     <?php endforeach; ?>
     <?php endif; ?>
-    <button class="btn btn-outline" name="action" value="save" <?= $type === 'katin_awan_bunyag' ? 'formnovalidate' : '' ?>>Save Draft</button>
-    <button class="btn btn-primary" name="action" value="generate"><?= $type === 'katin_awan_bunyag' ? 'Generate Application Form' : 'Generate Form' ?></button>
+    <button class="btn btn-outline" name="action" value="save" formnovalidate>Save Draft</button>
+    <button class="btn btn-primary" name="action" value="generate"><?= in_array($type, ['katin_awan_bunyag', 'cluster_clearance_baptism_sponsor']) ? 'Generate Application Form' : 'Generate Form' ?></button>
   </form>
 </div>
 <?php include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-end.php' : 'dash-end.php'); include __DIR__ . '/includes/footer.php';
