@@ -40,8 +40,10 @@ foreach ($services as $s) {
     $requirementsByService[$s['service_id']] = parseRequirementsList($s['requirements']);
     if ($s['category'] === 'Wedding') {
         $requirementsByService[$s['service_id']] = [
-            'Baptismal Certificate',
-            'Confirmation Certificate',
+            "Groom's Baptismal Certificate",
+            "Bride's Baptismal Certificate",
+            "Groom's Confirmation Certificate",
+            "Bride's Confirmation Certificate",
             "Sponsors' Baptismal Certificate"
         ];
     }
@@ -394,30 +396,18 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
           </div>
         </div>
 
-        <div id="weddingFormsPreview" class="form-group" style="display:none; margin-top:16px;">
-          <label>Wedding Forms</label>
-          <div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">
-            These required forms are completed in the next step after your booking details and supporting documents are saved.
+        <div id="requirementsPreviewBox" style="display:none; margin-top:20px; border:1px solid var(--cream-dark); border-radius:8px; padding:16px; background:var(--white);">
+          <h4 style="margin:0 0 8px; color:var(--brown-dark);">Requirements for the Next Step</h4>
+          <p style="margin:0 0 16px; color:var(--brown-mid); font-size:14px;">Please prepare these before continuing.</p>
+          
+          <div id="previewSupportingDocuments" style="margin-bottom:16px;">
+            <h5 style="margin:0 0 6px; font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--gray-dark);">Supporting Documents</h5>
+            <ul id="previewDocumentsList" style="margin:0; padding-left:20px; color:var(--brown-dark); font-size:14px; line-height:1.5;"></ul>
           </div>
-          <div class="wedding-form-requirement-list">
-            <p><strong>Marriage Requirement and Application Form</strong><br><span class="badge badge-rejected">Required</span> <span class="helper-text">Complete in Wedding Requirements</span></p>
-            <p><strong>Katin-awan sa Kasal / Cluster Clearance</strong><br><span class="badge badge-rejected">Required</span> <span class="helper-text">Complete in Wedding Requirements</span></p>
-            <p><strong>Wedding Sponsor Clearance</strong><br><span class="badge badge-rejected">Required</span> <span class="helper-text">Complete in Wedding Requirements</span></p>
-          </div>
-        </div>
-        <div id="baptismFormsPreview" class="form-group" style="display:none; margin-top:16px;">
-          <label>Baptism Forms</label>
-          <div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">These required forms are completed after your booking details and supporting documents are saved.</div>
-          <div class="wedding-form-requirement-list">
-            <p><strong>Katin-awan sa Bunyag</strong><br><span class="badge badge-rejected">Required</span> <span class="helper-text">Complete in Baptism Requirements</span></p>
-            <p><strong>Cluster Clearance for Baptism Sponsor</strong><br><span class="badge badge-rejected">Required</span> <span class="helper-text">Complete in Baptism Requirements</span></p>
-          </div>
-        </div>
-        <div id="funeralFormsPreview" class="form-group" style="display:none; margin-top:16px;">
-          <label>Funeral Forms</label>
-          <div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">These required forms are completed after your booking details and supporting documents are saved.</div>
-          <div class="wedding-form-requirement-list">
-            <p><strong>Katin-awan sa Paglubong</strong><br><span class="badge badge-rejected">Required</span> <span class="helper-text">Complete in Funeral Requirements</span></p>
+
+          <div id="previewFormsToComplete">
+            <h5 style="margin:0 0 6px; font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--gray-dark);">Forms to Complete</h5>
+            <ul id="previewFormsList" style="margin:0; padding-left:20px; color:var(--brown-dark); font-size:14px; line-height:1.5;"></ul>
           </div>
         </div>
 
@@ -502,9 +492,14 @@ function toggleServiceUI() {
   document.getElementById('weddingSponsorCountGroup').style.display = category === 'Wedding' ? 'block' : 'none';
   document.getElementById('sponsorCountInput').required = category === 'Baptism';
   document.getElementById('weddingSponsorCountInput').required = category === 'Wedding';
-  document.getElementById('weddingFormsPreview').style.display = category === 'Wedding' ? 'block' : 'none';
-  document.getElementById('baptismFormsPreview').style.display = category === 'Baptism' ? 'block' : 'none';
-  document.getElementById('funeralFormsPreview').style.display = category === 'Funeral' ? 'block' : 'none';
+  // Handle generic Requirements Preview for draft services
+  var previewBox = document.getElementById('requirementsPreviewBox');
+  if (category === 'Wedding' || category === 'Baptism' || category === 'Funeral') {
+    previewBox.style.display = 'block';
+    renderRequirementsPreview(serviceId, category);
+  } else {
+    previewBox.style.display = 'none';
+  }
   document.getElementById('bookSubmitBtn').textContent = submitButtonLabel();
 
   var isMassIntention = category === 'Mass Intention';
@@ -957,6 +952,56 @@ function rebuildPriestOptions(priests) {
  * upload to its requirement by field name alone — no fragile positional
  * pairing with a parallel labels array.
  */
+function renderRequirementsPreview(serviceId, category) {
+  var docList = document.getElementById('previewDocumentsList');
+  var formList = document.getElementById('previewFormsList');
+  var items = REQUIREMENTS_BY_SERVICE[serviceId] || [];
+  
+  var docs = [];
+  var forms = [];
+  
+  // Base forms based on category
+  if (category === 'Wedding') {
+    forms.push('Marriage Requirement and Application Form');
+    forms.push('Katin-awan sa Kasal / Cluster Clearance');
+    forms.push('Wedding Sponsor Clearance');
+  } else if (category === 'Baptism') {
+    forms.push('Katin-awan sa Bunyag');
+    forms.push('Cluster Clearance for Baptism Sponsor');
+  } else if (category === 'Funeral') {
+    forms.push('Katin-awan sa Paglubong');
+  }
+  
+  // Filter requirements from DB
+  items.forEach(function(item) {
+    if (item === 'Katin-awan sa Paglubong') {
+      // Already handled in base forms
+      return;
+    }
+    docs.push(item);
+  });
+  
+  // Render Docs
+  if (docs.length > 0) {
+    document.getElementById('previewSupportingDocuments').style.display = 'block';
+    docList.innerHTML = docs.map(function(d) {
+      return '<li style="margin-bottom:4px;">' + d + '</li>';
+    }).join('');
+  } else {
+    document.getElementById('previewSupportingDocuments').style.display = 'none';
+  }
+  
+  // Render Forms
+  if (forms.length > 0) {
+    document.getElementById('previewFormsToComplete').style.display = 'block';
+    formList.innerHTML = forms.map(function(f) {
+      return '<li style="margin-bottom:4px;">' + f + '</li>';
+    }).join('');
+  } else {
+    document.getElementById('previewFormsToComplete').style.display = 'none';
+  }
+}
+
 function rebuildRequirementRows(serviceId) {
   var container = document.getElementById('requirementRows');
   var items = REQUIREMENTS_BY_SERVICE[serviceId] || [];
@@ -1091,8 +1136,7 @@ function submitButtonLabel() {
   var category = select.options[select.selectedIndex]?.dataset.category || '';
   var draftMode = document.getElementById('draftModeInput');
   if (draftMode) draftMode.value = ['Wedding', 'Baptism', 'Funeral'].indexOf(category) !== -1 ? '1' : '0';
-  var baptismPreview = document.getElementById('baptismFormsPreview');
-  if (baptismPreview) baptismPreview.style.display = category === 'Baptism' ? 'block' : 'none';
+  // Legacy fallback removed, handled cleanly by main event loop
   if (category === 'Wedding') return 'Continue to Wedding Requirements';
   if (category === 'Baptism') return 'Continue to Baptism Requirements';
   if (category === 'Funeral') return 'Continue to Funeral Requirements';

@@ -2,6 +2,8 @@
 if (is_file(__DIR__ . '/../vendor/autoload.php')) {
     require_once __DIR__ . '/../vendor/autoload.php';
 }
+// Suppress utf8_encode deprecation warnings from FPDF (PHP 8.2+) which break output headers
+error_reporting(E_ALL & ~E_DEPRECATED);
 require_once __DIR__ . '/validation.php';
 
 const BAPTISM_FORM_TYPES = ['katin_awan_bunyag', 'cluster_clearance_baptism_sponsor'];

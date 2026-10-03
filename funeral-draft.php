@@ -155,11 +155,11 @@ foreach ($draft['uploaded_keys'] as $upl) {
 $hasKatinAwan = !empty($draft['katin_awan_payload']);
 $canSubmit = $hasDeathCert && $hasKatinAwan;
 
+$usesPublicShell = $draft['is_guest'];
 $pageTitle = 'Funeral Requirements';
 $publicNavActive = 'services';
 include __DIR__ . '/includes/header.php';
-?>
-<?php include __DIR__ . '/includes/' . ($draft['is_guest'] ? 'public-shell.php' : 'dash-nav.php'); ?>
+include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 'dash-start.php');
 
 <div class="content-wrapper <?php echo $draft['is_guest'] ? 'guest-draft-container' : ''; ?>">
   <div class="page-header" style="display:flex; justify-content:space-between; align-items:center;">
@@ -255,5 +255,4 @@ include __DIR__ . '/includes/header.php';
   </div>
 </div>
 
-<?php include __DIR__ . '/includes/' . ($draft['is_guest'] ? 'public-shell-end.php' : 'dash-end.php'); ?>
-<?php include __DIR__ . '/includes/footer.php'; ?>
+<?php include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-end.php' : 'dash-end.php'); include __DIR__ . '/includes/footer.php'; ?>

@@ -2,6 +2,8 @@
 const WEDDING_FORM_TYPES = ['matrimony_application', 'cluster_clearance', 'wedding_sponsor_clearance'];
 
 if (is_file(__DIR__ . '/../vendor/autoload.php')) require_once __DIR__ . '/../vendor/autoload.php';
+// Suppress utf8_encode deprecation warnings from FPDF (PHP 8.2+) which break output headers
+error_reporting(E_ALL & ~E_DEPRECATED);
 require_once __DIR__ . '/validation.php';
 
 function weddingFormDefinition(string $type): array
