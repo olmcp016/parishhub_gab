@@ -17,10 +17,19 @@ define('DB_NAME', getenv('DB_NAME') ?: 'postgres');
 define('DB_USER', getenv('DB_USER') ?: 'postgres.gzyupwzalamtnehaywwh');
 // The password must be provided via the environment variable DB_PASS.
 define('DB_PASS', getenv('DB_PASS') ?: '');
-define('DOCUMENT_STORAGE_DRIVER', strtolower(getenv('DOCUMENT_STORAGE_DRIVER') ?: 'local'));
 define('SUPABASE_URL', rtrim((string) (getenv('SUPABASE_URL') ?: ''), '/'));
 define('SUPABASE_SECRET_KEY', (string) (getenv('SUPABASE_SECRET_KEY') ?: ''));
 define('SUPABASE_DOCUMENT_BUCKET', getenv('SUPABASE_DOCUMENT_BUCKET') ?: 'parish-documents');
+// If Supabase credentials are present (as they are in production), default to
+// durable object storage. Local disk remains available only when explicitly
+// selected or when no Supabase storage credentials are configured.
+$configuredDocumentDriver = strtolower(trim((string) getenv('DOCUMENT_STORAGE_DRIVER')));
+define(
+    'DOCUMENT_STORAGE_DRIVER',
+    $configuredDocumentDriver !== ''
+        ? $configuredDocumentDriver
+        : (SUPABASE_URL !== '' && SUPABASE_SECRET_KEY !== '' ? 'supabase' : 'local')
+);
 
 define('APP_NAME', 'PARISHHUB');
 define('APP_URL', 'http://localhost/parishhub'); // change to match your local path
