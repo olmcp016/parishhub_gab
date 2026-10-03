@@ -2,6 +2,7 @@
 if (is_file(__DIR__ . '/../vendor/autoload.php')) {
     require_once __DIR__ . '/../vendor/autoload.php';
 }
+require_once __DIR__ . '/validation.php';
 
 const BAPTISM_FORM_TYPES = ['katin_awan_bunyag', 'cluster_clearance_baptism_sponsor'];
 
@@ -15,8 +16,75 @@ function baptismFormDefinition(string $type): array
 function baptismFormRequiredFields(string $type): array
 {
     return $type === 'katin_awan_bunyag'
-        ? ['child_name','birth_date','birth_place','father_name','father_religion','mother_name','mother_religion','parent_marriage','marriage_place','sponsor_1','sponsor_2','chapel','cluster_name','barangay','cellphone']
+        ? ['child_name','birth_date','birth_place','father_name','father_religion','mother_name','mother_religion','parent_marriage','sponsor_1','sponsor_2','chapel','cluster_name','barangay','cellphone']
         : ['sponsor_name','address','child_name','father_name','mother_maiden_name','service_date','cluster_number','cluster_name'];
+}
+
+function baptismNormalizeData(array $data): array
+{
+    if (empty($data['parent_marriage'])) {
+        foreach (['simbahan' => 'Simbahan', 'sibil' => 'Sibil', 'wala' => 'Wala'] as $legacyKey => $value) {
+            if (!empty($data['parent_marriage_' . $legacyKey])) {
+                $data['parent_marriage'] = $value;
+                break;
+            }
+        }
+    }
+    return $data;
+}
+
+/** @return string[] */
+function baptismFormValidationErrors(string $type, array $data, bool $requireComplete = true): array
+{
+    $data = baptismNormalizeData($data);
+    $definition = baptismFormDefinition($type);
+    $errors = [];
+    if ($requireComplete) {
+        foreach (baptismFormRequiredFields($type) as $key) {
+            if (trim((string) ($data[$key] ?? '')) === '') $errors[] = $definition['fields'][$key] . ' is required.';
+        }
+    }
+
+    $nameKeys = $type === 'katin_awan_bunyag'
+        ? ['child_name', 'father_name', 'mother_name', 'sponsor_1', 'sponsor_2']
+        : ['sponsor_name', 'child_name', 'father_name', 'mother_maiden_name'];
+    foreach ($nameKeys as $key) {
+        $value = trim((string) ($data[$key] ?? ''));
+        if ($value !== '' && validateName($value) === false) $errors[] = $definition['fields'][$key] . ' contains invalid characters.';
+    }
+
+    $placeKeys = $type === 'katin_awan_bunyag'
+        ? ['birth_place', 'chapel', 'cluster_name', 'barangay']
+        : ['address', 'cluster_name'];
+    if ($type === 'katin_awan_bunyag' && ($data['parent_marriage'] ?? '') !== 'Wala') $placeKeys[] = 'marriage_place';
+    foreach ($placeKeys as $key) {
+        $value = trim((string) ($data[$key] ?? ''));
+        if ($value !== '' && validateAddress($value) === false) $errors[] = $definition['fields'][$key] . ' contains invalid characters.';
+    }
+
+    if ($type === 'katin_awan_bunyag') {
+        $birthDate = trim((string) ($data['birth_date'] ?? ''));
+        if ($birthDate !== '' && validateCalendarDate($birthDate) === false) $errors[] = 'Petsa Natawo must be a valid birth date.';
+        $marriage = (string) ($data['parent_marriage'] ?? '');
+        if ($marriage !== '' && validateEnum($marriage, ['Simbahan', 'Sibil', 'Wala']) === false) $errors[] = 'Select one valid marriage status for the parents.';
+        if ($requireComplete && in_array($marriage, ['Simbahan', 'Sibil'], true) && trim((string) ($data['marriage_place'] ?? '')) === '') {
+            $errors[] = 'Diin is required when the parents were married.';
+        }
+        $phone = trim((string) ($data['cellphone'] ?? ''));
+        if ($phone !== '' && validatePhilippineMobile($phone) === false) $errors[] = 'Cellphone Number must be 11 digits starting with 09.';
+    } else {
+        $serviceDate = trim((string) ($data['service_date'] ?? ''));
+        if ($serviceDate !== '' && validateCalendarDate($serviceDate) === false) $errors[] = 'Date of Service must be a valid date.';
+        $clusterNumber = trim((string) ($data['cluster_number'] ?? ''));
+        if ($clusterNumber !== '' && validatePositiveInteger($clusterNumber, 9999) === false) $errors[] = 'Member of Cluster No. must be a positive whole number.';
+    }
+    return array_values(array_unique($errors));
+}
+
+function baptismPdfDate(string $date): string
+{
+    $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+    return $parsed && $parsed->format('Y-m-d') === $date ? $parsed->format('F j, Y') : $date;
 }
 
 function baptismPdfText(string $value): string
@@ -65,10 +133,11 @@ function baptismPdfChoice(FPDF $pdf, string $label, bool $selected, float $x, fl
 
 function baptismKatinPdf(array $data): string
 {
+    $data = baptismNormalizeData($data);
     $pdf = new FPDF('P', 'mm', 'A4'); baptismPdfHeader($pdf, 'KATIN-AWAN SA BUNYAG');
     $v = static fn(string $key): string => trim((string) ($data[$key] ?? ''));
     baptismPdfField($pdf, 'NGALAN SA BUNYAGAN:', $v('child_name'), 18, 62, 174, 46);
-    baptismPdfField($pdf, 'PETSA NATAWO:', $v('birth_date'), 18, 72, 84, 34);
+    baptismPdfField($pdf, 'PETSA NATAWO:', baptismPdfDate($v('birth_date')), 18, 72, 84, 34);
     baptismPdfField($pdf, 'DIIN NATAWO:', $v('birth_place'), 105, 72, 87, 31, 8.5);
     baptismPdfField($pdf, 'AMAHAN:', $v('father_name'), 18, 82, 108, 25);
     baptismPdfField($pdf, 'RELIHIYON:', $v('father_religion'), 130, 82, 62, 25);
@@ -111,7 +180,7 @@ function baptismSponsorPdf(array $data): string
     $selected = 'Bunyag'; $x = 20;
     foreach (['Bunyag', 'Confirmation', 'Kasal', 'Ninong/Ninang', 'Others'] as $option) { baptismPdfChoice($pdf, $option, $selected === $option, $x, 127); $x += $option === 'Ninong/Ninang' ? 43 : 31; }
     baptismPdfField($pdf, 'Others, please specify:', '', 18, 137, 174, 48);
-    baptismPdfField($pdf, 'DATE OF SERVICE/ADLAW SA SERBISYO', $v('service_date'), 18, 148, 112, 76);
+    baptismPdfField($pdf, 'DATE OF SERVICE/ADLAW SA SERBISYO', baptismPdfDate($v('service_date')), 18, 148, 112, 76);
     $pdf->SetFont('Times', 'B', 9); $pdf->SetXY(120, 148); $pdf->Cell(20, 6, 'Pls.Check:', 0, 0);
     baptismPdfChoice($pdf, 'Active', false, 142, 149); baptismPdfChoice($pdf, 'Inactive', false, 170, 149);
     baptismPdfField($pdf, 'Member of Cluster No.:', $v('cluster_number'), 18, 159, 76, 43, 8.5);

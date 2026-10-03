@@ -70,6 +70,9 @@ if ($type === 'matrimony_application') {
             $data[$side . '_cell'] = $bookingContact['phone'];
         }
     }
+} elseif ($type === 'cluster_clearance') {
+    $data = weddingClusterNormalizeData($data);
+    $data['wedding_date'] = (string) ($appointment['appointment_date'] ?? '');
 }
 $error = null;
 
@@ -80,19 +83,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach (weddingFormDefinition($type)['fields'] as $key => $label) {
         $data[$key] = trim((string) ($_POST[$key] ?? ''));
     }
+    if ($type === 'cluster_clearance') $data['wedding_date'] = (string) ($appointment['appointment_date'] ?? '');
     if ($type === 'wedding_sponsor_clearance' && !isset($data['service_requested'])) $data['service_requested'] = 'Kasal';
-    if ($type === 'matrimony_application') {
-        $validationErrors = weddingMarriageValidationErrors($data, $action === 'generate');
-        if ($validationErrors) $error = implode(' ', $validationErrors);
-    } elseif ($action === 'generate') {
-        $missing = [];
-        foreach (weddingFormRequiredFields($type) as $key) {
-            if (($data[$key] ?? '') === '') { $missing[] = weddingFormDefinition($type)['fields'][$key]; }
-        }
-        if ($missing) {
-            $error = 'Complete these fields before generating: ' . implode(', ', $missing) . '.';
-        }
-    }
+    $validationErrors = weddingFormValidationErrors($type, $data, $action === 'generate');
+    if ($validationErrors) $error = implode(' ', $validationErrors);
     if (!$error) {
         $pdo = db();
         $newPath = null;
@@ -129,7 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $pdo->commit();
             flash('success', $action === 'generate' ? 'Form generated and submitted for review.' : 'Draft saved.');
-            $preview = $type === 'matrimony_application' && $action === 'generate' ? '&generated_document_id=' . $documentId : '';
+            $preview = $action === 'generate' ? '&generated_document_id=' . $documentId : '';
             redirect(url('wedding-form.php?appointment_id=' . $appointmentId . '&form_type=' . urlencode($type) . $preview));
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) { $pdo->rollBack(); }
@@ -143,7 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $def = weddingFormDefinition($type);
 $previewDocumentId = 0;
-if ($type === 'matrimony_application' && $form && !empty($form['document_id'])) {
+if ($form && !empty($form['document_id'])) {
     $requestedPreviewId = (int) ($_GET['generated_document_id'] ?? 0);
     $previewDocumentId = $requestedPreviewId === (int) $form['document_id'] ? $requestedPreviewId : 0;
 }
@@ -179,9 +173,9 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
             'name' => ['Full Name', 'text', 150], 'birth_date' => ['Date of Birth', 'date', null],
             'father' => ['Father', 'text', 150], 'mother' => ['Mother', 'text', 150],
             'mother_maiden_name' => ["Mother's Maiden Name", 'text', 150], 'address' => ['Address', 'text', 255],
-            'cell' => ['Cell Number', 'tel', 30],
+            'cell' => ['Cell Number', 'tel', 11],
           ] as $suffix => [$label, $inputType, $maxLength]): $key = $prefix . '_' . $suffix; ?>
-            <div class="form-group"><label for="<?= e($key) ?>"><?= e($label) ?> *</label><input id="<?= e($key) ?>" name="<?= e($key) ?>" type="<?= e($inputType) ?>" value="<?= e($data[$key] ?? '') ?>"<?= $maxLength ? ' maxlength="' . (int) $maxLength . '"' : '' ?> required></div>
+            <div class="form-group"><label for="<?= e($key) ?>"><?= e($label) ?> *</label><input id="<?= e($key) ?>" name="<?= e($key) ?>" type="<?= e($inputType) ?>" value="<?= e($data[$key] ?? '') ?>"<?= $maxLength ? ' maxlength="' . (int) $maxLength . '"' : '' ?><?= $inputType === 'tel' ? ' pattern="^09\d{9}$" title="Enter a valid 11-digit mobile number starting with 09" inputmode="numeric"' : '' ?> required></div>
           <?php endforeach; ?>
         </fieldset>
       <?php endforeach; ?>
@@ -202,17 +196,17 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
         <?php elseif ($key === 'service_requested'): ?>
           <select id="<?= e($key) ?>" name="<?= e($key) ?>" required><option value="Kasal" selected>Kasal</option></select>
         <?php else: ?>
-          <input id="<?= e($key) ?>" name="<?= e($key) ?>" value="<?= e($data[$key] ?? '') ?>" type="<?= $inputType ?>" <?= in_array($key, weddingFormRequiredFields($type), true) ? 'required' : '' ?>>
+          <input id="<?= e($key) ?>" name="<?= e($key) ?>" value="<?= e($data[$key] ?? '') ?>" type="<?= $key === 'cluster_number' ? 'number' : $inputType ?>"<?= $key === 'cluster_number' ? ' min="1" max="9999" step="1"' : '' ?> <?= in_array($key, weddingFormRequiredFields($type), true) ? 'required' : '' ?>>
         <?php endif; ?>
       </div>
     <?php endforeach; ?>
     <?php endif; ?>
     <?php if ($type === 'wedding_sponsor_clearance'): ?><p class="text-muted">Service Requested: Kasal (the other official choices remain printed on the generated form).</p><?php endif; ?>
-    <button class="btn btn-outline" name="action" value="save" <?= $type === 'matrimony_application' ? 'formnovalidate' : '' ?>>Save Draft</button>
+    <button class="btn btn-outline" name="action" value="save" formnovalidate>Save Draft</button>
     <button class="btn btn-primary" name="action" value="generate"><?= $type === 'matrimony_application' ? 'Generate Application Form' : 'Generate Form' ?></button>
   </form>
 </div>
-<?php if ($type === 'matrimony_application'): ?>
+<?php if (in_array($type, WEDDING_FORM_TYPES, true)): ?>
 <script>
 (function () {
   var form = document.getElementById('weddingGeneratedForm');
@@ -225,11 +219,25 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
       Object.keys(values).forEach(function (suffix) { var input = document.getElementById(prefix + '_' + suffix); if (input && values[suffix]) input.value = values[suffix]; });
     });
   });
+  var marriageChoices = form.querySelectorAll('input[name="parent_marriage"]');
+  var marriagePlace = document.getElementById('marriage_place');
+  var marriageDate = document.getElementById('marriage_date');
+  function syncMarriageFields() {
+    if (!marriageChoices.length || !marriagePlace || !marriageDate) return;
+    var selected = form.querySelector('input[name="parent_marriage"]:checked');
+    var required = !!selected && selected.value !== 'Wala';
+    marriagePlace.required = required;
+    marriageDate.required = required;
+    marriagePlace.disabled = !!selected && selected.value === 'Wala';
+    marriageDate.disabled = !!selected && selected.value === 'Wala';
+  }
+  marriageChoices.forEach(function (choice) { choice.addEventListener('change', syncMarriageFields); });
+  syncMarriageFields();
   form.addEventListener('submit', function (event) {
     if (!event.submitter || event.submitter.value !== 'generate' || !form.checkValidity()) return;
-    window.open('about:blank', 'parishhubMarriagePdf');
+    window.open('about:blank', 'parishhubGeneratedFormPdf');
   });
-  <?php if ($previewDocumentId): ?>window.open(<?= json_encode(url('document.php?id=' . $previewDocumentId)) ?>, 'parishhubMarriagePdf');<?php endif; ?>
+  <?php if ($previewDocumentId): ?>window.open(<?= json_encode(url('document.php?id=' . $previewDocumentId)) ?>, 'parishhubGeneratedFormPdf');<?php endif; ?>
 }());
 </script>
 <?php endif; ?>

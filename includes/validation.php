@@ -15,8 +15,17 @@ function validateName($name) {
     if ($name === null) return false;
     $name = trim($name);
     if ($name === '') return false;
-    if (preg_match('/^\d+$/', $name)) return false;
+    if (!preg_match('/[\p{L}\p{M}]/u', $name)) return false;
+    if (!preg_match("/^[\\p{L}\\p{M} .'-]+$/u", $name)) return false;
     return $name;
+}
+
+function validateAddress($address) {
+    if ($address === null) return false;
+    $address = trim($address);
+    if ($address === '' || !preg_match('/[\p{L}\p{N}]/u', $address)) return false;
+    if (!preg_match("/^[\\p{L}\\p{M}\\p{N} .,'#\/-]+$/u", $address)) return false;
+    return $address;
 }
 
 function validateText($text) {
@@ -57,6 +66,10 @@ function validateDate($date, $format = 'Y-m-d') {
     return false;
 }
 
+function validateCalendarDate($date) {
+    return validateDate($date, 'Y-m-d');
+}
+
 function validateTime($time) {
     if ($time === null || trim($time) === '') return false;
     $time = trim($time);
@@ -64,6 +77,14 @@ function validateTime($time) {
         return $time;
     }
     return false;
+}
+
+function validateTimeValue($time) {
+    return validateTime($time);
+}
+
+function validatePositiveInteger($value, $max = PHP_INT_MAX) {
+    return validateInteger($value, 1, $max);
 }
 
 function validateEnum($value, array $allowlist) {

@@ -2,6 +2,7 @@
 const WEDDING_FORM_TYPES = ['matrimony_application', 'cluster_clearance', 'wedding_sponsor_clearance'];
 
 if (is_file(__DIR__ . '/../vendor/autoload.php')) require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/validation.php';
 
 function weddingFormDefinition(string $type): array
 {
@@ -38,7 +39,7 @@ function weddingFormRequiredFields(string $type): array
 {
     return match ($type) {
         'matrimony_application' => ['date_applied', 'groom_name', 'groom_birth_date', 'groom_father', 'groom_mother', 'groom_mother_maiden_name', 'groom_address', 'groom_cell', 'bride_name', 'bride_birth_date', 'bride_father', 'bride_mother', 'bride_mother_maiden_name', 'bride_address', 'bride_cell', 'wedding_date', 'wedding_time'],
-        'cluster_clearance' => ['kaslonon_name', 'kaslonon_birth_date', 'kaslonon_status', 'kaslonon_religion', 'father_name', 'father_religion', 'mother_name', 'mother_religion', 'sponsor_1', 'sponsor_2', 'parent_marriage', 'marriage_place', 'marriage_date', 'address', 'chapel', 'cluster_name', 'spouse_name', 'spouse_birth_date', 'spouse_status', 'spouse_religion', 'spouse_address'],
+        'cluster_clearance' => ['kaslonon_name', 'kaslonon_birth_date', 'kaslonon_status', 'kaslonon_religion', 'father_name', 'father_religion', 'mother_name', 'mother_religion', 'sponsor_1', 'sponsor_2', 'parent_marriage', 'address', 'chapel', 'cluster_name', 'spouse_name', 'spouse_birth_date', 'spouse_status', 'spouse_religion', 'spouse_address'],
         default => ['recipient_name', 'address', 'groom_name', 'bride_name', 'service_date', 'cluster_number', 'cluster_name'],
     };
 }
@@ -122,6 +123,19 @@ function weddingMarriageNormalizeData(array $data): array
     return $data;
 }
 
+function weddingClusterNormalizeData(array $data): array
+{
+    if (empty($data['parent_marriage'])) {
+        foreach (['simbahan' => 'Simbahan', 'sibil' => 'Sibil', 'wala' => 'Wala'] as $legacyKey => $value) {
+            if (!empty($data['parent_marriage_' . $legacyKey])) {
+                $data['parent_marriage'] = $value;
+                break;
+            }
+        }
+    }
+    return $data;
+}
+
 function weddingMarriageAge(string $birthDate, string $referenceDate): ?int
 {
     $birth = DateTimeImmutable::createFromFormat('!Y-m-d', $birthDate);
@@ -201,10 +215,79 @@ function weddingMarriageValidationErrors(array $data, bool $requireComplete = tr
     }
     foreach (['groom_cell', 'bride_cell'] as $key) {
         $value = (string) ($data[$key] ?? '');
-        if ($value !== '' && !preg_match('/^[0-9+().\- ]{7,30}$/', $value)) {
-            $errors[] = ($key === 'groom_cell' ? "Groom's" : "Bride's") . ' cell number contains invalid characters.';
+        if ($value !== '' && validatePhilippineMobile($value) === false) {
+            $errors[] = ($key === 'groom_cell' ? "Groom's" : "Bride's") . ' Cell Number must be 11 digits starting with 09.';
         }
     }
+    foreach (['groom_name', 'groom_father', 'groom_mother', 'groom_mother_maiden_name', 'bride_name', 'bride_father', 'bride_mother', 'bride_mother_maiden_name'] as $key) {
+        $value = (string) ($data[$key] ?? '');
+        if ($value !== '' && validateName($value) === false) $errors[] = $fieldLabels[$key] . ' contains invalid characters.';
+    }
+    foreach (['groom_address', 'bride_address'] as $key) {
+        $value = (string) ($data[$key] ?? '');
+        if ($value !== '' && validateAddress($value) === false) $errors[] = $fieldLabels[$key] . ' is not a valid address.';
+    }
+    return array_values(array_unique($errors));
+}
+
+/** @return string[] */
+function weddingFormValidationErrors(string $type, array $data, bool $requireComplete = true): array
+{
+    if ($type === 'matrimony_application') return weddingMarriageValidationErrors($data, $requireComplete);
+
+    $data = $type === 'cluster_clearance' ? weddingClusterNormalizeData($data) : $data;
+    $definition = weddingFormDefinition($type);
+    $errors = [];
+    if ($requireComplete) {
+        foreach (weddingFormRequiredFields($type) as $key) {
+            if (trim((string) ($data[$key] ?? '')) === '') $errors[] = $definition['fields'][$key] . ' is required.';
+        }
+    }
+
+    $nameKeys = $type === 'cluster_clearance'
+        ? ['kaslonon_name', 'father_name', 'mother_name', 'sponsor_1', 'sponsor_2', 'spouse_name']
+        : ['recipient_name', 'groom_name', 'bride_name'];
+    foreach ($nameKeys as $key) {
+        $value = trim((string) ($data[$key] ?? ''));
+        if ($value !== '' && validateName($value) === false) $errors[] = $definition['fields'][$key] . ' contains invalid characters.';
+    }
+
+    $placeKeys = $type === 'cluster_clearance'
+        ? ['address', 'chapel', 'cluster_name', 'spouse_address']
+        : ['address', 'cluster_name'];
+    if ($type === 'cluster_clearance' && ($data['parent_marriage'] ?? '') !== 'Wala') $placeKeys[] = 'marriage_place';
+    foreach ($placeKeys as $key) {
+        $value = trim((string) ($data[$key] ?? ''));
+        if ($value !== '' && validateAddress($value) === false) $errors[] = $definition['fields'][$key] . ' contains invalid characters.';
+    }
+
+    if ($type === 'cluster_clearance') {
+        $marriage = (string) ($data['parent_marriage'] ?? '');
+        if ($marriage !== '' && validateEnum($marriage, ['Simbahan', 'Sibil', 'Wala']) === false) {
+            $errors[] = 'Select one valid marriage status for the parents.';
+        }
+        if ($requireComplete && in_array($marriage, ['Simbahan', 'Sibil'], true)) {
+            if (trim((string) ($data['marriage_place'] ?? '')) === '') $errors[] = 'Diin is required when the parents were married.';
+            if (trim((string) ($data['marriage_date'] ?? '')) === '') $errors[] = 'Kanus-a is required when the parents were married.';
+        }
+        foreach (['kaslonon_birth_date' => 'Petsa Natawo', 'spouse_birth_date' => 'Petsa Natawo (Spouse)'] as $key => $label) {
+            $value = trim((string) ($data[$key] ?? ''));
+            if ($value !== '' && validateCalendarDate($value) === false) $errors[] = $label . ' must be a valid date.';
+            $reference = trim((string) ($data['wedding_date'] ?? date('Y-m-d')));
+            if ($value !== '' && validateCalendarDate($reference) !== false) {
+                $age = weddingMarriageAge($value, $reference);
+                if ($age === null || $age > 120) $errors[] = $label . ' must be before the wedding date.';
+            }
+        }
+        $marriageDate = trim((string) ($data['marriage_date'] ?? ''));
+        if ($marriageDate !== '' && validateCalendarDate($marriageDate) === false) $errors[] = 'Kanus-a must be a valid marriage date.';
+    } else {
+        $serviceDate = trim((string) ($data['service_date'] ?? ''));
+        if ($serviceDate !== '' && validateCalendarDate($serviceDate) === false) $errors[] = 'Date of Service must be a valid date.';
+        $clusterNumber = trim((string) ($data['cluster_number'] ?? ''));
+        if ($clusterNumber !== '' && validatePositiveInteger($clusterNumber, 9999) === false) $errors[] = 'Member of Cluster No. must be a positive whole number.';
+    }
+
     return array_values(array_unique($errors));
 }
 
@@ -381,6 +464,7 @@ function weddingMarriageApplicationPdf(array $data): string
 
 function weddingKatinPdf(array $data): string
 {
+    $data = weddingClusterNormalizeData($data);
     $pdf = new FPDF('P', 'mm', 'A4'); weddingPdfHeader($pdf, 'KATIN-AWAN SA KASAL');
     $v = static fn(string $key): string => trim((string) ($data[$key] ?? ''));
 
@@ -406,7 +490,7 @@ function weddingKatinPdf(array $data): string
     weddingChoice($pdf, 'SIMBAHAN', $v('parent_marriage') === 'Simbahan', 18, 114);
     weddingChoice($pdf, 'SIBIL', $v('parent_marriage') === 'Sibil', 75, 114);
     weddingChoice($pdf, 'WALA', $v('parent_marriage') === 'Wala', 125, 114);
-    weddingPdfField($pdf, 'DIIN:', $v('marriage_place'), 18, 123, 90, 20); weddingPdfField($pdf, 'KANUS-A:', $v('marriage_date'), 111, 123, 81, 27);
+    weddingPdfField($pdf, 'DIIN:', $v('marriage_place'), 18, 123, 90, 20); weddingPdfField($pdf, 'KANUS-A:', weddingMarriagePdfDate($v('marriage_date')), 111, 123, 81, 27);
     weddingPdfField($pdf, 'PINUY-ANAN:', $v('address'), 18, 132, 174, 30);
     weddingPdfField($pdf, 'SAKOP SA KAPILYA SA:', $v('chapel'), 18, 141, 174, 47);
     weddingPdfField($pdf, 'NGALAN SA CLUSTER:', $v('cluster_name'), 18, 150, 174, 38);
@@ -436,7 +520,7 @@ function weddingSponsorPdf(array $data): string
     $options = ['Bunyag', 'Confirmation', 'Kasal', 'Ninong/Ninang', 'Others']; $selected = 'Kasal';
     $x = 20; foreach ($options as $option) { weddingChoice($pdf, $option, $selected === $option, $x, 121); $x += $option === 'Ninong/Ninang' ? 43 : 31; }
     weddingPdfField($pdf, 'Others, please specify:', '', 18, 130, 174, 48);
-    weddingPdfField($pdf, 'DATE OF SERVICE/ADLAW SA SERBISYO:', $v('service_date'), 18, 141, 108, 76);
+    weddingPdfField($pdf, 'DATE OF SERVICE/ADLAW SA SERBISYO:', weddingMarriagePdfDate($v('service_date')), 18, 141, 108, 76);
     weddingChoice($pdf, 'Active', false, 130, 141); weddingChoice($pdf, 'Inactive', false, 163, 141);
     weddingPdfField($pdf, 'Member of Cluster No.:', $v('cluster_number'), 18, 151, 58, 43); weddingPdfField($pdf, 'Cluster Name:', $v('cluster_name'), 82, 151, 110, 30);
     $pdf->SetFont('Times', 'B', 10); $pdf->SetXY(18, 171); $pdf->Cell(174, 5, 'VERIFIED BY:', 0, 1);

@@ -21,6 +21,7 @@ $q = $pdo->prepare('SELECT * FROM generated_baptism_forms WHERE draft_id = ? AND
 $q->execute([$id, $type]);
 $form = $q->fetch() ?: null;
 $data = $form ? (json_decode($form['form_data'], true) ?: []) : [];
+$data = baptismNormalizeData($data);
 $error = null;
 
 if ($type === 'katin_awan_bunyag' && !$form) {
@@ -42,9 +43,8 @@ if ($type === 'katin_awan_bunyag' && !$form) {
         $kData = json_decode($katin, true) ?: [];
         $data['child_name'] = $kData['child_name'] ?? '';
         $data['father_name'] = $kData['father_name'] ?? '';
-        $data['mother_maiden_name'] = $kData['mother_name'] ?? '';
     }
-    $data['service_date'] = $draft['appointment_date'] ? date('F j, Y', strtotime($draft['appointment_date'])) : '';
+    $data['service_date'] = (string) ($draft['appointment_date'] ?? '');
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -53,11 +53,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach (baptismFormDefinition($type)['fields'] as $key => $label) {
         $data[$key] = trim((string) ($_POST[$key] ?? ''));
     }
-    if ($action === 'generate') {
-        foreach (baptismFormRequiredFields($type) as $key) {
-            if (($data[$key] ?? '') === '') { $error = 'Please complete all required fields before generating the form.'; break; }
-        }
-    }
+    $data = baptismNormalizeData($data);
+    $validationErrors = baptismFormValidationErrors($type, $data, $action === 'generate');
+    if ($validationErrors) $error = implode(' ', $validationErrors);
 
     if (!$error) {
         $stored = null;
@@ -98,7 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ->execute([$id, $type, $json, $newId]);
             }
             $pdo->commit();
-            redirect(url('baptism-draft.php?draft_id=' . $id));
+            redirect(url('baptism-draft-form.php?draft_id=' . $id . '&form_type=' . urlencode($type) . '&generated_document_id=' . $newId));
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) { $pdo->rollBack(); }
             if ($stored) { try { documentStorageDelete($stored['key']); } catch (Throwable $cleanupError) { error_log('Baptism generated-document cleanup failed.'); } }
@@ -109,6 +107,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $def = baptismFormDefinition($type);
+$previewDocumentId = 0;
+if ($form && !empty($form['document_id'])) {
+    $requestedPreviewId = (int) ($_GET['generated_document_id'] ?? 0);
+    $previewDocumentId = $requestedPreviewId === (int) $form['document_id'] ? $requestedPreviewId : 0;
+}
 $pageTitle = $def['title'];
 $usesPublicShell = !$user;
 include __DIR__ . '/includes/header.php';
@@ -117,14 +120,15 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
 <div class="card">
   <h2><?= e($def['title']) ?></h2>
   <?php if ($error): ?><div class="alert"><?= e($error) ?></div><?php endif; ?>
-  <form method="POST">
+  <?php if ($previewDocumentId): ?><div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">The form was generated. If the PDF did not open automatically, <a href="<?= url('document.php?id=' . $previewDocumentId) ?>" target="_blank" rel="noopener"><strong>View Generated Form</strong></a>.</div><?php endif; ?>
+  <form method="POST" id="baptismGeneratedForm">
     <?= csrfField() ?>
     <?php if ($type === 'katin_awan_bunyag'): ?>
       <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">
         <legend style="font-weight:700; padding:0 8px;">CHILD INFORMATION</legend>
         <div class="form-group"><label for="child_name">Ngalan sa Bunyagan *</label><input id="child_name" name="child_name" type="text" value="<?= e($data['child_name'] ?? '') ?>" maxlength="150" required></div>
         <div class="form-row">
-            <div class="form-group"><label for="birth_date">Petsa Natawo *</label><input id="birth_date" name="birth_date" type="text" value="<?= e($data['birth_date'] ?? '') ?>" maxlength="50" required></div>
+            <div class="form-group"><label for="birth_date">Petsa Natawo *</label><input id="birth_date" name="birth_date" type="date" value="<?= e($data['birth_date'] ?? '') ?>" required></div>
             <div class="form-group"><label for="birth_place">Diin Natawo *</label><input id="birth_place" name="birth_place" type="text" value="<?= e($data['birth_place'] ?? '') ?>" maxlength="150" required></div>
         </div>
       </fieldset>
@@ -151,7 +155,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
                 <?php endforeach; ?>
             </div>
         </div>
-        <div class="form-group"><label for="marriage_place">Diin *</label><input id="marriage_place" name="marriage_place" type="text" value="<?= e($data['marriage_place'] ?? '') ?>" maxlength="150" required></div>
+        <div class="form-group"><label for="marriage_place">Diin <span data-marriage-required>*</span></label><input id="marriage_place" name="marriage_place" type="text" value="<?= e($data['marriage_place'] ?? '') ?>" maxlength="150"></div>
       </fieldset>
 
       <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">
@@ -168,7 +172,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
         </div>
         <div class="form-row">
             <div class="form-group"><label for="barangay">Ngalan sa Barangay *</label><input id="barangay" name="barangay" type="text" value="<?= e($data['barangay'] ?? '') ?>" maxlength="150" required></div>
-            <div class="form-group"><label for="cellphone">Cellphone Number *</label><input id="cellphone" name="cellphone" type="text" value="<?= e($data['cellphone'] ?? '') ?>" maxlength="50" required></div>
+            <div class="form-group"><label for="cellphone">Cellphone Number *</label><input id="cellphone" name="cellphone" type="tel" value="<?= e($data['cellphone'] ?? '') ?>" maxlength="11" pattern="^09\d{9}$" inputmode="numeric" title="Must be a valid 11-digit mobile number starting with 09" required></div>
         </div>
       </fieldset>
     <?php elseif ($type === 'cluster_clearance_baptism_sponsor'): ?>
@@ -190,7 +194,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
       <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">
         <legend style="font-weight:700; padding:0 8px;">SERVICE INFORMATION</legend>
         <div class="form-row">
-            <div class="form-group"><label for="service_date">Date of Service / Adlaw sa Serbisyo *</label><input id="service_date" name="service_date" type="text" value="<?= e($data['service_date'] ?? '') ?>" maxlength="50" required></div>
+            <div class="form-group"><label for="service_date">Date of Service / Adlaw sa Serbisyo *</label><input id="service_date" name="service_date" type="date" value="<?= e($data['service_date'] ?? '') ?>" required></div>
             <div class="form-group"><label>Service Requested</label><input type="text" value="Bunyag" disabled style="background:#eee; cursor:not-allowed;"></div>
         </div>
       </fieldset>
@@ -198,7 +202,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
       <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">
         <legend style="font-weight:700; padding:0 8px;">CLUSTER INFORMATION</legend>
         <div class="form-row">
-            <div class="form-group"><label for="cluster_number">Member of Cluster No. *</label><input id="cluster_number" name="cluster_number" type="text" value="<?= e($data['cluster_number'] ?? '') ?>" maxlength="50" required></div>
+            <div class="form-group"><label for="cluster_number">Member of Cluster No. *</label><input id="cluster_number" name="cluster_number" type="number" min="1" max="9999" step="1" value="<?= e($data['cluster_number'] ?? '') ?>" required></div>
             <div class="form-group"><label for="cluster_name">Cluster Name *</label><input id="cluster_name" name="cluster_name" type="text" value="<?= e($data['cluster_name'] ?? '') ?>" maxlength="150" required></div>
         </div>
       </fieldset>
@@ -207,7 +211,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
       <div class="form-group">
         <label><?= e($label) ?></label>
         <?php if ($key === 'parent_marriage'): ?>
-          <?php foreach (['Simbahan', 'Sibil', 'Wala'] as $option): ?><label><input type="radio" name="<?= e($key) ?>" value="<?= e($option) ?>" <?= ($data[$key] ?? '') === $option ? 'checked' : '' ?>><?= e($option) ?></label><?php endforeach; ?>
+          <?php foreach (['Simbahan', 'Sibil', 'Wala'] as $option): ?><label><input type="radio" name="parent_marriage" value="<?= e($option) ?>" <?= ($data['parent_marriage'] ?? '') === $option ? 'checked' : '' ?>><?= e($option) ?></label><?php endforeach; ?>
         <?php elseif ($key === 'service_requested'): ?>
           <select name="<?= e($key) ?>"><option value="">Select</option><?php foreach (['Bunyag', 'Confirmation', 'Kasal', 'Ninong/Ninang', 'Others'] as $option): ?><option value="<?= e($option) ?>" <?= ($data[$key] ?? 'Bunyag') === $option ? 'selected' : '' ?>><?= e($option) ?></option><?php endforeach; ?></select>
         <?php elseif ($key === 'active_status'): ?>
@@ -222,4 +226,27 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
     <button class="btn btn-primary" name="action" value="generate"><?= in_array($type, ['katin_awan_bunyag', 'cluster_clearance_baptism_sponsor']) ? 'Generate Application Form' : 'Generate Form' ?></button>
   </form>
 </div>
+<script>
+(function () {
+  var form = document.getElementById('baptismGeneratedForm');
+  if (!form) return;
+  var choices = form.querySelectorAll('input[name="parent_marriage"]');
+  var place = document.getElementById('marriage_place');
+  function syncMarriagePlace() {
+    if (!choices.length || !place) return;
+    var selected = form.querySelector('input[name="parent_marriage"]:checked');
+    var required = !!selected && selected.value !== 'Wala';
+    place.required = required;
+    place.disabled = !!selected && selected.value === 'Wala';
+    form.querySelectorAll('[data-marriage-required]').forEach(function (marker) { marker.style.display = required ? '' : 'none'; });
+  }
+  choices.forEach(function (choice) { choice.addEventListener('change', syncMarriagePlace); });
+  syncMarriagePlace();
+  form.addEventListener('submit', function (event) {
+    if (!event.submitter || event.submitter.value !== 'generate' || !form.checkValidity()) return;
+    window.open('about:blank', 'parishhubBaptismPdf');
+  });
+  <?php if ($previewDocumentId): ?>window.open(<?= json_encode(url('document.php?id=' . $previewDocumentId)) ?>, 'parishhubBaptismPdf');<?php endif; ?>
+}());
+</script>
 <?php include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-end.php' : 'dash-end.php'); include __DIR__ . '/includes/footer.php';

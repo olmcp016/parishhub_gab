@@ -1,190 +1,217 @@
 <?php
 require_once __DIR__ . '/document-storage.php';
-require_once __DIR__ . '/fpdf/fpdf.php';
+require_once __DIR__ . '/validation.php';
+if (is_file(__DIR__ . '/../vendor/autoload.php')) require_once __DIR__ . '/../vendor/autoload.php';
 
-const FUNERAL_FORM_TYPES = [
-    'katin_awan_paglubong'
-];
+const FUNERAL_FORM_TYPES = ['katin_awan_paglubong'];
 
-function funeralFormDefinition(string $type): array {
-    return [
-        'title' => 'Katin-awan sa Paglubong',
-        'file_prefix' => 'Funeral_KatinAwan',
-    ];
+function funeralFormDefinition(string $type): array
+{
+    return ['title' => 'Katin-awan sa Paglubong', 'file_prefix' => 'Funeral_KatinAwan'];
 }
 
-function processFuneralGeneratedForm(int $appointmentId, string $type, array $data, ?int $existingDocumentId = null): void {
-    if (!in_array($type, FUNERAL_FORM_TYPES, true)) {
-        throw new Exception('Invalid funeral form type.');
-    }
+function processFuneralGeneratedForm(int $appointmentId, string $type, array $data, ?int $existingDocumentId = null): void
+{
+    if (!in_array($type, FUNERAL_FORM_TYPES, true)) throw new RuntimeException('Invalid funeral form type.');
+    $data = funeralKatinAwanNormalizeData($data);
+    $errors = funeralKatinAwanValidationErrors($data);
+    if ($errors) throw new InvalidArgumentException(implode(' ', $errors));
 
-    $def = funeralFormDefinition($type);
     $pdo = db();
-    
-    $stmt = $pdo->prepare("SELECT a.*, p.user_id FROM appointments a JOIN parishioners p ON p.parishioner_id = a.parishioner_id WHERE a.appointment_id = ?");
+    $stmt = $pdo->prepare('SELECT appointment_id FROM appointments WHERE appointment_id = ?');
     $stmt->execute([$appointmentId]);
-    $appointment = $stmt->fetch();
-    
-    if (!$appointment) {
-        throw new Exception('Appointment not found.');
-    }
+    if (!$stmt->fetchColumn()) throw new RuntimeException('Appointment not found.');
 
-    $fileName = $def['file_prefix'] . '_' . $appointmentId . '_' . time() . '.pdf';
-    
-    if ($type === 'katin_awan_paglubong') {
-        $pdfContent = funeralKatinAwanPdf($data);
-    } else {
-        throw new Exception('Unknown form type PDF generator.');
-    }
+    $definition = funeralFormDefinition($type);
+    $fileName = $definition['file_prefix'] . '_' . $appointmentId . '_' . time() . '.pdf';
+    $stored = null;
+    try {
+        $stored = documentStorageWriteBytes(funeralKatinAwanPdf($data));
+        $insert = $pdo->prepare("INSERT INTO uploaded_documents (appointment_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source, generated_form_type) VALUES (?, ?, ?, 'application/pdf', ?, 'pending', FALSE, 'generated', ?)");
+        $insert->execute([$appointmentId, $fileName, $stored['key'], $definition['title'] . '.pdf', $type]);
+        $documentId = (int) $pdo->lastInsertId();
+        if ($existingDocumentId) {
+            $pdo->prepare('UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ? AND appointment_id = ? AND superseded_by IS NULL')
+                ->execute([$documentId, $existingDocumentId, $appointmentId]);
+        }
 
-    if ($existingDocumentId) {
-        $stmt = $pdo->prepare("UPDATE uploaded_documents SET file_data = ?, file_name = ?, review_status = 'pending', verified = 0, uploaded_at = NOW() WHERE document_id = ?");
-        $stmt->execute([$pdfContent, $fileName, $existingDocumentId]);
-        $documentId = $existingDocumentId;
-    } else {
-        $stmt = $pdo->prepare("
-            INSERT INTO uploaded_documents 
-            (appointment_id, user_id, requirement_label, file_name, file_data, uploaded_at, review_status, verified)
-            VALUES (?, ?, ?, ?, ?, NOW(), 'pending', 0)
-        ");
-        $stmt->execute([
-            $appointmentId,
-            $appointment['user_id'] ?? null,
-            $def['title'],
-            $fileName,
-            $pdfContent
-        ]);
-        $documentId = $pdo->lastInsertId();
-    }
-
-    $stmt = $pdo->prepare("SELECT generated_form_id FROM generated_funeral_forms WHERE appointment_id = ? AND form_type = ?");
-    $stmt->execute([$appointmentId, $type]);
-    if ($stmt->fetchColumn()) {
-        $up = $pdo->prepare("UPDATE generated_funeral_forms SET form_data = ?, document_id = ?, status = 'generated', rejection_reason = NULL, updated_at = NOW() WHERE appointment_id = ? AND form_type = ?");
-        $up->execute([json_encode($data), $documentId, $appointmentId, $type]);
-    } else {
-        $ins = $pdo->prepare("INSERT INTO generated_funeral_forms (appointment_id, form_type, form_data, document_id, status) VALUES (?, ?, ?, ?, 'generated')");
-        $ins->execute([$appointmentId, $type, json_encode($data), $documentId]);
+        $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        $stmt = $pdo->prepare('SELECT generated_form_id FROM generated_funeral_forms WHERE appointment_id = ? AND form_type = ?');
+        $stmt->execute([$appointmentId, $type]);
+        if ($stmt->fetchColumn()) {
+            $pdo->prepare("UPDATE generated_funeral_forms SET form_data = ?, document_id = ?, status = 'generated', rejection_reason = NULL, updated_at = CURRENT_TIMESTAMP WHERE appointment_id = ? AND form_type = ?")
+                ->execute([$json, $documentId, $appointmentId, $type]);
+        } else {
+            $pdo->prepare("INSERT INTO generated_funeral_forms (appointment_id, form_type, form_data, document_id, status) VALUES (?, ?, ?, ?, 'generated')")
+                ->execute([$appointmentId, $type, $json, $documentId]);
+        }
+    } catch (Throwable $e) {
+        if ($stored && !empty($stored['key'])) {
+            try { documentStorageDelete($stored['key']); } catch (Throwable $ignored) { error_log('Funeral generated-document cleanup failed.'); }
+        }
+        throw $e;
     }
 }
 
-function funeralKatinAwanNormalizeData(array $data): array {
+function funeralKatinAwanNormalizeData(array $data): array
+{
+    $sacrament = trim((string) ($data['katapusan_nga_sakramento'] ?? ''));
+    $legacyMarriage = trim((string) ($data['kasal'] ?? ''));
     return [
-        'ngalan_sa_ilubong' => trim((string) ($data['ngalan_sa_ilubong'] ?? '')),
-        'edad' => trim((string) ($data['edad'] ?? '')),
-        'pinuy_anan' => trim((string) ($data['pinuy_anan'] ?? '')),
+        'ngalan_sa_ilubong' => trim((string) ($data['ngalan_sa_ilubong'] ?? $data['deceased_name'] ?? '')),
+        'edad' => trim((string) ($data['edad'] ?? $data['deceased_age'] ?? '')),
+        'pinuy_anan' => trim((string) ($data['pinuy_anan'] ?? $data['place_of_wake'] ?? '')),
         'relihiyon' => trim((string) ($data['relihiyon'] ?? '')),
         'sakop_sa_kapilya' => trim((string) ($data['sakop_sa_kapilya'] ?? '')),
         'ngalan_sa_cluster' => trim((string) ($data['ngalan_sa_cluster'] ?? '')),
-        
-        'katapusan_nga_sakramento' => trim((string) ($data['katapusan_nga_sakramento'] ?? '')), // Hilog, Kumpisal, Wala
-        
+        'sakramento_hilog' => !empty($data['sakramento_hilog']) || $sacrament === 'Hilog/Hulog',
+        'sakramento_kumpisal' => !empty($data['sakramento_kumpisal']) || $sacrament === 'Kumpisal',
+        'sakramento_wala' => !empty($data['sakramento_wala']) || $sacrament === 'Wala',
         'kanus_a_namatay' => trim((string) ($data['kanus_a_namatay'] ?? '')),
-        'unsay_namatyan' => trim((string) ($data['unsay_namatyan'] ?? '')),
-        
-        'kanus_a_ilubong' => trim((string) ($data['kanus_a_ilubong'] ?? '')),
-        'oras_sa_lubong' => trim((string) ($data['oras_sa_lubong'] ?? '')),
-        
-        'responde' => trim((string) ($data['responde'] ?? '')),
+        'unsay_namatyan' => trim((string) ($data['unsay_namatyan'] ?? $data['cause_of_death'] ?? '')),
+        'kanus_a_ilubong' => trim((string) ($data['kanus_a_ilubong'] ?? $data['burial_date'] ?? '')),
+        'oras_sa_lubong' => substr(trim((string) ($data['oras_sa_lubong'] ?? $data['burial_time'] ?? '')), 0, 5),
+        'responde' => trim((string) ($data['responde'] ?? $data['informant_name'] ?? '')),
         'ginikanan_anak' => trim((string) ($data['ginikanan_anak'] ?? '')),
-        'ginikanan_anak_cell' => trim((string) ($data['ginikanan_anak_cell'] ?? '')),
-        'asawa_bana' => trim((string) ($data['asawa_bana'] ?? '')),
+        'ginikanan_anak_cell' => trim((string) ($data['ginikanan_anak_cell'] ?? $data['informant_phone'] ?? '')),
+        'asawa_bana' => trim((string) ($data['asawa_bana'] ?? $data['spouse_name'] ?? '')),
         'asawa_bana_cell' => trim((string) ($data['asawa_bana_cell'] ?? '')),
-        
-        'kasal' => trim((string) ($data['kasal'] ?? '')), // Simbahan, Sibil, Wala
+        'kasal' => $legacyMarriage !== '' ? $legacyMarriage : (!empty($data['kasal_simbahan']) ? 'Simbahan' : (!empty($data['kasal_sibil']) ? 'Sibil' : (!empty($data['kasal_wala']) ? 'Wala' : ''))),
         'petsa_sa_kasal' => trim((string) ($data['petsa_sa_kasal'] ?? '')),
         'diin_kasal' => trim((string) ($data['diin_kasal'] ?? '')),
     ];
 }
 
-function funeralKatinAwanValidationErrors(array $data): array {
-    $errors = [];
+/** @return string[] */
+function funeralKatinAwanValidationErrors(array $data): array
+{
     $data = funeralKatinAwanNormalizeData($data);
+    $errors = [];
     $required = [
-        'ngalan_sa_ilubong' => 'Ngalan sa Ilubong',
-        'edad' => 'Edad',
-        'pinuy_anan' => 'Pinuy-anan',
-        'kanus_a_namatay' => 'Kanus-a Namatay',
-        'unsay_namatyan' => 'Unsay Namatyan',
-        'responde' => 'Responde'
+        'ngalan_sa_ilubong' => 'Ngalan sa Ilubong', 'edad' => 'Edad', 'pinuy_anan' => 'Pinuy-anan',
+        'kanus_a_namatay' => 'Kanus-a Namatay', 'unsay_namatyan' => 'Unsay Namatyan',
+        'kanus_a_ilubong' => 'Kanus-a Ilubong', 'oras_sa_lubong' => 'Oras', 'responde' => 'Responde', 'kasal' => 'Unsang Kasala ang Nadawat',
     ];
-    foreach ($required as $key => $label) {
-        if ($data[$key] === '') $errors[] = "Please provide $label.";
+    foreach ($required as $key => $label) if ($data[$key] === '') $errors[] = $label . ' is required.';
+
+    if ($data['ngalan_sa_ilubong'] !== '' && validateName($data['ngalan_sa_ilubong']) === false) $errors[] = 'Ngalan sa Ilubong contains invalid characters.';
+    if ($data['edad'] !== '' && validateAge($data['edad']) === false) $errors[] = 'Enter a valid whole-number age from 0 to 120.';
+    if ($data['pinuy_anan'] !== '' && validateAddress($data['pinuy_anan']) === false) $errors[] = 'Pinuy-anan contains invalid characters.';
+    foreach (['kanus_a_namatay' => 'Select a valid date of death.', 'kanus_a_ilubong' => 'Select a valid burial date.'] as $key => $message) {
+        if ($data[$key] !== '' && validateCalendarDate($data[$key]) === false) $errors[] = $message;
     }
-    return $errors;
+    if ($data['oras_sa_lubong'] !== '' && validateTimeValue($data['oras_sa_lubong']) === false) $errors[] = 'Select a valid burial time.';
+    if (validateCalendarDate($data['kanus_a_namatay']) !== false && validateCalendarDate($data['kanus_a_ilubong']) !== false && $data['kanus_a_ilubong'] < $data['kanus_a_namatay']) $errors[] = 'Burial date cannot be earlier than the date of death.';
+    foreach (['responde', 'ginikanan_anak', 'asawa_bana'] as $key) {
+        if ($data[$key] !== '' && validateName($data[$key]) === false) $errors[] = ucfirst(str_replace('_', ' ', $key)) . ' contains invalid characters.';
+    }
+    foreach (['ginikanan_anak_cell', 'asawa_bana_cell'] as $key) {
+        if ($data[$key] !== '' && validatePhilippineMobile($data[$key]) === false) $errors[] = 'Enter a valid 11-digit mobile number starting with 09.';
+    }
+
+    $sacramentCount = (int) $data['sakramento_hilog'] + (int) $data['sakramento_kumpisal'] + (int) $data['sakramento_wala'];
+    if ($sacramentCount === 0) $errors[] = 'Select the sacrament received, or select Wala.';
+    if ($data['sakramento_wala'] && $sacramentCount > 1) $errors[] = 'Wala cannot be selected with Hilog or Kumpisal.';
+    if ($data['kasal'] !== '' && validateEnum($data['kasal'], ['Simbahan', 'Sibil', 'Wala']) === false) $errors[] = 'Select one valid marriage status.';
+    if (in_array($data['kasal'], ['Simbahan', 'Sibil'], true)) {
+        if ($data['petsa_sa_kasal'] === '') $errors[] = 'Petsa sa Kasal is required when married.';
+        elseif (validateCalendarDate($data['petsa_sa_kasal']) === false) $errors[] = 'Select a valid marriage date.';
+        if ($data['diin_kasal'] === '') $errors[] = 'Diin is required when married.';
+    } elseif ($data['petsa_sa_kasal'] !== '' && validateCalendarDate($data['petsa_sa_kasal']) === false) {
+        $errors[] = 'Select a valid marriage date.';
+    }
+    if ($data['diin_kasal'] !== '' && validateAddress($data['diin_kasal']) === false) $errors[] = 'Diin contains invalid characters.';
+    return array_values(array_unique($errors));
 }
 
-function funeralKatinAwanPdf(array $data): string {
+function funeralPdfText(string $value): string
+{
+    $converted = iconv('UTF-8', 'Windows-1252//TRANSLIT', $value);
+    return $converted === false ? '?' : $converted;
+}
+
+function funeralPdfDate(string $date): string
+{
+    $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+    return $parsed && $parsed->format('Y-m-d') === $date ? $parsed->format('F j, Y') : $date;
+}
+
+function funeralPdfTime(string $time): string
+{
+    $parsed = DateTimeImmutable::createFromFormat('!H:i', $time);
+    return $parsed && $parsed->format('H:i') === $time ? $parsed->format('g:i A') : $time;
+}
+
+function funeralPdfField(FPDF $pdf, string $label, string $value, float $x, float $y, float $width, float $labelWidth, float $size = 9): void
+{
+    $pdf->SetFont('Times', 'B', $size); $pdf->SetXY($x, $y); $pdf->Cell($labelWidth, 6, funeralPdfText($label), 0, 0);
+    $value = funeralPdfText(trim($value));
+    for ($fontSize = $size; $fontSize >= 6.5; $fontSize -= 0.5) {
+        $pdf->SetFont('Times', '', $fontSize);
+        if ($pdf->GetStringWidth($value) <= $width - $labelWidth - 2) break;
+    }
+    while ($value !== '' && $pdf->GetStringWidth($value . '...') > $width - $labelWidth - 2) $value = substr($value, 0, -1);
+    $pdf->Cell($width - $labelWidth, 6, $value, 'B', 0);
+}
+
+function funeralPdfChoice(FPDF $pdf, string $label, bool $selected, float $x, float $y, float $width = 43): void
+{
+    $pdf->SetFont('Times', 'B', 9); $pdf->SetXY($x, $y); $pdf->Cell(24, 5, funeralPdfText($label . ':'), 0, 0);
+    $pdf->Cell($width - 24, 5, $selected ? 'X' : '', 'B', 0, 'C');
+}
+
+function funeralKatinAwanPdf(array $data): string
+{
+    if (!class_exists('FPDF')) throw new RuntimeException('FPDF is required to generate the Funeral form.');
     $data = funeralKatinAwanNormalizeData($data);
-    $pdf = new FPDF('P', 'mm', 'Letter');
-    $pdf->AddPage();
-    $pdf->SetMargins(15, 15, 15);
-    
-    // Header
-    $pdf->SetFont('Arial', 'B', 14);
-    $pdf->Cell(0, 8, 'KATIN-AWAN SA PAGLUBONG', 0, 1, 'C');
-    $pdf->SetFont('Arial', '', 10);
-    $pdf->Cell(0, 5, 'PAROKYA NI SAN GUILLERMO DE AQUITANIA', 0, 1, 'C');
-    $pdf->Cell(0, 5, 'Dalaguete, Cebu', 0, 1, 'C');
-    $pdf->Ln(10);
-    
-    $pdf->SetFont('Arial', '', 11);
-    
-    // Helper for rows
-    $row = function($label, $value) use ($pdf) {
-        $pdf->SetFont('Arial', 'B', 11);
-        $pdf->Cell(65, 8, strtoupper($label) . ':', 0, 0, 'L');
-        $pdf->SetFont('Arial', '', 11);
-        // Add an underline using bottom border
-        $pdf->Cell(0, 8, strtoupper($value), 'B', 1, 'L');
-        $pdf->Ln(2);
-    };
-    
-    $row('Ngalan sa Ilubong', $data['ngalan_sa_ilubong']);
-    $row('Edad', $data['edad']);
-    $row('Pinuy-anan', $data['pinuy_anan']);
-    $row('Relihiyon', $data['relihiyon']);
-    $row('Sakop sa Kapilya', $data['sakop_sa_kapilya']);
-    $row('Ngalan sa Cluster', $data['ngalan_sa_cluster']);
-    $row('Katapusan nga Sakramento', $data['katapusan_nga_sakramento']);
-    
-    $row('Kanus-a Namatay', $data['kanus_a_namatay']);
-    $row('Unsay Namatyan', $data['unsay_namatyan']);
-    
-    // Date and Time on same row
-    $pdf->SetFont('Arial', 'B', 11);
-    $pdf->Cell(45, 8, 'PETSA SA LUBONG:', 0, 0, 'L');
-    $pdf->SetFont('Arial', '', 11);
-    $pdf->Cell(50, 8, strtoupper($data['kanus_a_ilubong']), 'B', 0, 'L');
-    
-    $pdf->SetFont('Arial', 'B', 11);
-    $pdf->Cell(45, 8, 'ORAS SA LUBONG:', 0, 0, 'L');
-    $pdf->SetFont('Arial', '', 11);
-    $pdf->Cell(0, 8, strtoupper($data['oras_sa_lubong']), 'B', 1, 'L');
-    $pdf->Ln(2);
-    
-    $pdf->Ln(5);
-    $pdf->SetFont('Arial', 'B', 11);
-    $pdf->Cell(0, 8, 'RESPONDENTE / BANAY:', 0, 1, 'L');
-    
-    $row('Responde', $data['responde']);
-    $row('Ginikanan / Anak', $data['ginikanan_anak']);
-    $row('Cell #', $data['ginikanan_anak_cell']);
-    $row('Asawa / Bana', $data['asawa_bana']);
-    $row('Cell #', $data['asawa_bana_cell']);
-    
-    $pdf->Ln(5);
-    $row('Kasal', $data['kasal']);
-    $row('Petsa sa Kasal', $data['petsa_sa_kasal']);
-    $row('Diin', $data['diin_kasal']);
-    
-    // Note for signatures
-    $pdf->Ln(15);
-    $pdf->Cell(90, 8, '________________________________', 0, 0, 'C');
-    $pdf->Cell(0, 8, '________________________________', 0, 1, 'C');
-    $pdf->SetFont('Arial', '', 10);
-    $pdf->Cell(90, 5, 'Pirma sa Nagpa-lubong', 0, 0, 'C');
-    $pdf->Cell(0, 5, 'Pirma sa Kura Paroko', 0, 1, 'C');
-    
+    $v = static fn(string $key): string => trim((string) ($data[$key] ?? ''));
+    $pdf = new FPDF('P', 'mm', 'A4');
+    $pdf->SetMargins(15, 10, 15); $pdf->SetAutoPageBreak(false); $pdf->AddPage('P', 'A4');
+    $logo = dirname(__DIR__) . '/public/img/logo.png';
+    if (is_file($logo)) $pdf->Image($logo, 18, 10, 28, 28, 'PNG');
+    $pdf->SetTextColor(20, 92, 18); $pdf->SetFont('Times', 'B', 18); $pdf->SetXY(48, 14); $pdf->Cell(145, 8, 'Our Lady of Mt. Carmel Parish', 0, 1, 'C');
+    $pdf->SetFont('Times', 'B', 10); $pdf->SetX(48); $pdf->Cell(145, 5, '6342 BALILIHAN, BOHOL PHILIPPINES', 0, 1, 'C');
+    $pdf->SetFont('Times', '', 9); $pdf->SetX(48); $pdf->Cell(145, 5, 'Email address: mountcarmelbalilihan@gmail.com', 0, 1, 'C');
+    $pdf->SetDrawColor(20, 92, 18); $pdf->SetLineWidth(0.8); $pdf->Line(15, 42, 195, 42);
+    $pdf->SetTextColor(0, 0, 0); $pdf->SetDrawColor(0, 0, 0); $pdf->SetFont('Times', 'B', 15); $pdf->SetXY(15, 48); $pdf->Cell(180, 8, 'KATIN-AWAN SA PAGLUBONG', 0, 1, 'C');
+
+    funeralPdfField($pdf, 'NGALAN SA ILUBONG:', $v('ngalan_sa_ilubong'), 18, 64, 132, 47);
+    funeralPdfField($pdf, 'EDAD:', $v('edad'), 153, 64, 39, 16);
+    funeralPdfField($pdf, 'PINUY-ANAN:', $v('pinuy_anan'), 18, 74, 111, 31);
+    funeralPdfField($pdf, 'RELIHIYON:', $v('relihiyon'), 132, 74, 60, 27);
+    funeralPdfField($pdf, 'SAKOP SA KAPILYA SA:', $v('sakop_sa_kapilya'), 18, 84, 174, 49);
+    funeralPdfField($pdf, 'NGALAN SA CLUSTER:', $v('ngalan_sa_cluster'), 18, 94, 174, 43);
+    $pdf->SetFont('Times', 'B', 9); $pdf->SetXY(18, 104); $pdf->Cell(174, 5, 'UNSANG SAKRAMENTOHA ANG NADAWAT?', 0, 1);
+    funeralPdfChoice($pdf, 'HILOG', (bool) $data['sakramento_hilog'], 18, 111, 48);
+    funeralPdfChoice($pdf, 'KUMPISAL', (bool) $data['sakramento_kumpisal'], 70, 111, 55);
+    funeralPdfChoice($pdf, 'WALA', (bool) $data['sakramento_wala'], 130, 111, 62);
+    funeralPdfField($pdf, 'KANUS-A NAMATAY:', funeralPdfDate($v('kanus_a_namatay')), 18, 121, 78, 40);
+    funeralPdfField($pdf, 'UNSAY NAMATYAN:', $v('unsay_namatyan'), 99, 121, 93, 40);
+    funeralPdfField($pdf, 'KANUS-A ILUBONG:', funeralPdfDate($v('kanus_a_ilubong')), 18, 131, 130, 41);
+    funeralPdfField($pdf, 'ORAS:', funeralPdfTime($v('oras_sa_lubong')), 151, 131, 41, 15);
+    funeralPdfField($pdf, 'RESPONDE:', $v('responde'), 18, 141, 174, 27);
+    funeralPdfField($pdf, 'GINIKANAN/ANAK:', $v('ginikanan_anak'), 18, 151, 122, 40);
+    funeralPdfField($pdf, 'Cell.#', $v('ginikanan_anak_cell'), 143, 151, 49, 15);
+    funeralPdfField($pdf, 'ASAWA/BANA:', $v('asawa_bana'), 18, 161, 122, 32);
+    funeralPdfField($pdf, 'Cell.#', $v('asawa_bana_cell'), 143, 161, 49, 15);
+    $pdf->SetFont('Times', 'B', 9); $pdf->SetXY(18, 171); $pdf->Cell(174, 5, 'UNSANG KASALA ANG NADAWAT?', 0, 1);
+    funeralPdfChoice($pdf, 'SIMBAHAN', $v('kasal') === 'Simbahan', 18, 178, 55);
+    funeralPdfChoice($pdf, 'SIBIL', $v('kasal') === 'Sibil', 78, 178, 50);
+    funeralPdfChoice($pdf, 'WALA', $v('kasal') === 'Wala', 133, 178, 59);
+    funeralPdfField($pdf, 'PETSA SA KASAL:', funeralPdfDate($v('petsa_sa_kasal')), 18, 188, 82, 37);
+    funeralPdfField($pdf, 'DIIN:', $v('diin_kasal'), 103, 188, 89, 16);
+
+    $pdf->SetFont('Times', 'B', 7.8); $pdf->SetXY(18, 199);
+    $pdf->MultiCell(174, 4, funeralPdfText('PAHINUMDOM: Human mamatud-i kining tanan, kini paga-pirmahan sa Cluster Leader, Cluster Treasurer, Chapel Chairman, Chapel Treasurer ug Cemetery Commission Chairman ug dad-on sa mga hingtungdan ngadto sa simbahan ug ihatag sa Parish Clerk. Isukip usab dinhi ang photo copy sa death certificate.'));
+    $pdf->SetFont('Times', '', 8);
+    foreach ([[218, 'Cluster Leader', 'Cluster Treasurer', 'Chapel Treasurer'], [235, "FULGENCIO OÑES\nFederated Dajong Tres.", 'Dajong President', 'Chapel Chairman']] as [$y, $left, $middle, $right]) {
+        foreach ([[18, $left], [77, $middle], [136, $right]] as [$x, $label]) {
+            $pdf->SetXY($x, $y); $pdf->Cell(52, 5, '________________________', 0, 1, 'C');
+            $pdf->SetXY($x, $y + 5); $pdf->MultiCell(52, 4, funeralPdfText($label), 0, 'C');
+        }
+    }
+    $pdf->SetXY(18, 255); $pdf->Cell(52, 5, funeralPdfText('WILLIE PALAÑA'), 0, 1, 'C'); $pdf->SetXY(18, 260); $pdf->Cell(52, 4, 'Cemetery Porter', 0, 1, 'C');
+    $pdf->SetFont('Times', 'B', 9); $pdf->SetXY(105, 255); $pdf->Cell(78, 5, funeralPdfText('REV. FR. AL JOHN A. MIÑOZA'), 0, 1, 'C');
+    $pdf->SetFont('Times', '', 8); $pdf->SetXY(105, 260); $pdf->Cell(78, 4, 'Parish Priest', 0, 1, 'C');
     return $pdf->Output('S');
 }

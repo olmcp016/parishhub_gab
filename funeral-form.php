@@ -2,207 +2,173 @@
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/funeral-forms.php';
-require_once __DIR__ . '/includes/document-storage.php';
 
 $appointmentId = (int) ($_REQUEST['appointment_id'] ?? 0);
 $type = 'katin_awan_paglubong';
-
 $user = currentUser();
 $guest = $_SESSION['guest_status_verification'] ?? null;
 $isGuest = !$user && is_array($guest) && (int) ($guest['appointment_id'] ?? 0) === $appointmentId && (int) ($guest['expires_at'] ?? 0) >= time();
 if ($user && !in_array($user['role_name'] ?? '', ['Parishioner'], true)) { http_response_code(403); exit('Only the appointment owner may edit this form.'); }
 
-$stmt = db()->prepare("SELECT a.*, s.category FROM appointments a JOIN services s ON s.service_id = a.service_id WHERE a.appointment_id = ? AND s.category = 'Funeral'");
+$pdo = db();
+$stmt = $pdo->prepare("SELECT a.*, s.category FROM appointments a JOIN services s ON s.service_id = a.service_id WHERE a.appointment_id = ? AND s.category = 'Funeral'");
 $stmt->execute([$appointmentId]);
 $appointment = $stmt->fetch();
-if (!$appointment) { http_response_code(404); exit('Funeral Appointment not found.'); }
+if (!$appointment) { http_response_code(404); exit('Funeral appointment not found.'); }
 if ($user) {
-    $q = db()->prepare('SELECT 1 FROM parishioners WHERE parishioner_id = ? AND user_id = ?');
+    $q = $pdo->prepare('SELECT 1 FROM parishioners WHERE parishioner_id = ? AND user_id = ?');
     $q->execute([$appointment['parishioner_id'], $user['user_id']]);
     if (!$q->fetchColumn()) { http_response_code(403); exit('Not authorized.'); }
 } elseif (!$isGuest) { http_response_code(403); exit('Verify the guest appointment before accessing this form.'); }
 
-$formQuery = db()->prepare('SELECT * FROM generated_funeral_forms WHERE appointment_id = ? AND form_type = ?');
+$formQuery = $pdo->prepare('SELECT * FROM generated_funeral_forms WHERE appointment_id = ? AND form_type = ?');
 $formQuery->execute([$appointmentId, $type]);
 $form = $formQuery->fetch() ?: null;
-$data = $form ? (json_decode($form['form_data'], true) ?: []) : [];
+$data = $form ? funeralKatinAwanNormalizeData(json_decode($form['form_data'], true) ?: []) : funeralKatinAwanNormalizeData([
+    'kanus_a_ilubong' => (string) ($appointment['appointment_date'] ?? ''),
+    'oras_sa_lubong' => substr((string) ($appointment['appointment_time'] ?? ''), 0, 5),
+    'responde' => trim((string) ($appointment['guest_name'] ?? '')),
+]);
+$error = null;
 
-if ($form) {
-    $data = funeralKatinAwanNormalizeData($data);
-} else {
-    $profile = [];
-    if ($user) {
-        $profileQuery = db()->prepare('SELECT firstname, lastname, middlename, phone, address FROM users WHERE user_id = ?');
-        $profileQuery->execute([$user['user_id']]);
-        $profile = $profileQuery->fetch() ?: [];
-    }
-    
-    $informantName = trim((string) ($appointment['guest_name'] ?? ''));
-    $informantAddress = trim((string) ($appointment['location_address'] ?? ''));
-    $informantPhone = trim((string) (($appointment['contact_phone'] ?? '') ?: ($appointment['guest_phone'] ?? '')));
-    
-    if ($user) {
-        $informantName = trim(implode(' ', array_filter([$profile['firstname'] ?? '', $profile['middlename'] ?? '', $profile['lastname'] ?? ''])));
-        $informantAddress = trim((string) ($profile['address'] ?? ''));
-        $informantPhone = trim((string) ($profile['phone'] ?? ''));
-    }
-    
-    $data = [
-        'deceased_name' => '',
-        'deceased_age' => '',
-        'cause_of_death' => '',
-        'place_of_wake' => '',
-        'burial_date' => (string) ($appointment['appointment_date'] ?? ''),
-        'burial_time' => substr((string) ($appointment['appointment_time'] ?? ''), 0, 5),
-        'cemetery' => '',
-        'spouse_name' => '',
-        'father_name' => '',
-        'mother_name' => '',
-        'informant_name' => $informantName,
-        'informant_relationship' => '',
-        'informant_address' => $informantAddress,
-        'informant_phone' => $informantPhone,
-    ];
-}
-
-$def = funeralFormDefinition($type);
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['csrf_token']) && hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) {
-    $postData = funeralKatinAwanNormalizeData($_POST);
-    
-    try {
-        processFuneralGeneratedForm($appointmentId, $type, $postData, $form ? $form['document_id'] : null);
-        flash('success', $def['title'] . ' has been generated and submitted for review.');
-        $redirectUrl = $isGuest ? url('status.php?ref=' . urlencode($appointment['guest_reference'])) : url('parishioner/appointment-detail.php?id=' . $appointmentId);
-        redirect($redirectUrl);
-    } catch (Exception $e) {
-        $error = $e->getMessage();
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verifyCsrf();
+    $data = funeralKatinAwanNormalizeData($_POST);
+    $errors = funeralKatinAwanValidationErrors($data);
+    if ($errors) {
+        $error = implode(' ', $errors);
+    } else {
+        try {
+            processFuneralGeneratedForm($appointmentId, $type, $data, $form ? (int) $form['document_id'] : null);
+            $formQuery->execute([$appointmentId, $type]);
+            $updatedForm = $formQuery->fetch();
+            $newDocumentId = (int) ($updatedForm['document_id'] ?? 0);
+            flash('success', 'Katin-awan sa Paglubong has been generated and submitted for review.');
+            redirect(url('funeral-form.php?appointment_id=' . $appointmentId . '&generated_document_id=' . $newDocumentId));
+        } catch (Throwable $e) {
+            error_log('Funeral form generation failed: ' . $e->getMessage());
+            $error = 'The Funeral form could not be generated. Please try again.';
+        }
     }
 }
+
+$previewDocumentId = 0;
+if ($form && !empty($form['document_id'])) {
+    $requestedPreviewId = (int) ($_GET['generated_document_id'] ?? 0);
+    $previewDocumentId = $requestedPreviewId === (int) $form['document_id'] ? $requestedPreviewId : 0;
+}
+$definition = funeralFormDefinition($type);
 ?>
 <?php ob_start(); ?>
 <style>
-.form-section { background: #fff; padding: 24px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 24px; border: 1px solid var(--cream-dark); }
-.form-section h3 { margin-top: 0; color: var(--brown); margin-bottom: 20px; font-size: 1.1rem; border-bottom: 2px solid var(--cream); padding-bottom: 10px; }
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
-@media (max-width: 600px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
-.back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--brown-mid); text-decoration: none; margin-bottom: 20px; font-weight: 500; }
-.back-link:hover { color: var(--brown); }
+.form-section { background:#fff; padding:24px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.05); margin-bottom:24px; border:1px solid var(--cream-dark); }
+.form-section h3 { margin-top:0; color:var(--brown); margin-bottom:20px; font-size:1.1rem; border-bottom:2px solid var(--cream); padding-bottom:10px; }
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.choice-row { display:flex; flex-wrap:wrap; gap:18px; margin-top:8px; }
+@media (max-width:600px) { .grid-2 { grid-template-columns:1fr; } }
 </style>
-<div style="max-width:800px; margin:0 auto; padding: 20px;">
-    <?php if ($isGuest): ?>
-        <a href="<?= url('status.php?ref=' . urlencode($appointment['guest_reference'])) ?>" class="back-link">← Back to Appointment</a>
-    <?php else: ?>
-        <a href="<?= url('parishioner/appointment-detail.php?id=' . $appointmentId) ?>" class="back-link">← Back to Appointment</a>
-    <?php endif; ?>
-    
-    <div style="text-align:center; margin-bottom: 30px;">
-        <h1 style="margin:0 0 10px; color:var(--brown);"><?= e($def['title']) ?></h1>
-        <p class="text-muted" style="margin:0;">Fill out the details below to generate the official form.</p>
+<div style="max-width:850px; margin:0 auto; padding:20px;">
+  <a href="<?= $isGuest ? url('status.php?ref=' . urlencode($appointment['guest_reference'])) : url('parishioner/appointment-detail.php?id=' . $appointmentId) ?>" class="back-link">← Back to Appointment</a>
+  <div style="text-align:center; margin-bottom:30px;"><h1 style="margin:0 0 10px; color:var(--brown);"><?= e($definition['title']) ?></h1><p class="text-muted" style="margin:0;">Complete the fields printed on the official parish form. Signature and verification lines remain blank.</p></div>
+  <?php include __DIR__ . '/includes/flash.php'; ?>
+  <?php if ($error): ?><div class="alert" style="background:var(--danger-bg); color:var(--danger); border:1px solid #f5c2c2;"><?= e($error) ?></div><?php endif; ?>
+  <?php if ($previewDocumentId): ?><div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">The form was generated. If the PDF did not open automatically, <a href="<?= url('document.php?id=' . $previewDocumentId) ?>" target="_blank" rel="noopener"><strong>View Generated Form</strong></a>.</div><?php endif; ?>
+  <?php if ($form && $form['status'] === 'rejected' && $form['rejection_reason']): ?><div class="alert" style="background:var(--danger-bg); color:var(--danger);"><strong>Secretary requested revisions:</strong> <?= e($form['rejection_reason']) ?></div><?php endif; ?>
+
+  <form method="POST" id="funeralGeneratedForm">
+    <?= csrfField() ?>
+    <div class="form-section">
+      <h3>Deceased Information</h3>
+      <div class="grid-2">
+        <div class="form-group"><label for="ngalan_sa_ilubong">Ngalan sa Ilubong *</label><input id="ngalan_sa_ilubong" name="ngalan_sa_ilubong" type="text" maxlength="150" value="<?= e($data['ngalan_sa_ilubong']) ?>" required></div>
+        <div class="form-group"><label for="edad">Edad *</label><input id="edad" name="edad" type="number" min="0" max="120" step="1" value="<?= e($data['edad']) ?>" required></div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group"><label for="pinuy_anan">Pinuy-anan *</label><input id="pinuy_anan" name="pinuy_anan" type="text" maxlength="255" value="<?= e($data['pinuy_anan']) ?>" required></div>
+        <div class="form-group"><label for="relihiyon">Relihiyon</label><input id="relihiyon" name="relihiyon" type="text" maxlength="80" value="<?= e($data['relihiyon']) ?>"></div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group"><label for="sakop_sa_kapilya">Sakop sa Kapilya sa</label><input id="sakop_sa_kapilya" name="sakop_sa_kapilya" type="text" maxlength="150" value="<?= e($data['sakop_sa_kapilya']) ?>"></div>
+        <div class="form-group"><label for="ngalan_sa_cluster">Ngalan sa Cluster</label><input id="ngalan_sa_cluster" name="ngalan_sa_cluster" type="text" maxlength="150" value="<?= e($data['ngalan_sa_cluster']) ?>"></div>
+      </div>
     </div>
 
-    <?php if (!empty($error)): ?><div class="alert" style="background:var(--danger-bg); color:var(--danger);"><?= e($error) ?></div><?php endif; ?>
-    <?php if ($form && $form['status'] === 'rejected' && $form['rejection_reason']): ?>
-        <div class="alert" style="background:var(--danger-bg); color:var(--danger); border:1px solid #f5c2c2;">
-            <strong>Secretary requested revisions:</strong> <?= e($form['rejection_reason']) ?>
-        </div>
-    <?php endif; ?>
-    <?php if ($form && $form['status'] === 'generated'): ?>
-        <div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">
-            This form has already been generated and submitted. You can edit and regenerate it below if you need to make corrections.
-        </div>
-    <?php endif; ?>
+    <div class="form-section">
+      <h3>Religious / Last Rites</h3>
+      <div class="form-group"><label>Unsang Sakramentoha ang Nadawat? *</label><div class="choice-row">
+        <label><input type="checkbox" name="sakramento_hilog" value="1" <?= $data['sakramento_hilog'] ? 'checked' : '' ?>> Hilog</label>
+        <label><input type="checkbox" name="sakramento_kumpisal" value="1" <?= $data['sakramento_kumpisal'] ? 'checked' : '' ?>> Kumpisal</label>
+        <label><input type="checkbox" name="sakramento_wala" value="1" <?= $data['sakramento_wala'] ? 'checked' : '' ?>> Wala</label>
+      </div></div>
+    </div>
 
-    <form method="POST">
-        <?= csrfField() ?>
-        
-        <div class="form-section">
-            <h3>Details of the Deceased</h3>
-            <div class="form-group">
-                <label>Ngalan sa Namatay (Name of Deceased) <span style="color:var(--danger)">*</span></label>
-                <input type="text" name="deceased_name" value="<?= e($data['deceased_name']) ?>" required>
-            </div>
-            <div class="grid-2">
-                <div class="form-group">
-                    <label>Edad (Age) <span style="color:var(--danger)">*</span></label>
-                    <input type="text" name="deceased_age" value="<?= e($data['deceased_age']) ?>" required>
-                </div>
-                <div class="form-group">
-                    <label>Sakit / Hinungdan sa Kamatayon (Cause of Death) <span style="color:var(--danger)">*</span></label>
-                    <input type="text" name="cause_of_death" value="<?= e($data['cause_of_death']) ?>" required>
-                </div>
-            </div>
-            <div class="form-group">
-                <label>Lugar sa Minatay (Place of Wake) <span style="color:var(--danger)">*</span></label>
-                <input type="text" name="place_of_wake" value="<?= e($data['place_of_wake']) ?>" required>
-            </div>
-            <div class="grid-3">
-                <div class="form-group">
-                    <label>Petsa sa Paglubong (Burial Date) <span style="color:var(--danger)">*</span></label>
-                    <input type="date" name="burial_date" value="<?= e($data['burial_date']) ?>" required>
-                </div>
-                <div class="form-group">
-                    <label>Oras (Time) <span style="color:var(--danger)">*</span></label>
-                    <input type="time" name="burial_time" value="<?= e($data['burial_time']) ?>" required>
-                </div>
-                <div class="form-group">
-                    <label>Sementeryo (Cemetery) <span style="color:var(--danger)">*</span></label>
-                    <input type="text" name="cemetery" value="<?= e($data['cemetery']) ?>" required>
-                </div>
-            </div>
-        </div>
+    <div class="form-section">
+      <h3>Death and Burial</h3>
+      <div class="grid-2">
+        <div class="form-group"><label for="kanus_a_namatay">Kanus-a Namatay *</label><input id="kanus_a_namatay" name="kanus_a_namatay" type="date" value="<?= e($data['kanus_a_namatay']) ?>" required></div>
+        <div class="form-group"><label for="unsay_namatyan">Unsay Namatyan *</label><input id="unsay_namatyan" name="unsay_namatyan" type="text" maxlength="255" value="<?= e($data['unsay_namatyan']) ?>" required></div>
+        <div class="form-group"><label for="kanus_a_ilubong">Kanus-a Ilubong *</label><input id="kanus_a_ilubong" name="kanus_a_ilubong" type="date" value="<?= e($data['kanus_a_ilubong']) ?>" required></div>
+        <div class="form-group"><label for="oras_sa_lubong">Oras *</label><input id="oras_sa_lubong" name="oras_sa_lubong" type="time" value="<?= e($data['oras_sa_lubong']) ?>" required></div>
+      </div>
+    </div>
 
-        <div class="form-section">
-            <h3>Family Information</h3>
-            <div class="form-group">
-                <label>Ngalan sa Bana o Asawa (Name of Spouse, if applicable)</label>
-                <input type="text" name="spouse_name" value="<?= e($data['spouse_name']) ?>">
-            </div>
-            <div class="grid-2">
-                <div class="form-group">
-                    <label>Ngalan sa Amahan (Father's Name)</label>
-                    <input type="text" name="father_name" value="<?= e($data['father_name']) ?>">
-                </div>
-                <div class="form-group">
-                    <label>Ngalan sa Inahan (Mother's Name)</label>
-                    <input type="text" name="mother_name" value="<?= e($data['mother_name']) ?>">
-                </div>
-            </div>
-        </div>
+    <div class="form-section">
+      <h3>Respondent / Family</h3>
+      <div class="form-group"><label for="responde">Responde *</label><input id="responde" name="responde" type="text" maxlength="150" value="<?= e($data['responde']) ?>" required></div>
+      <div class="grid-2">
+        <div class="form-group"><label for="ginikanan_anak">Ginikanan / Anak</label><input id="ginikanan_anak" name="ginikanan_anak" type="text" maxlength="150" value="<?= e($data['ginikanan_anak']) ?>"></div>
+        <div class="form-group"><label for="ginikanan_anak_cell">Cell #</label><input id="ginikanan_anak_cell" name="ginikanan_anak_cell" type="tel" inputmode="numeric" maxlength="11" pattern="^09\d{9}$" title="Enter a valid 11-digit mobile number starting with 09" value="<?= e($data['ginikanan_anak_cell']) ?>"></div>
+        <div class="form-group"><label for="asawa_bana">Asawa / Bana</label><input id="asawa_bana" name="asawa_bana" type="text" maxlength="150" value="<?= e($data['asawa_bana']) ?>"></div>
+        <div class="form-group"><label for="asawa_bana_cell">Cell #</label><input id="asawa_bana_cell" name="asawa_bana_cell" type="tel" inputmode="numeric" maxlength="11" pattern="^09\d{9}$" title="Enter a valid 11-digit mobile number starting with 09" value="<?= e($data['asawa_bana_cell']) ?>"></div>
+      </div>
+    </div>
 
-        <div class="form-section">
-            <h3>Informant Details</h3>
-            <div class="grid-2">
-                <div class="form-group">
-                    <label>Pangalan sa Nagpa-lubong (Informant Name) <span style="color:var(--danger)">*</span></label>
-                    <input type="text" name="informant_name" value="<?= e($data['informant_name']) ?>" required>
-                </div>
-                <div class="form-group">
-                    <label>Relasyon (Relationship) <span style="color:var(--danger)">*</span></label>
-                    <input type="text" name="informant_relationship" value="<?= e($data['informant_relationship']) ?>" required>
-                </div>
-            </div>
-            <div class="grid-2">
-                <div class="form-group">
-                    <label>Address <span style="color:var(--danger)">*</span></label>
-                    <input type="text" name="informant_address" value="<?= e($data['informant_address']) ?>" required>
-                </div>
-                <div class="form-group">
-                    <label>Telepono (Phone) <span style="color:var(--danger)">*</span></label>
-                    <input type="text" name="informant_phone" value="<?= e($data['informant_phone']) ?>" required>
-                </div>
-            </div>
-        </div>
+    <div class="form-section">
+      <h3>Marriage</h3>
+      <div class="form-group"><label>Unsang Kasala ang Nadawat? *</label><div class="choice-row">
+        <?php foreach (['Simbahan', 'Sibil', 'Wala'] as $option): ?><label><input type="radio" name="kasal" value="<?= e($option) ?>" <?= $data['kasal'] === $option ? 'checked' : '' ?> required> <?= e($option) ?></label><?php endforeach; ?>
+      </div></div>
+      <div class="grid-2">
+        <div class="form-group"><label for="petsa_sa_kasal">Petsa sa Kasal <span data-marriage-required>*</span></label><input id="petsa_sa_kasal" name="petsa_sa_kasal" type="date" value="<?= e($data['petsa_sa_kasal']) ?>"></div>
+        <div class="form-group"><label for="diin_kasal">Diin <span data-marriage-required>*</span></label><input id="diin_kasal" name="diin_kasal" type="text" maxlength="150" value="<?= e($data['diin_kasal']) ?>"></div>
+      </div>
+    </div>
 
-        <div style="margin-top:30px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
-            <button type="submit" class="btn btn-primary" style="padding:12px 30px; font-size:1.1rem;">Generate Application Form</button>
-            <?php if ($form && $form['document_id']): ?>
-                <a href="<?= documentViewUrl((int) $form['document_id']) ?>" target="_blank" rel="noopener" class="btn btn-outline" style="padding:12px 20px;">Preview Current Form</a>
-            <?php endif; ?>
-        </div>
-    </form>
+    <div style="display:flex; gap:12px; flex-wrap:wrap;"><button type="submit" class="btn btn-primary">Generate Application Form</button><?php if ($form && $form['document_id']): ?><a href="<?= documentViewUrl((int) $form['document_id']) ?>" target="_blank" rel="noopener" class="btn btn-outline">Preview Current Form</a><?php endif; ?></div>
+  </form>
 </div>
+<script>
+(function () {
+  var form = document.getElementById('funeralGeneratedForm');
+  if (!form) return;
+  var hilog = form.elements.sakramento_hilog;
+  var kumpisal = form.elements.sakramento_kumpisal;
+  var wala = form.elements.sakramento_wala;
+  function syncSacraments(event) {
+    if (event && event.target === wala && wala.checked) { hilog.checked = false; kumpisal.checked = false; }
+    if (event && (event.target === hilog || event.target === kumpisal) && event.target.checked) wala.checked = false;
+  }
+  [hilog, kumpisal, wala].forEach(function (choice) { choice.addEventListener('change', syncSacraments); });
+  var marriageChoices = form.querySelectorAll('input[name="kasal"]');
+  var marriageDate = document.getElementById('petsa_sa_kasal');
+  var marriagePlace = document.getElementById('diin_kasal');
+  function syncMarriage() {
+    var selected = form.querySelector('input[name="kasal"]:checked');
+    var required = !!selected && selected.value !== 'Wala';
+    marriageDate.required = required; marriagePlace.required = required;
+    marriageDate.disabled = !!selected && selected.value === 'Wala'; marriagePlace.disabled = !!selected && selected.value === 'Wala';
+    form.querySelectorAll('[data-marriage-required]').forEach(function (marker) { marker.style.display = required ? '' : 'none'; });
+  }
+  marriageChoices.forEach(function (choice) { choice.addEventListener('change', syncMarriage); });
+  syncMarriage();
+  form.addEventListener('submit', function (event) {
+    if (!form.checkValidity()) return;
+    if (!hilog.checked && !kumpisal.checked && !wala.checked) { event.preventDefault(); alert('Select the sacrament received, or select Wala.'); return; }
+    window.open('about:blank', 'parishhubFuneralPdf');
+  });
+  <?php if ($previewDocumentId): ?>window.open(<?= json_encode(url('document.php?id=' . $previewDocumentId)) ?>, 'parishhubFuneralPdf');<?php endif; ?>
+}());
+</script>
 <?php
 $content = ob_get_clean();
 require __DIR__ . '/includes/layout.php';

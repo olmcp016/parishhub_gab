@@ -1310,7 +1310,37 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 function openKatinAwanModal() {
+  var form = document.getElementById('katinAwanForm');
+  if (!form.dataset.choiceHandlersBound) {
+    ['sakramento_hilog', 'sakramento_kumpisal', 'sakramento_wala'].forEach(function (name) {
+      form.elements[name].addEventListener('change', function (event) {
+        if (event.target.name === 'sakramento_wala' && event.target.checked) {
+          form.elements.sakramento_hilog.checked = false;
+          form.elements.sakramento_kumpisal.checked = false;
+        } else if (event.target.checked) {
+          form.elements.sakramento_wala.checked = false;
+        }
+      });
+    });
+    form.querySelectorAll('input[name="kasal"]').forEach(function (choice) { choice.addEventListener('change', syncKatinMarriageFields); });
+    form.dataset.choiceHandlersBound = 'true';
+  }
+  var burialDate = form.elements.kanus_a_ilubong;
+  var burialTime = form.elements.oras_sa_lubong;
+  var schedule = currentScheduleSelection();
+  if (burialDate && !burialDate.value) burialDate.value = schedule.date || '';
+  if (burialTime && !burialTime.value) burialTime.value = schedule.time || '';
+  syncKatinMarriageFields();
   document.getElementById('katinAwanModal').showModal();
+}
+function syncKatinMarriageFields() {
+  var form = document.getElementById('katinAwanForm');
+  var selected = form.querySelector('input[name="kasal"]:checked');
+  var married = !!selected && selected.value !== 'Wala';
+  form.elements.petsa_sa_kasal.required = married;
+  form.elements.diin_kasal.required = married;
+  form.elements.petsa_sa_kasal.disabled = !!selected && selected.value === 'Wala';
+  form.elements.diin_kasal.disabled = !!selected && selected.value === 'Wala';
 }
 function closeKatinAwanModal() {
   document.getElementById('katinAwanModal').close();
@@ -1320,7 +1350,17 @@ function submitKatinAwanModal() {
   errorBox.style.display = 'none';
   
   var form = document.getElementById('katinAwanForm');
+  if (!form.reportValidity()) {
+    return;
+  }
+  
   var fd = new FormData(form);
+  
+  // Convert sacrament checkboxes to boolean strings to save properly.
+  ['sakramento_hilog', 'sakramento_kumpisal', 'sakramento_wala'].forEach(function(key) {
+    if (!fd.has(key)) fd.append(key, '0');
+  });
+  
   var payload = Object.fromEntries(fd.entries());
   
   var required = [
@@ -1329,7 +1369,10 @@ function submitKatinAwanModal() {
     {key: 'pinuy_anan', label: 'Pinuy-anan'},
     {key: 'kanus_a_namatay', label: 'Kanus-a Namatay'},
     {key: 'unsay_namatyan', label: 'Unsay Namatyan'},
-    {key: 'responde', label: 'Responde'}
+    {key: 'kanus_a_ilubong', label: 'Kanus-a Ilubong'},
+    {key: 'oras_sa_lubong', label: 'Oras'},
+    {key: 'responde', label: 'Responde'},
+    {key: 'kasal', label: 'Unsang Kasala ang Nadawat'}
   ];
   for (var i = 0; i < required.length; i++) {
     if (!payload[required[i].key] || payload[required[i].key].trim() === '') {
@@ -1337,6 +1380,12 @@ function submitKatinAwanModal() {
       errorBox.style.display = 'block';
       return;
     }
+  }
+  var sacramentCount = ['sakramento_hilog', 'sakramento_kumpisal', 'sakramento_wala'].filter(function (key) { return payload[key] === '1'; }).length;
+  if (!sacramentCount || (payload.sakramento_wala === '1' && sacramentCount > 1)) {
+    errorBox.textContent = !sacramentCount ? 'Select the sacrament received, or select Wala.' : 'Wala cannot be selected with Hilog or Kumpisal.';
+    errorBox.style.display = 'block';
+    return;
   }
   
   document.getElementById('katinAwanPayload').value = JSON.stringify(payload);
@@ -1372,52 +1421,51 @@ function submitKatinAwanModal() {
         <div class="ka-section">
           <h4>Deceased Information</h4>
           <div class="ka-grid">
-            <div class="form-group"><label>Ngalan sa Ilubong *</label><input type="text" name="ngalan_sa_ilubong" required></div>
-            <div class="form-group"><label>Edad *</label><input type="text" name="edad" required></div>
-            <div class="form-group"><label>Pinuy-anan *</label><input type="text" name="pinuy_anan" required></div>
-            <div class="form-group"><label>Relihiyon</label><input type="text" name="relihiyon"></div>
-            <div class="form-group"><label>Sakop sa Kapilya</label><input type="text" name="sakop_sa_kapilya"></div>
-            <div class="form-group"><label>Ngalan sa Cluster</label><input type="text" name="ngalan_sa_cluster"></div>
+            <div class="form-group"><label>Ngalan sa Ilubong *</label><input type="text" name="ngalan_sa_ilubong" maxlength="150" required></div>
+            <div class="form-group"><label>Edad *</label><input type="number" name="edad" min="0" max="120" step="1" required></div>
+            <div class="form-group"><label>Pinuy-anan *</label><input type="text" name="pinuy_anan" maxlength="255" required></div>
+            <div class="form-group"><label>Relihiyon</label><input type="text" name="relihiyon" maxlength="80"></div>
+            <div class="form-group"><label>Sakop sa Kapilya</label><input type="text" name="sakop_sa_kapilya" maxlength="150"></div>
+            <div class="form-group"><label>Ngalan sa Cluster</label><input type="text" name="ngalan_sa_cluster" maxlength="150"></div>
           </div>
         </div>
         
         <div class="ka-section">
           <h4>Religious / Last Rites</h4>
           <div class="form-group">
-            <label>Katapusan nga Sakramento</label>
-            <select name="katapusan_nga_sakramento">
-              <option value="">-- Select --</option>
-              <option value="Hilog/Hulog">Hilog/Hulog</option>
-              <option value="Kumpisal">Kumpisal</option>
-              <option value="Wala">Wala</option>
-            </select>
+            <label>Unsang Sakramentoha ang Nadawat? *</label>
+            <div style="display:flex; gap:15px; margin-top:5px;">
+              <label style="font-weight:normal;"><input type="checkbox" name="sakramento_hilog" value="1"> Hilog</label>
+              <label style="font-weight:normal;"><input type="checkbox" name="sakramento_kumpisal" value="1"> Kumpisal</label>
+              <label style="font-weight:normal;"><input type="checkbox" name="sakramento_wala" value="1"> Wala</label>
+            </div>
           </div>
         </div>
 
         <div class="ka-section">
           <h4>Death</h4>
           <div class="ka-grid">
-            <div class="form-group"><label>Kanus-a Namatay *</label><input type="text" name="kanus_a_namatay" required></div>
-            <div class="form-group"><label>Unsay Namatyan *</label><input type="text" name="unsay_namatyan" required></div>
+            <div class="form-group"><label>Kanus-a Namatay *</label><input type="date" name="kanus_a_namatay" required></div>
+            <div class="form-group"><label>Unsay Namatyan *</label><input type="text" name="unsay_namatyan" maxlength="255" required></div>
           </div>
         </div>
 
         <div class="ka-section">
           <h4>Burial</h4>
           <div class="ka-grid">
-            <div class="form-group"><label>Kanus-a Ilubong</label><input type="text" name="kanus_a_ilubong"></div>
-            <div class="form-group"><label>Oras</label><input type="text" name="oras_sa_lubong"></div>
+            <div class="form-group"><label>Kanus-a Ilubong *</label><input type="date" name="kanus_a_ilubong" required></div>
+            <div class="form-group"><label>Oras *</label><input type="time" name="oras_sa_lubong" required></div>
           </div>
         </div>
         
         <div class="ka-section">
           <h4>Respondent / Family</h4>
           <div class="ka-grid">
-            <div class="form-group"><label>Responde *</label><input type="text" name="responde" required></div>
-            <div class="form-group"><label>Ginikanan / Anak</label><input type="text" name="ginikanan_anak"></div>
-            <div class="form-group"><label>Cell #</label><input type="text" name="ginikanan_anak_cell"></div>
-            <div class="form-group"><label>Asawa / Bana</label><input type="text" name="asawa_bana"></div>
-            <div class="form-group"><label>Cell #</label><input type="text" name="asawa_bana_cell"></div>
+            <div class="form-group"><label>Responde *</label><input type="text" name="responde" maxlength="150" required></div>
+            <div class="form-group"><label>Ginikanan / Anak</label><input type="text" name="ginikanan_anak" maxlength="150"></div>
+            <div class="form-group"><label>Cell #</label><input type="tel" name="ginikanan_anak_cell" inputmode="numeric" maxlength="11" pattern="^09\d{9}$" title="Enter a valid 11-digit mobile number starting with 09"></div>
+            <div class="form-group"><label>Asawa / Bana</label><input type="text" name="asawa_bana" maxlength="150"></div>
+            <div class="form-group"><label>Cell #</label><input type="tel" name="asawa_bana_cell" inputmode="numeric" maxlength="11" pattern="^09\d{9}$" title="Enter a valid 11-digit mobile number starting with 09"></div>
           </div>
         </div>
 
@@ -1425,16 +1473,15 @@ function submitKatinAwanModal() {
           <h4>Marriage</h4>
           <div class="ka-grid">
             <div class="form-group">
-              <label>Simbahan / Sibil / Wala</label>
-              <select name="kasal">
-                <option value="">-- Select --</option>
-                <option value="Simbahan">Simbahan</option>
-                <option value="Sibil">Sibil</option>
-                <option value="Wala">Wala</option>
-              </select>
+              <label>Unsang Kasala ang Nadawat? *</label>
+              <div style="display:flex; gap:15px; margin-top:5px;">
+                <label style="font-weight:normal;"><input type="radio" name="kasal" value="Simbahan" required> Simbahan</label>
+                <label style="font-weight:normal;"><input type="radio" name="kasal" value="Sibil" required> Sibil</label>
+                <label style="font-weight:normal;"><input type="radio" name="kasal" value="Wala" required> Wala</label>
+              </div>
             </div>
-            <div class="form-group"><label>Petsa sa Kasal</label><input type="text" name="petsa_sa_kasal"></div>
-            <div class="form-group" style="grid-column: 1 / -1;"><label>Diin</label><input type="text" name="diin_kasal"></div>
+            <div class="form-group"><label>Petsa sa Kasal</label><input type="date" name="petsa_sa_kasal"></div>
+            <div class="form-group" style="grid-column: 1 / -1;"><label>Diin</label><input type="text" name="diin_kasal" maxlength="150"></div>
           </div>
         </div>
         

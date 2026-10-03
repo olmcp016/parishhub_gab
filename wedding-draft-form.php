@@ -60,12 +60,16 @@ if ($type === 'matrimony_application') {
         }
     }
 } elseif ($type === 'cluster_clearance') {
+    $data = weddingClusterNormalizeData($data);
     if (!$form) {
         $data = [
             'kaslonon_name' => $bookingContact['name'],
             'kaslonon_birth_date' => $bookingContact['birthdate'],
             'address' => $bookingContact['address'],
+            'wedding_date' => (string) ($draft['appointment_date'] ?? ''),
         ];
+    } elseif (empty($data['wedding_date'])) {
+        $data['wedding_date'] = (string) ($draft['appointment_date'] ?? '');
     }
 } elseif ($type === 'wedding_sponsor_clearance') {
     if (!$form) {
@@ -90,14 +94,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach (weddingFormDefinition($type)['fields'] as $key => $label) {
         $data[$key] = trim((string) ($_POST[$key] ?? ''));
     }
-    if ($type === 'matrimony_application') {
-        $validationErrors = weddingMarriageValidationErrors($data, $action === 'generate');
-        if ($validationErrors) $error = implode(' ', $validationErrors);
-    } elseif ($action === 'generate') {
-        foreach (weddingFormRequiredFields($type) as $key) {
-            if (($data[$key] ?? '') === '') $error = 'Please complete all required fields before generating the form.';
-        }
-    }
+    if ($type === 'cluster_clearance') $data['wedding_date'] = (string) ($draft['appointment_date'] ?? '');
+    $validationErrors = weddingFormValidationErrors($type, $data, $action === 'generate');
+    if ($validationErrors) $error = implode(' ', $validationErrors);
     if (!$error) {
         $stored = null;
         $pdo->beginTransaction();
@@ -127,7 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->prepare('INSERT INTO generated_wedding_forms (appointment_id, draft_id, form_type, form_data, document_id, status) VALUES (NULL, ?, ?, ?, ?, ?)')->execute([$draftId, $type, $json, $documentId, $status]);
             }
             $pdo->commit();
-            if (in_array($type, ['matrimony_application', 'cluster_clearance']) && $action === 'generate') {
+            if ($action === 'generate') {
                 redirect(url('wedding-draft-form.php?draft_id=' . $draftId . '&form_type=' . urlencode($type) . '&generated_document_id=' . $documentId));
             }
             redirect(url('wedding-draft.php?draft_id=' . $draftId));
@@ -143,7 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $definition = weddingFormDefinition($type);
 $previewDocumentId = 0;
-if (in_array($type, ['matrimony_application', 'cluster_clearance']) && $form && !empty($form['document_id'])) {
+if ($form && !empty($form['document_id'])) {
     $requestedPreviewId = (int) ($_GET['generated_document_id'] ?? 0);
     $previewDocumentId = $requestedPreviewId === (int) $form['document_id'] ? $requestedPreviewId : 0;
 }
@@ -199,11 +198,11 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
                         'mother' => ['Mother', 'text', 150],
                         'mother_maiden_name' => ["Mother's Maiden Name", 'text', 150],
                         'address' => ['Address', 'text', 255],
-                        'cell' => ['Cell Number', 'tel', 30],
+                        'cell' => ['Cell Number', 'tel', 11],
                     ] as $suffix => [$label, $inputType, $maxLength]): $key = $prefix . '_' . $suffix; ?>
                         <div class="form-group">
                             <label for="<?= e($key) ?>"><?= e($label) ?> *</label>
-                            <input id="<?= e($key) ?>" name="<?= e($key) ?>" type="<?= e($inputType) ?>" value="<?= e($data[$key] ?? '') ?>"<?= $maxLength ? ' maxlength="' . (int) $maxLength . '"' : '' ?> required>
+                            <input id="<?= e($key) ?>" name="<?= e($key) ?>" type="<?= e($inputType) ?>" value="<?= e($data[$key] ?? '') ?>"<?= $maxLength ? ' maxlength="' . (int) $maxLength . '"' : '' ?><?= $inputType === 'tel' ? ' pattern="^09\d{9}$" title="Must be a valid 11-digit mobile number starting with 09" inputmode="numeric"' : '' ?> required>
                         </div>
                     <?php endforeach; ?>
                 </fieldset>
@@ -259,8 +258,8 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
                     </div>
                 </div>
                 <div class="form-row">
-                    <div class="form-group"><label for="marriage_place">Diin (Place) *</label><input id="marriage_place" name="marriage_place" type="text" value="<?= e($data['marriage_place'] ?? '') ?>" maxlength="150" required></div>
-                    <div class="form-group"><label for="marriage_date">Kanus-a (Date) *</label><input id="marriage_date" name="marriage_date" type="text" value="<?= e($data['marriage_date'] ?? '') ?>" maxlength="150" required></div>
+                    <div class="form-group"><label for="marriage_place">Diin (Place) <span data-marriage-required>*</span></label><input id="marriage_place" name="marriage_place" type="text" value="<?= e($data['marriage_place'] ?? '') ?>" maxlength="150"></div>
+                    <div class="form-group"><label for="marriage_date">Kanus-a (Date) <span data-marriage-required>*</span></label><input id="marriage_date" name="marriage_date" type="date" value="<?= e($data['marriage_date'] ?? '') ?>"></div>
                 </div>
             </fieldset>
 
@@ -300,7 +299,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
             <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">
                 <legend style="font-weight:700; padding:0 8px;">CLUSTER INFORMATION</legend>
                 <div class="form-row">
-                    <div class="form-group"><label for="cluster_number">Member of Cluster No. *</label><input id="cluster_number" name="cluster_number" type="text" value="<?= e($data['cluster_number'] ?? '') ?>" maxlength="50" required></div>
+                    <div class="form-group"><label for="cluster_number">Member of Cluster No. *</label><input id="cluster_number" name="cluster_number" type="number" min="1" max="9999" step="1" value="<?= e($data['cluster_number'] ?? '') ?>" required></div>
                     <div class="form-group"><label for="cluster_name">Cluster Name *</label><input id="cluster_name" name="cluster_name" type="text" value="<?= e($data['cluster_name'] ?? '') ?>" maxlength="150" required></div>
                 </div>
             </fieldset>
@@ -310,7 +309,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
                 <label><?= e($label) ?></label>
                 <?php if ($key === 'parent_marriage'): ?>
                     <div class="form-row" role="group" aria-label="Unsang Kasala ang Nadawat sa Ginikanan?">
-                        <?php foreach (['Simbahan', 'Sibil', 'Wala'] as $option): ?><label><input type="radio" name="<?= e($key) ?>" value="<?= e($option) ?>" <?= ($data[$key] ?? '') === $option ? 'checked' : '' ?> required> <?= e($option) ?></label><?php endforeach; ?>
+                        <?php foreach (['Simbahan', 'Sibil', 'Wala'] as $option): ?><label><input type="radio" name="parent_marriage" value="<?= e($option) ?>" <?= ($data['parent_marriage'] ?? '') === $option ? 'checked' : '' ?>> <?= e($option) ?></label><?php endforeach; ?>
                     </div>
                 <?php elseif ($key === 'active_status'): ?>
                     <select name="<?= e($key) ?>" required><option value="">Select</option><?php foreach (['Active', 'Inactive'] as $option): ?><option value="<?= e($option) ?>" <?= ($data[$key] ?? '') === $option ? 'selected' : '' ?>><?= e($option) ?></option><?php endforeach; ?></select>
@@ -326,7 +325,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
         <button class="btn btn-primary" name="action" value="generate"><?= in_array($type, ['matrimony_application', 'cluster_clearance', 'wedding_sponsor_clearance']) ? 'Generate Application Form' : 'Generate Form' ?></button>
     </form>
 </div>
-<?php if (in_array($type, ['matrimony_application', 'cluster_clearance'])): ?>
+<?php if (in_array($type, WEDDING_FORM_TYPES, true)): ?>
 <script>
 (function () {
   var form = document.getElementById('weddingGeneratedForm');
@@ -344,6 +343,21 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
       });
     });
   });
+  var marriageChoices = form.querySelectorAll('input[name="parent_marriage"]');
+  var marriagePlace = document.getElementById('marriage_place');
+  var marriageDate = document.getElementById('marriage_date');
+  function syncMarriageFields() {
+    if (!marriageChoices.length || !marriagePlace || !marriageDate) return;
+    var selected = form.querySelector('input[name="parent_marriage"]:checked');
+    var required = !!selected && selected.value !== 'Wala';
+    marriagePlace.required = required;
+    marriageDate.required = required;
+    marriagePlace.disabled = !!selected && selected.value === 'Wala';
+    marriageDate.disabled = !!selected && selected.value === 'Wala';
+    form.querySelectorAll('[data-marriage-required]').forEach(function (marker) { marker.style.display = required ? '' : 'none'; });
+  }
+  marriageChoices.forEach(function (choice) { choice.addEventListener('change', syncMarriageFields); });
+  syncMarriageFields();
   form.addEventListener('submit', function (event) {
     var submitter = event.submitter;
     if (!submitter || submitter.value !== 'generate' || !form.checkValidity()) return;
