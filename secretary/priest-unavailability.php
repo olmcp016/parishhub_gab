@@ -69,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $conflictStmt->execute([$priestId, $d, $startTime, $startTime, $endTime]);
             $conflict = $conflictStmt->fetch();
             if ($conflict) {
-                flash('error', 'Cannot mark this priest unavailable on ' . formatDate($d) . ' — already booked for "' . $conflict['service_name'] . '" (#' . $conflict['appointment_id'] . ') at ' . date('g:i A', strtotime($conflict['appointment_time'])) . '. Reschedule or reassign that appointment first.');
+                flash('error', 'Cannot mark this priest unavailable on ' . formatDate($d) . ' — already booked for "' . $conflict['service_name'] . '" (#' . $conflict['appointment_id'] . ')' . ($conflict['appointment_time'] ? ' at ' . date('g:i A', strtotime($conflict['appointment_time'])) : ' (To be scheduled)') . '. Reschedule or reassign that appointment first.');
                 redirect(url('secretary/priest-unavailability.php'));
             }
         }
@@ -125,7 +125,7 @@ foreach ($priests as $p) {
     $scheduleByPriest[$p['priest_id']] = [
         'name' => trim($p['title'] . ' ' . $p['full_name']),
         'appointments' => array_map(fn($a) => [
-            'label' => formatDate($a['appointment_date']) . ' at ' . date('g:i A', strtotime($a['appointment_time'])) . ' — ' . $a['service_name'],
+            'label' => formatDate($a['appointment_date']) . ($a['appointment_time'] ? ' at ' . date('g:i A', strtotime($a['appointment_time'])) : ' (To be scheduled)') . ' — ' . $a['service_name'],
         ], $appts),
         'unavailability' => array_map(fn($u) => [
             'label' => 'Unavailable ' . formatDate($u['unavailable_date'])

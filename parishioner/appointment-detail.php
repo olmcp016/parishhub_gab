@@ -290,7 +290,7 @@ if (!$isAjax) {
         <?php endif; ?>
       </div>
     </div>
-    <p><strong>Date:</strong> <?= formatDate($appointment['appointment_date']) ?> at <?= date('g:i A', strtotime($appointment['appointment_time'])) ?></p>
+    <p><strong>Date:</strong> <?= formatDate($appointment['appointment_date']) ?><?= $appointment['appointment_time'] ? ' at ' . date('g:i A', strtotime($appointment['appointment_time'])) : ' (To be scheduled)' ?></p>
     <p><strong>Priest:</strong> <?= e($appointment['priest_name'] ?? 'Not yet assigned') ?></p>
     <?php if ($appointment['category'] === 'Wedding'): ?>
       <hr style="border-color:var(--cream-dark); margin:18px 0;"><h4>Wedding Forms</h4>

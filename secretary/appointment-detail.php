@@ -773,7 +773,7 @@ if (!$isAjax) {
             <?php else: ?>
               <ul style="margin: 4px 0 0 18px; padding: 0;">
                 <?php foreach ($priestSchedules[$p['priest_id']] as $sched): ?>
-                  <li><?= formatDate($sched['appointment_date']) ?> at <?= date('g:i A', strtotime($sched['appointment_time'])) ?> — <?= e($sched['service_name']) ?></li>
+                  <li><?= formatDate($sched['appointment_date']) ?><?= $sched['appointment_time'] ? ' at ' . date('g:i A', strtotime($sched['appointment_time'])) : ' (To be scheduled)' ?> — <?= e($sched['service_name']) ?></li>
                 <?php endforeach; ?>
               </ul>
             <?php endif; ?>
