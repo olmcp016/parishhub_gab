@@ -185,13 +185,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ? weddingDraftRequiredDocuments(['category' => 'Wedding'])
             : (!empty($svc['requirements_snapshot']) ? (json_decode($svc['requirements_snapshot'], true) ?: []) : parseRequirementsList($svc['requirements']));
 
-        if (!in_array($svc['category'], ['Mass Intention', 'Donation'], true) && !empty($requirementsList)) {
-            $stmt = db()->prepare('SELECT requirement_label, verified FROM uploaded_documents WHERE appointment_id = ?');
+        if (!in_array($svc['category'], ['Mass Intention', 'Donation'], true)) {
+            $stmt = db()->prepare('SELECT document_source, requirement_label, verified FROM uploaded_documents WHERE appointment_id = ? AND superseded_by IS NULL');
             $stmt->execute([$id]);
             $docs = $stmt->fetchAll();
             $hasAnyLabel = array_reduce($docs, fn($carry, $d) => $carry || $d['requirement_label'], false);
 
-            if ($hasAnyLabel) {
+            if ($hasAnyLabel || !empty($requirementsList)) {
                 // New-style upload with per-requirement labels — every named item must be verified.
                 $latestByLabel = [];
                 foreach ($docs as $doc) {
@@ -201,6 +201,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $verifiedLabels = array_keys(array_filter($latestByLabel, fn($d) => $d['verified']));
                 $missing = array_diff($requirementsList, $verifiedLabels);
+                
+                // Add checks for generated forms
+                $generatedForms = [];
+                if ($svc['category'] === 'Wedding') {
+                    $stmt = db()->prepare("SELECT g.form_type, d.verified FROM generated_wedding_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.appointment_id = ?");
+                    $stmt->execute([$id]);
+                    $generatedForms = $stmt->fetchAll();
+                } elseif ($svc['category'] === 'Baptism') {
+                    $stmt = db()->prepare("SELECT g.form_type, d.verified FROM generated_baptism_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.appointment_id = ?");
+                    $stmt->execute([$id]);
+                    $generatedForms = $stmt->fetchAll();
+                } elseif ($svc['category'] === 'Funeral') {
+                    $stmt = db()->prepare("SELECT g.form_type, d.verified FROM generated_funeral_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.appointment_id = ?");
+                    $stmt->execute([$id]);
+                    $generatedForms = $stmt->fetchAll();
+                }
+                
+                $formTitles = [
+                    'marriage_application' => 'Marriage Requirement and Application Form',
+                    'katin_awan_kasal' => 'Katin-awan sa Kasal',
+                    'cluster_clearance_wedding_sponsor' => 'Cluster Clearance for Wedding Sponsor',
+                    'katin_awan_bunyag' => 'Katin-awan sa Bunyag',
+                    'cluster_clearance_baptism_sponsor' => 'Cluster Clearance for Baptism Sponsor',
+                    'katin_awan_paglubong' => 'Katin-awan sa Paglubong'
+                ];
+                
+                foreach ($generatedForms as $gf) {
+                    if (empty($gf['verified'])) {
+                        $missing[] = $formTitles[$gf['form_type']] ?? $gf['form_type'];
+                    }
+                }
+
                 if (!empty($missing)) {
                     respondAjaxOrRedirect($isAjax, false, 'The following required document(s) still need to be uploaded and verified before approving: ' . implode(', ', $missing) . '.', $redirectUrl);
                 }
@@ -413,6 +445,10 @@ if (($appointment['category'] ?? '') === 'Wedding') {
     $stmt = db()->prepare("SELECT g.*, d.document_id, d.file_name, d.review_status, d.rejection_reason FROM generated_baptism_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.appointment_id = ? ORDER BY g.form_type");
     $stmt->execute([$id]);
     $generatedForms = $stmt->fetchAll();
+} elseif (($appointment['category'] ?? '') === 'Funeral') {
+    $stmt = db()->prepare("SELECT g.*, d.document_id, d.file_name, d.review_status, d.rejection_reason FROM generated_funeral_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.appointment_id = ? ORDER BY g.form_type");
+    $stmt->execute([$id]);
+    $generatedForms = $stmt->fetchAll();
 }
 
 // Each priest's upcoming schedule and declared unavailability, so the
@@ -526,131 +562,159 @@ if (!$isAjax) {
     <?php endif; ?>
 
     <?php if (!in_array($appointment['category'], ['Mass Intention', 'Donation'], true)): ?>
-    <?php if ($appointment['category'] === 'Wedding'): ?>
       <hr style="border-color: var(--cream-dark); margin: 18px 0;">
-      <h4>Wedding Generated Forms</h4>
-      <?php foreach ($generatedForms as $gf): $formStatus = $gf['review_status'] ?? 'pending'; ?>
-        <div class="card" style="background:var(--cream); margin:10px 0;">
-          <strong><?= e(weddingFormDefinition($gf['form_type'])['title']) ?></strong>
-          <span class="badge badge-<?= $formStatus === 'approved' ? 'verified' : ($formStatus === 'rejected' ? 'rejected' : 'pending') ?>"><?= $formStatus === 'approved' ? 'Approved' : ($formStatus === 'rejected' ? 'Needs Revision' : 'Pending Review') ?></span>
-          <?php if ($gf['document_id']): ?><a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>">View PDF</a><?php endif; ?>
-          <?php if ($gf['rejection_reason']): ?><p class="text-muted">Reason: <?= e($gf['rejection_reason']) ?></p><?php endif; ?>
-          <?php if ($gf['document_id'] && $formStatus === 'pending' && (int) $appointment['status_id'] === 1): ?>
-            <form method="POST" action="<?= e($redirectUrl) ?>" style="display:inline;"> <?= csrfField() ?><input type="hidden" name="action" value="verify_document"><input type="hidden" name="document_id" value="<?= (int) $gf['document_id'] ?>"><button class="btn btn-outline btn-sm">Approve</button></form>
-            <form method="POST" action="<?= e($redirectUrl) ?>" style="margin-top:10px;">
-              <?= csrfField() ?>
-              <input type="hidden" name="action" value="reject_document">
-              <input type="hidden" name="document_id" value="<?= (int) $gf['document_id'] ?>">
-              <label for="generatedFormRejectionReason<?= (int) $gf['document_id'] ?>">Reason for revision</label>
-              <textarea id="generatedFormRejectionReason<?= (int) $gf['document_id'] ?>" name="document_rejection_reason" rows="2" maxlength="1000" required placeholder="Explain what the applicant needs to correct."></textarea>
-              <button class="btn btn-danger btn-sm" type="submit" style="margin-top:6px;">Reject with Reason</button>
-            </form>
-          <?php endif; ?>
-        </div>
-      <?php endforeach; ?>
-      <?php if (!$generatedForms): ?><p class="text-muted">No generated Wedding forms have been submitted.</p><?php endif; ?>
-    <?php elseif ($appointment['category'] === 'Baptism'): ?>
-      <hr style="border-color: var(--cream-dark); margin: 18px 0;">
-      <h4>Baptism Generated Forms</h4>
-      <?php $baptismTitles = ['katin_awan_bunyag' => 'KATIN-AWAN SA BUNYAG', 'cluster_clearance_baptism_sponsor' => 'CLUSTER CLEARANCE FOR BAPTISM SPONSOR']; ?>
-      <?php foreach ($generatedForms as $gf): $formStatus = $gf['review_status'] ?? 'pending'; ?>
-        <div class="card" style="background:var(--cream); margin:10px 0;">
-          <strong><?= e($baptismTitles[$gf['form_type']] ?? $gf['form_type']) ?></strong>
-          <span class="badge badge-<?= $formStatus === 'approved' ? 'verified' : ($formStatus === 'rejected' ? 'rejected' : 'pending') ?>"><?= $formStatus === 'approved' ? 'Approved' : ($formStatus === 'rejected' ? 'Needs Revision' : 'Pending Review') ?></span>
-          <?php if ($gf['document_id']): ?><a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>">View PDF</a><a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . (int) $gf['document_id'] . '&download=1') ?>">Download PDF</a><?php endif; ?>
-          <?php if ($gf['rejection_reason']): ?><p class="text-muted">Reason: <?= e($gf['rejection_reason']) ?></p><?php endif; ?>
-          <?php if ($gf['document_id'] && $formStatus === 'pending' && (int) $appointment['status_id'] === 1): ?>
-            <form method="POST" action="<?= e($redirectUrl) ?>" style="display:inline;"><?= csrfField() ?><input type="hidden" name="action" value="verify_document"><input type="hidden" name="document_id" value="<?= (int) $gf['document_id'] ?>"><button class="btn btn-outline btn-sm">Approve</button></form>
-            <form method="POST" action="<?= e($redirectUrl) ?>" style="margin-top:10px;"><?= csrfField() ?><input type="hidden" name="action" value="reject_document"><input type="hidden" name="document_id" value="<?= (int) $gf['document_id'] ?>"><label for="generatedFormRejectionReason<?= (int) $gf['document_id'] ?>">Reason for revision</label><textarea id="generatedFormRejectionReason<?= (int) $gf['document_id'] ?>" name="document_rejection_reason" rows="2" maxlength="1000" required></textarea><button class="btn btn-danger btn-sm" type="submit">Reject with Reason</button></form>
-          <?php endif; ?>
-        </div>
-      <?php endforeach; ?>
-      <?php if (!$generatedForms): ?><p class="text-muted">No generated Baptism forms have been submitted.</p><?php endif; ?>
-    <?php endif; ?>
-    <hr style="border-color: var(--cream-dark); margin: 18px 0;">
-    <h4>Uploaded Documents</h4>
-    <?php
-      $requirementsList = $appointment['category'] === 'Wedding'
-          ? weddingDraftRequiredDocuments(['category' => 'Wedding'])
-          : (!empty($appointment['requirements_snapshot']) ? (json_decode($appointment['requirements_snapshot'], true) ?: []) : parseRequirementsList($appointment['requirements']));
-      if (!empty($requirementsList)):
-        $verifiedLabels = array_column(array_filter($documents, fn($d) => ($d['review_status'] ?? ($d['verified'] ? 'approved' : 'pending')) === 'approved'), 'requirement_label');
-        $uploadedLabels = array_column($documents, 'requirement_label');
-    ?>
-      <div class="flex gap-2" style="flex-wrap:wrap; margin-bottom:12px;">
-        <?php foreach ($requirementsList as $label): ?>
-          <?php if (in_array($label, $verifiedLabels, true)): ?>
-            <span class="badge badge-verified"><?= e($label) ?>: Verified</span>
-          <?php elseif (in_array($label, $uploadedLabels, true)): ?>
-            <span class="badge badge-pending"><?= e($label) ?>: Pending</span>
-          <?php else: ?>
-            <span class="badge badge-rejected"><?= e($label) ?>: Missing</span>
-          <?php endif; ?>
-        <?php endforeach; ?>
-      </div>
-    <?php endif; ?>
-    <?php if (empty($documents)): ?><p class="text-muted">No documents uploaded yet.</p>
-    <?php else: ?>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>File</th><th>Status</th><th></th></tr></thead>
-          <tbody>
-            <?php foreach ($documents as $d): ?>
-              <tr>
-                <td>
-                  <a href="<?= url('document.php?id=' . (int) $d['document_id']) ?>" target="_blank" rel="noopener" style="display:flex; align-items:center; gap:10px;">
-                    <?php if (isImageFile($d['file_name'])): ?>
-                      <img src="<?= url('document.php?id=' . (int) $d['document_id']) ?>" alt="<?= e($d['file_name']) ?>" style="width:44px; height:44px; object-fit:cover; border-radius:6px; border:1px solid var(--cream-dark);">
-                    <?php else: ?>
-                      <span style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; background:var(--cream); border-radius:6px; font-size:18px;">📄</span>
-                    <?php endif; ?>
+      <h4>Requirements Review</h4>
 
-                    <span><?= e($d['file_name']) ?></span>
-                  </a>
-                </td>
-                <?php $docStatus = $d['review_status'] ?? ($d['verified'] ? 'approved' : 'pending'); ?>
-                <td><?= $docStatus === 'approved' ? '<span class="badge badge-verified">Approved</span>' : ($docStatus === 'rejected' ? '<span class="badge badge-rejected">Needs Replacement</span>' : '<span class="badge badge-pending">Pending Review</span>') ?></td>
-                <td>
-                  <?php if ($docStatus === 'pending' && $d['superseded_by'] === null && (int) $appointment['status_id'] === 1): ?>
-                    <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>" style="display:inline;">
-                      <?= csrfField() ?>
-                      <input type="hidden" name="action" value="verify_document">
-                      <input type="hidden" name="document_id" value="<?= $d['document_id'] ?>">
-                      <button type="submit" class="btn btn-outline btn-sm">Mark Verified</button>
-                    </form>
-                  <?php endif; ?>
-                </td>
-              </tr>
-            <?php endforeach; ?>
-          </tbody>
-        </table>
-      </div>
-    <?php endif; ?>
-    <?php endif; ?>
-      <?php if ($appointment['category'] === 'Funeral'): ?>
-        <?php
-          $gfQuery = db()->prepare("SELECT f.*, d.review_status, d.verified, d.rejection_reason AS document_rejection_reason FROM generated_funeral_forms f LEFT JOIN uploaded_documents d ON d.document_id = f.document_id WHERE f.appointment_id = ? AND f.form_type = 'katin_awan_paglubong'");
-          $gfQuery->execute([$appointment['appointment_id']]);
-          $gf = $gfQuery->fetch() ?: null;
-          $gfStatus = $gf ? $gf['status'] : 'draft';
-        ?>
-        <h4 style="margin-top:16px;">Funeral Form</h4>
-        <p><strong>Katin-awan sa Paglubong</strong><br>
-        Status: <?php
-          if ($gfStatus === 'draft') echo '<span class="badge badge-rejected">Missing</span>';
-          elseif ($gfStatus === 'rejected') echo '<span class="badge badge-rejected">Rejected</span>';
-          elseif ($gfStatus === 'generated' && (($gf['review_status'] ?? 'pending') === 'approved' || ($gf['verified'] ?? false))) echo '<span class="badge badge-verified">Verified/Accepted</span>';
-          else echo '<span class="badge badge-pending">Generated — Pending Review</span>';
-        ?>
-        <?php if ($gf && $gf['document_id']): ?>
-          <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>">View Generated Form</a>
-        <?php endif; ?>
-        <?php if ($gf && $gf['rejection_reason']): ?><br><span class="text-muted">Reason: <?= e($gf['rejection_reason']) ?></span><?php endif; ?></p>
-        <?php if ($gf && $gf['document_id'] && ($gf['review_status'] ?? 'pending') === 'pending' && (int) $appointment['status_id'] === 1): ?>
-          <form method="POST" action="<?= e($redirectUrl) ?>" style="display:inline;"><?= csrfField() ?><input type="hidden" name="action" value="verify_document"><input type="hidden" name="document_id" value="<?= (int) $gf['document_id'] ?>"><button class="btn btn-outline btn-sm">Approve</button></form>
-          <form method="POST" action="<?= e($redirectUrl) ?>" style="margin-top:10px;"><?= csrfField() ?><input type="hidden" name="action" value="reject_document"><input type="hidden" name="document_id" value="<?= (int) $gf['document_id'] ?>"><label for="funeralFormRejectionReason<?= (int) $gf['document_id'] ?>">Reason for revision</label><textarea id="funeralFormRejectionReason<?= (int) $gf['document_id'] ?>" name="document_rejection_reason" rows="2" maxlength="1000" required></textarea><button class="btn btn-danger btn-sm" type="submit">Reject with Reason</button></form>
-        <?php endif; ?>
+      <?php
+        $requirementsList = $appointment['category'] === 'Wedding'
+            ? weddingDraftRequiredDocuments(['category' => 'Wedding'])
+            : (!empty($appointment['requirements_snapshot']) ? (json_decode($appointment['requirements_snapshot'], true) ?: []) : parseRequirementsList($appointment['requirements']));
+        $formTitles = [
+            'marriage_application' => 'Marriage Requirement and Application Form',
+            'katin_awan_kasal' => 'Katin-awan sa Kasal',
+            'cluster_clearance_wedding_sponsor' => 'Cluster Clearance for Wedding Sponsor',
+            'katin_awan_bunyag' => 'Katin-awan sa Bunyag',
+            'cluster_clearance_baptism_sponsor' => 'Cluster Clearance for Baptism Sponsor',
+            'katin_awan_paglubong' => 'Katin-awan sa Paglubong'
+        ];
+      ?>
+
+      <h5 style="margin-top:16px; margin-bottom:10px; color:var(--brown-mid);">Supporting Documents</h5>
+      <?php if (empty($requirementsList) && empty($documents)): ?>
+        <p class="text-muted">No supporting documents are required or uploaded.</p>
+      <?php else: ?>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Requirement</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+              <?php 
+                $matchedDocIds = [];
+                foreach ($requirementsList as $label): 
+                  $docMatch = array_values(array_filter($documents, fn($d) => $d['requirement_label'] === $label));
+                  $d = $docMatch[0] ?? null;
+                  if ($d) $matchedDocIds[] = $d['document_id'];
+                  $docStatus = $d ? ($d['review_status'] ?? ($d['verified'] ? 'approved' : 'pending')) : 'missing';
+              ?>
+                <tr>
+                  <td>
+                    <strong><?= e($label) ?></strong><br>
+                    <?php if ($d): ?>
+                      <a href="<?= url('document.php?id=' . (int) $d['document_id']) ?>" target="_blank" rel="noopener" style="font-size:0.9em; display:inline-flex; align-items:center; gap:4px; margin-top:4px;">📄 <?= e($d['file_name']) ?></a>
+                    <?php else: ?>
+                      <span class="text-muted" style="font-size:0.9em;">Not uploaded yet</span>
+                    <?php endif; ?>
+                    <?php if ($d && $d['rejection_reason']): ?><div class="text-muted" style="font-size:0.85em; margin-top:4px;">Reason: <?= e($d['rejection_reason']) ?></div><?php endif; ?>
+                  </td>
+                  <td>
+                    <?php if ($docStatus === 'approved'): ?><span class="badge badge-verified">Approved</span>
+                    <?php elseif ($docStatus === 'rejected'): ?><span class="badge badge-rejected">Needs Replacement</span>
+                    <?php elseif ($docStatus === 'missing'): ?><span class="badge badge-rejected">Missing</span>
+                    <?php else: ?><span class="badge badge-pending">Pending Review</span><?php endif; ?>
+                  </td>
+                  <td>
+                    <?php if ($d && $docStatus === 'pending' && $d['superseded_by'] === null && (int) $appointment['status_id'] === 1): ?>
+                      <form method="POST" action="<?= e($redirectUrl) ?>" style="display:inline-block; margin-bottom:4px;">
+                        <?= csrfField() ?><input type="hidden" name="action" value="verify_document"><input type="hidden" name="document_id" value="<?= $d['document_id'] ?>">
+                        <button type="submit" class="btn btn-outline btn-sm">Approve</button>
+                      </form>
+                      <button type="button" class="btn btn-danger btn-sm" onclick="document.getElementById('rejectDoc_<?= $d['document_id'] ?>').style.display='block'; this.style.display='none';">Reject</button>
+                      <form id="rejectDoc_<?= $d['document_id'] ?>" method="POST" action="<?= e($redirectUrl) ?>" style="display:none; margin-top:8px;">
+                        <?= csrfField() ?><input type="hidden" name="action" value="reject_document"><input type="hidden" name="document_id" value="<?= $d['document_id'] ?>">
+                        <textarea name="document_rejection_reason" rows="2" maxlength="1000" placeholder="Reason for rejection" required style="width:100%; margin-bottom:4px; font-size:0.9em; padding:4px;"></textarea>
+                        <button type="submit" class="btn btn-danger btn-sm" style="width:100%;">Confirm</button>
+                      </form>
+                    <?php endif; ?>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+              
+              <?php foreach ($documents as $d): ?>
+                <?php 
+                  if (in_array($d['document_id'], $matchedDocIds, true)) continue;
+                  $docStatus = $d['review_status'] ?? ($d['verified'] ? 'approved' : 'pending');
+                ?>
+                <tr>
+                  <td>
+                    <strong><?= e($d['requirement_label'] ?: 'Uploaded Document') ?></strong><br>
+                    <a href="<?= url('document.php?id=' . (int) $d['document_id']) ?>" target="_blank" rel="noopener" style="font-size:0.9em; display:inline-flex; align-items:center; gap:4px; margin-top:4px;">📄 <?= e($d['file_name']) ?></a>
+                    <?php if ($d['rejection_reason']): ?><div class="text-muted" style="font-size:0.85em; margin-top:4px;">Reason: <?= e($d['rejection_reason']) ?></div><?php endif; ?>
+                  </td>
+                  <td>
+                    <?php if ($docStatus === 'approved'): ?><span class="badge badge-verified">Approved</span>
+                    <?php elseif ($docStatus === 'rejected'): ?><span class="badge badge-rejected">Needs Replacement</span>
+                    <?php else: ?><span class="badge badge-pending">Pending Review</span><?php endif; ?>
+                  </td>
+                  <td>
+                    <?php if ($docStatus === 'pending' && $d['superseded_by'] === null && (int) $appointment['status_id'] === 1): ?>
+                      <form method="POST" action="<?= e($redirectUrl) ?>" style="display:inline-block; margin-bottom:4px;">
+                        <?= csrfField() ?><input type="hidden" name="action" value="verify_document"><input type="hidden" name="document_id" value="<?= $d['document_id'] ?>">
+                        <button type="submit" class="btn btn-outline btn-sm">Approve</button>
+                      </form>
+                      <button type="button" class="btn btn-danger btn-sm" onclick="document.getElementById('rejectDoc_<?= $d['document_id'] ?>').style.display='block'; this.style.display='none';">Reject</button>
+                      <form id="rejectDoc_<?= $d['document_id'] ?>" method="POST" action="<?= e($redirectUrl) ?>" style="display:none; margin-top:8px;">
+                        <?= csrfField() ?><input type="hidden" name="action" value="reject_document"><input type="hidden" name="document_id" value="<?= $d['document_id'] ?>">
+                        <textarea name="document_rejection_reason" rows="2" maxlength="1000" placeholder="Reason for rejection" required style="width:100%; margin-bottom:4px; font-size:0.9em; padding:4px;"></textarea>
+                        <button type="submit" class="btn btn-danger btn-sm" style="width:100%;">Confirm</button>
+                      </form>
+                    <?php endif; ?>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
       <?php endif; ?>
+
+      <?php if (!empty($generatedForms) || $appointment['category'] === 'Funeral'): ?>
+      <h5 style="margin-top:24px; margin-bottom:10px; color:var(--brown-mid);">Generated Forms</h5>
+      <?php if (empty($generatedForms)): ?>
+        <p class="text-muted">No generated forms have been submitted yet.</p>
+      <?php else: ?>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Requirement</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+              <?php foreach ($generatedForms as $gf): ?>
+                <?php $formStatus = $gf['document_id'] ? ($gf['review_status'] ?? 'pending') : 'missing'; ?>
+                <tr>
+                  <td>
+                    <strong><?= e($formTitles[$gf['form_type']] ?? $gf['form_type']) ?></strong><br>
+                    <?php if ($gf['document_id']): ?>
+                      <a href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>" target="_blank" rel="noopener" style="font-size:0.9em; display:inline-flex; align-items:center; gap:4px; margin-top:4px;">📄 View Generated PDF</a>
+                    <?php else: ?>
+                      <span class="text-muted" style="font-size:0.9em;">Not completed yet</span>
+                    <?php endif; ?>
+                    <?php if ($gf['rejection_reason']): ?><div class="text-muted" style="font-size:0.85em; margin-top:4px;">Reason: <?= e($gf['rejection_reason']) ?></div><?php endif; ?>
+                  </td>
+                  <td>
+                    <?php if ($formStatus === 'approved'): ?><span class="badge badge-verified">Approved</span>
+                    <?php elseif ($formStatus === 'rejected'): ?><span class="badge badge-rejected">Needs Revision</span>
+                    <?php elseif ($formStatus === 'missing'): ?><span class="badge badge-rejected">Missing</span>
+                    <?php else: ?><span class="badge badge-pending">Pending Review</span><?php endif; ?>
+                  </td>
+                  <td>
+                    <?php if ($gf['document_id'] && $formStatus === 'pending' && (int) $appointment['status_id'] === 1): ?>
+                      <form method="POST" action="<?= e($redirectUrl) ?>" style="display:inline-block; margin-bottom:4px;">
+                        <?= csrfField() ?><input type="hidden" name="action" value="verify_document"><input type="hidden" name="document_id" value="<?= $gf['document_id'] ?>">
+                        <button type="submit" class="btn btn-outline btn-sm">Approve</button>
+                      </form>
+                      <button type="button" class="btn btn-danger btn-sm" onclick="document.getElementById('rejectForm_<?= $gf['document_id'] ?>').style.display='block'; this.style.display='none';">Reject</button>
+                      <form id="rejectForm_<?= $gf['document_id'] ?>" method="POST" action="<?= e($redirectUrl) ?>" style="display:none; margin-top:8px;">
+                        <?= csrfField() ?><input type="hidden" name="action" value="reject_document"><input type="hidden" name="document_id" value="<?= $gf['document_id'] ?>">
+                        <textarea name="document_rejection_reason" rows="2" maxlength="1000" placeholder="Reason for revision" required style="width:100%; margin-bottom:4px; font-size:0.9em; padding:4px;"></textarea>
+                        <button type="submit" class="btn btn-danger btn-sm" style="width:100%;">Confirm</button>
+                      </form>
+                    <?php endif; ?>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      <?php endif; ?>
+      <?php endif; ?>
+
+    <?php endif; ?>
   </div>
 
   <div>
