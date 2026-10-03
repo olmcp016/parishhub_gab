@@ -393,6 +393,13 @@ function weddingMarriageApplicationPdf(array $data): string
     $brideAge = weddingMarriageAge($value('bride_birth_date'), $referenceDate);
 
     $pdf = new FPDF('P', 'mm', 'Letter');
+    $titleGroom = $value('groom_name');
+    $titleBride = $value('bride_name');
+    if ($titleGroom && $titleBride) $metaTitle = 'Marriage Requirement and Application Form - ' . $titleGroom . ' and ' . $titleBride;
+    elseif ($titleGroom) $metaTitle = 'Marriage Requirement and Application Form - ' . $titleGroom;
+    elseif ($titleBride) $metaTitle = 'Marriage Requirement and Application Form - ' . $titleBride;
+    else $metaTitle = 'Marriage Requirement and Application Form';
+    $pdf->SetTitle(mb_convert_encoding($metaTitle, 'ISO-8859-1', 'UTF-8'));
     $pdf->SetMargins(15, 18, 15);
     $pdf->SetAutoPageBreak(false);
     $pdf->AddPage('P', 'Letter');
@@ -484,8 +491,16 @@ function weddingMarriageApplicationPdf(array $data): string
 function weddingKatinPdf(array $data): string
 {
     $data = weddingClusterNormalizeData($data);
-    $pdf = new FPDF('P', 'mm', 'A4'); weddingPdfHeader($pdf, 'KATIN-AWAN SA KASAL');
+    $pdf = new FPDF('P', 'mm', 'A4');
     $v = static fn(string $key): string => trim((string) ($data[$key] ?? ''));
+    $kaslonon = $v('kaslonon_name');
+    $spouse = $v('spouse_name');
+    if ($kaslonon && $spouse) $metaTitle = 'Katin-awan sa Kasal - ' . $kaslonon . ' and ' . $spouse;
+    elseif ($kaslonon) $metaTitle = 'Katin-awan sa Kasal - ' . $kaslonon;
+    elseif ($spouse) $metaTitle = 'Katin-awan sa Kasal - ' . $spouse;
+    else $metaTitle = 'Katin-awan sa Kasal';
+    $pdf->SetTitle(mb_convert_encoding($metaTitle, 'ISO-8859-1', 'UTF-8'));
+    weddingPdfHeader($pdf, 'KATIN-AWAN SA KASAL');
 
     // Compute ages if birth dates are provided and wedding date is available
     $referenceDate = $v('wedding_date') ?: date('Y-m-d');
@@ -529,8 +544,17 @@ function weddingKatinPdf(array $data): string
 
 function weddingSponsorPdf(array $data): string
 {
-    $pdf = new FPDF('P', 'mm', 'A4'); weddingPdfHeader($pdf, 'CLUSTER CLEARANCE FOR WEDDING SPONSORS');
+    $pdf = new FPDF('P', 'mm', 'A4');
     $v = static fn(string $key): string => trim((string) ($data[$key] ?? ''));
+    $recipient = $v('recipient_name');
+    if (!$recipient) {
+        $groom = $v('groom_name');
+        $bride = $v('bride_name');
+        if ($groom && $bride) $recipient = $groom . ' and ' . $bride;
+    }
+    $metaTitle = 'Cluster Clearance for Wedding Sponsor' . ($recipient ? ' - ' . $recipient : '');
+    $pdf->SetTitle(mb_convert_encoding($metaTitle, 'ISO-8859-1', 'UTF-8'));
+    weddingPdfHeader($pdf, 'CLUSTER CLEARANCE FOR WEDDING SPONSORS');
     weddingPdfField($pdf, 'NAME OF RECIPIENT:', $v('recipient_name'), 18, 64, 174, 43);
     weddingPdfField($pdf, 'PINUY-ANAN:', $v('address'), 18, 75, 174, 30);
     weddingPdfField($pdf, 'NAME OF THE GROOM:', $v('groom_name'), 18, 88, 174, 45);

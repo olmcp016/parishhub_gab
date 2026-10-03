@@ -178,6 +178,9 @@ function funeralKatinAwanPdf(array $data): string
     $data = funeralKatinAwanNormalizeData($data);
     $v = static fn(string $key): string => trim((string) ($data[$key] ?? ''));
     $pdf = new FPDF('P', 'mm', 'A4');
+    $deceased = $v('ngalan_sa_ilubong');
+    $metaTitle = 'Katin-awan sa Paglubong' . ($deceased ? ' - ' . $deceased : '');
+    $pdf->SetTitle(mb_convert_encoding($metaTitle, 'ISO-8859-1', 'UTF-8'));
     $pdf->SetMargins(15, 10, 15); $pdf->SetAutoPageBreak(false); $pdf->AddPage('P', 'A4');
     $logo = dirname(__DIR__) . '/public/img/logo.png';
     if (is_file($logo)) $pdf->Image($logo, 18, 10, 28, 28, 'PNG');

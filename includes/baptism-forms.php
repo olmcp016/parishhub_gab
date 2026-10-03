@@ -140,8 +140,12 @@ function baptismPdfChoice(FPDF $pdf, string $label, bool $selected, float $x, fl
 function baptismKatinPdf(array $data): string
 {
     $data = baptismNormalizeData($data);
-    $pdf = new FPDF('P', 'mm', 'A4'); baptismPdfHeader($pdf, 'KATIN-AWAN SA BUNYAG');
+    $pdf = new FPDF('P', 'mm', 'A4');
     $v = static fn(string $key): string => trim((string) ($data[$key] ?? ''));
+    $child = $v('child_name');
+    $metaTitle = 'Katin-awan sa Bunyag' . ($child ? ' - ' . $child : '');
+    $pdf->SetTitle(mb_convert_encoding($metaTitle, 'ISO-8859-1', 'UTF-8'));
+    baptismPdfHeader($pdf, 'KATIN-AWAN SA BUNYAG');
     baptismPdfField($pdf, 'NGALAN SA BUNYAGAN:', $v('child_name'), 18, 62, 174, 46);
     baptismPdfField($pdf, 'PETSA NATAWO:', baptismPdfDate($v('birth_date')), 18, 72, 84, 34);
     baptismPdfField($pdf, 'DIIN NATAWO:', $v('birth_place'), 105, 72, 87, 31, 8.5);
@@ -176,8 +180,12 @@ function baptismKatinPdf(array $data): string
 
 function baptismSponsorPdf(array $data): string
 {
-    $pdf = new FPDF('P', 'mm', 'A4'); baptismPdfHeader($pdf, 'CLUSTER CLEARANCE FOR BAPTISM SPONSOR');
+    $pdf = new FPDF('P', 'mm', 'A4');
     $v = static fn(string $key): string => trim((string) ($data[$key] ?? ''));
+    $sponsor = $v('sponsor_name');
+    $metaTitle = 'Cluster Clearance for Baptismal Sponsor' . ($sponsor ? ' - ' . $sponsor : '');
+    $pdf->SetTitle(mb_convert_encoding($metaTitle, 'ISO-8859-1', 'UTF-8'));
+    baptismPdfHeader($pdf, 'CLUSTER CLEARANCE FOR BAPTISM SPONSOR');
     baptismPdfField($pdf, 'NAME OF SPONSOR:', $v('sponsor_name'), 18, 64, 174, 43);
     baptismPdfField($pdf, 'PINUY-ANAN:', $v('address'), 18, 75, 174, 30);
     baptismPdfField($pdf, 'NAME OF THE CHILD:', $v('child_name'), 18, 86, 174, 45);

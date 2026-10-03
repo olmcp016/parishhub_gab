@@ -146,7 +146,11 @@ if ($formType) {
 }
 
 $filename = $formalFilename ?? basename((string) $document['file_name']);
-$filename = str_replace(["\"", "\r", "\n"], '', $filename);
-header('Content-Disposition: ' . ($download ? 'attachment' : 'inline') . '; filename="' . $filename . '"');
+$filename = str_replace(["\"", "\r", "\n", "/", "\\"], '', $filename);
+if (!$filename) $filename = 'document.pdf';
+$urlEncodedFilename = rawurlencode($filename);
+
+header('Cache-Control: private, max-age=0, must-revalidate');
+header('Content-Disposition: ' . ($download ? 'attachment' : 'inline') . '; filename="' . $filename . '"; filename*=UTF-8\'\'' . $urlEncodedFilename);
 header('X-Content-Type-Options: nosniff');
 if ($filePath) readfile($filePath); else echo $stored['body'];
