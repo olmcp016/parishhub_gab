@@ -52,24 +52,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Enforce numeric-only rejection on NAME fields dynamically across all forms
   const namePattern = "^(?!\\s*$)(?![0-9\\s.,-]+$)[\\s\\S]+$";
+  
+  const personNameFields = [
+    'bride_name', 'child_name', 'father_name', 'ginikanan_anak', 'groom_name',
+    'guest_firstname', 'guest_lastname', 'guest_middlename', 'intention_for',
+    'kaslonon_name', 'mother_maiden_name', 'mother_name', 'ngalan_sa_ilubong',
+    'offerer_name', 'recipient_name', 'responde', 'sponsor_1', 'sponsor_2',
+    'sponsor_name', 'spouse_name', 'asawa_bana'
+  ];
+
   document.querySelectorAll('input[type="text"]').forEach((input) => {
-    const id = (input.id || '').toLowerCase();
     const name = (input.name || '').toLowerCase();
-    const label = (input.previousElementSibling && input.previousElementSibling.tagName === 'LABEL') 
-        ? input.previousElementSibling.textContent.toLowerCase() 
-        : '';
-        
-    if (
-      id.includes('name') || name.includes('name') || label.includes('name') || label.includes('ngalan') ||
-      id.includes('father') || name.includes('father') || label.includes('amahan') ||
-      id.includes('mother') || name.includes('mother') || label.includes('inahan') ||
-      id.includes('sponsor') || name.includes('sponsor') ||
-      id.includes('groom') || name.includes('groom') ||
-      id.includes('bride') || name.includes('bride') ||
-      id.includes('spouse') || name.includes('spouse') || label.includes('pamanhunon') || label.includes('pangasaw-onon') ||
-      id.includes('kaslonon') || name.includes('kaslonon')
-    ) {
-      if (!input.hasAttribute('pattern') && !id.includes('cluster_name') && !name.includes('cluster_name') && !id.includes('barangay') && !name.includes('barangay')) {
+    
+    if (personNameFields.includes(name)) {
+      if (!input.hasAttribute('pattern')) {
         input.setAttribute('pattern', namePattern);
         if (!input.hasAttribute('title')) {
           input.setAttribute('title', 'Must contain letters; cannot be purely numeric.');
