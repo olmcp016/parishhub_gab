@@ -600,6 +600,7 @@ if (!$isAjax) {
                     <?php else: ?>
                       <span style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; background:var(--cream); border-radius:6px; font-size:18px;">📄</span>
                     <?php endif; ?>
+
                     <span><?= e($d['file_name']) ?></span>
                   </a>
                 </td>
@@ -622,6 +623,27 @@ if (!$isAjax) {
       </div>
     <?php endif; ?>
     <?php endif; ?>
+    <?php endif; ?>
+      <?php if ($appointment['category'] === 'Funeral'): ?>
+        <?php
+          $gfQuery = db()->prepare("SELECT f.*, d.review_status, d.verified FROM generated_funeral_forms f LEFT JOIN uploaded_documents d ON d.document_id = f.document_id WHERE f.appointment_id = ? AND f.form_type = 'katin_awan_paglubong'");
+          $gfQuery->execute([$appointment['appointment_id']]);
+          $gf = $gfQuery->fetch() ?: null;
+          $gfStatus = $gf ? $gf['status'] : 'draft';
+        ?>
+        <h4 style="margin-top:16px;">Funeral Form</h4>
+        <p><strong>Katin-awan sa Paglubong</strong><br>
+        Status: <?php
+          if ($gfStatus === 'draft') echo '<span class="badge badge-rejected">Missing</span>';
+          elseif ($gfStatus === 'rejected') echo '<span class="badge badge-rejected">Rejected</span>';
+          elseif ($gfStatus === 'generated' && (($gf['review_status'] ?? 'pending') === 'approved' || ($gf['verified'] ?? false))) echo '<span class="badge badge-verified">Verified/Accepted</span>';
+          else echo '<span class="badge badge-pending">Generated — Pending Review</span>';
+        ?>
+        <?php if ($gf && $gf['document_id']): ?>
+          <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>">View Generated Form</a>
+        <?php endif; ?>
+        <?php if ($gf && $gf['rejection_reason']): ?><br><span class="text-muted">Reason: <?= e($gf['rejection_reason']) ?></span><?php endif; ?></p>
+      <?php endif; ?>
   </div>
 
   <div>

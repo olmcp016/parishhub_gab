@@ -261,7 +261,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
             $uploadedLabels = array_unique(array_filter(array_map(
                 fn($upload) => $upload['label'], $pendingUploads
             )));
-            $missing = array_values(array_diff($requirementsList, $uploadedLabels));
+            $missing = array_values(array_diff($requirementsList, $uploadedLabels, ['Katin-awan sa Paglubong']));
             if ($missing) {
                 bookRespondError($isAjax, 'Please upload all required documents: ' . implode(', ', $missing) . '.', url('parishioner/services.php'));
             }

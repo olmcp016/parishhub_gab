@@ -144,6 +144,25 @@ include __DIR__ . '/includes/header.php';
           <?php if ($gf['rejection_reason']): ?><br><span class="text-muted">Reason: <?= e($gf['rejection_reason']) ?></span><?php endif; ?></p>
         <?php endforeach; ?>
       <?php endif; ?>
+      <?php if ($appointment['category'] === 'Funeral'): ?>
+        <?php
+          $gfQuery = db()->prepare("SELECT f.*, d.review_status, d.verified FROM generated_funeral_forms f LEFT JOIN uploaded_documents d ON d.document_id = f.document_id WHERE f.appointment_id = ? AND f.form_type = 'katin_awan_paglubong'");
+          $gfQuery->execute([$appointment['appointment_id']]);
+          $gf = $gfQuery->fetch() ?: null;
+          $gfStatus = $gf ? $gf['status'] : 'draft';
+        ?>
+        <hr style="border-color:var(--cream-dark); margin:18px 0;"><h4>Funeral Form</h4>
+        <p><strong>Katin-awan sa Paglubong</strong><br>
+        Status: <?php
+          if ($gfStatus === 'draft') echo '<span class="badge badge-rejected">Missing</span>';
+          elseif ($gfStatus === 'rejected') echo '<span class="badge badge-rejected">Rejected</span>';
+          elseif ($gfStatus === 'generated' && (($gf['review_status'] ?? 'pending') === 'approved' || ($gf['verified'] ?? false))) echo '<span class="badge badge-verified">Verified/Accepted</span>';
+          else echo '<span class="badge badge-pending">Generated — Pending Review</span>';
+        ?>
+        <a class="btn btn-outline btn-sm" href="<?= url('funeral-form.php?appointment_id=' . (int) $appointment['appointment_id']) ?>"><?= $gfStatus === 'rejected' ? 'Edit and Regenerate Form' : ($gfStatus === 'generated' ? 'Edit Form' : 'Fill Out Form') ?></a>
+        <?php if ($gf && $gf['document_id']): ?><a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>">View Generated Form</a><?php endif; ?>
+        <?php if ($gf && $gf['rejection_reason']): ?><br><span class="text-muted">Reason: <?= e($gf['rejection_reason']) ?></span><?php endif; ?></p>
+      <?php endif; ?>
       <p><strong>Date:</strong> <?= formatDate($appointment['appointment_date']) ?> at <?= date('g:i A', strtotime($appointment['appointment_time'])) ?></p>
       <?php if ($appointment['category'] !== 'Donation'): ?>
         <p><strong>Priest:</strong> <?= e($appointment['priest_name'] ?? 'Not yet assigned') ?></p>

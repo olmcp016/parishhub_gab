@@ -488,12 +488,49 @@ if (!$isAjax) {
       <?php else: ?>
         <?php foreach ($requirementsList as $i => $label): ?>
           <?php $matches = $documentsByLabel[$label] ?? []; ?>
+          <?php if ($label === 'Katin-awan sa Paglubong'): ?>
+            <?php
+                $gfQuery = db()->prepare('SELECT * FROM generated_funeral_forms WHERE appointment_id = ?');
+                $gfQuery->execute([$appointment['appointment_id']]);
+                $gf = $gfQuery->fetch() ?: null;
+                $gfStatus = $gf ? $gf['status'] : 'draft';
+                if (!empty($matches)) { $gfStatus = 'generated'; }
+            ?>
+            <div class="form-group doc-req-row">
+              <label>
+                <?= e($label) ?>
+                <?php if ($gfStatus === 'draft'): ?>
+                  <span class="badge badge-rejected">Missing</span>
+                <?php elseif ($gfStatus === 'generated' && (($matches[0]['review_status'] ?? 'pending') === 'approved' || ($matches[0]['verified'] ?? false))): ?>
+                  <span class="badge badge-verified">Verified/Accepted</span>
+                <?php elseif ($gfStatus === 'rejected'): ?>
+                  <span class="badge badge-rejected">Rejected</span>
+                <?php else: ?>
+                  <span class="badge badge-pending">Generated — Pending Review</span>
+                <?php endif; ?>
+              </label>
+              <?php if (!empty($matches)): ?>
+                <?php foreach ($matches as $d): ?>
+                  <p style="margin:2px 0;">
+                    <a href="<?= documentViewUrl((int) $d['document_id']) ?>" target="_blank" rel="noopener">View Generated Form</a>
+                  </p>
+                <?php endforeach; ?>
+              <?php endif; ?>
+              <?php if ($canUpload || $gfStatus === 'draft' || $gfStatus === 'rejected'): ?>
+                <p style="margin-top:8px;">
+                  <a href="<?= url('funeral-form.php?appointment_id=' . (int) $appointment['appointment_id']) ?>" class="btn btn-outline btn-sm">
+                    <?= $gfStatus === 'rejected' ? 'Edit and Regenerate Form' : ($gfStatus === 'generated' ? 'Edit Form' : 'Fill Out Form') ?>
+                  </a>
+                </p>
+              <?php endif; ?>
+            </div>
+          <?php else: ?>
           <div class="form-group doc-req-row">
             <label>
               <?= e($label) ?>
               <?php if (empty($matches)): ?>
                 <span class="badge badge-rejected">Missing</span>
-          <?php elseif (($matches[0]['review_status'] ?? ($matches[0]['verified'] ? 'approved' : 'pending')) === 'approved'): ?>
+              <?php elseif (($matches[0]['review_status'] ?? ($matches[0]['verified'] ? 'approved' : 'pending')) === 'approved'): ?>
                 <span class="badge badge-verified">Verified/Accepted</span>
               <?php else: ?>
                 <span class="badge badge-pending">Uploaded — Pending Review</span>
@@ -509,6 +546,7 @@ if (!$isAjax) {
               <input type="file" form="uploadDocsForm" name="req_doc_<?= $i ?>" accept=".pdf,.jpg,.jpeg,.png">
             <?php endif; ?>
           </div>
+        <?php endif; ?>
         <?php endforeach; ?>
       <?php endif; ?>
 

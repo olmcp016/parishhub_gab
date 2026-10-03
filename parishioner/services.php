@@ -389,6 +389,13 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
             <p><strong>Cluster Clearance for Baptism Sponsor</strong><br><span class="badge badge-rejected">Required</span> <span class="helper-text">Complete in Baptism Requirements</span></p>
           </div>
         </div>
+        <div id="funeralFormsPreview" class="form-group" style="display:none; margin-top:16px;">
+          <label>Funeral Forms</label>
+          <div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">This required form is completed after your booking details and supporting documents are saved.</div>
+          <div class="wedding-form-requirement-list">
+            <p><strong>Katin-awan sa Paglubong</strong><br><span class="badge badge-rejected">Required</span> <span class="helper-text">Complete in Appointment Status Page</span></p>
+          </div>
+        </div>
 
         <div id="bookFormError" class="alert" style="display:none; background: var(--danger-bg); color: var(--danger); border: 1px solid #f5c2c2;"></div>
 
@@ -467,6 +474,8 @@ function toggleServiceUI() {
   document.getElementById('sponsorCountInput').required = category === 'Baptism';
   document.getElementById('weddingSponsorCountInput').required = category === 'Wedding';
   document.getElementById('weddingFormsPreview').style.display = category === 'Wedding' ? 'block' : 'none';
+  document.getElementById('baptismFormsPreview').style.display = category === 'Baptism' ? 'block' : 'none';
+  document.getElementById('funeralFormsPreview').style.display = category === 'Funeral' ? 'block' : 'none';
   document.getElementById('bookSubmitBtn').textContent = submitButtonLabel();
 
   var isMassIntention = category === 'Mass Intention';
@@ -899,6 +908,13 @@ function rebuildRequirementRows(serviceId) {
   var container = document.getElementById('requirementRows');
   var items = REQUIREMENTS_BY_SERVICE[serviceId] || [];
   container.innerHTML = items.map(function (label, i) {
+    if (label === 'Katin-awan sa Paglubong') {
+      return '<div class="form-group doc-req-row">' +
+        '<label>' + label + ' <span style="color:var(--danger);">*</span> <span class="badge badge-pending doc-status-pill">Generated Form</span></label>' +
+        '<p class="helper-text" style="margin-top:0;">You will fill out this form on the next screen after booking.</p>' +
+        '<input type="hidden" name="req_doc_' + i + '_generated" value="1">' +
+      '</div>';
+    }
     return (
       '<div class="form-group doc-req-row">' +
         '<label>' + label + ' <span style="color:var(--danger);">*</span> <span class="badge badge-rejected doc-status-pill">Required</span></label>' +
