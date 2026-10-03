@@ -7,7 +7,7 @@ require_once __DIR__ . '/includes/document-validation.php';
 require_once __DIR__ . '/includes/wedding-forms.php';
 require_once __DIR__ . '/includes/scheduling.php';
 
-$draftId = (int) ($_REQUEST['draft_id'] ?? 0);
+$draftId = (int) ($_GET['draft_id'] ?? $_POST['draft_id'] ?? 0);
 $user = currentUser();
 $guestToken = weddingDraftGuestToken($draftId);
 $pdo = db();

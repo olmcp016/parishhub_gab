@@ -6,10 +6,10 @@ require_once __DIR__ . '/includes/baptism-forms.php';
 require_once __DIR__ . '/includes/wedding-forms.php';
 require_once __DIR__ . '/includes/document-storage.php';
 
-$id = (int) ($_REQUEST['draft_id'] ?? 0);
-$appointmentId = (int) ($_REQUEST['appointment_id'] ?? 0);
+$id = (int) ($_GET['draft_id'] ?? $_POST['draft_id'] ?? 0);
+$appointmentId = (int) ($_GET['appointment_id'] ?? $_POST['appointment_id'] ?? 0);
 $isAppointmentForm = $appointmentId > 0;
-$type = (string) ($_REQUEST['form_type'] ?? '');
+$type = (string) ($_GET['form_type'] ?? $_POST['form_type'] ?? '');
 if (!in_array($type, BAPTISM_DRAFT_FORMS, true)) { http_response_code(400); exit('Invalid form.'); }
 $user = currentUser();
 $pdo = db();
@@ -25,9 +25,9 @@ if ($isAppointmentForm) {
     if ($user) {
         $ownerQuery = $pdo->prepare('SELECT 1 FROM parishioners WHERE parishioner_id = ? AND user_id = ?');
         $ownerQuery->execute([$appointment['parishioner_id'], $user['user_id']]);
-        if (!$ownerQuery->fetchColumn()) { http_response_code(403); exit('Not authorized.'); }
+        if (!$ownerQuery->fetchColumn()) { http_response_code(403); exit('Not authorized (28).'); }
     } elseif (!$isGuest) {
-        http_response_code(403); exit('Verify the guest appointment before accessing this form.');
+        http_response_code(403); exit('Verify the guest appointment before accessing this form (30).');
     }
     $draft = [
         'contact_phone' => (string) (($appointment['contact_phone'] ?? '') ?: ($appointment['guest_phone'] ?? '')),
@@ -37,7 +37,7 @@ if ($isAppointmentForm) {
     $q->execute([$appointmentId, $type]);
 } else {
     $draft = baptismDraftLoad($pdo, $id, $user, baptismDraftToken($id));
-    if (!$draft) { http_response_code(403); exit('Not authorized.'); }
+    if (!$draft) { http_response_code(403); exit('Not authorized (40). id: ' . $id . ' user: ' . ($user ? $user['role_name'] : 'none')); }
     if (($draft['status'] ?? '') !== 'draft' || strtotime((string) $draft['expires_at']) <= time()) {
         http_response_code(410);
         exit('This Baptism booking draft has expired or is no longer editable.');
@@ -262,8 +262,10 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
       </div>
     <?php endforeach; ?>
     <?php endif; ?>
-    <button class="btn btn-outline" name="action" value="save" formnovalidate>Save Draft</button>
-    <button class="btn btn-primary" name="action" value="generate"><?= in_array($type, ['katin_awan_bunyag', 'cluster_clearance_baptism_sponsor']) ? 'Generate Application Form' : 'Generate Form' ?></button>
+    <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
+      <button class="btn btn-primary" style="width: 100%;" name="action" value="generate"><?= in_array($type, ['katin_awan_bunyag', 'cluster_clearance_baptism_sponsor']) ? 'Generate Application Form' : 'Generate Form' ?></button>
+      <button class="btn btn-outline" style="width: 100%;" name="action" value="save" formnovalidate>Save Draft</button>
+    </div>
   </form>
 </div>
 <script>

@@ -3,8 +3,8 @@ require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/funeral-forms.php';
 
-$appointmentId = (int) ($_REQUEST['appointment_id'] ?? 0);
-$draftId = $_REQUEST['draft_id'] ?? '';
+$appointmentId = (int) ($_GET['appointment_id'] ?? $_POST['appointment_id'] ?? 0);
+$draftId = $_GET['draft_id'] ?? $_POST['draft_id'] ?? '';
 $type = 'katin_awan_paglubong';
 $user = currentUser();
 
@@ -190,7 +190,12 @@ $backLink = $isDraft
       </div>
     </div>
 
-    <div style="display:flex; gap:12px; flex-wrap:wrap;"><button type="submit" class="btn btn-primary">Generate Application Form</button><?php if ($form && $form['document_id']): ?><a href="<?= documentViewUrl((int) $form['document_id']) ?>" target="_blank" rel="noopener" class="btn btn-outline">Preview Current Form</a><?php endif; ?></div>
+    <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
+      <button type="submit" class="btn btn-primary" style="width: 100%;">Generate Application Form</button>
+      <?php if ($form && $form['document_id']): ?>
+        <a href="<?= documentViewUrl((int) $form['document_id']) ?>" target="_blank" rel="noopener" class="btn btn-outline" style="width: 100%;">Preview Current Form</a>
+      <?php endif; ?>
+    </div>
   </form>
 </div>
 <script>

@@ -1,5 +1,5 @@
 <?php
-if (isset($_REQUEST['draft_id'])) {
+if (isset($_GET['draft_id']) || isset($_POST['draft_id'])) {
     require __DIR__ . '/wedding-draft-form.php';
     exit;
 }
@@ -8,8 +8,8 @@ require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/wedding-forms.php';
 require_once __DIR__ . '/includes/document-storage.php';
 
-$appointmentId = (int) ($_REQUEST['appointment_id'] ?? 0);
-$type = (string) ($_REQUEST['form_type'] ?? '');
+$appointmentId = (int) ($_GET['appointment_id'] ?? $_POST['appointment_id'] ?? 0);
+$type = (string) ($_GET['form_type'] ?? $_POST['form_type'] ?? '');
 if (!in_array($type, WEDDING_FORM_TYPES, true)) { http_response_code(400); exit('Invalid form.'); }
 
 $user = currentUser();
@@ -205,8 +205,10 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
     <?php endforeach; ?>
     <?php endif; ?>
     <?php if ($type === 'wedding_sponsor_clearance'): ?><p class="text-muted">Service Requested: Kasal (the other official choices remain printed on the generated form).</p><?php endif; ?>
-    <button class="btn btn-outline" name="action" value="save" formnovalidate>Save Draft</button>
-    <button class="btn btn-primary" name="action" value="generate"><?= $type === 'matrimony_application' ? 'Generate Application Form' : 'Generate Form' ?></button>
+    <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
+      <button class="btn btn-primary" style="width: 100%;" name="action" value="generate"><?= $type === 'matrimony_application' ? 'Generate Application Form' : 'Generate Form' ?></button>
+      <button class="btn btn-outline" style="width: 100%;" name="action" value="save" formnovalidate>Save Draft</button>
+    </div>
   </form>
 </div>
 <?php if (in_array($type, WEDDING_FORM_TYPES, true)): ?>

@@ -5,8 +5,8 @@ require_once __DIR__ . '/includes/wedding-draft.php';
 require_once __DIR__ . '/includes/wedding-forms.php';
 require_once __DIR__ . '/includes/document-storage.php';
 
-$draftId = (int) ($_REQUEST['draft_id'] ?? 0);
-$type = (string) ($_REQUEST['form_type'] ?? '');
+$draftId = (int) ($_GET['draft_id'] ?? $_POST['draft_id'] ?? 0);
+$type = (string) ($_GET['form_type'] ?? $_POST['form_type'] ?? '');
 if (!in_array($type, WEDDING_DRAFT_FORMS, true)) { http_response_code(400); exit('Invalid form.'); }
 $user = currentUser();
 $token = weddingDraftGuestToken($draftId);
@@ -339,8 +339,10 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
             </div>
         <?php endforeach; ?>
         <?php endif; ?>
-        <button class="btn btn-outline" name="action" value="save" <?= in_array($type, ['matrimony_application', 'cluster_clearance', 'wedding_sponsor_clearance']) ? 'formnovalidate' : '' ?>>Save Draft</button>
-        <button class="btn btn-primary" name="action" value="generate"><?= in_array($type, ['matrimony_application', 'cluster_clearance', 'wedding_sponsor_clearance']) ? 'Generate Application Form' : 'Generate Form' ?></button>
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
+          <button class="btn btn-primary" style="width: 100%;" name="action" value="generate"><?= in_array($type, ['matrimony_application', 'cluster_clearance', 'wedding_sponsor_clearance']) ? 'Generate Application Form' : 'Generate Form' ?></button>
+          <button class="btn btn-outline" style="width: 100%;" name="action" value="save" <?= in_array($type, ['matrimony_application', 'cluster_clearance', 'wedding_sponsor_clearance']) ? 'formnovalidate' : '' ?>>Save Draft</button>
+        </div>
     </form>
 </div>
 <?php if (in_array($type, WEDDING_FORM_TYPES, true)): ?>

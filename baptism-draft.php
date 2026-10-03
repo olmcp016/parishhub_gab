@@ -8,7 +8,7 @@ require_once __DIR__ . '/includes/document-validation.php';
 require_once __DIR__ . '/includes/wedding-forms.php';
 require_once __DIR__ . '/includes/scheduling.php';
 
-$id = (int) ($_REQUEST['draft_id'] ?? 0);
+$id = (int) ($_GET['draft_id'] ?? $_POST['draft_id'] ?? 0);
 $pdo = db();
 $user = currentUser();
 $baptismFinalizationStage = 'initial_request';

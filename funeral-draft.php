@@ -6,7 +6,7 @@ require_once __DIR__ . '/includes/document-validation.php';
 require_once __DIR__ . '/includes/funeral-forms.php';
 require_once __DIR__ . '/includes/paymongo.php';
 
-$draftId = $_REQUEST['draft_id'] ?? '';
+$draftId = (int) ($_GET['draft_id'] ?? $_POST['draft_id'] ?? 0);
 $user = currentUser();
 $pdo = db();
 
