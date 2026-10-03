@@ -26,10 +26,10 @@ function weddingFormDefinition(string $type): array
             'wedding_time' => 'Time of Wedding',
         ]],
         'cluster_clearance' => ['title' => 'KATIN-AWAN SA KASAL', 'fields' => [
-            'kaslonon_name' => 'Ngalan sa Kaslonon', 'kaslonon_age' => 'Edad', 'kaslonon_status' => 'Estado', 'kaslonon_birth_date' => 'Petsa Natawo', 'kaslonon_religion' => 'Relihiyon', 'father_name' => 'Amahan', 'father_religion' => "Father's Religion", 'mother_name' => 'Inahan', 'mother_religion' => "Mother's Religion", 'sponsor_1' => 'Sponsor 1', 'sponsor_2' => 'Sponsor 2', 'parent_marriage' => 'Unsang Kasala ang Nadawat sa Ginikanan?', 'marriage_place' => 'Diin', 'marriage_date' => 'Kanus-a', 'address' => 'Pinuy-anan', 'chapel' => 'Sakop sa Kapilya sa', 'cluster_name' => 'Ngalan sa Cluster', 'spouse_name' => 'Ngalan sa Pamanhunon/Pangasaw-onon', 'spouse_age' => 'Edad', 'spouse_status' => 'Estado', 'spouse_religion' => 'Relihiyon', 'spouse_address' => 'Pinuy-anan'
+            'kaslonon_name' => 'Ngalan sa Kaslonon', 'kaslonon_birth_date' => 'Petsa Natawo', 'kaslonon_status' => 'Estado', 'kaslonon_religion' => 'Relihiyon', 'father_name' => 'Amahan', 'father_religion' => "Father's Religion", 'mother_name' => 'Inahan', 'mother_religion' => "Mother's Religion", 'sponsor_1' => 'Sponsor 1', 'sponsor_2' => 'Sponsor 2', 'parent_marriage' => 'Unsang Kasala ang Nadawat sa Ginikanan?', 'marriage_place' => 'Diin', 'marriage_date' => 'Kanus-a', 'address' => 'Pinuy-anan', 'chapel' => 'Sakop sa Kapilya sa', 'cluster_name' => 'Ngalan sa Cluster', 'spouse_name' => 'Ngalan sa Pamanhunon/Pangasaw-onon', 'spouse_birth_date' => 'Petsa Natawo (Spouse)', 'spouse_status' => 'Estado', 'spouse_religion' => 'Relihiyon', 'spouse_address' => 'Pinuy-anan'
         ]],
         default => ['title' => 'CLUSTER CLEARANCE FOR WEDDING SPONSORS', 'fields' => [
-            'recipient_name' => 'Name of Recipient', 'address' => 'Pinuy-anan', 'groom_name' => 'Name of the Groom', 'bride_name' => 'Name of the Bride', 'service_requested' => 'Service Requested', 'other_service' => 'Others, please specify', 'service_date' => 'Date of Service / Adlaw sa Serbisyo', 'active_status' => 'Active / Inactive', 'cluster_number' => 'Member of Cluster No.', 'cluster_name' => 'Cluster Name'
+            'recipient_name' => 'Name of Recipient', 'address' => 'Pinuy-anan', 'groom_name' => 'Name of the Groom', 'bride_name' => 'Name of the Bride', 'service_date' => 'Date of Service / Adlaw sa Serbisyo', 'cluster_number' => 'Member of Cluster No.', 'cluster_name' => 'Cluster Name'
         ]]
     };
 }
@@ -38,8 +38,8 @@ function weddingFormRequiredFields(string $type): array
 {
     return match ($type) {
         'matrimony_application' => ['date_applied', 'groom_name', 'groom_birth_date', 'groom_father', 'groom_mother', 'groom_mother_maiden_name', 'groom_address', 'groom_cell', 'bride_name', 'bride_birth_date', 'bride_father', 'bride_mother', 'bride_mother_maiden_name', 'bride_address', 'bride_cell', 'wedding_date', 'wedding_time'],
-        'cluster_clearance' => ['kaslonon_name', 'kaslonon_age', 'kaslonon_status', 'kaslonon_birth_date', 'kaslonon_religion', 'father_name', 'father_religion', 'mother_name', 'mother_religion', 'sponsor_1', 'sponsor_2', 'parent_marriage', 'marriage_place', 'marriage_date', 'address', 'chapel', 'cluster_name', 'spouse_name', 'spouse_age', 'spouse_status', 'spouse_religion', 'spouse_address'],
-        default => ['recipient_name', 'address', 'groom_name', 'bride_name', 'service_date', 'active_status', 'cluster_number', 'cluster_name'],
+        'cluster_clearance' => ['kaslonon_name', 'kaslonon_birth_date', 'kaslonon_status', 'kaslonon_religion', 'father_name', 'father_religion', 'mother_name', 'mother_religion', 'sponsor_1', 'sponsor_2', 'parent_marriage', 'marriage_place', 'marriage_date', 'address', 'chapel', 'cluster_name', 'spouse_name', 'spouse_birth_date', 'spouse_status', 'spouse_religion', 'spouse_address'],
+        default => ['recipient_name', 'address', 'groom_name', 'bride_name', 'service_date', 'cluster_number', 'cluster_name'],
     };
 }
 
@@ -383,12 +383,18 @@ function weddingKatinPdf(array $data): string
 {
     $pdf = new FPDF('P', 'mm', 'A4'); weddingPdfHeader($pdf, 'KATIN-AWAN SA KASAL');
     $v = static fn(string $key): string => trim((string) ($data[$key] ?? ''));
+
+    // Compute ages if birth dates are provided and wedding date is available
+    $referenceDate = $v('wedding_date') ?: date('Y-m-d');
+    $kaslononAge = $v('kaslonon_birth_date') ? (string) weddingMarriageAge($v('kaslonon_birth_date'), $referenceDate) : $v('kaslonon_age');
+    $spouseAge = $v('spouse_birth_date') ? (string) weddingMarriageAge($v('spouse_birth_date'), $referenceDate) : $v('spouse_age');
+
     // Keep the EDAD column protected: the name underline ends at x=138,
     // leaving a fixed gap before the EDAD field begins at x=143.
     weddingPdfField($pdf, 'NGALAN SA KASLONON:', $v('kaslonon_name'), 18, 61, 120, 48);
-    weddingPdfField($pdf, 'EDAD:', $v('kaslonon_age'), 143, 61, 49, 17);
+    weddingPdfField($pdf, 'EDAD:', $kaslononAge, 143, 61, 49, 17);
     weddingPdfField($pdf, 'ESTADO:', $v('kaslonon_status'), 18, 70, 52, 24);
-    weddingPdfField($pdf, 'PETSA NATAWO:', $v('kaslonon_birth_date'), 74, 70, 73, 34);
+    weddingPdfField($pdf, 'PETSA NATAWO:', weddingMarriagePdfDate($v('kaslonon_birth_date')), 74, 70, 73, 34);
     weddingPdfField($pdf, 'RELIHIYON:', $v('kaslonon_religion'), 149, 70, 43, 25);
     weddingPdfField($pdf, 'AMAHAN:', $v('father_name'), 18, 79, 132, 25);
     weddingPdfField($pdf, 'RELIHIYON:', $v('father_religion'), 153, 79, 39, 25);
@@ -405,7 +411,7 @@ function weddingKatinPdf(array $data): string
     weddingPdfField($pdf, 'SAKOP SA KAPILYA SA:', $v('chapel'), 18, 141, 174, 47);
     weddingPdfField($pdf, 'NGALAN SA CLUSTER:', $v('cluster_name'), 18, 150, 174, 38);
     weddingPdfField($pdf, 'NGALAN SA PAMANHUNON/PANGASAW-ONON:', $v('spouse_name'), 18, 159, 174, 78);
-    weddingPdfField($pdf, 'EDAD:', $v('spouse_age'), 18, 168, 48, 17); weddingPdfField($pdf, 'ESTADO:', $v('spouse_status'), 69, 168, 61, 25); weddingPdfField($pdf, 'RELIHIYON:', $v('spouse_religion'), 133, 168, 59, 25);
+    weddingPdfField($pdf, 'EDAD:', $spouseAge, 18, 168, 48, 17); weddingPdfField($pdf, 'ESTADO:', $v('spouse_status'), 69, 168, 61, 25); weddingPdfField($pdf, 'RELIHIYON:', $v('spouse_religion'), 133, 168, 59, 25);
     weddingPdfField($pdf, 'PINUY-ANAN:', $v('spouse_address'), 18, 177, 174, 30);
     $pdf->SetFont('Times', 'B', 8); $pdf->SetXY(18, 186); $pdf->MultiCell(174, 4, 'PAHINUDOM: Human mamatud-i kining tanan, kini pagapirmahan sa Cluster Leader, Cluster Treasurer ug Chapel Chairman, Chapel Treasurer ug dad-on sa mga hingtungdan ngadto sa simbahan (apil na ang mga papeles nga gikinahanglan alang sa kasal ug mga sponsors) ug ihatag ngadto sa Parish Clerk.');
     $pdf->SetFont('Times', '', 8); $pdf->SetXY(18, 207); $pdf->Cell(80, 5, '__________________________', 0, 0); $pdf->Cell(80, 5, '__________________________', 0, 1);
@@ -427,11 +433,11 @@ function weddingSponsorPdf(array $data): string
     weddingPdfField($pdf, 'NAME OF THE GROOM:', $v('groom_name'), 18, 88, 174, 45);
     weddingPdfField($pdf, 'NAME OF THE BRIDE:', $v('bride_name'), 18, 99, 174, 45);
     $pdf->SetFont('Times', 'B', 10); $pdf->SetXY(18, 113); $pdf->Cell(174, 5, 'SERVICE REQUESTED: (Please check)', 0, 1);
-    $options = ['Bunyag', 'Confirmation', 'Kasal', 'Ninong/Ninang', 'Others']; $selected = $v('service_requested') ?: 'Kasal';
+    $options = ['Bunyag', 'Confirmation', 'Kasal', 'Ninong/Ninang', 'Others']; $selected = 'Kasal';
     $x = 20; foreach ($options as $option) { weddingChoice($pdf, $option, $selected === $option, $x, 121); $x += $option === 'Ninong/Ninang' ? 43 : 31; }
-    weddingPdfField($pdf, 'Others, please specify:', $v('other_service'), 18, 130, 174, 48);
+    weddingPdfField($pdf, 'Others, please specify:', '', 18, 130, 174, 48);
     weddingPdfField($pdf, 'DATE OF SERVICE/ADLAW SA SERBISYO:', $v('service_date'), 18, 141, 108, 76);
-    weddingChoice($pdf, 'Active', $v('active_status') === 'Active', 130, 141); weddingChoice($pdf, 'Inactive', $v('active_status') === 'Inactive', 163, 141);
+    weddingChoice($pdf, 'Active', false, 130, 141); weddingChoice($pdf, 'Inactive', false, 163, 141);
     weddingPdfField($pdf, 'Member of Cluster No.:', $v('cluster_number'), 18, 151, 58, 43); weddingPdfField($pdf, 'Cluster Name:', $v('cluster_name'), 82, 151, 110, 30);
     $pdf->SetFont('Times', 'B', 10); $pdf->SetXY(18, 171); $pdf->Cell(174, 5, 'VERIFIED BY:', 0, 1);
     $pdf->SetFont('Times', '', 9); $y = 184; foreach (['Ngalan ug pirma sa Cluster Treasurer', 'Ngalan ug pirma sa Cluster Leader', 'Ngalan ug pirma sa Chapel Treasurer', 'Ngalan ug pirma sa Chapel Chairman'] as $label) { $pdf->SetXY(18, $y); $pdf->Cell(174, 5, $label . ' ________________________________', 0, 1); $y += 14; }
