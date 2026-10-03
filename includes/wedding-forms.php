@@ -399,7 +399,7 @@ function weddingMarriageApplicationPdf(array $data): string
     elseif ($titleGroom) $metaTitle = 'Marriage Requirement and Application Form - ' . $titleGroom;
     elseif ($titleBride) $metaTitle = 'Marriage Requirement and Application Form - ' . $titleBride;
     else $metaTitle = 'Marriage Requirement and Application Form';
-    $pdf->SetTitle(mb_convert_encoding($metaTitle, 'ISO-8859-1', 'UTF-8'));
+    $pdf->SetTitle($metaTitle, true);
     $pdf->SetMargins(15, 18, 15);
     $pdf->SetAutoPageBreak(false);
     $pdf->AddPage('P', 'Letter');
@@ -499,7 +499,7 @@ function weddingKatinPdf(array $data): string
     elseif ($kaslonon) $metaTitle = 'Katin-awan sa Kasal - ' . $kaslonon;
     elseif ($spouse) $metaTitle = 'Katin-awan sa Kasal - ' . $spouse;
     else $metaTitle = 'Katin-awan sa Kasal';
-    $pdf->SetTitle(mb_convert_encoding($metaTitle, 'ISO-8859-1', 'UTF-8'));
+    $pdf->SetTitle($metaTitle, true);
     weddingPdfHeader($pdf, 'KATIN-AWAN SA KASAL');
 
     // Compute ages if birth dates are provided and wedding date is available
@@ -553,7 +553,7 @@ function weddingSponsorPdf(array $data): string
         if ($groom && $bride) $recipient = $groom . ' and ' . $bride;
     }
     $metaTitle = 'Cluster Clearance for Wedding Sponsor' . ($recipient ? ' - ' . $recipient : '');
-    $pdf->SetTitle(mb_convert_encoding($metaTitle, 'ISO-8859-1', 'UTF-8'));
+    $pdf->SetTitle($metaTitle, true);
     weddingPdfHeader($pdf, 'CLUSTER CLEARANCE FOR WEDDING SPONSORS');
     weddingPdfField($pdf, 'NAME OF RECIPIENT:', $v('recipient_name'), 18, 64, 174, 43);
     weddingPdfField($pdf, 'PINUY-ANAN:', $v('address'), 18, 75, 174, 30);

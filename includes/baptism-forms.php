@@ -144,7 +144,7 @@ function baptismKatinPdf(array $data): string
     $v = static fn(string $key): string => trim((string) ($data[$key] ?? ''));
     $child = $v('child_name');
     $metaTitle = 'Katin-awan sa Bunyag' . ($child ? ' - ' . $child : '');
-    $pdf->SetTitle(mb_convert_encoding($metaTitle, 'ISO-8859-1', 'UTF-8'));
+    $pdf->SetTitle($metaTitle, true);
     baptismPdfHeader($pdf, 'KATIN-AWAN SA BUNYAG');
     baptismPdfField($pdf, 'NGALAN SA BUNYAGAN:', $v('child_name'), 18, 62, 174, 46);
     baptismPdfField($pdf, 'PETSA NATAWO:', baptismPdfDate($v('birth_date')), 18, 72, 84, 34);
@@ -184,7 +184,7 @@ function baptismSponsorPdf(array $data): string
     $v = static fn(string $key): string => trim((string) ($data[$key] ?? ''));
     $sponsor = $v('sponsor_name');
     $metaTitle = 'Cluster Clearance for Baptismal Sponsor' . ($sponsor ? ' - ' . $sponsor : '');
-    $pdf->SetTitle(mb_convert_encoding($metaTitle, 'ISO-8859-1', 'UTF-8'));
+    $pdf->SetTitle($metaTitle, true);
     baptismPdfHeader($pdf, 'CLUSTER CLEARANCE FOR BAPTISM SPONSOR');
     baptismPdfField($pdf, 'NAME OF SPONSOR:', $v('sponsor_name'), 18, 64, 174, 43);
     baptismPdfField($pdf, 'PINUY-ANAN:', $v('address'), 18, 75, 174, 30);
