@@ -35,4 +35,46 @@ document.addEventListener('DOMContentLoaded', () => {
       revealEls.forEach((el) => el.classList.add('visible'));
     }
   }
+
+  // Handle zero-friendly numeric fields (e.g. sponsor counts)
+  document.querySelectorAll('input[type="number"].numeric-zero-friendly').forEach((input) => {
+    input.addEventListener('focus', function() {
+      if (this.value === '0') {
+        this.value = '';
+      }
+    });
+    input.addEventListener('blur', function() {
+      if (this.value === '') {
+        this.value = '0';
+      }
+    });
+  });
+
+  // Enforce numeric-only rejection on NAME fields dynamically across all forms
+  const namePattern = "^(?!\\s*$)(?![0-9\\s.,-]+$)[\\s\\S]+$";
+  document.querySelectorAll('input[type="text"]').forEach((input) => {
+    const id = (input.id || '').toLowerCase();
+    const name = (input.name || '').toLowerCase();
+    const label = (input.previousElementSibling && input.previousElementSibling.tagName === 'LABEL') 
+        ? input.previousElementSibling.textContent.toLowerCase() 
+        : '';
+        
+    if (
+      id.includes('name') || name.includes('name') || label.includes('name') || label.includes('ngalan') ||
+      id.includes('father') || name.includes('father') || label.includes('amahan') ||
+      id.includes('mother') || name.includes('mother') || label.includes('inahan') ||
+      id.includes('sponsor') || name.includes('sponsor') ||
+      id.includes('groom') || name.includes('groom') ||
+      id.includes('bride') || name.includes('bride') ||
+      id.includes('spouse') || name.includes('spouse') || label.includes('pamanhunon') || label.includes('pangasaw-onon') ||
+      id.includes('kaslonon') || name.includes('kaslonon')
+    ) {
+      if (!input.hasAttribute('pattern') && !id.includes('cluster_name') && !name.includes('cluster_name') && !id.includes('barangay') && !name.includes('barangay')) {
+        input.setAttribute('pattern', namePattern);
+        if (!input.hasAttribute('title')) {
+          input.setAttribute('title', 'Must contain letters; cannot be purely numeric.');
+        }
+      }
+    }
+  });
 });

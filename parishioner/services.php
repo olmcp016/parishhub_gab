@@ -219,10 +219,10 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
           <p class="helper-text">The parish Secretary verifies this classification before the final fee is charged.</p>
         </div>
         <div id="sponsorCountGroup" class="form-group" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px;">
-          <label>Number of Sponsors</label><input type="number" name="sponsor_count" id="sponsorCountInput" min="0" max="100" step="1" value="0">
+          <label>Number of Sponsors</label><input type="number" class="numeric-no-spinner numeric-zero-friendly" name="sponsor_count" id="sponsorCountInput" min="0" max="100" step="1" value="0">
         </div>
         <div id="weddingSponsorCountGroup" class="form-group" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px;">
-          <label>Number of Individual Sponsors</label><input type="number" name="wedding_sponsor_count" id="weddingSponsorCountInput" min="0" max="200" step="1" value="0"><p class="helper-text">The first 4 individual sponsors (2 pairs) are included; each additional individual sponsor is ₱100.</p>
+          <label>Number of Individual Sponsors</label><input type="number" class="numeric-no-spinner numeric-zero-friendly" name="wedding_sponsor_count" id="weddingSponsorCountInput" min="0" max="200" step="1" value="0"><p class="helper-text">The first 4 individual sponsors (2 pairs) are included; each additional individual sponsor is ₱100.</p>
         </div>
         <div id="regularSlotGroup" class="form-group" style="display:none;">
           <label>Preferred Date</label>
@@ -1272,6 +1272,10 @@ document.addEventListener('DOMContentLoaded', function () {
         submitBtn.disabled = false;
         submitBtn.textContent = submitButtonLabel();
         if (data.success) {
+          if (data.redirect) {
+            window.location.href = data.redirect;
+            return;
+          }
           document.getElementById('bookFormView').style.display = 'none';
           document.getElementById('bookConfirmView').style.display = 'block';
           document.getElementById('bookConfirmMessage').textContent = data.message + (data.documents_reminder ? ' ' + data.documents_reminder : '');
@@ -1308,6 +1312,21 @@ document.addEventListener('DOMContentLoaded', function () {
       });
   });
 });
+
+function currentScheduleSelection() {
+  var date = document.getElementById('regularDateInput');
+  var time = document.getElementById('regularTimeInput');
+  if (date && date.disabled === false) {
+    return { date: date.value, time: time.value };
+  }
+  // For special/mass schedule if used in Funeral
+  var massTime = document.getElementById('massTimeInput');
+  if (massTime && massTime.disabled === false) {
+    // date might be regularDateInput or similar depending on implementation
+    return { date: date ? date.value : '', time: massTime.value };
+  }
+  return { date: '', time: '' };
+}
 
 function openKatinAwanModal() {
   var form = document.getElementById('katinAwanForm');
