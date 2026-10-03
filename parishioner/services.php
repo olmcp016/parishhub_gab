@@ -71,23 +71,27 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
 <div class="grid-3">
   <?php foreach ($services as $s): ?>
     <?php $isMassIntention = $s['category'] === 'Mass Intention'; ?>
-    <div class="card">
+    <div class="card" style="display:flex; flex-direction:column;">
       <h3><?= e($s['service_name']) ?></h3>
       <p class="text-muted" style="font-size:12.5px; text-transform:uppercase; letter-spacing:.4px;"><?= e($s['category']) ?></p>
       <p style="font-size:14px;"><?= e($s['description']) ?></p>
       <?php if (in_array($s['category'], ['Baptism', 'Wedding'], true) && !empty($feeRulesByCategory[$s['category']])): ?>
-        <p class="text-muted" style="font-size:13px;">Regular and Special fees available by PSS classification.</p>
-        <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('fees-<?= strtolower($s['category']) ?>').showModal()">View Fees</button>
+        <p class="text-muted" style="font-size:13px; margin-bottom:4px;">Regular and Special fees available by PSS classification.</p>
+        <button type="button" class="btn btn-secondary btn-sm" style="align-self:flex-start; margin-bottom:12px;" onclick="document.getElementById('fees-<?= strtolower($s['category']) ?>').showModal()">View Fees</button>
       <?php endif; ?>
       <?php if ($s['requirements']): ?>
-        <details class="requirements-toggle">
+        <details class="requirements-toggle" style="margin-bottom:12px;">
           <summary>Requirements</summary>
           <p><?= e($s['requirements']) ?></p>
         </details>
       <?php endif; ?>
-      <div class="flex-between mt-3">
-        <span class="text-gold" style="font-weight:700; font-size:14px;"><?= in_array($s['category'], $variableFeeCategories, true) ? 'Fee varies by schedule and PSS status' : feeLabel((float) $s['fee']) ?></span>
-        <button type="button" class="btn btn-primary btn-sm" onclick="openBookModal(<?= $s['service_id'] ?>)"><?= $isMassIntention ? 'Enter Intentions' : 'Book Now' ?></button>
+      <div style="margin-top:auto; padding-top:16px;">
+        <div style="margin-bottom:12px;">
+          <span class="text-gold" style="font-weight:700; font-size:14px; display:block;">
+            <?= in_array($s['category'], $variableFeeCategories, true) ? 'Fee varies by schedule and PSS status' : feeLabel((float) $s['fee']) ?>
+          </span>
+        </div>
+        <button type="button" class="btn btn-primary btn-block" style="width:100%;" onclick="openBookModal(<?= $s['service_id'] ?>)"><?= $isMassIntention ? 'Enter Intentions' : 'Book Now' ?></button>
       </div>
     </div>
   <?php endforeach; ?>
@@ -97,9 +101,11 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
       <h3>🤲 Donate to Our Parish</h3>
       <p class="text-muted" style="font-size:12.5px; text-transform:uppercase; letter-spacing:.4px;">Donation</p>
       <p style="font-size:14px;">Support our ministries and services with a voluntary offering — any amount is welcome.</p>
-      <div class="flex-between mt-3" style="margin-top:auto;">
-        <span class="text-gold" style="font-weight:700; font-size:18px;">Voluntary</span>
-        <a href="<?= url('parishioner/donations.php?donate=1') ?>" class="btn btn-primary btn-sm">Donate Now</a>
+      <div style="margin-top:auto; padding-top:16px;">
+        <div style="margin-bottom:12px;">
+          <span class="text-gold" style="font-weight:700; font-size:14px; display:block;">Voluntary</span>
+        </div>
+        <a href="<?= url('parishioner/donations.php?donate=1') ?>" class="btn btn-primary btn-block" style="width:100%; text-align:center;">Donate Now</a>
       </div>
     </div>
   <?php endif; ?>
