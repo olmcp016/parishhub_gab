@@ -23,6 +23,19 @@ $form = $q->fetch() ?: null;
 $data = $form ? (json_decode($form['form_data'], true) ?: []) : [];
 $error = null;
 
+if ($type === 'katin_awan_bunyag' && !$form) {
+    $contactPhone = trim((string) ($draft['contact_phone'] ?? ''));
+    if (!$contactPhone && $user && ($user['role_name'] ?? '') === 'Parishioner') {
+        $pq = $pdo->prepare('SELECT phone FROM parishioners WHERE user_id = ?');
+        $pq->execute([$user['user_id']]);
+        $pPhone = $pq->fetchColumn();
+        if ($pPhone) $contactPhone = trim((string) $pPhone);
+    }
+    $data = [
+        'cellphone' => $contactPhone
+    ];
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifyCsrf();
     $action = ($_POST['action'] ?? 'save') === 'generate' ? 'generate' : 'save';
@@ -95,6 +108,59 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
   <?php if ($error): ?><div class="alert"><?= e($error) ?></div><?php endif; ?>
   <form method="POST">
     <?= csrfField() ?>
+    <?php if ($type === 'katin_awan_bunyag'): ?>
+      <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">
+        <legend style="font-weight:700; padding:0 8px;">CHILD INFORMATION</legend>
+        <div class="form-group"><label for="child_name">Ngalan sa Bunyagan *</label><input id="child_name" name="child_name" type="text" value="<?= e($data['child_name'] ?? '') ?>" maxlength="150" required></div>
+        <div class="form-row">
+            <div class="form-group"><label for="birth_date">Petsa Natawo *</label><input id="birth_date" name="birth_date" type="text" value="<?= e($data['birth_date'] ?? '') ?>" maxlength="50" required></div>
+            <div class="form-group"><label for="birth_place">Diin Natawo *</label><input id="birth_place" name="birth_place" type="text" value="<?= e($data['birth_place'] ?? '') ?>" maxlength="150" required></div>
+        </div>
+      </fieldset>
+
+      <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">
+        <legend style="font-weight:700; padding:0 8px;">PARENTS</legend>
+        <div class="form-row">
+            <div class="form-group"><label for="father_name">Amahan *</label><input id="father_name" name="father_name" type="text" value="<?= e($data['father_name'] ?? '') ?>" maxlength="150" required></div>
+            <div class="form-group"><label for="father_religion">Relihiyon *</label><input id="father_religion" name="father_religion" type="text" value="<?= e($data['father_religion'] ?? '') ?>" maxlength="50" required></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label for="mother_name">Inahan *</label><input id="mother_name" name="mother_name" type="text" value="<?= e($data['mother_name'] ?? '') ?>" maxlength="150" required></div>
+            <div class="form-group"><label for="mother_religion">Relihiyon *</label><input id="mother_religion" name="mother_religion" type="text" value="<?= e($data['mother_religion'] ?? '') ?>" maxlength="50" required></div>
+        </div>
+      </fieldset>
+
+      <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">
+        <legend style="font-weight:700; padding:0 8px;">PARENTS' MARRIAGE</legend>
+        <div class="form-group">
+            <label>Unsang Kasala ang Nadawat sa Ginikanan? *</label>
+            <div class="form-row" role="group" aria-label="Unsang Kasala ang Nadawat sa Ginikanan?">
+                <?php foreach (['Simbahan', 'Sibil', 'Wala'] as $option): ?>
+                    <label><input type="radio" name="parent_marriage" value="<?= e($option) ?>" <?= ($data['parent_marriage'] ?? '') === $option ? 'checked' : '' ?> required> <?= e($option) ?></label>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <div class="form-group"><label for="marriage_place">Diin *</label><input id="marriage_place" name="marriage_place" type="text" value="<?= e($data['marriage_place'] ?? '') ?>" maxlength="150" required></div>
+      </fieldset>
+
+      <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">
+        <legend style="font-weight:700; padding:0 8px;">SPONSORS</legend>
+        <div class="form-group"><label for="sponsor_1">Sponsor 1 *</label><input id="sponsor_1" name="sponsor_1" type="text" value="<?= e($data['sponsor_1'] ?? '') ?>" maxlength="150" required></div>
+        <div class="form-group"><label for="sponsor_2">Sponsor 2 *</label><input id="sponsor_2" name="sponsor_2" type="text" value="<?= e($data['sponsor_2'] ?? '') ?>" maxlength="150" required></div>
+      </fieldset>
+
+      <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">
+        <legend style="font-weight:700; padding:0 8px;">LOCATION / CONTACT</legend>
+        <div class="form-row">
+            <div class="form-group"><label for="chapel">Sakop sa Kapilya sa *</label><input id="chapel" name="chapel" type="text" value="<?= e($data['chapel'] ?? '') ?>" maxlength="150" required></div>
+            <div class="form-group"><label for="cluster_name">Ngalan sa Cluster *</label><input id="cluster_name" name="cluster_name" type="text" value="<?= e($data['cluster_name'] ?? '') ?>" maxlength="150" required></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label for="barangay">Ngalan sa Barangay *</label><input id="barangay" name="barangay" type="text" value="<?= e($data['barangay'] ?? '') ?>" maxlength="150" required></div>
+            <div class="form-group"><label for="cellphone">Cellphone Number *</label><input id="cellphone" name="cellphone" type="text" value="<?= e($data['cellphone'] ?? '') ?>" maxlength="50" required></div>
+        </div>
+      </fieldset>
+    <?php else: ?>
     <?php foreach ($def['fields'] as $key => $label): ?>
       <div class="form-group">
         <label><?= e($label) ?></label>
@@ -109,8 +175,9 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
         <?php endif; ?>
       </div>
     <?php endforeach; ?>
-    <button class="btn btn-outline" name="action" value="save">Save Draft</button>
-    <button class="btn btn-primary" name="action" value="generate">Generate Form</button>
+    <?php endif; ?>
+    <button class="btn btn-outline" name="action" value="save" <?= $type === 'katin_awan_bunyag' ? 'formnovalidate' : '' ?>>Save Draft</button>
+    <button class="btn btn-primary" name="action" value="generate"><?= $type === 'katin_awan_bunyag' ? 'Generate Application Form' : 'Generate Form' ?></button>
   </form>
 </div>
 <?php include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-end.php' : 'dash-end.php'); include __DIR__ . '/includes/footer.php';

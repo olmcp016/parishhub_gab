@@ -84,16 +84,17 @@ function baptismKatinPdf(array $data): string
     baptismPdfField($pdf, 'SAKOP SA KAPILYA SA:', $v('chapel'), 18, 149, 174, 47);
     baptismPdfField($pdf, 'NGALAN SA CLUSTER:', $v('cluster_name'), 18, 159, 174, 40);
     baptismPdfField($pdf, 'NGALAN SA BARANGAY:', $v('barangay'), 18, 169, 174, 46);
-    baptismPdfField($pdf, 'Celphone Number:', $v('cellphone'), 18, 179, 120, 43);
-
-    $pdf->SetFont('Times', 'B', 8); $pdf->SetXY(18, 190); $pdf->MultiCell(174, 4, baptismPdfText('PAHINUMDOM: Isukip niining maong katin-awan ang Certificate of Live Birth sa bata- original og usa ka Xerox copy .'));
-    $pdf->SetFont('Times', '', 8); $y = 207;
+    $pdf->SetFont('Times', '', 8); $y = 195;
     foreach ([['Cluster Service', 'Chapel Service'], ['Cluster Leader', 'Chapel Chairman'], ['Cluster Treasurer', 'Chapel Treasurer']] as $row) {
         $pdf->SetXY(18, $y); $pdf->Cell(80, 5, '__________________________', 0, 0); $pdf->Cell(80, 5, '__________________________', 0, 1);
         $pdf->Cell(80, 5, $row[0], 0, 0, 'C'); $pdf->Cell(80, 5, $row[1], 0, 1, 'C'); $y += 13;
     }
-    $pdf->SetFont('Times', 'B', 9); $pdf->SetXY(54, 250); $pdf->Cell(90, 5, baptismPdfText('REV. FR. AL JOHN A. MINOZA, SThL'), 0, 1, 'C');
+    $pdf->SetFont('Times', 'B', 9); $pdf->SetXY(54, 240); $pdf->Cell(90, 5, baptismPdfText('REV. FR. AL JOHN A. MINOZA, SThL'), 0, 1, 'C');
     $pdf->SetFont('Times', '', 9); $pdf->SetX(54); $pdf->Cell(90, 5, 'Parish Priest', 0, 1, 'C');
+
+    $pdf->SetFont('Times', 'B', 8); $pdf->SetXY(18, 255); $pdf->Cell(135, 5, baptismPdfText('PAHINUMDOM: Isukip niining maong katin-awan ang Certificate of Live Birth sa bata- original og usa ka Xerox copy .'), 0, 0);
+    $pdf->SetFont('Times', 'B', 9); $pdf->Cell(28, 5, baptismPdfText('Cellphone Number:'), 0, 0);
+    $pdf->SetFont('Times', '', 9); $pdf->Cell(0, 5, baptismPdfFit($pdf, $v('cellphone'), 35, 9), 'B', 1);
     return $pdf->Output('S');
 }
 
