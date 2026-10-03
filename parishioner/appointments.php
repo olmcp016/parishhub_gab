@@ -65,7 +65,7 @@ function renderMyAppointmentsTable(array $appointments): void
             <tr>
               <td>#<?= $a['appointment_id'] ?></td>
               <td><?= e($a['service_name']) ?></td>
-              <td><?= formatDate($a['appointment_date']) ?> · <?= date('g:i A', strtotime($a['appointment_time'])) ?></td>
+              <td><?= formatDate($a['appointment_date']) ?><?= $a['appointment_time'] ? ' · ' . date('g:i A', strtotime($a['appointment_time'])) : '' ?></td>
               <td><?= e($a['priest_name'] ?? '—') ?></td>
               <td><?php if ($a['pss_classification'] === 'pending_verification'): ?>Fee pending PSS verification<?php elseif (!empty($a['fee_snapshot'])): ?><?= money((float) ((json_decode($a['fee_snapshot'], true)['total'] ?? 0))) ?><?php else: ?><?= money($a['fee']) ?><?php endif; ?></td>
               <td>

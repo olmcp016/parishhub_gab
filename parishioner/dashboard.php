@@ -81,7 +81,7 @@ include __DIR__ . '/../includes/dash-start.php';
             <?php foreach ($upcoming as $a): ?>
               <tr onclick="location.href='<?= url('parishioner/appointment-detail.php?id=' . $a['appointment_id']) ?>'" style="cursor:pointer;">
                 <td><?= e($a['service_name']) ?></td>
-                <td><?= formatDate($a['appointment_date']) ?> · <?= date('g:i A', strtotime($a['appointment_time'])) ?></td>
+                <td><?= formatDate($a['appointment_date']) ?><?= $a['appointment_time'] ? ' · ' . date('g:i A', strtotime($a['appointment_time'])) : '' ?></td>
                 <td><?= e($a['priest_name'] ?? 'Not yet assigned') ?></td>
                 <td><?php if ($a['category'] === 'Mass Intention'): $miStatus = massIntentionStatusDisplay($a['status_name']); ?><span class="badge badge-<?= $miStatus[1] ?>"><?= e($miStatus[0]) ?></span><?php else: ?><span class="badge badge-<?= badgeClass($a['status_name']) ?>"><?= e($a['status_name']) ?></span><?php endif; ?> <?php if ($a['status_name'] === 'Approved' && $a['category'] !== 'Mass Intention'): ?> <a href="<?= url('parishioner/appointment-detail.php?id=' . $a['appointment_id']) ?>" class="btn btn-primary btn-sm" style="margin-left:8px;" onclick="event.stopPropagation();">Proceed to Payment</a> <?php endif; ?></td>
               </tr>

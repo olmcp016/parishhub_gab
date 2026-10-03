@@ -109,7 +109,7 @@ if (!$isAjax) {
             <tr>
               <td>#<?= $a['appointment_id'] ?></td>
               <td><?= e($a['service_name']) ?></td>
-              <td><?= formatDate($a['appointment_date']) ?> <?= date('g:i A', strtotime($a['appointment_time'])) ?></td>
+              <td><?= formatDate($a['appointment_date']) ?><?= $a['appointment_time'] ? ' ' . date('g:i A', strtotime($a['appointment_time'])) : '' ?></td>
               <td><span class="badge badge-<?= badgeClass($a['status_name']) ?>"><?= e($a['status_name']) ?></span></td>
               <td><a href="<?= url('secretary/appointment-detail.php?id=' . $a['appointment_id']) ?>" class="btn btn-outline btn-sm js-view-modal" data-url="<?= url('secretary/appointment-detail.php?id=' . $a['appointment_id']) ?>" data-title="<?= e('Appointment #' . $a['appointment_id'] . ' — ' . $a['service_name']) ?>">View</a></td>
             </tr>

@@ -26,10 +26,6 @@ UPDATE services
 SET fee = 0 
 WHERE category = 'First Communion';
 
-UPDATE service_fee_rules 
-SET base_fee = 0 
-WHERE category = 'First Communion';
-
 -- 4. Update Wedding Requirements
 UPDATE services 
 SET requirements = 'Groom''s Baptismal Certificate, Bride''s Baptismal Certificate, Groom''s Confirmation Certificate, Bride''s Confirmation Certificate, Sponsors'' Baptismal Certificate, Marriage License, Pre-Cana Seminar Certificate, CENOMAR' 

@@ -83,7 +83,7 @@ function renderAppointmentsTable(array $appointments, bool $isSecretaryViewer): 
                 <?php endif; ?>
               </td>
               <td><?= e($a['service_name']) ?></td>
-              <td><?= formatDate($a['appointment_date']) ?> <?= date('g:i A', strtotime($a['appointment_time'])) ?></td>
+              <td><?= formatDate($a['appointment_date']) ?><?= $a['appointment_time'] ? ' ' . date('g:i A', strtotime($a['appointment_time'])) : '' ?></td>
               <td><?= e($a['priest_name'] ?? '—') ?></td>
               <td>
                 <?php if ($a['schedule_type']): ?><span class="badge badge-<?= strtolower($a['schedule_type']) ?>"><?= e($a['schedule_type']) ?></span><?php endif; ?>
