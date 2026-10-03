@@ -1149,6 +1149,29 @@ document.addEventListener('DOMContentLoaded', function () {
     refreshAvailability();
   });
 
+  document.getElementById('bookForm').addEventListener('invalid', function (e) {
+    e.preventDefault();
+    var errorBox = document.getElementById('bookFormError');
+    var label = 'a required field';
+    if (e.target.labels && e.target.labels.length > 0) {
+      label = e.target.labels[0].textContent.replace(' (optional)', '').replace('*', '').trim();
+    } else if (e.target.previousElementSibling && e.target.previousElementSibling.tagName === 'LABEL') {
+      label = e.target.previousElementSibling.textContent.replace(' (optional)', '').replace('*', '').trim();
+    } else if (e.target.name) {
+      label = e.target.name.replace(/_/g, ' ');
+    }
+    
+    errorBox.textContent = 'Please fill out ' + label + '.';
+    errorBox.style.display = 'block';
+
+    if (!this.dataset.isInvalidated) {
+      this.dataset.isInvalidated = 'true';
+      setTimeout(function() { document.getElementById('bookForm').dataset.isInvalidated = ''; }, 100);
+      e.target.focus();
+      e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, true);
+
   document.getElementById('bookForm').addEventListener('submit', function (e) {
     e.preventDefault();
     var submitBtn = document.getElementById('bookSubmitBtn');
@@ -1273,10 +1296,10 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 function openKatinAwanModal() {
-  document.getElementById('katinAwanModal').style.display = 'flex';
+  document.getElementById('katinAwanModal').showModal();
 }
 function closeKatinAwanModal() {
-  document.getElementById('katinAwanModal').style.display = 'none';
+  document.getElementById('katinAwanModal').close();
 }
 function submitKatinAwanModal() {
   var errorBox = document.getElementById('katinAwanError');
@@ -1316,8 +1339,8 @@ function submitKatinAwanModal() {
 </script>
 
 <!-- Katin-awan sa Paglubong Modal -->
-<div id="katinAwanModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
-  <div style="background:#fff; width:100%; max-width:800px; max-height:90vh; overflow-y:auto; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.1); display:flex; flex-direction:column;">
+<dialog id="katinAwanModal" class="modal" style="width:100%; max-width:800px; padding:0; border:none; border-radius:12px; background:transparent;">
+  <div style="background:#fff; width:100%; max-height:90vh; overflow-y:auto; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.1); display:flex; flex-direction:column;">
     <div style="padding:20px; border-bottom:1px solid var(--cream-dark); display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; background:#fff; z-index:10;">
       <h3 style="margin:0; color:var(--brown);">Katin-awan sa Paglubong</h3>
       <button type="button" onclick="closeKatinAwanModal()" style="background:none; border:none; font-size:24px; cursor:pointer; color:var(--brown-mid);">&times;</button>
@@ -1408,7 +1431,7 @@ function submitKatinAwanModal() {
       <button type="button" class="btn btn-primary" onclick="submitKatinAwanModal()">Save Katin-awan Form</button>
     </div>
   </div>
-</div>
+</dialog>
 
 <?php include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-end.php' : 'dash-end.php'); ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
