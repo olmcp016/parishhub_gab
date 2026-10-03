@@ -41,14 +41,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
         "SELECT a.appointment_id, s.category FROM payments p
          JOIN appointments a ON a.appointment_id = p.appointment_id
          JOIN services s ON a.service_id = s.service_id
-         WHERE p.payment_id = ? AND a.status_id = 4"
+         WHERE p.payment_id = ? AND p.payment_status = 'verified' AND a.status_id = 4"
     );
     $stmt->execute([$id]);
     $toConfirm = $stmt->fetch();
 
     if ($toConfirm && in_array($toConfirm['category'], ['Mass Intention', 'Donation'], true)) {
         $apptId = $toConfirm['appointment_id'];
-        db()->prepare("UPDATE appointments SET status_id = 5 WHERE appointment_id = ?")->execute([$apptId]);
+        $update = db()->prepare("UPDATE appointments SET status_id = 5 WHERE appointment_id = ? AND status_id = 4");
+        $update->execute([$apptId]);
+        if ($update->rowCount() !== 1) {
+            if ($isModalRequest) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => 'This payment cannot be confirmed because its appointment status has changed.']);
+                exit;
+            }
+            flash('error', 'This payment cannot be confirmed because its appointment status has changed.');
+            redirect(url('treasurer/payment-detail.php?id=' . $id));
+        }
         $stmt = db()->prepare(
             "SELECT u.user_id FROM appointments a JOIN parishioners par ON a.parishioner_id = par.parishioner_id
              JOIN users u ON par.user_id = u.user_id WHERE a.appointment_id = ?"

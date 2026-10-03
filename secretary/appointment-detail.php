@@ -18,11 +18,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifyCsrf();
     $action = $_POST['action'] ?? '';
 
+    $targetStmt = db()->prepare(
+        'SELECT a.status_id, a.pss_classification, s.category
+         FROM appointments a JOIN services s ON s.service_id = a.service_id
+         WHERE a.appointment_id = ?'
+    );
+    $targetStmt->execute([$id]);
+    $actionAppointment = $targetStmt->fetch();
+    if (!$actionAppointment) {
+        respondAjaxOrRedirect($isAjax, false, 'Appointment not found.', url('secretary/appointments.php'));
+    }
+    $currentStatusId = (int) $actionAppointment['status_id'];
+
     if ($action === 'verify_document') {
-        db()->prepare("UPDATE uploaded_documents SET review_status = 'approved', verified = TRUE, rejection_reason = NULL, reviewed_by = ?, reviewed_at = NOW() WHERE document_id = ? AND appointment_id = ? AND superseded_by IS NULL")
-            ->execute([$userId, $_POST['document_id'], $id]);
-        db()->prepare("UPDATE generated_wedding_forms SET status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$_POST['document_id'], $id]);
-        db()->prepare("UPDATE generated_baptism_forms SET status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$_POST['document_id'], $id]);
+        if ($currentStatusId !== 1) {
+            respondAjaxOrRedirect($isAjax, false, 'Documents can only be reviewed while the appointment is pending.', $redirectUrl);
+        }
+        $documentId = (int) ($_POST['document_id'] ?? 0);
+        $pdo = db();
+        $pdo->beginTransaction();
+        try {
+            $statusLock = $pdo->prepare('SELECT status_id FROM appointments WHERE appointment_id = ? FOR UPDATE');
+            $statusLock->execute([$id]);
+            if ((int) $statusLock->fetchColumn() !== 1) {
+                $pdo->rollBack();
+                respondAjaxOrRedirect($isAjax, false, 'Documents can only be reviewed while the appointment is pending.', $redirectUrl);
+            }
+            $update = $pdo->prepare(
+                "UPDATE uploaded_documents
+                 SET review_status = 'approved', verified = TRUE, rejection_reason = NULL, reviewed_by = ?, reviewed_at = NOW()
+                 WHERE document_id = ? AND appointment_id = ? AND review_status = 'pending' AND superseded_by IS NULL"
+            );
+            $update->execute([$userId, $documentId, $id]);
+            if ($update->rowCount() !== 1) {
+                $pdo->rollBack();
+                respondAjaxOrRedirect($isAjax, false, 'This document is no longer pending review.', $redirectUrl);
+            }
+            $pdo->prepare("UPDATE generated_wedding_forms SET status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$documentId, $id]);
+            $pdo->prepare("UPDATE generated_baptism_forms SET status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$documentId, $id]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('Document approval failed: ' . $e->getMessage());
+            respondAjaxOrRedirect($isAjax, false, 'The document could not be approved. Please try again.', $redirectUrl);
+        }
         logActivity($userId, "Verified a document for appointment #$id", 'Appointments');
         respondAjaxOrRedirect($isAjax, true, 'Document marked as verified.', $redirectUrl);
     }
@@ -32,10 +71,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($reason === '' || mb_strlen($reason) > 1000) {
             respondAjaxOrRedirect($isAjax, false, 'A document rejection reason is required.', $redirectUrl);
         }
-        db()->prepare("UPDATE uploaded_documents SET review_status = 'rejected', verified = FALSE, rejection_reason = ?, reviewed_by = ?, reviewed_at = NOW() WHERE document_id = ? AND appointment_id = ? AND superseded_by IS NULL")
-            ->execute([$reason, $userId, $_POST['document_id'], $id]);
-        db()->prepare("UPDATE generated_wedding_forms SET status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$_POST['document_id'], $id]);
-        db()->prepare("UPDATE generated_baptism_forms SET status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$_POST['document_id'], $id]);
+        if ($currentStatusId !== 1) {
+            respondAjaxOrRedirect($isAjax, false, 'Documents can only be reviewed while the appointment is pending.', $redirectUrl);
+        }
+        $documentId = (int) ($_POST['document_id'] ?? 0);
+        $pdo = db();
+        $pdo->beginTransaction();
+        try {
+            $statusLock = $pdo->prepare('SELECT status_id FROM appointments WHERE appointment_id = ? FOR UPDATE');
+            $statusLock->execute([$id]);
+            if ((int) $statusLock->fetchColumn() !== 1) {
+                $pdo->rollBack();
+                respondAjaxOrRedirect($isAjax, false, 'Documents can only be reviewed while the appointment is pending.', $redirectUrl);
+            }
+            $update = $pdo->prepare(
+                "UPDATE uploaded_documents
+                 SET review_status = 'rejected', verified = FALSE, rejection_reason = ?, reviewed_by = ?, reviewed_at = NOW()
+                 WHERE document_id = ? AND appointment_id = ? AND review_status = 'pending' AND superseded_by IS NULL"
+            );
+            $update->execute([$reason, $userId, $documentId, $id]);
+            if ($update->rowCount() !== 1) {
+                $pdo->rollBack();
+                respondAjaxOrRedirect($isAjax, false, 'This document is no longer pending review.', $redirectUrl);
+            }
+            $pdo->prepare("UPDATE generated_wedding_forms SET status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$documentId, $id]);
+            $pdo->prepare("UPDATE generated_baptism_forms SET status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$documentId, $id]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('Document rejection failed: ' . $e->getMessage());
+            respondAjaxOrRedirect($isAjax, false, 'The document could not be rejected. Please try again.', $redirectUrl);
+        }
         logActivity($userId, "Rejected a document for appointment #$id", 'Appointments');
         respondAjaxOrRedirect($isAjax, true, 'Document rejected with instructions.', $redirectUrl);
     }
@@ -47,14 +113,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             respondAjaxOrRedirect($isAjax, false, 'Please choose a valid PSS classification.', $redirectUrl);
         }
         $stage = 'load_appointment';
-        $stmt = db()->prepare("SELECT a.schedule_type, a.sponsor_count, a.wedding_sponsor_count, s.category FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_id = ? FOR UPDATE");
         $pdo = db();
         $pdo->beginTransaction();
         try {
+            $stmt = $pdo->prepare("SELECT a.status_id, a.pss_classification, a.schedule_type, a.sponsor_count, a.wedding_sponsor_count, s.category FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_id = ? FOR UPDATE");
             $stmt->execute([$id]);
             $feeAppointment = $stmt->fetch();
             if (!$feeAppointment || !in_array($feeAppointment['category'], ['Baptism', 'Wedding', 'Funeral'], true)) {
                 throw new RuntimeException('This appointment does not use the PSS fee rules.');
+            }
+            if (!in_array((int) $feeAppointment['status_id'], [1, 2], true)
+                || $feeAppointment['pss_classification'] !== 'pending_verification') {
+                throw new RuntimeException('This appointment is no longer awaiting PSS verification.');
             }
             $stage = 'calculate_fee';
             $sponsors = $feeAppointment['category'] === 'Wedding' ? (int) $feeAppointment['wedding_sponsor_count'] : (int) $feeAppointment['sponsor_count'];
@@ -62,8 +132,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$calculation) throw new RuntimeException('No fee rule is configured for this appointment.');
             $calculation['verified_by'] = $userId;
             $stage = 'update_appointment';
-            $pdo->prepare('UPDATE appointments SET pss_classification = ?, pss_verified_by = ?, pss_verified_at = NOW(), fee_snapshot = ? WHERE appointment_id = ?')
-                ->execute([$classification, $userId, json_encode($calculation), $id]);
+            $update = $pdo->prepare("UPDATE appointments SET pss_classification = ?, pss_verified_by = ?, pss_verified_at = NOW(), fee_snapshot = ? WHERE appointment_id = ? AND status_id IN (1, 2) AND pss_classification = 'pending_verification'");
+            $update->execute([$classification, $userId, json_encode($calculation), $id]);
+            if ($update->rowCount() !== 1) {
+                throw new RuntimeException('This appointment is no longer awaiting PSS verification.');
+            }
             $stage = 'commit';
             $pdo->commit();
             logActivity($userId, "Verified PSS classification for appointment #$id as $classification", 'Appointments');
@@ -93,6 +166,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'approve') {
+        if ($currentStatusId !== 1 || in_array($actionAppointment['category'], ['Mass Intention', 'Donation'], true)) {
+            respondAjaxOrRedirect($isAjax, false, 'This appointment is no longer pending approval.', $redirectUrl);
+        }
         // Require that EVERY named requirement has a verified upload before
         // approving — not just "at least one document total" as before.
         // Mass Intentions and Donations never require documents — they're
@@ -105,7 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $svc = $stmt->fetch();
         $requirementsList = $svc['category'] === 'Wedding'
             ? weddingDraftRequiredDocuments(['category' => 'Wedding'])
-            : (!empty($appointment['requirements_snapshot']) ? (json_decode($appointment['requirements_snapshot'], true) ?: []) : parseRequirementsList($svc['requirements']));
+            : (!empty($svc['requirements_snapshot']) ? (json_decode($svc['requirements_snapshot'], true) ?: []) : parseRequirementsList($svc['requirements']));
 
         if (!in_array($svc['category'], ['Mass Intention', 'Donation'], true) && !empty($requirementsList)) {
             $stmt = db()->prepare('SELECT requirement_label, verified FROM uploaded_documents WHERE appointment_id = ?');
@@ -136,8 +212,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        db()->prepare("UPDATE appointments SET status_id = 2, approved_by = ?, approved_at = NOW() WHERE appointment_id = ?")
-            ->execute([$userId, $id]);
+        $update = db()->prepare("UPDATE appointments SET status_id = 2, approved_by = ?, approved_at = NOW() WHERE appointment_id = ? AND status_id = 1");
+        $update->execute([$userId, $id]);
+        if ($update->rowCount() !== 1) {
+            respondAjaxOrRedirect($isAjax, false, 'This appointment is no longer pending approval.', $redirectUrl);
+        }
         $stmt = db()->prepare("SELECT parishioner_id FROM appointments WHERE appointment_id = ?");
         $stmt->execute([$id]);
         $parId = $stmt->fetchColumn();
@@ -149,6 +228,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         logActivity($userId, "Approved appointment #$id", 'Appointments');
         respondAjaxOrRedirect($isAjax, true, 'Appointment approved. The parishioner may now proceed to payment.', $redirectUrl);
     } elseif ($action === 'reject') {
+        if ($currentStatusId !== 1 || in_array($actionAppointment['category'], ['Mass Intention', 'Donation'], true)) {
+            respondAjaxOrRedirect($isAjax, false, 'This appointment is no longer pending review.', $redirectUrl);
+        }
         $selectedReason = trim($_POST['rejection_reason'] ?? '');
         $allowedReasons = ['Schedule Conflict', 'Incomplete Documents', 'Requirements Not Met', 'Other'];
         if (!in_array($selectedReason, $allowedReasons, true)) {
@@ -165,8 +247,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        db()->prepare("UPDATE appointments SET status_id = 3, rejection_reason = ? WHERE appointment_id = ?")
-            ->execute([$reason, $id]);
+        $update = db()->prepare("UPDATE appointments SET status_id = 3, rejection_reason = ? WHERE appointment_id = ? AND status_id = 1");
+        $update->execute([$reason, $id]);
+        if ($update->rowCount() !== 1) {
+            respondAjaxOrRedirect($isAjax, false, 'This appointment is no longer pending review.', $redirectUrl);
+        }
         $stmt = db()->prepare("SELECT parishioner_id FROM appointments WHERE appointment_id = ?");
         $stmt->execute([$id]);
         $parId = $stmt->fetchColumn();
@@ -178,7 +263,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         logActivity($userId, "Rejected appointment #$id", 'Appointments');
         respondAjaxOrRedirect($isAjax, true, 'Appointment rejected.', $redirectUrl);
     } elseif ($action === 'assign_priest') {
-        $priestId = $_POST['priest_id'];
+        if (!in_array($currentStatusId, [1, 2, 4, 5], true)
+            || in_array($actionAppointment['category'], ['Mass Intention', 'Donation'], true)) {
+            respondAjaxOrRedirect($isAjax, false, 'A priest cannot be assigned at this appointment status.', $redirectUrl);
+        }
+        $priestId = (int) ($_POST['priest_id'] ?? 0);
+        if ($priestId < 1) {
+            respondAjaxOrRedirect($isAjax, false, 'Please choose a valid priest.', $redirectUrl);
+        }
 
         $stmt = db()->prepare(
             "SELECT appointment_date, appointment_time FROM appointments WHERE appointment_id = ?"
@@ -191,11 +283,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$availability['available']) {
             respondAjaxOrRedirect($isAjax, false, $availability['reason'], $redirectUrl);
         }
-        db()->prepare("UPDATE appointments SET priest_id = ? WHERE appointment_id = ?")
-            ->execute([$priestId, $id]);
+        $update = db()->prepare("UPDATE appointments SET priest_id = ? WHERE appointment_id = ? AND status_id IN (1, 2, 4, 5)");
+        $update->execute([$priestId, $id]);
+        if ($update->rowCount() !== 1) {
+            respondAjaxOrRedirect($isAjax, false, 'The priest assignment was not changed. Refresh and try again.', $redirectUrl);
+        }
         logActivity($userId, "Assigned priest to appointment #$id", 'Appointments');
         respondAjaxOrRedirect($isAjax, true, 'Priest assigned.', $redirectUrl);
     } elseif ($action === 'reschedule') {
+        if (!in_array($currentStatusId, [1, 2, 4, 5], true)
+            || in_array($actionAppointment['category'], ['Mass Intention', 'Donation'], true)) {
+            respondAjaxOrRedirect($isAjax, false, 'This appointment can no longer be rescheduled.', $redirectUrl);
+        }
         $massCheck = db()->prepare('SELECT s.category FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_id = ?');
         $massCheck->execute([$id]);
         if ($massCheck->fetchColumn() === 'Mass Intention') {
@@ -205,13 +304,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $newTime = $_POST['appointment_time'];
 
         $stmt = db()->prepare(
-            "SELECT s.category, s.service_id, a.schedule_type FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_id = ?"
+            "SELECT s.category, s.service_id, a.schedule_type, a.date_of_death FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_id = ?"
         );
         $stmt->execute([$id]);
         $apptInfo = $stmt->fetch();
         $category = $apptInfo['category'];
 
-        $check = validateBooking($category, $newDate, $newTime, null, $apptInfo['schedule_type'], (int) $apptInfo['service_id']);
+        $check = validateBooking($category, $newDate, $newTime, $apptInfo['date_of_death'], $apptInfo['schedule_type'], (int) $apptInfo['service_id']);
         if (!$check['valid']) {
             respondAjaxOrRedirect($isAjax, false, $check['message'], $redirectUrl);
         }
@@ -219,11 +318,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             respondAjaxOrRedirect($isAjax, false, 'That exact date and time is already booked for this service. Please choose another slot.', $redirectUrl);
         }
         $finalTime = $check['forcedTime'] ?? $newTime;
-        db()->prepare("UPDATE appointments SET appointment_date = ?, appointment_time = ? WHERE appointment_id = ?")
-            ->execute([$newDate, $finalTime, $id]);
+        $update = db()->prepare("UPDATE appointments SET appointment_date = ?, appointment_time = ? WHERE appointment_id = ? AND status_id IN (1, 2, 4, 5)");
+        $update->execute([$newDate, $finalTime, $id]);
+        if ($update->rowCount() !== 1) {
+            respondAjaxOrRedirect($isAjax, false, 'The schedule was not changed. Refresh and try again.', $redirectUrl);
+        }
         logActivity($userId, "Rescheduled appointment #$id", 'Appointments');
         respondAjaxOrRedirect($isAjax, true, 'Schedule updated.', $redirectUrl);
     } elseif ($action === 'confirm') {
+        if ($currentStatusId !== 4) {
+            respondAjaxOrRedirect($isAjax, false, 'Only a payment-verified appointment can be confirmed.', $redirectUrl);
+        }
         // Mass Intention/Donation payment confirmation is the Cashier's
         // responsibility (see treasurer/payment-detail.php) — Secretary no
         // longer manages payments for these two categories.
@@ -233,7 +338,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             respondAjaxOrRedirect($isAjax, false, 'Payment confirmation for Mass Intentions and Donations is handled by the Cashier.', $redirectUrl);
         }
 
-        db()->prepare("UPDATE appointments SET status_id = 5 WHERE appointment_id = ?")->execute([$id]);
+        $update = db()->prepare("UPDATE appointments SET status_id = 5 WHERE appointment_id = ? AND status_id = 4");
+        $update->execute([$id]);
+        if ($update->rowCount() !== 1) {
+            respondAjaxOrRedirect($isAjax, false, 'This appointment is no longer awaiting confirmation.', $redirectUrl);
+        }
         $stmt = db()->prepare("SELECT parishioner_id FROM appointments WHERE appointment_id = ?");
         $stmt->execute([$id]);
         $parId = $stmt->fetchColumn();
@@ -245,7 +354,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         logActivity($userId, "Confirmed appointment #$id", 'Appointments');
         respondAjaxOrRedirect($isAjax, true, 'Appointment confirmed.', $redirectUrl);
     } elseif ($action === 'complete') {
-        db()->prepare("UPDATE appointments SET status_id = 6 WHERE appointment_id = ?")->execute([$id]);
+        if ($currentStatusId !== 5) {
+            respondAjaxOrRedirect($isAjax, false, 'Only a confirmed appointment can be completed.', $redirectUrl);
+        }
+        $update = db()->prepare("UPDATE appointments SET status_id = 6 WHERE appointment_id = ? AND status_id = 5");
+        $update->execute([$id]);
+        if ($update->rowCount() !== 1) {
+            respondAjaxOrRedirect($isAjax, false, 'This appointment is no longer awaiting completion.', $redirectUrl);
+        }
         logActivity($userId, "Marked appointment #$id as completed", 'Appointments');
         respondAjaxOrRedirect($isAjax, true, 'Appointment marked as completed.', $redirectUrl);
     }
@@ -361,7 +477,7 @@ if (!$isAjax) {
           <strong>Total: <?= feeLabel((float) ($feeSnapshot['total'] ?? 0)) ?></strong>
         </div>
       <?php endif; ?>
-      <?php if ($appointment['pss_classification'] === 'pending_verification'): ?>
+      <?php if ($appointment['pss_classification'] === 'pending_verification' && in_array((int) $appointment['status_id'], [1, 2], true)): ?>
         <form method="POST" action="<?= e($redirectUrl) ?>" class="card" style="background:var(--cream); margin:16px 0;">
           <?= csrfField() ?><input type="hidden" name="action" value="verify_pss">
           <h4 style="margin-top:0;">Verify PSS Classification</h4>
@@ -417,8 +533,18 @@ if (!$isAjax) {
           <span class="badge badge-<?= $formStatus === 'approved' ? 'verified' : ($formStatus === 'rejected' ? 'rejected' : 'pending') ?>"><?= $formStatus === 'approved' ? 'Approved' : ($formStatus === 'rejected' ? 'Needs Revision' : 'Pending Review') ?></span>
           <?php if ($gf['document_id']): ?><a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>">View PDF</a><?php endif; ?>
           <?php if ($gf['rejection_reason']): ?><p class="text-muted">Reason: <?= e($gf['rejection_reason']) ?></p><?php endif; ?>
-          <?php if ($gf['document_id'] && $formStatus === 'pending'): ?>
+          <?php if ($gf['document_id'] && $formStatus === 'pending' && (int) $appointment['status_id'] === 1): ?>
             <form method="POST" action="<?= e($redirectUrl) ?>" style="display:inline;"> <?= csrfField() ?><input type="hidden" name="action" value="verify_document"><input type="hidden" name="document_id" value="<?= (int) $gf['document_id'] ?>"><button class="btn btn-outline btn-sm">Approve</button></form>
+            <?php if ($gf['form_type'] === 'matrimony_application'): ?>
+              <form method="POST" action="<?= e($redirectUrl) ?>" style="margin-top:10px;">
+                <?= csrfField() ?>
+                <input type="hidden" name="action" value="reject_document">
+                <input type="hidden" name="document_id" value="<?= (int) $gf['document_id'] ?>">
+                <label for="marriageFormRejectionReason<?= (int) $gf['document_id'] ?>">Reason for revision</label>
+                <textarea id="marriageFormRejectionReason<?= (int) $gf['document_id'] ?>" name="document_rejection_reason" rows="2" maxlength="1000" required placeholder="Explain what the applicant needs to correct."></textarea>
+                <button class="btn btn-danger btn-sm" type="submit" style="margin-top:6px;">Reject with Reason</button>
+              </form>
+            <?php endif; ?>
           <?php endif; ?>
         </div>
       <?php endforeach; ?>
@@ -480,7 +606,7 @@ if (!$isAjax) {
                 <?php $docStatus = $d['review_status'] ?? ($d['verified'] ? 'approved' : 'pending'); ?>
                 <td><?= $docStatus === 'approved' ? '<span class="badge badge-verified">Approved</span>' : ($docStatus === 'rejected' ? '<span class="badge badge-rejected">Needs Replacement</span>' : '<span class="badge badge-pending">Pending Review</span>') ?></td>
                 <td>
-                  <?php if ($docStatus === 'pending' && $d['superseded_by'] === null): ?>
+                  <?php if ($docStatus === 'pending' && $d['superseded_by'] === null && (int) $appointment['status_id'] === 1): ?>
                     <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>" style="display:inline;">
                       <?= csrfField() ?>
                       <input type="hidden" name="action" value="verify_document">
@@ -547,7 +673,7 @@ if (!$isAjax) {
       <?php endif; ?>
     </div>
 
-    <?php if (!in_array($appointment['category'], ['Mass Intention', 'Donation'], true)): ?>
+    <?php if (!in_array($appointment['category'], ['Mass Intention', 'Donation'], true) && in_array((int) $appointment['status_id'], [1, 2, 4, 5], true)): ?>
     <?php
       $priestAlreadySet = !empty($appointment['priest_id']);
       $assignedPriest = null;
@@ -653,7 +779,7 @@ if (!$isAjax) {
       </div>
     </dialog>
 
-    <?php if ($appointment['category'] !== 'Mass Intention'): ?>
+    <?php if (!in_array($appointment['category'], ['Mass Intention', 'Donation'], true) && in_array((int) $appointment['status_id'], [1, 2, 4, 5], true)): ?>
     <div class="card">
       <div class="card-header"><h3>Reschedule</h3></div>
       <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>">

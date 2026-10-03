@@ -11,8 +11,8 @@ Since this edition has no router, every URL is a literal file path. All pages ar
 | `auth/login.php` | Login form (GET) + authenticate (POST) |
 | `auth/register.php` | Registration form (GET) + create account (POST) |
 | `auth/logout.php` | Destroys session, redirects to login |
-| `install.php` | One-click database installer (see README) |
-| `database/hash-password.php` | Bcrypt hash generator utility (CLI or browser) |
+| `install.php` | Legacy MySQL installer; not used by PostgreSQL/Supabase deployments |
+| `database/hash-password.php` | CLI bcrypt hash generator utility |
 | `chatbot.php` | POST-only JSON endpoint: `{"message": "..."}` → `{"reply": "..."}` |
 
 ## Parishioner Pages (`parishioner/`) — requires role `Parishioner`
@@ -63,7 +63,7 @@ Since this edition has no router, every URL is a literal file path. All pages ar
 | `activity-logs.php` | Full audit trail (latest 200) |
 | `settings.php` | View + update parish/system settings (key-value upsert) |
 | `reports.php` | System-wide revenue + top services + completion stats |
-| `backup.php` | phpMyAdmin-based backup/restore instructions |
+| `backup.php` | Database backup/restore guidance; use PostgreSQL/Supabase tooling for the current deployment |
 
 ---
 

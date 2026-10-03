@@ -8,14 +8,14 @@
 | Session security | Native PHP sessions, started once in `config/config.php`; session ID stored in an `httpOnly`-by-default PHP session cookie |
 | CSRF protection | Every form includes a hidden `csrf_token` field (`csrfField()`); every POST handler calls `verifyCsrf()` before touching the database, using `hash_equals()` for timing-safe comparison. Confirmed working during testing — a request without a valid token is rejected with HTTP 419 before any query runs. |
 | Role-Based Access Control (RBAC) | Every protected page calls `requireRole(...)` as its first line — a Parishioner can never reach `secretary/*.php`, `treasurer/*.php`, or `admin/*.php`, verified by direct testing (renders `errors/403.php`) |
-| SQL Injection protection | 100% parameterized queries via PDO (`?` placeholders, `PDO::ATTR_EMULATE_PREPARES => false`) — no string concatenation into SQL anywhere in the codebase |
+| SQL Injection protection | Parameterized PDO queries (`?` placeholders); the Supabase transaction-pooler configuration uses emulated prepares while retaining parameter binding |
 | XSS protection | All dynamic output goes through the `e()` helper (`htmlspecialchars()`, `ENT_QUOTES`) — confirmed applied consistently across every page |
 | Folder-level hardening | `.htaccess` files deny direct web access to `config/` and `includes/`, and disable PHP execution inside `public/uploads/` (prevents an uploaded `.php` file from ever being executed) |
-| File upload restrictions | Uploaded filenames are prefixed with `time()` to prevent collisions; client-side `accept` restricts to PDF/JPG/PNG — **recommend adding server-side MIME validation before production use** |
+| File upload restrictions | Uploaded files are server-validated and stored with generated names; accepted formats are restricted to PDF/JPG/PNG |
 | Activity logging / audit trail | Every significant state change (login, approve, reject, verify payment, user management) is written to `activity_logs` with user ID, action, module, IP address, and user agent |
 | Least privilege by default | New registrations always default to `role_id = 1` (Parishioner) — the registration form has no way to self-assign Secretary/Treasurer/Admin |
 | Account status gating | `users.status` (active/inactive/suspended) is checked at login — deactivated accounts cannot authenticate even with correct credentials |
-| Environment secrets | DB credentials live in `config/config.php`, which is blocked from direct web access via `.htaccess` — never exposed to visitors |
+| Environment secrets | DB credentials are supplied by environment variables or an untracked local configuration file; the config directory is blocked from direct web access |
 
 ## Validation Rules
 
@@ -38,15 +38,14 @@
 - Stored in `public/uploads/`, which has PHP execution disabled via `.htaccess`
 
 ## Database-Level Integrity
-- Every foreign key relationship in `schema.sql` has an explicit `FOREIGN KEY ... REFERENCES` constraint with sensible `ON DELETE` behavior
-- `ENUM` types constrain status/category fields at the database level
+- The PostgreSQL/Supabase schema defines foreign-key relationships with sensible `ON DELETE` behavior
+- PostgreSQL enum types constrain status/category fields at the database level
 - `UNIQUE` constraints on `users.email`, `payments.reference_number`, `official_receipts.receipt_number`
 
 ## Recommended Additions for Production (not yet implemented)
-- **Delete or rename `install.php`** immediately after setup — left in place, it can reset the entire database (it requires no authentication by design, since it runs before any accounts exist)
-- Server-side file type/MIME validation on uploads (not just client `accept` attribute)
+- Keep `install.php` out of a PostgreSQL/Supabase deployment; it is a legacy MySQL installer
 - Two-factor authentication for Admin/Treasurer accounts
-- Encrypted/off-site backups (phpMyAdmin exports are plaintext SQL)
+- Encrypted/off-site PostgreSQL backups
 - Explicit HTTPS enforcement (`session.cookie_secure = 1` in `php.ini`, HSTS header) once deployed off localhost
 - Application-level rate limiting or a web-server-level solution (e.g. `mod_evasive`), since plain PHP has no built-in equivalent to Node's `express-rate-limit`
 - Login attempt lockout after N failed attempts

@@ -54,7 +54,7 @@ function weddingDraftComplete(PDO $pdo, array $draft): array
           AND d.file_type = 'application/pdf'");
     $q->execute([$draft['draft_id']]); $forms = array_unique($q->fetchAll(PDO::FETCH_COLUMN));
     foreach (WEDDING_DRAFT_FORMS as $form) if (!in_array($form, $forms, true)) $missing[] = match ($form) {
-        'matrimony_application' => 'Matrimony / Marriage Application Form',
+        'matrimony_application' => 'Marriage Requirement and Application Form',
         'cluster_clearance' => 'Katin-awan sa Kasal',
         default => 'Cluster Clearance for Wedding Sponsors',
     };

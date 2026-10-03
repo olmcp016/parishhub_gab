@@ -20,7 +20,7 @@ $publicNavUser = $__user ?? currentUser();
       </form>
     <?php else: ?>
       <a href="<?= url('auth/login.php') ?>">Sign In</a>
-      <a href="<?= url('auth/register.php') ?>" class="btn btn-primary btn-sm">Get Started</a>
+      <a href="<?= url('auth/register.php') ?>" class="btn btn-primary btn-sm">Create Account</a>
     <?php endif; ?>
   </div>
 </nav>
@@ -34,6 +34,12 @@ $publicNavUser = $__user ?? currentUser();
     var open = nav.classList.toggle('is-open');
     toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     toggle.setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
+  });
+  nav.querySelector('.links').addEventListener('click', function (event) {
+    if (!event.target.closest('a') || !nav.classList.contains('is-open')) return;
+    nav.classList.remove('is-open');
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-label', 'Open navigation');
   });
 })();
 </script>

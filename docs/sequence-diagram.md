@@ -6,7 +6,7 @@
 sequenceDiagram
     actor Par as Parishioner
     participant PHP as PHP / Apache
-    participant DB as MySQL (via PDO)
+    participant DB as PostgreSQL / Supabase (via PDO)
     actor Sec as Secretary
     actor Treas as Treasurer
 
@@ -56,7 +56,7 @@ sequenceDiagram
     PHP-->>Par: Render confirmed appointment with receipt info
 ```
 
-This exact flow was executed against a live PHP 8.3 + MySQL 8 environment during development — a real booking was approved, paid, verified, and issued an official receipt (`OR-2026-000002`).
+The current deployment path uses PostgreSQL/Supabase; verify the end-to-end flow in the configured environment before deployment.
 
 ## Chatbot Interaction
 
@@ -65,7 +65,7 @@ sequenceDiagram
     actor U as Website Visitor
     participant JS as app.js (client)
     participant PHP as chatbot.php
-    participant DB as MySQL
+    participant DB as PostgreSQL / Supabase
 
     U->>JS: Types "How much is a baptism?"
     JS->>PHP: POST chatbot.php {message}

@@ -450,8 +450,8 @@ function announcementStatus(?string $startDate, ?string $endDate): string
 }
 
 /**
- * Marks a pending payment verified, issues an official receipt, confirms
- * the appointment, notifies the parishioner, and (for donations) refreshes
+ * Marks a pending payment verified, issues an official receipt, moves the
+ * appointment to Payment Verified, notifies the parishioner, and (for donations) refreshes
  * the weekly donor announcement — the single canonical "a payment just
  * cleared" path, used by both the treasurer's manual verification action
  * and the automated PayMongo reconciliation, so an online payment flows
@@ -465,6 +465,32 @@ function verifyPaymentAndIssueReceipt(int $paymentId, ?int $verifiedByUserId, st
     $pdo = db();
     $pdo->beginTransaction();
     try {
+        // Lock both records before changing either one. A payment may still
+        // be pending after its appointment was cancelled/rejected by another
+        // request; verification must never revive that appointment.
+        $stmt = $pdo->prepare(
+            'SELECT p.*, a.status_id AS appointment_status_id, a.parishioner_id, s.category
+             FROM payments p
+             JOIN appointments a ON a.appointment_id = p.appointment_id
+             JOIN services s ON s.service_id = a.service_id
+             WHERE p.payment_id = ?
+             FOR UPDATE'
+        );
+        $stmt->execute([$paymentId]);
+        $payment = $stmt->fetch();
+        if (!$payment || $payment['payment_status'] !== 'pending') {
+            $pdo->rollBack();
+            return ['ok' => false, 'message' => 'Payment already processed or not found.', 'receipt_number' => null];
+        }
+        if ((int) $payment['appointment_status_id'] !== 2) {
+            $pdo->rollBack();
+            return [
+                'ok' => false,
+                'message' => 'Payment cannot be verified because the appointment is no longer approved for payment.',
+                'receipt_number' => null,
+            ];
+        }
+
         $updateStmt = $pdo->prepare(
             "UPDATE payments SET payment_status='verified', reference_number=?, verified_by=?, verified_at=NOW()
              WHERE payment_id=? AND payment_status='pending'"
@@ -474,32 +500,28 @@ function verifyPaymentAndIssueReceipt(int $paymentId, ?int $verifiedByUserId, st
             $pdo->rollBack();
             return ['ok' => false, 'message' => 'Payment already processed or not found.', 'receipt_number' => null];
         }
+        $payment['reference_number'] = $referenceNumber;
 
-        $stmt = $pdo->prepare('SELECT * FROM payments WHERE payment_id = ?');
-        $stmt->execute([$paymentId]);
-        $payment = $stmt->fetch();
-
-        $pdo->prepare("UPDATE appointments SET status_id = 4 WHERE appointment_id = ?")->execute([$payment['appointment_id']]);
+        $appointmentUpdate = $pdo->prepare(
+            'UPDATE appointments SET status_id = 4 WHERE appointment_id = ? AND status_id = 2'
+        );
+        $appointmentUpdate->execute([$payment['appointment_id']]);
+        if ($appointmentUpdate->rowCount() !== 1) {
+            throw new RuntimeException('Appointment status changed during payment verification.');
+        }
 
         $receiptNumber = 'OR-' . date('Y') . '-' . str_pad((string) $paymentId, 6, '0', STR_PAD_LEFT);
         $pdo->prepare("INSERT INTO official_receipts (payment_id, receipt_number, issued_by) VALUES (?, ?, ?)")
             ->execute([$paymentId, $receiptNumber, $verifiedByUserId]);
 
-        $stmt = $pdo->prepare('SELECT parishioner_id FROM appointments WHERE appointment_id = ?');
-        $stmt->execute([$payment['appointment_id']]);
-        $parId = $stmt->fetchColumn();
         $stmt = $pdo->prepare('SELECT user_id FROM parishioners WHERE parishioner_id = ?');
-        $stmt->execute([$parId]);
+        $stmt->execute([$payment['parishioner_id']]);
         $puid = $stmt->fetchColumn();
 
         $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'payment', 'Payment Verified', ?)")
-            ->execute([$puid, "Your payment (Ref: {$payment['reference_number']}) has been verified. Official Receipt $receiptNumber issued."]);
+            ->execute([$puid, "Your payment (Ref: {$payment['reference_number']}) has been verified. Official Receipt $receiptNumber issued. Your appointment is awaiting confirmation."]);
 
-        $stmt = $pdo->prepare(
-            "SELECT s.category FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_id = ?"
-        );
-        $stmt->execute([$payment['appointment_id']]);
-        $isDonation = $stmt->fetchColumn() === 'Donation';
+        $isDonation = $payment['category'] === 'Donation';
 
         $pdo->commit();
         if ($isDonation) {
@@ -507,7 +529,7 @@ function verifyPaymentAndIssueReceipt(int $paymentId, ?int $verifiedByUserId, st
         }
         return ['ok' => true, 'message' => "Payment verified. Receipt $receiptNumber generated.", 'receipt_number' => $receiptNumber];
     } catch (Throwable $e) {
-        $pdo->rollBack();
+        if ($pdo->inTransaction()) $pdo->rollBack();
         error_log($e->getMessage());
         return ['ok' => false, 'message' => 'Failed to verify payment.', 'receipt_number' => null];
     }

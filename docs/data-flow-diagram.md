@@ -12,7 +12,7 @@ graph LR
     SYS -->|Appointment queues| S
     SYS -->|Payment records| T
     SYS -->|Reports, logs| A
-    SYS <-->|Persisted records| DB[(MySQL Database)]
+    SYS <-->|Persisted records| DB[(PostgreSQL / Supabase)]
 ```
 
 ## Level 1 (Major Processes)

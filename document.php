@@ -70,7 +70,7 @@ if (!in_array($mime, $allowedMimes, true)) $mime = 'application/octet-stream';
 header('Content-Type: ' . $mime);
 if ($filePath) header('Content-Length: ' . (string) filesize($filePath)); else header('Content-Length: ' . strlen($stored['body']));
 $generatedFilenames = [
-    'matrimony_application' => 'Matrimony-Application.pdf',
+    'matrimony_application' => 'Marriage-Requirement-and-Application-Form.pdf',
     'cluster_clearance' => 'Katin-awan-sa-Kasal.pdf',
     'wedding_sponsor_clearance' => 'Cluster-Clearance-Wedding-Sponsors.pdf',
     'katin_awan_bunyag' => 'Katin-awan-sa-Bunyag.pdf',

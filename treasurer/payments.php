@@ -14,31 +14,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'manua
     // A manual payment can only be recorded against a real appointment that is
     // approved and still awaiting payment (nothing paid or pending yet), for an
     // amount above zero — never over a rejected/cancelled/already-paid one.
-    $stmt = db()->prepare(
-        "SELECT a.status_id, (SELECT COUNT(*) FROM payments p WHERE p.appointment_id = a.appointment_id AND p.payment_status IN ('pending', 'verified')) AS open_payments
-         FROM appointments a WHERE a.appointment_id = ?"
-    );
-    $stmt->execute([$appointmentId]);
-    $target = $stmt->fetch();
-    if (!$target) {
-        flash('error', "Appointment #$appointmentId was not found.");
-        redirect(url('treasurer/payments.php'));
-    }
     if (!($manualAmount > 0)) {
         flash('error', 'Please enter a payment amount greater than zero.');
         redirect(url('treasurer/payments.php'));
     }
-    if ((int) $target['status_id'] !== 2 || (int) $target['open_payments'] > 0) {
-        flash('error', "Appointment #$appointmentId is not awaiting payment (it may be unapproved, rejected, cancelled, or already paid). If a payment is pending, verify it from Transaction History instead.");
-        redirect(url('treasurer/payments.php'));
+
+    $pdo = db();
+    try {
+        $pdo->beginTransaction();
+        $stmt = $pdo->prepare(
+            "SELECT a.status_id,
+                    (SELECT COUNT(*) FROM payments p WHERE p.appointment_id = a.appointment_id AND p.payment_status IN ('pending', 'verified')) AS open_payments
+             FROM appointments a WHERE a.appointment_id = ? FOR UPDATE"
+        );
+        $stmt->execute([$appointmentId]);
+        $target = $stmt->fetch();
+        if (!$target) {
+            throw new RuntimeException("Appointment #$appointmentId was not found.");
+        }
+        if ((int) $target['status_id'] !== 2 || (int) $target['open_payments'] > 0) {
+            throw new RuntimeException("Appointment #$appointmentId is not awaiting payment (it may be unapproved, rejected, cancelled, or already paid). If a payment is pending, verify it from Transaction History instead.");
+        }
+
+        $stmt = $pdo->prepare(
+            "INSERT INTO payments (appointment_id, reference_number, amount, method_id, payment_status, payment_date)
+             VALUES (?, ?, ?, ?, 'pending', NOW())"
+        );
+        $stmt->execute([$appointmentId, $ref, $manualAmount, (int) $_POST['method_id']]);
+        $paymentId = (int) $pdo->lastInsertId();
+        $pdo->commit();
+
+        $result = verifyPaymentAndIssueReceipt($paymentId, $userId, $ref);
+        if (!$result['ok']) {
+            flash('error', $result['message'] . ' The payment remains pending for review in Transaction History.');
+            redirect(url('treasurer/payments.php'));
+        }
+        logActivity($userId, "Recorded manual payment for appointment #$appointmentId, issued receipt {$result['receipt_number']}", 'Payments');
+        flash('success', $result['message']);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        $message = $e instanceof RuntimeException ? $e->getMessage() : 'The payment could not be recorded. Please try again.';
+        error_log('Manual payment recording failed: ' . $e->getMessage());
+        flash('error', $message);
     }
-    db()->prepare(
-        "INSERT INTO payments (appointment_id, reference_number, amount, method_id, payment_status, payment_date, verified_by, verified_at)
-         VALUES (?, ?, ?, ?, 'verified', NOW(), ?, NOW())"
-    )->execute([$appointmentId, $ref, $_POST['amount'], $_POST['method_id'], $userId]);
-    db()->prepare("UPDATE appointments SET status_id = 4 WHERE appointment_id = ?")->execute([$appointmentId]);
-    logActivity($userId, "Recorded manual payment for appointment #$appointmentId", 'Payments');
-    flash('success', 'Payment recorded.');
     redirect(url('treasurer/payments.php'));
 }
 
@@ -97,7 +115,7 @@ include __DIR__ . '/../includes/dash-start.php';
 ?>
 
 <div class="card">
-  <div class="card-header"><h3>Record Manual (Cash) Payment</h3></div>
+  <div class="card-header"><h3>Record Manual Payment</h3></div>
   <form method="POST" action="<?= url('treasurer/payments.php') ?>" class="form-row" style="align-items:end;">
     <?= csrfField() ?>
     <input type="hidden" name="action" value="manual">

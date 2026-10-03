@@ -52,7 +52,7 @@ include __DIR__ . '/includes/header.php';
     <p class="hero-subtitle">Submit sacrament requests, track your parish services, and connect with <?= e($settings['parish_name'] ?? 'our parish') ?> — all from one simple platform. No more lining up at the office for a form you could have filed from home.</p>
     <div class="hero-actions">
       <?php if (!$__user): ?>
-        <a href="<?= url('auth/register.php') ?>" class="btn-hero-primary">Request a Service →</a>
+        <a href="<?= url('parishioner/services.php') ?>" class="btn-hero-primary">Request a Service →</a>
         <a href="<?= url('auth/login.php') ?>" class="btn-hero-ghost">Sign In</a>
       <?php else: ?>
         <a href="<?= redirectForRole($__user['role_name']) ?>" class="btn-hero-primary">Go to your dashboard →</a>
@@ -86,7 +86,7 @@ include __DIR__ . '/includes/header.php';
   </div>
   <div class="stat-item">
     <span class="stat-num">100%</span>
-    <span class="stat-label">Free to Use</span>
+    <span class="stat-label">Free Online Access</span>
   </div>
 </div>
 
@@ -141,8 +141,8 @@ include __DIR__ . '/includes/header.php';
     <div class="svc-card reveal" style="grid-column:span 2; background:linear-gradient(135deg,var(--cream-dark),#faf0d0); display:flex; flex-direction:column; justify-content:center;">
       <span class="svc-icon">📱</span>
       <h3>More Services Available</h3>
-      <p>Create a free account to see every active service and submit your request online.</p>
-      <a href="<?= url('auth/register.php') ?>" class="btn btn-dark btn-sm" style="align-self:flex-start;">View All Services →</a>
+      <p>Browse every active service and submit your request online.</p>
+      <a href="<?= url('parishioner/services.php') ?>" class="btn btn-dark btn-sm" style="align-self:flex-start;">View All Services →</a>
     </div>
   </div>
 </section>
@@ -177,7 +177,7 @@ include __DIR__ . '/includes/header.php';
   <p class="section-lede" style="margin-bottom: 8px;">Join our digital parish community and request services from the comfort of your home.</p>
   <div class="cta-btns">
     <?php if (!$__user): ?>
-      <a href="<?= url('auth/register.php') ?>" class="btn btn-dark">Create Free Account</a>
+      <a href="<?= url('auth/register.php') ?>" class="btn btn-dark">Create Account</a>
       <a href="<?= url('auth/login.php') ?>" class="btn btn-outline">Sign In</a>
     <?php else: ?>
       <a href="<?= redirectForRole($__user['role_name']) ?>" class="btn btn-dark">Go to your dashboard →</a>

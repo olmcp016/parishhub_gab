@@ -1,11 +1,11 @@
 # ⛪ PARISHHUB (PHP Edition)
 ### Web-Based Mass Intention & Parish Service Management System
 
-This is the **PHP + MySQL/phpMyAdmin** version of PARISHHUB — a full-stack web application that digitizes parish administration: Mass Intentions, Baptism, Wedding, Funeral, Blessing, Confirmation, First Communion, announcements, calendar, online payments, official receipts, reports, and a built-in chatbot — for four user roles: **Parishioner, Secretary, Treasurer, and Admin (Parish Priest)**.
+This is the **PHP + PostgreSQL/Supabase** edition of PARISHHUB — a full-stack web application that digitizes parish administration: Mass Intentions, Baptism, Wedding, Funeral, Blessing, Confirmation, First Communion, announcements, calendar, online payments, official receipts, reports, and a built-in chatbot — for four user roles: **Parishioner, Secretary, Treasurer, and Admin (Parish Priest)**.
 
 Theme: **Warm Gold & Dark Brown** — fully responsive (desktop, tablet, mobile).
 
-Built for a standard **XAMPP / WAMP / MAMP + phpMyAdmin** stack — no frameworks, no Composer dependencies, no build step. Unzip it into your web server's document root and go.
+Built with plain PHP and PostgreSQL through Supabase — no framework or build step is required.
 
 ---
 
@@ -14,13 +14,13 @@ Built for a standard **XAMPP / WAMP / MAMP + phpMyAdmin** stack — no framework
 | Layer | Technology |
 |---|---|
 | Runtime | PHP 8+ (tested on 8.3) |
-| Database | MySQL 8 / MariaDB, managed via **phpMyAdmin** |
+| Database | PostgreSQL, hosted through **Supabase** |
 | Data access | PDO with parameterized queries (no ORM) |
 | Auth | PHP native sessions + `password_hash()`/`password_verify()` (bcrypt) |
 | CSRF protection | Token-based, verified on every state-changing form |
 | Styling | Hand-written CSS (no framework) — warm gold/dark brown theme |
 
-This project has been **fully built and tested end-to-end** — registration → booking → approval → payment → verification → receipt generation → chatbot — running live against PHP 8.3 + MySQL 8 before being packaged.
+The current runtime configuration uses PostgreSQL/Supabase via PDO.
 
 ---
 
@@ -31,7 +31,7 @@ parishhub-php/
 ├── admin/            # Admin (Parish Priest) pages — users, priests, services, logs, settings, reports
 ├── auth/              # login.php, register.php, logout.php
 ├── config/            # config.php — edit your DB credentials here
-├── database/          # schema.sql, seed.sql, parishhub_full.sql, migration_scheduling.sql, hash-password.php
+├── database/          # supabase_schema.sql + PostgreSQL migrations; legacy MySQL files are retained for reference
 ├── docs/              # Architecture, ERD, diagrams, API/page reference, security notes
 ├── errors/            # 403 / 404 / 500 pages
 ├── includes/          # auth.php (RBAC), functions.php, scheduling.php (fixed-schedule rules), header/footer/sidebar/topbar partials
@@ -42,7 +42,7 @@ parishhub-php/
 ├── index.php           # Landing page
 ├── about.php
 ├── chatbot.php          # AJAX JSON endpoint for the chat widget
-├── install.php          # ⭐ One-click web installer — run this first
+├── install.php          # legacy MySQL-only installer — do not use with Supabase
 └── .htaccess            # Apache hardening (protects config/, includes/)
 ```
 
@@ -107,8 +107,8 @@ The full rule set lives in one place — `includes/scheduling.php` — and is mi
 - **Treasurer** — verifies payment once the secretary has approved; this auto-generates the Official Receipt. The appointment then waits in "Payment Verified" status.
 - **Secretary (again)** — confirms the appointment once it's Payment Verified, and marks it Completed after the service has taken place. Parishioners see status-aware guidance messages at each step ("awaiting document review," "please wait for confirmation," etc).
 
-### Applying this to your existing database
-If you already have PARISHHUB installed, run `database/migration_scheduling.sql` once via phpMyAdmin's Import (or SQL) tab. It only adds one new nullable column (`appointments.date_of_death`, used for the funeral 9-day calculation) and does not touch or delete any existing data. It's safe to run more than once — it checks first and does nothing if already applied.
+### Applying this to an existing database
+The canonical runtime is PostgreSQL/Supabase. Review and apply only the relevant PostgreSQL migration files in `database/` to a known-good Supabase environment; do not run the legacy MySQL `migration_scheduling.sql` file.
 
 ---
 
@@ -125,11 +125,12 @@ The Parish Calendar (`parishioner/calendar.php`), Manage Calendar (`secretary/ca
 
 ---
 
-## 🚀 Getting Started in VS Code (with XAMPP + phpMyAdmin)
+## 🚀 Getting Started with PostgreSQL / Supabase
 
 ### 1. Prerequisites
-- [XAMPP](https://www.apachefriends.org/) (or WAMP/MAMP) with **PHP 8+**, **MySQL/MariaDB**, and **phpMyAdmin**
-- Start **Apache** and **MySQL** from the XAMPP Control Panel
+- PHP 8+ with the PDO PostgreSQL driver
+- A PostgreSQL database, normally a Supabase project
+- A web server suitable for PHP development or deployment
 
 ### 2. Unzip into your server's document root
 Unzip this file directly into:
@@ -140,52 +141,21 @@ Unzip this file directly into:
 Then open that folder in VS Code (`File → Open Folder…`).
 
 ### 3. Configure database credentials
-Open `config/config.php` and confirm these match your setup (XAMPP defaults shown — usually no changes needed):
-```php
-define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', '');          // XAMPP default: empty password
-define('DB_NAME', 'parishhub');
-```
-Also update `APP_URL` if your folder name differs from `parishhub`.
+Use environment variables or the gitignored `config/config.local.php` override to set `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASS`. Keep Supabase credentials out of tracked files. Update `APP_URL` if the web path differs from `parishhub`.
 
-### 4. Install the database — pick ONE method
+### 4. Prepare the database
 
-**Option A — One-click installer (recommended):**
-Open your browser to:
-```
-http://localhost/parishhub/install.php
-```
-Click **"Install / Reset Database."** This creates the `parishhub` database, all 22 tables, seed data, and working demo passwords automatically. Done!
+`database/supabase_schema.sql` is the PostgreSQL/Supabase baseline. The later PostgreSQL migrations in `database/` add current features and must be reviewed before use on a fresh or existing database. Do not execute SQL automatically from this repository.
 
-**Option B — Manual import via phpMyAdmin (single file, easiest):**
-1. Open phpMyAdmin (`http://localhost/phpmyadmin`)
-2. Click **Import** (no need to pre-create the database — the file creates it for you)
-3. Choose `database/parishhub_full.sql` and click **Go**
-
-That's it — this single file contains the full schema *and* seed data, **with real working password hashes already baked in** (`Password@123` for all 3 demo accounts), so you can log in immediately after import with no extra steps.
-
-**Option C — Manual import, schema and seed as separate files:**
-1. Open phpMyAdmin, create a database named `parishhub`
-2. Import `database/schema.sql`, then import `database/seed.sql`
-3. The seeded demo accounts will have a placeholder password — set real ones by either:
-   - Visiting `install.php` afterward anyway (it only overwrites the 3 demo passwords, safe to run after a manual import), **or**
-   - Generating a hash yourself: `http://localhost/parishhub/database/hash-password.php?password=YourPassword` and pasting the result into the `password` column for that user row in phpMyAdmin
+**Do not use** `install.php`, `database/schema.sql`, `database/seed.sql`, `database/parishhub_full.sql`, `database/migration_scheduling.sql`, or `database/migration_service_fee_rules_mysql.sql` with Supabase. They are legacy MySQL/MariaDB artifacts.
 
 ### 5. Visit the site
 ```
 http://localhost/parishhub/
 ```
 
-### 6. Log in
-| Role | Email | Password |
-|---|---|---|
-| Admin (Parish Priest) | admin@parishhub.local | Password@123 |
-| Secretary | secretary@parishhub.local | Password@123 |
-| Treasurer | treasurer@parishhub.local | Password@123 |
-| Parishioner | *Register your own at `/parishhub/auth/register.php`* | — |
-
-**⚠️ Change these default passwords immediately in production**, and **delete or rename `install.php`** once set up (it can reset your database if left accessible).
+### 6. Create or use authorized accounts
+Use accounts provisioned in the configured PostgreSQL/Supabase database. Never rely on legacy MySQL demo credentials for a current deployment.
 
 ---
 
@@ -238,7 +208,7 @@ See the `/docs` folder for architecture notes, ERD, use-case/DFD/sequence/class 
 ---
 
 ## 🛠 Suggested Next Steps / Production Hardening
-- Delete/rename `install.php` after setup
+- Keep legacy `install.php` out of PostgreSQL/Supabase deployments
 - Add real SMS/Email sending for the `notifications` table
 - Move file uploads to cloud storage for production deployments
 - Serve over HTTPS in production

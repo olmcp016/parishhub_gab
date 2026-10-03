@@ -23,8 +23,10 @@ parishhub-php/
 │   └── .htaccess           # blocks direct web access to this folder
 │
 ├── database/
-│   ├── schema.sql          # 22 tables, PK/FK, indexes, ENUMs
-│   ├── seed.sql            # lookup data + sample services/priests/staff
+│   ├── supabase_schema.sql # PostgreSQL/Supabase baseline
+│   ├── migration_*.sql     # PostgreSQL feature migrations (review before applying)
+│   ├── schema.sql          # legacy MySQL schema
+│   ├── seed.sql            # legacy MySQL seed data
 │   └── hash-password.php   # bcrypt hash generator (CLI or browser)
 │
 ├── docs/
@@ -76,7 +78,7 @@ parishhub-php/
 ├── index.php                # Landing page
 ├── about.php
 ├── chatbot.php               # AJAX JSON endpoint
-├── install.php                # ⭐ One-click web installer
+├── install.php                # legacy MySQL installer — not for Supabase
 ├── .htaccess                  # Apache hardening (root)
 ├── README.md
 └── .gitignore
@@ -85,5 +87,5 @@ parishhub-php/
 ## Naming Conventions Used
 - **Pages**: `kebab-case.php`, one file per screen, grouped by role in matching folders
 - **Actions**: multiple actions on one page are distinguished by a hidden `action` POST field (e.g. `secretary/appointment-detail.php` handles `approve`, `reject`, `assign_priest`, `reschedule` all through one file)
-- **Database**: `snake_case` table and column names throughout — identical schema to the Node.js edition, so the same `.sql` files work for either
+- **Database**: `snake_case` table and column names throughout; PostgreSQL/Supabase is canonical, while MySQL SQL files are legacy references
 - **Includes**: every partial is a plain `.php` file included via `include __DIR__ . '/../includes/xyz.php'` — no templating engine, no magic

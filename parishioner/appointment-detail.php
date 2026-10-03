@@ -29,9 +29,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'cancel') {
         $stmt = db()->prepare(
-            "UPDATE appointments SET status_id = 7, cancelled_reason = ? WHERE appointment_id = ? AND parishioner_id = ?"
+            "UPDATE appointments
+             SET status_id = 7, cancelled_reason = ?
+             WHERE appointment_id = ? AND parishioner_id = ? AND status_id IN (1, 2)"
         );
         $stmt->execute([$_POST['reason'] ?? 'Cancelled by parishioner', $id, $parishionerId]);
+        if ($stmt->rowCount() !== 1) {
+            respondAjaxOrRedirect(
+                $isAjax,
+                false,
+                'This appointment can no longer be cancelled because its status has already changed.',
+                $redirectUrl
+            );
+        }
         logActivity($userId, "Cancelled appointment #$id", 'Appointments');
         // Cancelling closes the request entirely — send them back to the list
         // either way (a JSON response wouldn't have anything left to refresh).
@@ -56,7 +66,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$appt) {
             respondAjaxOrRedirect($isAjax, false, 'Appointment not found.', url('parishioner/appointments.php'));
         }
-        $wasRejected = (int) $appt['status_id'] === 3;
+        if ((int) $appt['status_id'] !== 3) {
+            respondAjaxOrRedirect(
+                $isAjax,
+                false,
+                'Documents can only be updated while the appointment is awaiting corrections.',
+                $redirectUrl
+            );
+        }
 
         $requirementsList = parseRequirementsList($appt['requirements']);
         $pendingUploads = [];
@@ -103,51 +120,87 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        $uploaded = 0;
-        foreach ($pendingUploads as $upload) {
-            $file = $upload['file'];
-            try { $stored = documentStorageMoveUpload($file['tmp_name'], pathinfo($file['name'], PATHINFO_EXTENSION)); } catch (Throwable $e) { $stored = null; }
-            if ($stored) {
-                try {
-                    $stmt = db()->prepare(
-                        "INSERT INTO uploaded_documents (appointment_id, file_name, file_path, file_type, requirement_label, review_status, verified) VALUES (?, ?, ?, ?, ?, 'pending', FALSE)"
-                    );
-                    $stmt->execute([$id, $file['name'], $stored['key'], $stored['mime'], $upload['label']]);
-                } catch (Throwable $e) {
-                    try { documentStorageDelete($stored['key']); } catch (Throwable $cleanupError) { error_log('Document cleanup failed.'); }
-                    throw $e;
-                }
-                $newDocumentId = (int) $pdo->lastInsertId();
-                if ($upload['label']) {
-                    $pdo->prepare("UPDATE uploaded_documents SET superseded_by = ? WHERE appointment_id = ? AND requirement_label = ? AND review_status = 'rejected' AND superseded_by IS NULL AND document_id <> ?")
-                        ->execute([$newDocumentId, $id, $upload['label'], $newDocumentId]);
-                }
-                $uploaded++;
-            }
-        }
-
         $messages = [];
         $anySuccess = false;
-        if ($uploaded > 0) {
-            $anySuccess = true;
-            // A rejected request goes back into the Secretary's review queue
-            // once the parishioner has corrected/added documents — the whole
-            // point of "Update Documents" is fixing the SAME request rather
-            // than starting a brand new booking from scratch.
-            if ($wasRejected) {
-                db()->prepare("UPDATE appointments SET status_id = 1 WHERE appointment_id = ?")->execute([$id]);
-                db()->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Documents Updated', ?)")
+        $uploaded = 0;
+        if (!empty($pendingUploads)) {
+            $pdo = db();
+            $createdStorageKeys = [];
+            try {
+                $pdo->beginTransaction();
+
+                // Lock and re-check the lifecycle state so a stale form cannot
+                // add documents after another request has already changed it.
+                $lock = $pdo->prepare(
+                    'SELECT status_id FROM appointments WHERE appointment_id = ? AND parishioner_id = ? FOR UPDATE'
+                );
+                $lock->execute([$id, $parishionerId]);
+                if ((int) $lock->fetchColumn() !== 3) {
+                    throw new RuntimeException('Appointment is no longer awaiting document corrections.');
+                }
+
+                foreach ($pendingUploads as $upload) {
+                    $file = $upload['file'];
+                    $stored = documentStorageMoveUpload(
+                        $file['tmp_name'],
+                        pathinfo($file['name'], PATHINFO_EXTENSION)
+                    );
+                    $createdStorageKeys[] = $stored['key'];
+
+                    $stmt = $pdo->prepare(
+                        "INSERT INTO uploaded_documents
+                         (appointment_id, file_name, file_path, file_type, requirement_label, review_status, verified)
+                         VALUES (?, ?, ?, ?, ?, 'pending', FALSE)"
+                    );
+                    $stmt->execute([$id, $file['name'], $stored['key'], $stored['mime'], $upload['label']]);
+                    $newDocumentId = (int) $pdo->lastInsertId();
+
+                    if ($upload['label']) {
+                        $pdo->prepare(
+                            "UPDATE uploaded_documents
+                             SET superseded_by = ?
+                             WHERE appointment_id = ? AND requirement_label = ?
+                               AND review_status = 'rejected' AND superseded_by IS NULL
+                               AND document_id <> ?"
+                        )->execute([$newDocumentId, $id, $upload['label'], $newDocumentId]);
+                    }
+                    $uploaded++;
+                }
+
+                // Correcting a rejected request returns that same request to
+                // the Secretary's Pending review queue.
+                $statusUpdate = $pdo->prepare(
+                    'UPDATE appointments SET status_id = 1 WHERE appointment_id = ? AND parishioner_id = ? AND status_id = 3'
+                );
+                $statusUpdate->execute([$id, $parishionerId]);
+                if ($statusUpdate->rowCount() !== 1) {
+                    throw new RuntimeException('Appointment status changed while documents were being uploaded.');
+                }
+
+                $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Documents Updated', ?)")
                     ->execute([$userId, "Your updated documents for appointment #$id have been submitted and are back under review."]);
-                $secretaries = db()->query("SELECT user_id FROM users u JOIN roles r ON r.role_id = u.role_id WHERE r.role_name IN ('Secretary', 'Admin') AND u.status = 'active'")->fetchAll(PDO::FETCH_COLUMN);
-                $notify = db()->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Documents Updated', ?)");
+                $secretaries = $pdo->query("SELECT user_id FROM users u JOIN roles r ON r.role_id = u.role_id WHERE r.role_name IN ('Secretary', 'Admin') AND u.status = 'active'")->fetchAll(PDO::FETCH_COLUMN);
+                $notify = $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Documents Updated', ?)");
                 foreach ($secretaries as $secretaryId) {
                     $notify->execute([(int) $secretaryId, "Appointment #$id has updated documents and is ready for review."]);
                 }
                 logActivity($userId, "Resubmitted documents for previously rejected appointment #$id", 'Appointments');
+                $pdo->commit();
+
+                $anySuccess = true;
                 $messages[] = "$uploaded document(s) uploaded — your request is back under review.";
-            } else {
-                logActivity($userId, "Uploaded $uploaded document(s) for appointment #$id", 'Appointments');
-                $messages[] = "$uploaded document(s) uploaded successfully.";
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                foreach ($createdStorageKeys as $key) {
+                    try { documentStorageDelete($key); } catch (Throwable $cleanupError) { error_log('Document cleanup failed.'); }
+                }
+                error_log('Parishioner document update failed: ' . $e->getMessage());
+                respondAjaxOrRedirect(
+                    $isAjax,
+                    false,
+                    'The documents could not be updated. The appointment may have changed; refresh and try again.',
+                    $redirectUrl
+                );
             }
         }
         if (!empty($skippedFiles)) {
@@ -244,8 +297,8 @@ if (!$isAjax) {
       <?php foreach ($generatedForms as $gf): $status = $gf['review_status'] ?? 'pending'; ?>
         <p><strong><?= e(weddingFormDefinition($gf['form_type'])['title']) ?></strong><br>
           Status: <?= e(weddingFormStatusLabel($gf['status'])) ?>
-          <a class="btn btn-outline btn-sm" href="<?= url('wedding-form.php?appointment_id=' . $id . '&form_type=' . urlencode($gf['form_type'])) ?>">Edit / View</a>
-          <?php if ($gf['document_id']): ?><a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>">View PDF</a><?php endif; ?>
+          <a class="btn btn-outline btn-sm" href="<?= url('wedding-form.php?appointment_id=' . $id . '&form_type=' . urlencode($gf['form_type'])) ?>"><?= $gf['form_type'] === 'matrimony_application' ? ($status === 'rejected' ? 'Edit and Regenerate Form' : 'Edit Form') : 'Edit / View' ?></a>
+          <?php if ($gf['document_id']): ?><a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>"><?= $gf['form_type'] === 'matrimony_application' ? 'View Generated Form' : 'View PDF' ?></a><?php endif; ?>
           <?php if ($gf['rejection_reason']): ?><br><span class="text-muted">Reason: <?= e($gf['rejection_reason']) ?></span><?php endif; ?>
         </p>
       <?php endforeach; ?>

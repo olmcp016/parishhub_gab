@@ -82,8 +82,13 @@ if ($existing) {
     if ($unfinishedOnline && $existing['gateway_transaction_id']) {
         $session = paymongoGetCheckoutSession($existing['gateway_transaction_id']);
         if ($session['ok'] && paymongoStatusToLocal($session['status']) === 'verified') {
-            verifyPaymentAndIssueReceipt((int) $existing['payment_id'], null, $existing['gateway_transaction_id']);
-            flash('success', 'Your online payment was already received — thank you!');
+            $result = verifyPaymentAndIssueReceipt((int) $existing['payment_id'], null, $existing['gateway_transaction_id']);
+            flash(
+                $result['ok'] ? 'success' : 'error',
+                $result['ok']
+                    ? 'Your online payment was already received — thank you!'
+                    : "Your payment was received by PayMongo, but the appointment could not be updated. Please contact the parish office."
+            );
             redirect($statusUrl);
         }
         markPaymentUnsuccessful((int) $existing['payment_id'], 'cancelled');

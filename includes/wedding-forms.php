@@ -6,8 +6,24 @@ if (is_file(__DIR__ . '/../vendor/autoload.php')) require_once __DIR__ . '/../ve
 function weddingFormDefinition(string $type): array
 {
     return match ($type) {
-        'matrimony_application' => ['title' => 'MATRIMONY / MARRIAGE APPLICATION FORM', 'fields' => [
-            'date_applied' => 'Date Applied', 'groom_name' => 'Groom Name', 'groom_age' => 'Groom Age', 'groom_birth_date' => 'Groom Date of Birth', 'groom_father' => "Groom Father's Name", 'groom_mother' => "Groom Mother's Maiden Name", 'groom_address' => 'Groom Address', 'groom_cell' => 'Groom Cell No.', 'bride_name' => 'Bride Name', 'bride_age' => 'Bride Age', 'bride_birth_date' => 'Bride Date of Birth', 'bride_father' => "Bride Father's Name", 'bride_mother' => "Bride Mother's Maiden Name", 'bride_address' => 'Bride Address', 'bride_cell' => 'Bride Cell No.'
+        'matrimony_application' => ['title' => 'Marriage Requirement and Application Form', 'fields' => [
+            'date_applied' => 'Date Applied',
+            'groom_name' => 'Full Name',
+            'groom_birth_date' => 'Date of Birth',
+            'groom_father' => 'Father',
+            'groom_mother' => 'Mother',
+            'groom_mother_maiden_name' => "Mother's Maiden Name",
+            'groom_address' => 'Address',
+            'groom_cell' => 'Cell Number',
+            'bride_name' => 'Full Name',
+            'bride_birth_date' => 'Date of Birth',
+            'bride_father' => 'Father',
+            'bride_mother' => 'Mother',
+            'bride_mother_maiden_name' => "Mother's Maiden Name",
+            'bride_address' => 'Address',
+            'bride_cell' => 'Cell Number',
+            'wedding_date' => 'Date of Wedding',
+            'wedding_time' => 'Time of Wedding',
         ]],
         'cluster_clearance' => ['title' => 'KATIN-AWAN SA KASAL', 'fields' => [
             'kaslonon_name' => 'Ngalan sa Kaslonon', 'kaslonon_age' => 'Edad', 'kaslonon_status' => 'Estado', 'kaslonon_birth_date' => 'Petsa Natawo', 'kaslonon_religion' => 'Relihiyon', 'father_name' => 'Amahan', 'father_religion' => "Father's Religion", 'mother_name' => 'Inahan', 'mother_religion' => "Mother's Religion", 'sponsor_1' => 'Sponsor 1', 'sponsor_2' => 'Sponsor 2', 'parent_marriage' => 'Unsang Kasala ang Nadawat sa Ginikanan?', 'marriage_place' => 'Diin', 'marriage_date' => 'Kanus-a', 'address' => 'Pinuy-anan', 'chapel' => 'Sakop sa Kapilya sa', 'cluster_name' => 'Ngalan sa Cluster', 'spouse_name' => 'Ngalan sa Pamanhunon/Pangasaw-onon', 'spouse_age' => 'Edad', 'spouse_status' => 'Estado', 'spouse_religion' => 'Relihiyon', 'spouse_address' => 'Pinuy-anan'
@@ -21,7 +37,7 @@ function weddingFormDefinition(string $type): array
 function weddingFormRequiredFields(string $type): array
 {
     return match ($type) {
-        'matrimony_application' => ['date_applied', 'groom_name', 'groom_age', 'groom_birth_date', 'groom_father', 'groom_mother', 'groom_address', 'groom_cell', 'bride_name', 'bride_age', 'bride_birth_date', 'bride_father', 'bride_mother', 'bride_address', 'bride_cell'],
+        'matrimony_application' => ['date_applied', 'groom_name', 'groom_birth_date', 'groom_father', 'groom_mother', 'groom_mother_maiden_name', 'groom_address', 'groom_cell', 'bride_name', 'bride_birth_date', 'bride_father', 'bride_mother', 'bride_mother_maiden_name', 'bride_address', 'bride_cell', 'wedding_date', 'wedding_time'],
         'cluster_clearance' => ['kaslonon_name', 'kaslonon_age', 'kaslonon_status', 'kaslonon_birth_date', 'kaslonon_religion', 'father_name', 'father_religion', 'mother_name', 'mother_religion', 'sponsor_1', 'sponsor_2', 'parent_marriage', 'marriage_place', 'marriage_date', 'address', 'chapel', 'cluster_name', 'spouse_name', 'spouse_age', 'spouse_status', 'spouse_religion', 'spouse_address'],
         default => ['recipient_name', 'address', 'groom_name', 'bride_name', 'service_date', 'active_status', 'cluster_number', 'cluster_name'],
     };
@@ -40,7 +56,11 @@ function weddingFormStatusLabel(?string $status): string
 
 function weddingFormPdf(string $type, array $data): string
 {
+    if ($type === 'matrimony_application' && !class_exists('FPDF')) {
+        throw new RuntimeException('FPDF is required to generate the Marriage Requirement and Application Form.');
+    }
     if (class_exists('FPDF')) {
+        if ($type === 'matrimony_application') return weddingMarriageApplicationPdf($data);
         if ($type === 'cluster_clearance') return weddingKatinPdf($data);
         if ($type === 'wedding_sponsor_clearance') return weddingSponsorPdf($data);
     }
@@ -81,6 +101,111 @@ function weddingFormPdf(string $type, array $data): string
         $lines[] = 'Ngalan ug pirma sa Chapel Chairman: ___________________________';
     }
     return minimalTextPdf($lines);
+}
+
+/**
+ * Maps data saved by the former Matrimony form into the current field names.
+ * The old groom_mother/bride_mother fields explicitly meant "maiden name", so
+ * preserve them there rather than silently presenting them as the mother's
+ * current/full name.
+ */
+function weddingMarriageNormalizeData(array $data): array
+{
+    if (!array_key_exists('groom_mother_maiden_name', $data) && array_key_exists('groom_mother', $data)) {
+        $data['groom_mother_maiden_name'] = $data['groom_mother'];
+        $data['groom_mother'] = '';
+    }
+    if (!array_key_exists('bride_mother_maiden_name', $data) && array_key_exists('bride_mother', $data)) {
+        $data['bride_mother_maiden_name'] = $data['bride_mother'];
+        $data['bride_mother'] = '';
+    }
+    return $data;
+}
+
+function weddingMarriageAge(string $birthDate, string $referenceDate): ?int
+{
+    $birth = DateTimeImmutable::createFromFormat('!Y-m-d', $birthDate);
+    $reference = DateTimeImmutable::createFromFormat('!Y-m-d', $referenceDate);
+    if (!$birth || !$reference
+        || $birth->format('Y-m-d') !== $birthDate
+        || $reference->format('Y-m-d') !== $referenceDate
+        || $birth > $reference) {
+        return null;
+    }
+    return $birth->diff($reference)->y;
+}
+
+function weddingMarriagePdfDate(string $date): string
+{
+    $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+    return $parsed && $parsed->format('Y-m-d') === $date ? $parsed->format('F j, Y') : $date;
+}
+
+function weddingMarriagePdfTime(string $time): string
+{
+    $parsed = DateTimeImmutable::createFromFormat('!H:i', $time);
+    return $parsed && $parsed->format('H:i') === $time ? $parsed->format('g:i A') : $time;
+}
+
+/** @return string[] */
+function weddingMarriageValidationErrors(array $data, bool $requireComplete = true): array
+{
+    $fieldLabels = [
+        'date_applied' => 'Date Applied',
+        'groom_name' => 'Groom Full Name', 'groom_birth_date' => 'Groom Date of Birth',
+        'groom_father' => "Groom's Father", 'groom_mother' => "Groom's Mother",
+        'groom_mother_maiden_name' => "Groom's Mother's Maiden Name", 'groom_address' => 'Groom Address', 'groom_cell' => 'Groom Cell Number',
+        'bride_name' => 'Bride Full Name', 'bride_birth_date' => 'Bride Date of Birth',
+        'bride_father' => "Bride's Father", 'bride_mother' => "Bride's Mother",
+        'bride_mother_maiden_name' => "Bride's Mother's Maiden Name", 'bride_address' => 'Bride Address', 'bride_cell' => 'Bride Cell Number',
+        'wedding_date' => 'Date of Wedding', 'wedding_time' => 'Time of Wedding',
+    ];
+    $errors = [];
+    if ($requireComplete) {
+        foreach (weddingFormRequiredFields('matrimony_application') as $key) {
+            if (trim((string) ($data[$key] ?? '')) === '') {
+                $errors[] = $fieldLabels[$key] . ' is required.';
+            }
+        }
+    }
+
+    $limits = [
+        'groom_name' => 150, 'groom_father' => 150, 'groom_mother' => 150,
+        'groom_mother_maiden_name' => 150, 'groom_address' => 255, 'groom_cell' => 30,
+        'bride_name' => 150, 'bride_father' => 150, 'bride_mother' => 150,
+        'bride_mother_maiden_name' => 150, 'bride_address' => 255, 'bride_cell' => 30,
+    ];
+    foreach ($limits as $key => $limit) {
+        if (mb_strlen((string) ($data[$key] ?? '')) > $limit) {
+            $errors[] = $fieldLabels[$key] . " must not exceed {$limit} characters.";
+        }
+    }
+
+    foreach (['date_applied', 'groom_birth_date', 'bride_birth_date', 'wedding_date'] as $key) {
+        $value = (string) ($data[$key] ?? '');
+        $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+        if ($value !== '' && (!$parsed || $parsed->format('Y-m-d') !== $value)) {
+            $errors[] = $fieldLabels[$key] . ' must be a valid date.';
+        }
+    }
+    $weddingDate = (string) ($data['wedding_date'] ?? '');
+    foreach (['groom_birth_date', 'bride_birth_date'] as $key) {
+        $birthDate = (string) ($data[$key] ?? '');
+        $age = weddingMarriageAge($birthDate, $weddingDate);
+        if ($birthDate !== '' && $weddingDate !== '' && ($age === null || $age > 120)) {
+            $errors[] = $fieldLabels[$key] . ' must be before the wedding date.';
+        }
+    }
+    if (($data['wedding_time'] ?? '') !== '' && !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', (string) $data['wedding_time'])) {
+        $errors[] = 'Time of Wedding must be a valid time.';
+    }
+    foreach (['groom_cell', 'bride_cell'] as $key) {
+        $value = (string) ($data[$key] ?? '');
+        if ($value !== '' && !preg_match('/^[0-9+().\- ]{7,30}$/', $value)) {
+            $errors[] = ($key === 'groom_cell' ? "Groom's" : "Bride's") . ' cell number contains invalid characters.';
+        }
+    }
+    return array_values(array_unique($errors));
 }
 
 function weddingPdfHeader(FPDF $pdf, string $title): void
@@ -125,6 +250,141 @@ function weddingPdfFit(FPDF $pdf, string $value, float $maxWidth, float $fontSiz
 function weddingChoice(FPDF $pdf, string $label, bool $selected, float $x, float $y): void
 {
     $pdf->SetFont('Times', '', 9); $pdf->SetXY($x, $y); $pdf->Cell(6, 5, $selected ? 'X' : '', 1, 0, 'C'); $pdf->Cell(25, 5, $label, 0, 0);
+}
+
+function weddingMarriagePdfValue(FPDF $pdf, string $label, string $value, float $x, float $y, float $width, float $labelWidth): void
+{
+    $pdf->SetFont('Times', '', 9);
+    $pdf->SetXY($x, $y);
+    $pdf->Cell($labelWidth, 6, weddingPdfText($label), 0, 0);
+    $value = weddingPdfText(trim($value));
+    $availableWidth = $width - $labelWidth - 2;
+    for ($fontSize = 9.0; $fontSize >= 6.0; $fontSize -= 0.5) {
+        $pdf->SetFont('Times', 'B', $fontSize);
+        if ($pdf->GetStringWidth($value) <= $availableWidth) break;
+    }
+    if ($pdf->GetStringWidth($value) > $availableWidth) {
+        while ($value !== '' && $pdf->GetStringWidth($value . '...') > $availableWidth) $value = substr($value, 0, -1);
+        $value = rtrim($value) . '...';
+    }
+    $pdf->Cell($width - $labelWidth, 6, $value, 'B', 0);
+}
+
+function weddingMarriageOfficeLine(FPDF $pdf, string $label, float $x, float $y, float $width): void
+{
+    $pdf->SetFont('Times', '', 8.5);
+    $pdf->SetXY($x, $y);
+    $pdf->Cell($width - 22, 5, weddingPdfText($label), 0, 0);
+    $pdf->Cell(22, 5, '', 'B', 0);
+}
+
+function weddingMarriageApplicationPdf(array $data): string
+{
+    $data = weddingMarriageNormalizeData($data);
+    $value = static fn(string $key): string => trim((string) ($data[$key] ?? ''));
+    $referenceDate = $value('wedding_date') ?: $value('date_applied');
+    $groomAge = weddingMarriageAge($value('groom_birth_date'), $referenceDate);
+    $brideAge = weddingMarriageAge($value('bride_birth_date'), $referenceDate);
+
+    $pdf = new FPDF('P', 'mm', 'A4');
+    $pdf->SetMargins(14, 12, 14);
+    $pdf->SetAutoPageBreak(false);
+    $pdf->AddPage('P', 'A4');
+    $pdf->SetTextColor(0, 0, 0);
+    $pdf->SetDrawColor(0, 0, 0);
+
+    $pdf->SetFont('Times', 'B', 15);
+    $pdf->SetXY(14, 14);
+    $pdf->Cell(182, 7, 'MT. CARMEL PARISH', 0, 1, 'C');
+    $pdf->SetFont('Times', '', 11);
+    $pdf->SetX(14);
+    $pdf->Cell(182, 6, 'Balilihan, Bohol', 0, 1, 'C');
+    $pdf->SetFont('Times', 'B', 13);
+    $pdf->SetX(14);
+    $pdf->Cell(182, 8, 'MARRIAGE REQUIREMENTS & APPLICATION FORM', 0, 1, 'C');
+    $pdf->SetLineWidth(0.5);
+    $pdf->Line(20, 38, 190, 38);
+
+    weddingMarriagePdfValue($pdf, 'Date Applied:', weddingMarriagePdfDate($value('date_applied')), 116, 41, 74, 25);
+
+    $leftX = 18.0;
+    $rightX = 108.0;
+    $columnWidth = 84.0;
+    $pdf->SetFillColor(235, 235, 235);
+    $pdf->SetFont('Times', 'B', 11);
+    $pdf->SetXY($leftX, 52);
+    $pdf->Cell($columnWidth, 7, 'MALE / GROOM', 1, 0, 'C', true);
+    $pdf->SetXY($rightX, 52);
+    $pdf->Cell($columnWidth, 7, 'FEMALE / BRIDE', 1, 0, 'C', true);
+
+    $rows = [
+        ['Name:', 'groom_name', 'bride_name', 18.0],
+        ['Age:', null, null, 11.0],
+        ['Date of Birth:', 'groom_birth_date', 'bride_birth_date', 18.0],
+        ['Father:', 'groom_father', 'bride_father', 16.0],
+        ['Mother:', 'groom_mother', 'bride_mother', 16.0],
+        ["Mother's Maiden Name:", 'groom_mother_maiden_name', 'bride_mother_maiden_name', 34.0],
+        ['Address:', 'groom_address', 'bride_address', 18.0],
+        ['Cell No.:', 'groom_cell', 'bride_cell', 18.0],
+    ];
+    $y = 63.0;
+    foreach ($rows as [$label, $groomKey, $brideKey, $labelWidth]) {
+        $groomValue = $groomKey ? $value($groomKey) : ($groomAge === null ? '' : (string) $groomAge);
+        $brideValue = $brideKey ? $value($brideKey) : ($brideAge === null ? '' : (string) $brideAge);
+        if ($groomKey === 'groom_birth_date') $groomValue = weddingMarriagePdfDate($groomValue);
+        if ($brideKey === 'bride_birth_date') $brideValue = weddingMarriagePdfDate($brideValue);
+        weddingMarriagePdfValue($pdf, $label, $groomValue, $leftX, $y, $columnWidth, $labelWidth);
+        weddingMarriagePdfValue($pdf, $label, $brideValue, $rightX, $y, $columnWidth, $labelWidth);
+        $y += 9;
+    }
+
+    $pdf->SetFont('Times', 'B', 11);
+    $pdf->SetXY(18, 140);
+    $pdf->Cell(174, 7, 'MARRIAGE REQUIREMENTS / OFFICE CHECKLIST', 1, 1, 'C', true);
+    $leftChecklist = [
+        'Pre-Nuptial Canonical Interview',
+        'Clearance / Katin-awan sa Cluster',
+        "Groom's Baptismal Certificate",
+        "Bride's Baptismal Certificate",
+        "Groom's Confirmation Certificate",
+        "Bride's Confirmation Certificate",
+        'Marriage License',
+    ];
+    $rightChecklist = [
+        'Pre-Cana Seminar Certificate',
+        'Proof of Banns',
+        'Choir',
+        'FLA Coordinator',
+        'Sponsors',
+        'Special Fee',
+    ];
+    $y = 151.0;
+    foreach ($leftChecklist as $index => $label) {
+        weddingMarriageOfficeLine($pdf, $label, 18, $y, 84);
+        if (isset($rightChecklist[$index])) {
+            weddingMarriageOfficeLine($pdf, $rightChecklist[$index], 108, $y, 84);
+        }
+        $y += 8;
+    }
+
+    $pdf->SetLineWidth(0.4);
+    $pdf->Rect(18, 145, 174, 66);
+    $pdf->Line(105, 145, 105, 211);
+
+    weddingMarriagePdfValue($pdf, 'Date of Wedding:', weddingMarriagePdfDate($value('wedding_date')), 18, 220, 86, 32);
+    weddingMarriagePdfValue($pdf, 'Time of Wedding:', weddingMarriagePdfTime($value('wedding_time')), 108, 220, 84, 33);
+    weddingMarriagePdfValue($pdf, 'TOTAL:', '', 108, 233, 84, 18);
+
+    $pdf->SetFont('Times', 'I', 8);
+    $pdf->SetXY(18, 247);
+    $pdf->MultiCell(174, 4, 'For parish office use: checklist completion, special fee, and total remain blank until verified by authorized parish personnel.', 0, 'L');
+    $pdf->SetFont('Times', '', 9);
+    $pdf->SetXY(18, 266);
+    $pdf->Cell(78, 5, 'Prepared by: ______________________________', 0, 0);
+    $pdf->SetXY(114, 266);
+    $pdf->Cell(78, 5, 'Verified by: ______________________________', 0, 0);
+
+    return $pdf->Output('S');
 }
 
 function weddingKatinPdf(array $data): string

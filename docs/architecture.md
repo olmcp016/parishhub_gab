@@ -15,7 +15,7 @@ Apache/PHP  (index.php, admin/dashboard.php, etc.)
      ├── includes/functions.php — activity logging, formatting, CSRF helpers
      ├── includes/scheduling.php — fixed-schedule business rules (Baptism/Wedding/Funeral dates, Mass times, staff day-off)
      ├── includes/*.php      — header/footer/sidebar/topbar/flash partials (included, not templated)
-     └── MySQL 8 (via phpMyAdmin or CLI) — 22 tables, accessed via PDO
+     └── PostgreSQL / Supabase (via PDO) — canonical runtime database
 ```
 
 There is no MVC framework separating routes/controllers/views into distinct layers — each page file *is* its controller and its view combined, which is the idiomatic pattern for small-to-medium PHP applications and keeps everything readable top-to-bottom in a single file per screen.
@@ -83,12 +83,13 @@ One file per screen. Each file is self-contained: guard → (optional) POST hand
 A single JSON endpoint (no page render) — reads `$_SESSION['chat_session_id']`, matches the incoming message against keyword-based intents, queries live data (`services`, `priests`, `settings` tables) for the answer, logs the exchange to `chat_messages`, and returns `{"reply": "..."}`.
 
 ### 3.7 `install.php`
-A **web-based installer**, since phpMyAdmin users typically don't have shell/CLI access to run migration scripts. Connects via `mysqli` (supports multi-statement SQL execution needed to run the full `schema.sql` + `seed.sql` files in one shot), then switches to PDO to set real bcrypt password hashes on the 3 demo accounts. Designed to be safely re-runnable (always resets to a fresh seeded state — the schema uses `DROP TABLE IF EXISTS` throughout).
+Legacy MySQL-only installer. It is not part of the PostgreSQL/Supabase deployment path and must not be used against the current runtime.
 
 ### 3.8 `database/`
-- `schema.sql` — all 22 tables, identical structure to the Node.js edition (same MySQL schema works for both — this is plain, portable SQL)
-- `seed.sql` — lookup data, sample services/priests, demo staff accounts (placeholder password hash, overwritten by `install.php`)
-- `hash-password.php` — standalone CLI/browser utility for anyone doing a fully manual phpMyAdmin import
+- `supabase_schema.sql` — PostgreSQL/Supabase baseline
+- PostgreSQL `migration_*.sql` files — reviewed incremental updates for the current runtime
+- `schema.sql`, `seed.sql`, `parishhub_full.sql`, and MySQL-specific migrations — legacy artifacts retained for reference only
+- `hash-password.php` — standalone CLI bcrypt utility
 
 ---
 

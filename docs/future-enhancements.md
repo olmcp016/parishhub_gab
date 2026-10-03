@@ -1,6 +1,6 @@
 # PARISHHUB (PHP Edition) — Future Enhancements
 
-The current build is a fully working MVP covering every module in the original specification, running on plain PHP + MySQL/phpMyAdmin. Suggested next-phase enhancements, roughly ordered by impact:
+The current build is a fully working MVP covering every module in the original specification, running on plain PHP + PostgreSQL/Supabase. Suggested next-phase enhancements, roughly ordered by impact:
 
 ## Near-term (high value, low effort)
 - **Real email/SMS delivery** — wire the `notifications` table to actual providers (e.g. PHPMailer for email, a local SMS gateway API for SMS)

@@ -230,9 +230,7 @@ include __DIR__ . '/../includes/dash-start.php';
                   data-url="<?= url('treasurer/payment-detail.php?id=' . $d['payment_id']) ?>"
                   data-title="Donation Details" class="btn btn-outline btn-sm js-view-modal">View</a>
               <?php else: ?>
-                <a href="<?= url('secretary/appointment-detail.php?id=' . $d['appointment_id']) ?>"
-                  data-url="<?= url('secretary/appointment-detail.php?id=' . $d['appointment_id']) ?>"
-                  data-title="Donation Details" class="btn btn-outline btn-sm js-view-modal">View</a>
+                <span class="text-muted" title="No payment record is available for this donation.">No payment record</span>
               <?php endif; ?>
             </td>
           </tr>

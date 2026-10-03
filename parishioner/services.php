@@ -376,7 +376,7 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
             These required forms are completed in the next step after your booking details and supporting documents are saved.
           </div>
           <div class="wedding-form-requirement-list">
-            <p><strong>Matrimony Application</strong><br><span class="badge badge-rejected">Required</span> <span class="helper-text">Complete in Wedding Requirements</span></p>
+            <p><strong>Marriage Requirement and Application Form</strong><br><span class="badge badge-rejected">Required</span> <span class="helper-text">Complete in Wedding Requirements</span></p>
             <p><strong>Katin-awan sa Kasal / Cluster Clearance</strong><br><span class="badge badge-rejected">Required</span> <span class="helper-text">Complete in Wedding Requirements</span></p>
             <p><strong>Wedding Sponsor Clearance</strong><br><span class="badge badge-rejected">Required</span> <span class="helper-text">Complete in Wedding Requirements</span></p>
           </div>

@@ -131,13 +131,16 @@ include __DIR__ . '/includes/header.php';
         <?php endif; ?>
       </div>
       <p><strong>Reference:</strong> <?= e($appointment['guest_reference']) ?></p>
+      <?php if ($appointment['status_name'] === 'Payment Verified'): ?>
+        <p class="text-muted">Payment verified — awaiting appointment confirmation.</p>
+      <?php endif; ?>
       <?php if ($appointment['category'] === 'Wedding'): ?>
         <hr style="border-color:var(--cream-dark); margin:18px 0;"><h4>Wedding Forms</h4>
         <?php foreach ($generatedForms as $gf): ?>
           <p><strong><?= e(weddingFormDefinition($gf['form_type'])['title']) ?></strong><br>
           Status: <?= e(weddingFormStatusLabel($gf['status'])) ?>
-          <a class="btn btn-outline btn-sm" href="<?= url('wedding-form.php?appointment_id=' . (int) $appointment['appointment_id'] . '&form_type=' . urlencode($gf['form_type'])) ?>">Edit / View</a>
-          <?php if ($gf['document_id']): ?><a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>">View PDF</a><?php endif; ?>
+          <a class="btn btn-outline btn-sm" href="<?= url('wedding-form.php?appointment_id=' . (int) $appointment['appointment_id'] . '&form_type=' . urlencode($gf['form_type'])) ?>"><?= $gf['form_type'] === 'matrimony_application' ? ($gf['status'] === 'rejected' ? 'Edit and Regenerate Form' : 'Edit Form') : 'Edit / View' ?></a>
+          <?php if ($gf['document_id']): ?><a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>"><?= $gf['form_type'] === 'matrimony_application' ? 'View Generated Form' : 'View PDF' ?></a><?php endif; ?>
           <?php if ($gf['rejection_reason']): ?><br><span class="text-muted">Reason: <?= e($gf['rejection_reason']) ?></span><?php endif; ?></p>
         <?php endforeach; ?>
       <?php endif; ?>
