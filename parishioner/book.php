@@ -1,4 +1,11 @@
 <?php
+set_error_handler(function($errno, $errstr, $errfile, $errline) {
+    file_put_contents(__DIR__ . '/../debug_log.txt', "Error $errno: $errstr in $errfile on line $errline\n", FILE_APPEND);
+    return true; // suppress default output so JSON stays clean
+});
+set_exception_handler(function($e) {
+    file_put_contents(__DIR__ . '/../debug_log.txt', "Exception: " . $e->getMessage() . "\n", FILE_APPEND);
+});
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/document-storage.php';
