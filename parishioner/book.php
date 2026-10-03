@@ -278,7 +278,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         // Guests must provide every service-required document before a booking
         // can be submitted. Registered parishioners may correct documents
         // during the secretary review workflow from the appointment page.
-        if ($isGuest && $requirementsList && !in_array($category, ['Baptism', 'Wedding'], true)) {
+        if ($isGuest && $requirementsList && !in_array($category, ['Baptism', 'Wedding', 'Funeral'], true)) {
             $uploadedLabels = array_unique(array_filter(array_map(
                 fn($upload) => $upload['label'], $pendingUploads
             )));
