@@ -318,6 +318,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
             foreach ($createdStorageKeys as $key) { try { documentStorageDelete($key); } catch (Throwable $cleanupError) { error_log('Document cleanup failed.'); } }
             error_log($e->getMessage());
             bookRespondError($isAjax, 'Unable to save the Baptism booking draft. Please try again.', url('parishioner/services.php'));
+        }
     }
 
     // Funeral uses a session-based draft workflow to avoid a DB migration while
