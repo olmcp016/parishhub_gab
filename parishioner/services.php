@@ -539,8 +539,8 @@ function toggleServiceUI() {
 
   // No documents are required for Mass Intentions — they're approved instantly.
   var uploadGroup = document.getElementById('uploadGroup');
-  var draftService = category === 'Baptism' || category === 'Wedding';
-  document.getElementById('documentRequirementsNote').style.display = isMassIntention ? 'none' : 'block';
+  var draftService = category === 'Baptism' || category === 'Wedding' || category === 'Funeral';
+  document.getElementById('documentRequirementsNote').style.display = isMassIntention || draftService ? 'none' : 'block';
   uploadGroup.style.display = isMassIntention || draftService ? 'none' : 'block';
   document.getElementById('extraDocumentsInput').disabled = isMassIntention || draftService;
   // ALWAYS clear old requirement rows first — prevents stale required inputs
@@ -1090,7 +1090,7 @@ function submitButtonLabel() {
   var select = document.getElementById('serviceSelect');
   var category = select.options[select.selectedIndex]?.dataset.category || '';
   var draftMode = document.getElementById('draftModeInput');
-  if (draftMode) draftMode.value = ['Wedding', 'Baptism'].indexOf(category) !== -1 ? '1' : '0';
+  if (draftMode) draftMode.value = ['Wedding', 'Baptism', 'Funeral'].indexOf(category) !== -1 ? '1' : '0';
   var baptismPreview = document.getElementById('baptismFormsPreview');
   if (baptismPreview) baptismPreview.style.display = category === 'Baptism' ? 'block' : 'none';
   if (category === 'Wedding') return 'Continue to Wedding Requirements';
