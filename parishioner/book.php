@@ -290,17 +290,6 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     }
     
     $katinAwanPayload = [];
-    if ($category === 'Funeral') {
-        $rawPayload = trim((string) ($_POST['katin_awan_payload'] ?? ''));
-        if (!$rawPayload) {
-            bookRespondError($isAjax, 'Please complete the Katin-awan sa Paglubong form before submitting your Funeral request.', url('parishioner/services.php'));
-        }
-        $katinAwanPayload = json_decode($rawPayload, true) ?: [];
-        $kaErrors = funeralKatinAwanValidationErrors($katinAwanPayload);
-        if ($kaErrors) {
-            bookRespondError($isAjax, implode(' ', $kaErrors), url('parishioner/services.php'));
-        }
-    }
 
     // Baptism always uses the draft workflow. The service category is
     // authoritative so stale forms or missing/tampered draft_mode cannot
@@ -329,6 +318,62 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
             foreach ($createdStorageKeys as $key) { try { documentStorageDelete($key); } catch (Throwable $cleanupError) { error_log('Document cleanup failed.'); } }
             error_log($e->getMessage());
             bookRespondError($isAjax, 'Unable to save the Baptism booking draft. Please try again.', url('parishioner/services.php'));
+    }
+
+    // Funeral uses a session-based draft workflow to avoid a DB migration while
+    // maintaining UX consistency (Booking Details -> Requirements -> Submit).
+    if ($category === 'Funeral') {
+        $rawGuestToken = $isGuest ? bin2hex(random_bytes(32)) : null;
+        $draftId = time() . random_int(1000, 9999);
+        
+        $funeralDraft = [
+            'id' => $draftId,
+            'expires_at' => time() + (24 * 3600),
+            'guest_token' => $rawGuestToken ? hash('sha256', $rawGuestToken) : null,
+            'is_guest' => $isGuest,
+            'parishioner_id' => $isGuest ? null : $parishionerId,
+            'guest_name' => $guestName,
+            'guest_email' => $guestEmail,
+            'guest_phone' => $guestPhone,
+            'guest_reference' => $guestReference,
+            'service_id' => $serviceId,
+            'priest_id' => $priestId,
+            'date' => $date,
+            'finalTime' => $finalTime,
+            'pssClaim' => $pssClaim,
+            'pssClassification' => $pssClassification,
+            'remarks' => $remarks,
+            'contactPhone' => $contactPhone,
+            'locationAddress' => $locationAddress,
+            'dateOfDeath' => $dateOfDeath,
+            'requirementsSnapshot' => $requirementsSnapshot,
+            'uploaded_keys' => [],
+            'katin_awan_payload' => null
+        ];
+
+        $createdStorageKeys = [];
+        try {
+            foreach ($pendingUploads as $upload) {
+                $stored = documentStorageMoveUpload($upload['file']['tmp_name'], pathinfo($upload['file']['name'], PATHINFO_EXTENSION));
+                $createdStorageKeys[] = $stored['key'];
+                $funeralDraft['uploaded_keys'][] = [
+                    'file_name' => $upload['file']['name'],
+                    'key' => $stored['key'],
+                    'mime' => $stored['mime'],
+                    'label' => $upload['label']
+                ];
+            }
+            if (!isset($_SESSION['funeral_booking_drafts'])) $_SESSION['funeral_booking_drafts'] = [];
+            $_SESSION['funeral_booking_drafts'][$draftId] = $funeralDraft;
+            if ($rawGuestToken) $_SESSION['funeral_draft_tokens'][$draftId] = $rawGuestToken;
+
+            $redirect = url('funeral-draft.php?draft_id=' . $draftId);
+            if ($isAjax) { header('Content-Type: application/json'); echo json_encode(['success' => true, 'redirect' => $redirect]); exit; }
+            redirect($redirect);
+        } catch (Throwable $e) {
+            foreach ($createdStorageKeys as $key) { try { documentStorageDelete($key); } catch (Throwable $cleanupError) { error_log('Document cleanup failed.'); } }
+            error_log($e->getMessage());
+            bookRespondError($isAjax, 'Unable to save the Funeral booking draft. Please try again.', url('parishioner/services.php'));
         }
     }
 
@@ -460,16 +505,6 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         $documentsReminder = null;
         if (!$isMassIntention && !empty($requirementsList) && empty($pendingUploads)) {
             $documentsReminder = 'Reminder: this service requires documents (' . implode(', ', $requirementsList) . '). You can upload them now or later from your appointment page — your request just won\'t be approved until they\'re submitted and verified.';
-        }
-        
-        if ($category === 'Funeral') {
-            try {
-                processFuneralGeneratedForm($appointmentId, 'katin_awan_paglubong', $katinAwanPayload);
-            } catch (Exception $e) {
-                $pdo->rollBack();
-                error_log('Funeral Generated Form Error: ' . $e->getMessage());
-                bookRespondError($isAjax, 'Could not generate the Katin-awan form. Please try again.', url('parishioner/services.php'));
-            }
         }
 
         // Guests have no account to receive an in-app notification —

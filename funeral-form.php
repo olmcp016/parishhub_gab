@@ -4,64 +4,107 @@ require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/funeral-forms.php';
 
 $appointmentId = (int) ($_REQUEST['appointment_id'] ?? 0);
+$draftId = $_REQUEST['draft_id'] ?? '';
 $type = 'katin_awan_paglubong';
 $user = currentUser();
-$guest = $_SESSION['guest_status_verification'] ?? null;
-$isGuest = !$user && is_array($guest) && (int) ($guest['appointment_id'] ?? 0) === $appointmentId && (int) ($guest['expires_at'] ?? 0) >= time();
-if ($user && !in_array($user['role_name'] ?? '', ['Parishioner'], true)) { http_response_code(403); exit('Only the appointment owner may edit this form.'); }
 
-$pdo = db();
-$stmt = $pdo->prepare("SELECT a.*, s.category FROM appointments a JOIN services s ON s.service_id = a.service_id WHERE a.appointment_id = ? AND s.category = 'Funeral'");
-$stmt->execute([$appointmentId]);
-$appointment = $stmt->fetch();
-if (!$appointment) { http_response_code(404); exit('Funeral appointment not found.'); }
-if ($user) {
-    $q = $pdo->prepare('SELECT 1 FROM parishioners WHERE parishioner_id = ? AND user_id = ?');
-    $q->execute([$appointment['parishioner_id'], $user['user_id']]);
-    if (!$q->fetchColumn()) { http_response_code(403); exit('Not authorized.'); }
-} elseif (!$isGuest) { http_response_code(403); exit('Verify the guest appointment before accessing this form.'); }
-
-$formQuery = $pdo->prepare('SELECT f.*, d.review_status FROM generated_funeral_forms f LEFT JOIN uploaded_documents d ON d.document_id = f.document_id WHERE f.appointment_id = ? AND f.form_type = ?');
-$formQuery->execute([$appointmentId, $type]);
-$form = $formQuery->fetch() ?: null;
-$data = $form ? funeralKatinAwanNormalizeData(json_decode($form['form_data'], true) ?: []) : funeralKatinAwanNormalizeData([
-    'kanus_a_ilubong' => (string) ($appointment['appointment_date'] ?? ''),
-    'oras_sa_lubong' => substr((string) ($appointment['appointment_time'] ?? ''), 0, 5),
-    'responde' => trim((string) ($appointment['guest_name'] ?? '')),
-]);
+$isDraft = !empty($draftId);
 $error = null;
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    verifyCsrf();
-    $data = funeralKatinAwanNormalizeData($_POST);
-    $errors = ($form && ($form['review_status'] ?? '') === 'approved')
-        ? ['Approved forms require Secretary review before they can be changed.']
-        : funeralKatinAwanValidationErrors($data);
-    if ($errors) {
-        $error = implode(' ', $errors);
+if ($isDraft) {
+    if (!isset($_SESSION['funeral_booking_drafts'][$draftId])) {
+        exit('Funeral booking draft not found or expired.');
+    }
+    $draft = $_SESSION['funeral_booking_drafts'][$draftId];
+    if ($draft['is_guest']) {
+        $guestToken = $_SESSION['funeral_draft_tokens'][$draftId] ?? null;
+        if (!$guestToken || hash('sha256', $guestToken) !== $draft['guest_token']) exit('Access denied.');
     } else {
-        try {
-            processFuneralGeneratedForm($appointmentId, $type, $data, $form ? (int) $form['document_id'] : null);
-            $formQuery->execute([$appointmentId, $type]);
-            $updatedForm = $formQuery->fetch();
-            $newDocumentId = (int) ($updatedForm['document_id'] ?? 0);
-            flash('success', 'Katin-awan sa Paglubong has been generated and submitted for review.');
-            redirect(url('funeral-form.php?appointment_id=' . $appointmentId . '&generated_document_id=' . $newDocumentId));
-        } catch (Throwable $e) {
-            error_log('Funeral form generation failed: ' . $e->getMessage());
-            $error = $e->getMessage() === 'Approved forms require Secretary review before they can be changed.'
-                ? $e->getMessage()
-                : 'The Funeral form could not be generated. Please try again.';
+        if (!$user || $user['parishioner_id'] != $draft['parishioner_id']) exit('Access denied.');
+    }
+    
+    $data = funeralKatinAwanNormalizeData($draft['katin_awan_payload'] ?: [
+        'kanus_a_ilubong' => (string) ($draft['date'] ?? ''),
+        'oras_sa_lubong' => substr((string) ($draft['finalTime'] ?? ''), 0, 5),
+        'responde' => trim((string) ($draft['guest_name'] ?? ''))
+    ]);
+    $form = null;
+    $appointment = null;
+    $previewDocumentId = 0;
+    
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        verifyCsrf();
+        $data = funeralKatinAwanNormalizeData($_POST);
+        $errors = funeralKatinAwanValidationErrors($data);
+        if ($errors) {
+            $error = implode(' ', $errors);
+        } else {
+            $_SESSION['funeral_booking_drafts'][$draftId]['katin_awan_payload'] = $data;
+            flash('success', 'Katin-awan sa Paglubong form saved.');
+            redirect(url('funeral-draft.php?draft_id=' . $draftId));
         }
     }
-}
+} else {
+    $guest = $_SESSION['guest_status_verification'] ?? null;
+    $isGuest = !$user && is_array($guest) && (int) ($guest['appointment_id'] ?? 0) === $appointmentId && (int) ($guest['expires_at'] ?? 0) >= time();
+    if ($user && !in_array($user['role_name'] ?? '', ['Parishioner'], true)) { http_response_code(403); exit('Only the appointment owner may edit this form.'); }
 
-$previewDocumentId = 0;
-if ($form && !empty($form['document_id'])) {
-    $requestedPreviewId = (int) ($_GET['generated_document_id'] ?? 0);
-    $previewDocumentId = $requestedPreviewId === (int) $form['document_id'] ? $requestedPreviewId : 0;
+    $pdo = db();
+    $stmt = $pdo->prepare("SELECT a.*, s.category FROM appointments a JOIN services s ON s.service_id = a.service_id WHERE a.appointment_id = ? AND s.category = 'Funeral'");
+    $stmt->execute([$appointmentId]);
+    $appointment = $stmt->fetch();
+    if (!$appointment) { http_response_code(404); exit('Funeral appointment not found.'); }
+    if ($user) {
+        $q = $pdo->prepare('SELECT 1 FROM parishioners WHERE parishioner_id = ? AND user_id = ?');
+        $q->execute([$appointment['parishioner_id'], $user['user_id']]);
+        if (!$q->fetchColumn()) { http_response_code(403); exit('Not authorized.'); }
+    } elseif (!$isGuest) { http_response_code(403); exit('Verify the guest appointment before accessing this form.'); }
+
+    $formQuery = $pdo->prepare('SELECT f.*, d.review_status FROM generated_funeral_forms f LEFT JOIN uploaded_documents d ON d.document_id = f.document_id WHERE f.appointment_id = ? AND f.form_type = ?');
+    $formQuery->execute([$appointmentId, $type]);
+    $form = $formQuery->fetch() ?: null;
+    $data = $form ? funeralKatinAwanNormalizeData(json_decode($form['form_data'], true) ?: []) : funeralKatinAwanNormalizeData([
+        'kanus_a_ilubong' => (string) ($appointment['appointment_date'] ?? ''),
+        'oras_sa_lubong' => substr((string) ($appointment['appointment_time'] ?? ''), 0, 5),
+        'responde' => trim((string) ($appointment['guest_name'] ?? '')),
+    ]);
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        verifyCsrf();
+        $data = funeralKatinAwanNormalizeData($_POST);
+        $errors = ($form && ($form['review_status'] ?? '') === 'approved')
+            ? ['Approved forms require Secretary review before they can be changed.']
+            : funeralKatinAwanValidationErrors($data);
+        if ($errors) {
+            $error = implode(' ', $errors);
+        } else {
+            try {
+                processFuneralGeneratedForm($appointmentId, $type, $data, $form ? (int) $form['document_id'] : null);
+                $formQuery->execute([$appointmentId, $type]);
+                $updatedForm = $formQuery->fetch();
+                $newDocumentId = (int) ($updatedForm['document_id'] ?? 0);
+                flash('success', 'Katin-awan sa Paglubong has been generated and submitted for review.');
+                redirect(url('funeral-form.php?appointment_id=' . $appointmentId . '&generated_document_id=' . $newDocumentId));
+            } catch (Throwable $e) {
+                error_log('Funeral form generation failed: ' . $e->getMessage());
+                $error = $e->getMessage() === 'Approved forms require Secretary review before they can be changed.'
+                    ? $e->getMessage()
+                    : 'The Funeral form could not be generated. Please try again.';
+            }
+        }
+    }
+
+    $previewDocumentId = 0;
+    if ($form && !empty($form['document_id'])) {
+        $requestedPreviewId = (int) ($_GET['generated_document_id'] ?? 0);
+        $previewDocumentId = $requestedPreviewId === (int) $form['document_id'] ? $requestedPreviewId : 0;
+    }
 }
 $definition = funeralFormDefinition($type);
+
+$backLink = $isDraft 
+    ? url('funeral-draft.php?draft_id=' . $draftId)
+    : ($isGuest ? url('status.php?ref=' . urlencode($appointment['guest_reference'] ?? '')) : url('parishioner/appointment-detail.php?id=' . $appointmentId));
 ?>
 <?php ob_start(); ?>
 <style>
@@ -72,12 +115,12 @@ $definition = funeralFormDefinition($type);
 @media (max-width:600px) { .grid-2 { grid-template-columns:1fr; } }
 </style>
 <div style="max-width:850px; margin:0 auto; padding:20px;">
-  <a href="<?= $isGuest ? url('status.php?ref=' . urlencode($appointment['guest_reference'])) : url('parishioner/appointment-detail.php?id=' . $appointmentId) ?>" class="back-link">← Back to Appointment</a>
+  <a href="<?= $backLink ?>" class="back-link">← Back</a>
   <div style="text-align:center; margin-bottom:30px;"><h1 style="margin:0 0 10px; color:var(--brown);"><?= e($definition['title']) ?></h1><p class="text-muted" style="margin:0;">Complete the fields printed on the official parish form. Signature and verification lines remain blank.</p></div>
   <?php include __DIR__ . '/includes/flash.php'; ?>
   <?php if ($error): ?><div class="alert" style="background:var(--danger-bg); color:var(--danger); border:1px solid #f5c2c2;"><?= e($error) ?></div><?php endif; ?>
-  <?php if ($previewDocumentId): ?><div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">The form was generated. If the PDF did not open automatically, <a href="<?= url('document.php?id=' . $previewDocumentId) ?>" target="_blank" rel="noopener"><strong>View Generated Form</strong></a>.</div><?php endif; ?>
-  <?php if ($form && $form['status'] === 'rejected' && $form['rejection_reason']): ?><div class="alert" style="background:var(--danger-bg); color:var(--danger);"><strong>Secretary requested revisions:</strong> <?= e($form['rejection_reason']) ?></div><?php endif; ?>
+  <?php if (!empty($previewDocumentId)): ?><div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">The form was generated. If the PDF did not open automatically, <a href="<?= url('document.php?id=' . $previewDocumentId) ?>" target="_blank" rel="noopener"><strong>View Generated Form</strong></a>.</div><?php endif; ?>
+  <?php if (!empty($form) && $form['status'] === 'rejected' && $form['rejection_reason']): ?><div class="alert" style="background:var(--danger-bg); color:var(--danger);"><strong>Secretary requested revisions:</strong> <?= e($form['rejection_reason']) ?></div><?php endif; ?>
 
   <form method="POST" id="funeralGeneratedForm">
     <?= csrfField() ?>
