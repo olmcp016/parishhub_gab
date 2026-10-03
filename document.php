@@ -69,16 +69,83 @@ $allowedMimes = ['image/jpeg', 'image/png', 'application/pdf'];
 if (!in_array($mime, $allowedMimes, true)) $mime = 'application/octet-stream';
 header('Content-Type: ' . $mime);
 if ($filePath) header('Content-Length: ' . (string) filesize($filePath)); else header('Content-Length: ' . strlen($stored['body']));
-$generatedFilenames = [
-    'matrimony_application' => 'Marriage-Requirement-and-Application-Form.pdf',
-    'cluster_clearance' => 'Katin-awan-sa-Kasal.pdf',
-    'wedding_sponsor_clearance' => 'Cluster-Clearance-Wedding-Sponsors.pdf',
-    'katin_awan_bunyag' => 'Katin-awan-sa-Bunyag.pdf',
-    'cluster_clearance_baptism_sponsor' => 'Cluster-Clearance-Baptism-Sponsor.pdf',
-    'katin_awan_paglubong' => 'Katin-awan-sa-Paglubong.pdf',
-];
 $download = ($_GET['download'] ?? '') === '1';
-$filename = $generatedFilenames[$document['generated_form_type'] ?? ''] ?? basename((string) $document['file_name']);
+
+function sanitizePdfFilename(string $name): string {
+    // Remove unsafe filesystem characters, slashes, quotes, and control chars
+    $name = preg_replace('/[^\p{L}\p{N}_\-\s]/u', '', $name);
+    // Collapse spaces to underscores
+    $name = preg_replace('/\s+/', '_', trim($name));
+    return $name ?: '';
+}
+
+$formType = $document['generated_form_type'] ?? '';
+$formalFilename = null;
+
+if ($formType) {
+    $baseNames = [
+        'matrimony_application' => 'Marriage_Requirement_and_Application_Form',
+        'cluster_clearance' => 'Katin-awan_sa_Kasal',
+        'wedding_sponsor_clearance' => 'Cluster_Clearance_for_Wedding_Sponsor',
+        'katin_awan_bunyag' => 'Katin-awan_sa_Bunyag',
+        'cluster_clearance_baptism_sponsor' => 'Cluster_Clearance_for_Baptismal_Sponsor',
+        'katin_awan_paglubong' => 'Katin-awan_sa_Paglubong',
+    ];
+    $base = $baseNames[$formType] ?? 'Generated_Form';
+    
+    $formData = [];
+    if (in_array($formType, ['matrimony_application', 'cluster_clearance', 'wedding_sponsor_clearance'])) {
+        $stmt = db()->prepare('SELECT form_data FROM generated_wedding_forms WHERE draft_id = ? AND form_type = ?');
+        $stmt->execute([$document['draft_id'], $formType]);
+        if ($row = $stmt->fetch()) $formData = json_decode($row['form_data'], true) ?: [];
+    } elseif (in_array($formType, ['katin_awan_bunyag', 'cluster_clearance_baptism_sponsor'])) {
+        $stmt = db()->prepare('SELECT form_data FROM generated_baptism_forms WHERE draft_id = ? AND form_type = ?');
+        $stmt->execute([$document['baptism_draft_id'], $formType]);
+        if ($row = $stmt->fetch()) $formData = json_decode($row['form_data'], true) ?: [];
+    } elseif ($formType === 'katin_awan_paglubong') {
+        $stmt = db()->prepare('SELECT form_data FROM generated_funeral_forms WHERE appointment_id = ?');
+        $stmt->execute([$document['appointment_id']]);
+        if ($row = $stmt->fetch()) $formData = json_decode($row['form_data'], true) ?: [];
+    }
+    
+    $subject = '';
+    if ($formType === 'matrimony_application') {
+        $groom = sanitizePdfFilename($formData['groom_name'] ?? '');
+        $bride = sanitizePdfFilename($formData['bride_name'] ?? '');
+        if ($groom && $bride) $subject = $groom . '_and_' . $bride;
+        elseif ($groom) $subject = $groom;
+        elseif ($bride) $subject = $bride;
+    } elseif ($formType === 'cluster_clearance') {
+        $kaslonon = sanitizePdfFilename($formData['kaslonon_name'] ?? '');
+        $spouse = sanitizePdfFilename($formData['spouse_name'] ?? '');
+        if ($kaslonon && $spouse) $subject = $kaslonon . '_and_' . $spouse;
+        elseif ($kaslonon) $subject = $kaslonon;
+        elseif ($spouse) $subject = $spouse;
+    } elseif ($formType === 'wedding_sponsor_clearance') {
+        $sponsor = sanitizePdfFilename($formData['recipient_name'] ?? '');
+        if ($sponsor) {
+            $subject = $sponsor;
+        } else {
+            $groom = sanitizePdfFilename($formData['groom_name'] ?? '');
+            $bride = sanitizePdfFilename($formData['bride_name'] ?? '');
+            if ($groom && $bride) $subject = $groom . '_and_' . $bride;
+        }
+    } elseif ($formType === 'katin_awan_bunyag') {
+        $subject = sanitizePdfFilename($formData['child_name'] ?? '');
+    } elseif ($formType === 'cluster_clearance_baptism_sponsor') {
+        $subject = sanitizePdfFilename($formData['sponsor_name'] ?? '');
+    } elseif ($formType === 'katin_awan_paglubong') {
+        $subject = sanitizePdfFilename($formData['ngalan_sa_ilubong'] ?? '');
+    }
+    
+    if ($subject) {
+        $formalFilename = $base . '_' . $subject . '.pdf';
+    } else {
+        $formalFilename = $base . '_' . ($document['appointment_id'] ? 'Appointment_' . $document['appointment_id'] : 'Draft_' . ($document['draft_id'] ?: $document['baptism_draft_id'])) . '.pdf';
+    }
+}
+
+$filename = $formalFilename ?? basename((string) $document['file_name']);
 $filename = str_replace(["\"", "\r", "\n"], '', $filename);
 header('Content-Disposition: ' . ($download ? 'attachment' : 'inline') . '; filename="' . $filename . '"');
 header('X-Content-Type-Options: nosniff');

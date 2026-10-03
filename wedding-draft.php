@@ -128,14 +128,19 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
         ? ($row ? 'Edit Form' : 'Fill Out Form')
         : ($row ? 'Edit Form' : 'Complete Form');
   ?>
-    <p>
-      <?= $documentId ? '✓' : '○' ?> <?= e($title) ?> — <?= $documentId ? 'Generated' : ($row ? 'Draft' : 'Not completed') ?>
-      <a class="btn btn-outline btn-sm" href="<?= url('wedding-draft-form.php?draft_id=' . $draftId . '&form_type=' . urlencode($type)) ?>"><?= e($editLabel) ?></a>
-      <?php if ($documentId): ?>
-        <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . $documentId) ?>"><?= $type === 'matrimony_application' ? 'View Generated Form' : 'View PDF' ?></a>
-        <a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . $documentId . '&download=1') ?>">Download PDF</a>
-      <?php endif; ?>
-    </p>
+    <div class="generated-form-item">
+      <div class="generated-form-header">
+        <span class="generated-form-title"><?= e($title) ?></span>
+        <span class="generated-form-status"><?= $documentId ? '✓ Generated' : ($row ? '○ Draft' : '○ Not completed') ?></span>
+      </div>
+      <div class="generated-form-actions">
+        <a class="btn btn-outline btn-sm" href="<?= url('wedding-draft-form.php?draft_id=' . $draftId . '&form_type=' . urlencode($type)) ?>"><?= e($editLabel) ?></a>
+        <?php if ($documentId): ?>
+          <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . $documentId) ?>"><?= $type === 'matrimony_application' ? 'View Generated Form' : 'View PDF' ?></a>
+          <a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . $documentId . '&download=1') ?>">Download PDF</a>
+        <?php endif; ?>
+      </div>
+    </div>
   <?php endforeach; ?>
   <form method="POST">
     <?= csrfField() ?>

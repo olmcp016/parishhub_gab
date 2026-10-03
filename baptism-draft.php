@@ -153,9 +153,18 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
 </form></div>
 <div class="card"><h2>Baptism Forms</h2>
 <?php foreach (BAPTISM_DRAFT_FORMS as $type): $row = $forms[$type] ?? null; $isGenerated = $row && !empty($row['document_id']) && in_array($row['status'] ?? '', ['pending_review', 'approved'], true); $documentId = $isGenerated ? (int) $row['document_id'] : 0; $title = baptismFormDefinition($type)['title']; ?>
-<p><?= $documentId ? '✓' : '○' ?> <?= e($title) ?> — <?= $documentId ? 'Generated' : ($row ? 'Draft' : 'Not completed') ?>
-<a class="btn btn-outline btn-sm" href="<?= url('baptism-draft-form.php?draft_id=' . $id . '&form_type=' . urlencode($type)) ?>"><?= $row ? 'Edit Form' : 'Complete Form' ?></a>
-<?php if ($documentId): ?><a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . $documentId) ?>">View PDF</a>
-<a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . $documentId . '&download=1') ?>">Download PDF</a><?php endif; ?></p>
+<div class="generated-form-item">
+  <div class="generated-form-header">
+    <span class="generated-form-title"><?= e($title) ?></span>
+    <span class="generated-form-status"><?= $documentId ? '✓ Generated' : ($row ? '○ Draft' : '○ Not completed') ?></span>
+  </div>
+  <div class="generated-form-actions">
+    <a class="btn btn-outline btn-sm" href="<?= url('baptism-draft-form.php?draft_id=' . $id . '&form_type=' . urlencode($type)) ?>"><?= $row ? 'Edit Form' : 'Complete Form' ?></a>
+    <?php if ($documentId): ?>
+      <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . $documentId) ?>">View PDF</a>
+      <a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . $documentId . '&download=1') ?>">Download PDF</a>
+    <?php endif; ?>
+  </div>
+</div>
 <?php endforeach; ?><form method="POST"><?= csrfField() ?><button class="btn btn-primary" type="submit">Submit Appointment Request</button></form></div>
 <?php include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-end.php' : 'dash-end.php'); include __DIR__ . '/includes/footer.php';

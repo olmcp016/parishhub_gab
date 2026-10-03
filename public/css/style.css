@@ -1254,3 +1254,31 @@ input.amount-no-spinner {
   #createLoginModal, #manageLoginModal, .location-picker-modal { width:min(94vw, 520px); }
   .location-picker-filters .location-filter { min-width:calc(50% - 4px); }
 }
+
+.generated-form-item {
+  padding: 16px;
+  border: 1px solid var(--cream-dark);
+  border-radius: 8px;
+  margin-bottom: 16px;
+  background: #fff;
+}
+.generated-form-header {
+  margin-bottom: 12px;
+}
+.generated-form-title {
+  font-weight: 700;
+  font-size: 1.05rem;
+  margin-bottom: 4px;
+  color: var(--brown);
+  display: block;
+}
+.generated-form-status {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+.generated-form-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}

@@ -141,21 +141,39 @@ include __DIR__ . '/includes/header.php';
       <?php if ($appointment['category'] === 'Wedding'): ?>
         <hr style="border-color:var(--cream-dark); margin:18px 0;"><h4>Wedding Forms</h4>
         <?php foreach ($generatedForms as $gf): ?>
-          <p><strong><?= e(weddingFormDefinition($gf['form_type'])['title']) ?></strong><br>
-          Status: <?= e(weddingFormStatusLabel($gf['status'])) ?>
-          <?php if (($gf['status'] ?? '') !== 'approved'): ?><a class="btn btn-outline btn-sm" href="<?= url('wedding-form.php?appointment_id=' . (int) $appointment['appointment_id'] . '&form_type=' . urlencode($gf['form_type'])) ?>"><?= ($gf['status'] ?? '') === 'rejected' ? 'Edit and Regenerate Form' : 'Edit Form' ?></a><?php endif; ?>
-          <?php if ($gf['document_id']): ?><a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>"><?= $gf['form_type'] === 'matrimony_application' ? 'View Generated Form' : 'View PDF' ?></a><?php endif; ?>
-          <?php if ($gf['rejection_reason']): ?><br><span class="text-muted">Reason: <?= e($gf['rejection_reason']) ?></span><?php endif; ?></p>
+          <div class="generated-form-item">
+            <div class="generated-form-header">
+              <span class="generated-form-title"><?= e(weddingFormDefinition($gf['form_type'])['title']) ?></span>
+              <span class="generated-form-status">Status: <?= e(weddingFormStatusLabel($gf['status'])) ?></span>
+              <?php if ($gf['rejection_reason']): ?><div class="text-muted" style="margin-top:4px; font-size:0.9rem;">Reason: <?= e($gf['rejection_reason']) ?></div><?php endif; ?>
+            </div>
+            <div class="generated-form-actions">
+              <?php if (($gf['status'] ?? '') !== 'approved'): ?><a class="btn btn-outline btn-sm" href="<?= url('wedding-form.php?appointment_id=' . (int) $appointment['appointment_id'] . '&form_type=' . urlencode($gf['form_type'])) ?>"><?= ($gf['status'] ?? '') === 'rejected' ? 'Edit and Regenerate Form' : 'Edit Form' ?></a><?php endif; ?>
+              <?php if ($gf['document_id']): ?>
+                <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>"><?= $gf['form_type'] === 'matrimony_application' ? 'View Generated Form' : 'View PDF' ?></a>
+                <a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . (int) $gf['document_id'] . '&download=1') ?>">Download PDF</a>
+              <?php endif; ?>
+            </div>
+          </div>
         <?php endforeach; ?>
       <?php endif; ?>
       <?php if ($appointment['category'] === 'Baptism'): ?>
         <hr style="border-color:var(--cream-dark); margin:18px 0;"><h4>Baptism Forms</h4>
         <?php foreach ($generatedForms as $gf): $baptismStatus = $gf['review_status'] ?? 'pending'; ?>
-          <p><strong><?= e(baptismFormDefinition($gf['form_type'])['title']) ?></strong><br>
-          Status: <?= e($baptismStatus === 'rejected' ? 'Needs Revision' : ($baptismStatus === 'approved' ? 'Approved' : 'Pending Review')) ?>
-          <?php if (($gf['status'] ?? '') !== 'approved'): ?><a class="btn btn-outline btn-sm" href="<?= url('baptism-draft-form.php?appointment_id=' . (int) $appointment['appointment_id'] . '&form_type=' . urlencode($gf['form_type'])) ?>"><?= $baptismStatus === 'rejected' ? 'Edit and Regenerate Form' : 'Edit Form' ?></a><?php endif; ?>
-          <?php if ($gf['document_id']): ?><a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>">View PDF</a><?php endif; ?>
-          <?php if ($gf['rejection_reason']): ?><br><span class="text-muted">Reason: <?= e($gf['rejection_reason']) ?></span><?php endif; ?></p>
+          <div class="generated-form-item">
+            <div class="generated-form-header">
+              <span class="generated-form-title"><?= e(baptismFormDefinition($gf['form_type'])['title']) ?></span>
+              <span class="generated-form-status">Status: <?= e($baptismStatus === 'rejected' ? 'Needs Revision' : ($baptismStatus === 'approved' ? 'Approved' : 'Pending Review')) ?></span>
+              <?php if ($gf['rejection_reason']): ?><div class="text-muted" style="margin-top:4px; font-size:0.9rem;">Reason: <?= e($gf['rejection_reason']) ?></div><?php endif; ?>
+            </div>
+            <div class="generated-form-actions">
+              <?php if (($gf['status'] ?? '') !== 'approved'): ?><a class="btn btn-outline btn-sm" href="<?= url('baptism-draft-form.php?appointment_id=' . (int) $appointment['appointment_id'] . '&form_type=' . urlencode($gf['form_type'])) ?>"><?= $baptismStatus === 'rejected' ? 'Edit and Regenerate Form' : 'Edit Form' ?></a><?php endif; ?>
+              <?php if ($gf['document_id']): ?>
+                <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>">View PDF</a>
+                <a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . (int) $gf['document_id'] . '&download=1') ?>">Download PDF</a>
+              <?php endif; ?>
+            </div>
+          </div>
         <?php endforeach; ?>
       <?php endif; ?>
       <?php if ($appointment['category'] === 'Funeral'): ?>
@@ -167,16 +185,25 @@ include __DIR__ . '/includes/header.php';
           $funeralApproved = $gf && (($gf['review_status'] ?? 'pending') === 'approved' || ($gf['verified'] ?? false));
         ?>
         <hr style="border-color:var(--cream-dark); margin:18px 0;"><h4>Funeral Form</h4>
-        <p><strong>Katin-awan sa Paglubong</strong><br>
-        Status: <?php
-          if ($gfStatus === 'draft') echo '<span class="badge badge-rejected">Missing</span>';
-          elseif ($gfStatus === 'rejected') echo '<span class="badge badge-rejected">Rejected</span>';
-          elseif ($gfStatus === 'generated' && (($gf['review_status'] ?? 'pending') === 'approved' || ($gf['verified'] ?? false))) echo '<span class="badge badge-verified">Verified/Accepted</span>';
-          else echo '<span class="badge badge-pending">Generated — Pending Review</span>';
-        ?>
-        <?php if (!$funeralApproved): ?><a class="btn btn-outline btn-sm" href="<?= url('funeral-form.php?appointment_id=' . (int) $appointment['appointment_id']) ?>"><?= $gfStatus === 'rejected' ? 'Edit and Regenerate Form' : ($gfStatus === 'generated' ? 'Edit Form' : 'Fill Out Form') ?></a><?php endif; ?>
-        <?php if ($gf && $gf['document_id']): ?><a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>">View Generated Form</a><?php endif; ?>
-        <?php if ($gf && $gf['rejection_reason']): ?><br><span class="text-muted">Reason: <?= e($gf['rejection_reason']) ?></span><?php endif; ?></p>
+        <div class="generated-form-item">
+          <div class="generated-form-header">
+            <span class="generated-form-title">Katin-awan sa Paglubong</span>
+            <span class="generated-form-status">Status: <?php
+              if ($gfStatus === 'draft') echo '<span class="badge badge-rejected">Missing</span>';
+              elseif ($gfStatus === 'rejected') echo '<span class="badge badge-rejected">Rejected</span>';
+              elseif ($gfStatus === 'generated' && (($gf['review_status'] ?? 'pending') === 'approved' || ($gf['verified'] ?? false))) echo '<span class="badge badge-verified">Verified/Accepted</span>';
+              else echo '<span class="badge badge-pending">Generated — Pending Review</span>';
+            ?></span>
+            <?php if ($gf && $gf['rejection_reason']): ?><div class="text-muted" style="margin-top:4px; font-size:0.9rem;">Reason: <?= e($gf['rejection_reason']) ?></div><?php endif; ?>
+          </div>
+          <div class="generated-form-actions">
+            <?php if (!$funeralApproved): ?><a class="btn btn-outline btn-sm" href="<?= url('funeral-form.php?appointment_id=' . (int) $appointment['appointment_id']) ?>"><?= $gfStatus === 'rejected' ? 'Edit and Regenerate Form' : ($gfStatus === 'generated' ? 'Edit Form' : 'Fill Out Form') ?></a><?php endif; ?>
+            <?php if ($gf && $gf['document_id']): ?>
+              <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>">View Generated Form</a>
+              <a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . (int) $gf['document_id'] . '&download=1') ?>">Download PDF</a>
+            <?php endif; ?>
+          </div>
+        </div>
       <?php endif; ?>
       <p><strong>Date:</strong> <?= formatDate($appointment['appointment_date']) ?><?= $appointment['appointment_time'] ? ' at ' . date('g:i A', strtotime($appointment['appointment_time'])) : ' (To be scheduled)' ?></p>
       <?php if ($appointment['category'] !== 'Donation'): ?>
