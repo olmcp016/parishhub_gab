@@ -146,34 +146,43 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
         <input type="hidden" name="draft_mode" id="draftModeInput" value="0">
 
         <?php if ($identity['is_guest']): ?>
+        <style>
+          .guest-info-fields {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+          }
+          .guest-info-fields .form-group {
+            width: 100%;
+            margin-bottom: 0;
+          }
+        </style>
         <div style="background: var(--cream); padding: 14px; border-radius: 8px; margin-bottom: 16px; border: 1px solid var(--cream-dark);">
           <h4 style="margin-top:0; margin-bottom:12px;">Guest Information</h4>
-          <div class="form-row">
+          <div class="guest-info-fields">
             <div class="form-group">
               <label>First Name</label>
-              <input type="text" name="guest_firstname" id="guestFirstNameInput" required placeholder="Juan">
+              <input type="text" name="guest_firstname" id="guestFirstNameInput" required placeholder="Juan" style="width:100%;">
             </div>
             <div class="form-group">
               <label>Middle Name <span class="text-muted" style="font-weight:400;">(optional)</span></label>
-              <input type="text" name="guest_middlename" id="guestMiddleNameInput" placeholder="Santos">
+              <input type="text" name="guest_middlename" id="guestMiddleNameInput" placeholder="Santos" style="width:100%;">
             </div>
             <div class="form-group">
               <label>Last Name</label>
-              <input type="text" name="guest_lastname" id="guestLastNameInput" required placeholder="Dela Cruz">
+              <input type="text" name="guest_lastname" id="guestLastNameInput" required placeholder="Dela Cruz" style="width:100%;">
             </div>
-          </div>
-          <div class="form-row">
             <div class="form-group">
               <label>Phone Number</label>
-              <input type="tel" name="guest_phone" id="guestPhoneInput" required pattern="09[0-9]{9}" maxlength="11" minlength="11" placeholder="09XXXXXXXXX" title="Must be exactly 11 digits starting with 09">
+              <input type="tel" name="guest_phone" id="guestPhoneInput" required pattern="09[0-9]{9}" maxlength="11" minlength="11" placeholder="09XXXXXXXXX" title="Must be exactly 11 digits starting with 09" style="width:100%;">
             </div>
             <div class="form-group">
               <label>Email Address <span class="text-muted" style="font-weight:400;">(optional)</span></label>
-              <input type="email" name="guest_email" id="guestEmailInput" placeholder="you@example.com">
+              <input type="email" name="guest_email" id="guestEmailInput" placeholder="you@example.com" style="width:100%;">
             </div>
           </div>
           <input type="hidden" name="guest_name" id="guestCombinedName">
-          <p class="helper-text" style="margin-top:-6px; margin-bottom:0;">We'll use your name and phone number to identify your request — you'll get a reference code to check its status anytime.</p>
+          <p class="helper-text" style="margin-top:12px; margin-bottom:0;">We'll use your name and phone number to identify your request — you'll get a reference code to check its status anytime.</p>
         </div>
         <?php endif; ?>
 
