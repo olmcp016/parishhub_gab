@@ -23,7 +23,12 @@ if ($draft['is_guest']) {
         exit('Access denied to this Funeral draft.');
     }
 } else {
-    if (!$user || $user['parishioner_id'] != $draft['parishioner_id']) {
+    if (!$user) {
+        exit('Access denied to this Funeral draft.');
+    }
+    $q = db()->prepare('SELECT parishioner_id FROM parishioners WHERE user_id = ?');
+    $q->execute([$user['user_id']]);
+    if ((int)$q->fetchColumn() !== (int)$draft['parishioner_id']) {
         exit('Access denied to this Funeral draft.');
     }
 }

@@ -20,7 +20,14 @@ if ($isDraft) {
         $guestToken = $_SESSION['funeral_draft_tokens'][$draftId] ?? null;
         if (!$guestToken || hash('sha256', $guestToken) !== $draft['guest_token']) exit('Access denied.');
     } else {
-        if (!$user || $user['parishioner_id'] != $draft['parishioner_id']) exit('Access denied.');
+        if (!$user) {
+            exit('Access denied.');
+        }
+        $q = db()->prepare('SELECT parishioner_id FROM parishioners WHERE user_id = ?');
+        $q->execute([$user['user_id']]);
+        if ((int)$q->fetchColumn() !== (int)$draft['parishioner_id']) {
+            exit('Access denied.');
+        }
     }
     
     $data = funeralKatinAwanNormalizeData($draft['katin_awan_payload'] ?: [
