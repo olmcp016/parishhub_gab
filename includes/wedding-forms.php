@@ -254,13 +254,14 @@ function weddingChoice(FPDF $pdf, string $label, bool $selected, float $x, float
 
 function weddingMarriagePdfValue(FPDF $pdf, string $label, string $value, float $x, float $y, float $width, float $labelWidth): void
 {
-    $pdf->SetFont('Times', '', 9);
+    $pdf->SetTextColor(0, 0, 0);
+    $pdf->SetFont('Times', 'B', 10);
     $pdf->SetXY($x, $y);
     $pdf->Cell($labelWidth, 6, weddingPdfText($label), 0, 0);
     $value = weddingPdfText(trim($value));
     $availableWidth = $width - $labelWidth - 2;
-    for ($fontSize = 9.0; $fontSize >= 6.0; $fontSize -= 0.5) {
-        $pdf->SetFont('Times', 'B', $fontSize);
+    for ($fontSize = 9.5; $fontSize >= 6.0; $fontSize -= 0.5) {
+        $pdf->SetFont('Times', '', $fontSize);
         if ($pdf->GetStringWidth($value) <= $availableWidth) break;
     }
     if ($pdf->GetStringWidth($value) > $availableWidth) {
@@ -270,12 +271,15 @@ function weddingMarriagePdfValue(FPDF $pdf, string $label, string $value, float 
     $pdf->Cell($width - $labelWidth, 6, $value, 'B', 0);
 }
 
-function weddingMarriageOfficeLine(FPDF $pdf, string $label, float $x, float $y, float $width): void
+function weddingMarriageOfficeLine(FPDF $pdf, int $number, string $label, float $y): void
 {
-    $pdf->SetFont('Times', '', 8.5);
-    $pdf->SetXY($x, $y);
-    $pdf->Cell($width - 22, 5, weddingPdfText($label), 0, 0);
-    $pdf->Cell(22, 5, '', 'B', 0);
+    $pdf->SetTextColor(0, 0, 0);
+    $pdf->SetFont('Times', 'B', 9.5);
+    $pdf->SetXY(18, $y);
+    $pdf->Cell(8, 5, $number . ')', 0, 0);
+    $pdf->Cell(34, 5, '', 'B', 0);
+    $pdf->Cell(3, 5, '', 0, 0);
+    $pdf->Cell(129, 5, weddingPdfText($label), 0, 0);
 }
 
 function weddingMarriageApplicationPdf(array $data): string
@@ -286,62 +290,58 @@ function weddingMarriageApplicationPdf(array $data): string
     $groomAge = weddingMarriageAge($value('groom_birth_date'), $referenceDate);
     $brideAge = weddingMarriageAge($value('bride_birth_date'), $referenceDate);
 
-    $pdf = new FPDF('P', 'mm', 'A4');
-    $pdf->SetMargins(14, 12, 14);
+    $pdf = new FPDF('P', 'mm', 'Letter');
+    $pdf->SetMargins(15, 18, 15);
     $pdf->SetAutoPageBreak(false);
-    $pdf->AddPage('P', 'A4');
+    $pdf->AddPage('P', 'Letter');
     $pdf->SetTextColor(0, 0, 0);
     $pdf->SetDrawColor(0, 0, 0);
 
     $pdf->SetFont('Times', 'B', 15);
-    $pdf->SetXY(14, 14);
-    $pdf->Cell(182, 7, 'MT. CARMEL PARISH', 0, 1, 'C');
-    $pdf->SetFont('Times', '', 11);
-    $pdf->SetX(14);
-    $pdf->Cell(182, 6, 'Balilihan, Bohol', 0, 1, 'C');
-    $pdf->SetFont('Times', 'B', 13);
-    $pdf->SetX(14);
-    $pdf->Cell(182, 8, 'MARRIAGE REQUIREMENTS & APPLICATION FORM', 0, 1, 'C');
-    $pdf->SetLineWidth(0.5);
-    $pdf->Line(20, 38, 190, 38);
+    $pdf->SetXY(15, 21);
+    $pdf->Cell(186, 7, 'MT. CARMEL PARISH', 0, 1, 'C');
+    $pdf->SetFont('Times', 'B', 11.5);
+    $pdf->SetX(15);
+    $pdf->Cell(186, 6, 'Balilihan, Bohol', 0, 1, 'C');
+    $pdf->SetFont('Times', 'BU', 13);
+    $pdf->SetXY(15, 35);
+    $pdf->Cell(186, 8, 'MARRIAGE REQUIREMENTS & APPLICATION FORM', 0, 1, 'C');
 
-    weddingMarriagePdfValue($pdf, 'Date Applied:', weddingMarriagePdfDate($value('date_applied')), 116, 41, 74, 25);
+    weddingMarriagePdfValue($pdf, 'Date Applied:', weddingMarriagePdfDate($value('date_applied')), 18, 44, 72, 24);
 
     $leftX = 18.0;
-    $rightX = 108.0;
+    $rightX = 111.0;
     $columnWidth = 84.0;
-    $pdf->SetFillColor(235, 235, 235);
+    $pdf->SetTextColor(128, 0, 0);
     $pdf->SetFont('Times', 'B', 11);
     $pdf->SetXY($leftX, 52);
-    $pdf->Cell($columnWidth, 7, 'MALE / GROOM', 1, 0, 'C', true);
+    $pdf->Cell($columnWidth, 6, '(Male)', 0, 0, 'L');
     $pdf->SetXY($rightX, 52);
-    $pdf->Cell($columnWidth, 7, 'FEMALE / BRIDE', 1, 0, 'C', true);
+    $pdf->Cell($columnWidth, 6, '(Female)', 0, 0, 'L');
 
-    $rows = [
-        ['Name:', 'groom_name', 'bride_name', 18.0],
-        ['Age:', null, null, 11.0],
-        ['Date of Birth:', 'groom_birth_date', 'bride_birth_date', 18.0],
-        ['Father:', 'groom_father', 'bride_father', 16.0],
-        ['Mother:', 'groom_mother', 'bride_mother', 16.0],
-        ["Mother's Maiden Name:", 'groom_mother_maiden_name', 'bride_mother_maiden_name', 34.0],
-        ['Address:', 'groom_address', 'bride_address', 18.0],
-        ['Cell No.:', 'groom_cell', 'bride_cell', 18.0],
-    ];
-    $y = 63.0;
-    foreach ($rows as [$label, $groomKey, $brideKey, $labelWidth]) {
-        $groomValue = $groomKey ? $value($groomKey) : ($groomAge === null ? '' : (string) $groomAge);
-        $brideValue = $brideKey ? $value($brideKey) : ($brideAge === null ? '' : (string) $brideAge);
-        if ($groomKey === 'groom_birth_date') $groomValue = weddingMarriagePdfDate($groomValue);
-        if ($brideKey === 'bride_birth_date') $brideValue = weddingMarriagePdfDate($brideValue);
-        weddingMarriagePdfValue($pdf, $label, $groomValue, $leftX, $y, $columnWidth, $labelWidth);
-        weddingMarriagePdfValue($pdf, $label, $brideValue, $rightX, $y, $columnWidth, $labelWidth);
-        $y += 9;
-    }
+    weddingMarriagePdfValue($pdf, 'Name:', $value('groom_name'), $leftX, 61, $columnWidth, 15);
+    weddingMarriagePdfValue($pdf, 'Name:', $value('bride_name'), $rightX, 61, $columnWidth, 15);
+    weddingMarriagePdfValue($pdf, 'Age:', $groomAge === null ? '' : (string) $groomAge, $leftX, 69, 34, 12);
+    weddingMarriagePdfValue($pdf, 'Age:', $brideAge === null ? '' : (string) $brideAge, $rightX, 69, 34, 12);
+    weddingMarriagePdfValue($pdf, 'Date of Birth:', weddingMarriagePdfDate($value('groom_birth_date')), $leftX, 77, $columnWidth, 29);
+    weddingMarriagePdfValue($pdf, 'Date of Birth:', weddingMarriagePdfDate($value('bride_birth_date')), $rightX, 77, $columnWidth, 29);
+    weddingMarriagePdfValue($pdf, 'Father:', $value('groom_father'), $leftX, 85, $columnWidth, 17);
+    weddingMarriagePdfValue($pdf, 'Father:', $value('bride_father'), $rightX, 85, $columnWidth, 17);
+    weddingMarriagePdfValue($pdf, 'Mother:', $value('groom_mother'), $leftX, 93, $columnWidth, 19);
+    weddingMarriagePdfValue($pdf, 'Mother:', $value('bride_mother'), $rightX, 93, $columnWidth, 19);
+    weddingMarriagePdfValue($pdf, '(Maiden Name):', $value('groom_mother_maiden_name'), $leftX + 12, 100, $columnWidth - 12, 31);
+    weddingMarriagePdfValue($pdf, '(Maiden Name):', $value('bride_mother_maiden_name'), $rightX + 12, 100, $columnWidth - 12, 31);
+    weddingMarriagePdfValue($pdf, 'Address:', $value('groom_address'), $leftX, 109, $columnWidth, 20);
+    weddingMarriagePdfValue($pdf, 'Address:', $value('bride_address'), $rightX, 109, $columnWidth, 20);
+    weddingMarriagePdfValue($pdf, 'Cell No.:', $value('groom_cell'), $leftX, 117, $columnWidth, 20);
+    weddingMarriagePdfValue($pdf, 'Cell No.:', $value('bride_cell'), $rightX, 117, $columnWidth, 20);
 
-    $pdf->SetFont('Times', 'B', 11);
-    $pdf->SetXY(18, 140);
-    $pdf->Cell(174, 7, 'MARRIAGE REQUIREMENTS / OFFICE CHECKLIST', 1, 1, 'C', true);
-    $leftChecklist = [
+    $pdf->SetTextColor(128, 0, 0);
+    $pdf->SetFont('Times', 'B', 10.5);
+    $pdf->SetXY(18, 127);
+    $pdf->Cell(174, 6, 'Checklist:', 0, 0);
+
+    $checklist = [
         'Pre-Nuptial Canonical Interview',
         'Clearance / Katin-awan sa Cluster',
         "Groom's Baptismal Certificate",
@@ -349,40 +349,32 @@ function weddingMarriageApplicationPdf(array $data): string
         "Groom's Confirmation Certificate",
         "Bride's Confirmation Certificate",
         'Marriage License',
-    ];
-    $rightChecklist = [
         'Pre-Cana Seminar Certificate',
-        'Proof of Banns',
+        "Proof of Banns (Groom's & Bride's)",
         'Choir',
         'FLA Coordinator',
         'Sponsors',
         'Special Fee',
     ];
-    $y = 151.0;
-    foreach ($leftChecklist as $index => $label) {
-        weddingMarriageOfficeLine($pdf, $label, 18, $y, 84);
-        if (isset($rightChecklist[$index])) {
-            weddingMarriageOfficeLine($pdf, $rightChecklist[$index], 108, $y, 84);
+    $checkY = 136.0;
+    foreach ($checklist as $index => $label) {
+        weddingMarriageOfficeLine($pdf, $index + 1, $label, $checkY);
+        $checkY += 7.2;
+        if ($label === "Proof of Banns (Groom's & Bride's)") {
+            $pdf->SetFont('Times', 'B', 8.5);
+            foreach (['1st', '2nd', '3rd'] as $bann) {
+                $pdf->SetXY(59, $checkY - 1);
+                $pdf->Cell(9, 4, $bann, 0, 0);
+                $pdf->Cell(30, 4, '', 'B', 0);
+                $checkY += 4.0;
+            }
+            $checkY += 1.0;
         }
-        $y += 8;
     }
 
-    $pdf->SetLineWidth(0.4);
-    $pdf->Rect(18, 145, 174, 66);
-    $pdf->Line(105, 145, 105, 211);
-
-    weddingMarriagePdfValue($pdf, 'Date of Wedding:', weddingMarriagePdfDate($value('wedding_date')), 18, 220, 86, 32);
-    weddingMarriagePdfValue($pdf, 'Time of Wedding:', weddingMarriagePdfTime($value('wedding_time')), 108, 220, 84, 33);
-    weddingMarriagePdfValue($pdf, 'TOTAL:', '', 108, 233, 84, 18);
-
-    $pdf->SetFont('Times', 'I', 8);
-    $pdf->SetXY(18, 247);
-    $pdf->MultiCell(174, 4, 'For parish office use: checklist completion, special fee, and total remain blank until verified by authorized parish personnel.', 0, 'L');
-    $pdf->SetFont('Times', '', 9);
-    $pdf->SetXY(18, 266);
-    $pdf->Cell(78, 5, 'Prepared by: ______________________________', 0, 0);
-    $pdf->SetXY(114, 266);
-    $pdf->Cell(78, 5, 'Verified by: ______________________________', 0, 0);
+    weddingMarriagePdfValue($pdf, 'Date of Wedding:', weddingMarriagePdfDate($value('wedding_date')), 111, 225, 84, 34);
+    weddingMarriagePdfValue($pdf, 'Time of Wedding:', weddingMarriagePdfTime($value('wedding_time')), 111, 233, 84, 34);
+    weddingMarriagePdfValue($pdf, 'TOTAL: P', '', 18, 246, 56, 22);
 
     return $pdf->Output('S');
 }
