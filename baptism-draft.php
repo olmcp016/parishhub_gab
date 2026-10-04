@@ -144,6 +144,14 @@ $forms = [];
 foreach ($stmt->fetchAll() as $row) $forms[$row['form_type']] = $row;
 $missingRequirements = baptismDraftComplete($pdo, $draft);
 $canSubmit = $missingRequirements === [];
+$missingFormTypes = array_values(array_filter(
+    $missingRequirements,
+    static fn(string $requirement): bool => in_array($requirement, BAPTISM_DRAFT_FORMS, true)
+));
+$missingSupportingDocuments = array_values(array_filter(
+    $missingRequirements,
+    static fn(string $requirement): bool => !in_array($requirement, BAPTISM_DRAFT_FORMS, true)
+));
 $pageTitle = 'Baptism Requirements';
 $usesPublicShell = !$user;
 include __DIR__ . '/includes/header.php';
@@ -176,6 +184,16 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
   </div>
 </div>
 <?php endforeach; ?>
-<?php if (!$canSubmit): ?><p class="helper-text">Complete all required supporting documents and generate every required Baptism form before submitting.</p><?php endif; ?>
+<?php if (!$canSubmit): ?>
+  <?php if ($missingFormTypes && !$missingSupportingDocuments): ?>
+    <p class="helper-text"><?= count($missingFormTypes) ?> required form<?= count($missingFormTypes) === 1 ? '' : 's' ?> still need<?= count($missingFormTypes) === 1 ? 's' : '' ?> to be generated before you can submit your appointment request.</p>
+  <?php else: ?>
+    <p class="helper-text">Complete the following before submitting:</p>
+  <?php endif; ?>
+  <ul class="baptism-submit-blockers">
+    <?php foreach ($missingSupportingDocuments as $label): ?><li><?= e($label) ?> — upload required</li><?php endforeach; ?>
+    <?php foreach ($missingFormTypes as $type): ?><li><?= e(baptismFormDefinition($type)['title']) ?> — Generate PDF required</li><?php endforeach; ?>
+  </ul>
+<?php endif; ?>
 <form method="POST"><?= csrfField() ?><input type="hidden" name="action" value="submit_appointment"><button class="btn btn-primary" type="submit" <?= $canSubmit ? '' : 'disabled' ?>>Submit Appointment Request</button></form></div>
 <?php include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-end.php' : 'dash-end.php'); include __DIR__ . '/includes/footer.php';

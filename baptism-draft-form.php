@@ -184,7 +184,6 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
 <div class="card">
   <p style="margin-top:0;"><a href="<?= $backLink ?>" class="back-link">← Back to <?= $isAppointmentForm ? 'Appointment' : 'Baptism Requirements' ?></a></p>
   <h2><?= e($def['title']) ?></h2>
-  <?php generatedFormWorkflowGuide(!$isAppointmentForm); ?>
   <?php include __DIR__ . '/includes/flash.php'; ?>
   <?php if ($error): ?><div class="alert"><?= e($error) ?></div><?php endif; ?>
   <?php if ($previewDocumentId): ?><div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">The form was generated. If the PDF did not open automatically, <a href="<?= url('document.php?id=' . $previewDocumentId) ?>" target="_blank" rel="noopener"><strong>View Generated Form</strong></a>.</div><?php endif; ?>
@@ -296,9 +295,10 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
       </div>
     <?php endforeach; ?>
     <?php endif; ?>
+    <?php generatedFormWorkflowGuide(!$isAppointmentForm); ?>
     <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
-      <button class="btn btn-primary" style="width: 100%;" name="action" value="generate"><?= in_array($type, ['katin_awan_bunyag', 'cluster_clearance_baptism_sponsor']) ? 'Generate Application Form' : 'Generate Form' ?></button>
-      <button class="btn btn-outline" style="width: 100%;" name="action" value="save" formnovalidate>Save Draft</button>
+      <button class="btn btn-outline" style="width: 100%;" name="action" value="save" formnovalidate>I-SAVE ANG DRAFT <span class="generated-form-button-translation">(Save Draft)</span></button>
+      <button class="btn btn-primary" style="width: 100%;" name="action" value="generate">HIMOA ANG PDF <span class="generated-form-button-translation">(Generate PDF)</span></button>
     </div>
   </form>
 </div>

@@ -165,8 +165,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
 <div class="card" style="max-width:900px;margin:auto;">
     <p style="margin-top:0;"><a href="<?= $backLink ?>" class="back-link">← Back to Wedding Requirements</a></p>
     <h2><?= e($definition['title']) ?></h2>
-    <?php generatedFormWorkflowGuide(true); ?>
-    <?php if (in_array($type, ['matrimony_application', 'cluster_clearance'])): ?><p class="text-muted">Review and correct the applicant information before generating the official PDF. Ages are calculated from each birth date as of the wedding date.</p><?php endif; ?>
+    <?php if (in_array($type, ['matrimony_application', 'cluster_clearance'])): ?><p class="text-muted">Susiha ug tul-ira ang impormasyon sa aplikante sa dili pa himoon ang opisyal nga PDF. Ang edad kwentahon base sa petsa sa pagkatawo ug petsa sa kasal. <span class="generated-form-guide-translation">(Review and correct the applicant information before generating the official PDF. Ages are calculated from each birth date as of the wedding date.)</span></p><?php endif; ?>
     <?php if ($error): ?><div class="alert"><?= e($error) ?></div><?php endif; ?>
     <?php if ($previewDocumentId): ?>
         <div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">
@@ -353,9 +352,10 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
             </div>
         <?php endforeach; ?>
         <?php endif; ?>
+        <?php generatedFormWorkflowGuide(true); ?>
         <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
-          <button class="btn btn-primary" style="width: 100%;" name="action" value="generate"><?= in_array($type, ['matrimony_application', 'cluster_clearance', 'wedding_sponsor_clearance']) ? 'Generate Application Form' : 'Generate Form' ?></button>
-          <button class="btn btn-outline" style="width: 100%;" name="action" value="save" <?= in_array($type, ['matrimony_application', 'cluster_clearance', 'wedding_sponsor_clearance']) ? 'formnovalidate' : '' ?>>Save Draft</button>
+          <button class="btn btn-outline" style="width: 100%;" name="action" value="save" <?= in_array($type, ['matrimony_application', 'cluster_clearance', 'wedding_sponsor_clearance']) ? 'formnovalidate' : '' ?>>I-SAVE ANG DRAFT <span class="generated-form-button-translation">(Save Draft)</span></button>
+          <button class="btn btn-primary" style="width: 100%;" name="action" value="generate">HIMOA ANG PDF <span class="generated-form-button-translation">(Generate PDF)</span></button>
         </div>
     </form>
 </div>

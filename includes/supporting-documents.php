@@ -63,7 +63,6 @@ function renderSupportingDocumentCards(array $requirements, array $documents, st
               <?php endif; ?>
               <span class="supporting-document-filename" data-upload-filename><?= e($fileName) ?></span>
               <?php if ($documentId): ?><a class="btn btn-outline btn-sm" data-upload-view href="<?= url('document.php?id=' . $documentId) ?>" target="_blank" rel="noopener">View</a><?php endif; ?>
-              <span class="supporting-document-replace-label">Replace:</span>
               <?php if ($rejectionReason): ?><span class="supporting-document-rejection-reason">Reason: <?= e($rejectionReason) ?></span><?php endif; ?>
             <?php else: ?>
               <span class="supporting-document-empty">No file uploaded yet</span>
@@ -71,7 +70,7 @@ function renderSupportingDocumentCards(array $requirements, array $documents, st
           </div>
           <?php if ($allowUpload): ?>
             <label class="btn btn-outline btn-sm supporting-document-picker">
-              <?= $fileName ? 'Choose Replacement' : 'Choose File' ?>
+              <span data-upload-picker-label><?= $fileName ? 'Choose Replacement' : 'Choose File' ?></span>
               <input type="file" data-supporting-upload-input accept=".pdf,.jpg,.jpeg,.png" hidden>
             </label>
             <div class="supporting-document-progress" data-upload-progress hidden>

@@ -163,8 +163,11 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
 <div class="card" style="max-width:900px; margin:auto;">
   <p style="margin-top:0;"><a href="<?= $backLink ?>" class="back-link">← Back to Appointment</a></p>
   <h2><?= e($def['title']) ?></h2>
-  <?php generatedFormWorkflowGuide(false); ?>
-  <p class="text-muted"><?= $type === 'matrimony_application' ? 'Review and correct the applicant information before generating the official PDF. Ages are calculated from each birth date as of the wedding date.' : 'Complete the form, save a draft, or generate a printable unsigned PDF. Physical signature areas remain blank.' ?></p>
+  <?php if ($type === 'matrimony_application'): ?>
+    <p class="text-muted">Susiha ug tul-ira ang impormasyon sa aplikante sa dili pa himoon ang opisyal nga PDF. Ang edad kwentahon base sa petsa sa pagkatawo ug petsa sa kasal. <span class="generated-form-guide-translation">(Review and correct the applicant information before generating the official PDF. Ages are calculated from each birth date as of the wedding date.)</span></p>
+  <?php else: ?>
+    <p class="text-muted">Kompletoha ang form, i-save ang draft, o himoa ang PDF nga walay pirma. Ang mga bahin para sa pirma magpabiling walay sulod. <span class="generated-form-guide-translation">(Complete the form, save a draft, or generate a printable unsigned PDF. Physical signature areas remain blank.)</span></p>
+  <?php endif; ?>
   <?php include __DIR__ . '/includes/flash.php'; ?>
   <?php if ($error): ?><div class="alert" style="background:var(--danger-bg); color:var(--danger); border:1px solid #f5c2c2;"><?= e($error) ?></div><?php endif; ?>
   <?php if ($previewDocumentId): ?>
@@ -221,10 +224,11 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
       </div>
     <?php endforeach; ?>
     <?php endif; ?>
-    <?php if ($type === 'wedding_sponsor_clearance'): ?><p class="text-muted">Service Requested: Kasal (the other official choices remain printed on the generated form).</p><?php endif; ?>
+    <?php if ($type === 'wedding_sponsor_clearance'): ?><p class="text-muted">Serbisyo nga gipangayo: Kasal (ang ubang opisyal nga kapilian makita sa nahimong form). <span class="generated-form-guide-translation">(Service requested: Kasal; the other official choices remain printed on the generated form.)</span></p><?php endif; ?>
+    <?php generatedFormWorkflowGuide(false); ?>
     <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
-      <button class="btn btn-primary" style="width: 100%;" name="action" value="generate"><?= $type === 'matrimony_application' ? 'Generate Application Form' : 'Generate Form' ?></button>
-      <button class="btn btn-outline" style="width: 100%;" name="action" value="save" formnovalidate>Save Draft</button>
+      <button class="btn btn-outline" style="width: 100%;" name="action" value="save" formnovalidate>I-SAVE ANG DRAFT <span class="generated-form-button-translation">(Save Draft)</span></button>
+      <button class="btn btn-primary" style="width: 100%;" name="action" value="generate">HIMOA ANG PDF <span class="generated-form-button-translation">(Generate PDF)</span></button>
     </div>
   </form>
 </div>

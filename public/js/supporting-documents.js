@@ -8,6 +8,7 @@
     var progressLabel = card.querySelector('[data-upload-progress-label]');
     var progressBar = card.querySelector('[data-upload-progress-bar]');
     var error = card.querySelector('[data-upload-error]');
+    var pickerLabel = card.querySelector('[data-upload-picker-label]');
     if (!input || !status || !progress || !error) return;
 
     input.addEventListener('change', function () {
@@ -42,14 +43,13 @@
         if (xhr.status >= 200 && xhr.status < 300 && result.success) {
           status.innerHTML = '<span class="supporting-document-success">Pending Review</span>'
             + '<span class="supporting-document-filename" data-upload-filename></span>'
-            + (result.view_url ? ' <a class="btn btn-outline btn-sm" data-upload-view target="_blank" rel="noopener">View</a>' : '')
-            + '<span class="supporting-document-replace-label">Replace:</span>';
+            + (result.view_url ? ' <a class="btn btn-outline btn-sm" data-upload-view target="_blank" rel="noopener">View</a>' : '');
           status.querySelector('[data-upload-filename]').textContent = result.file_name || file.name;
           if (result.view_url) status.querySelector('[data-upload-view]').href = result.view_url;
           if (result.document_id) card.dataset.documentId = String(result.document_id);
-          card.querySelector('.supporting-document-picker').firstChild.textContent = ' Choose Replacement';
-          progressLabel.textContent = 'Upload complete';
-          progressBar.value = 100;
+          if (pickerLabel) pickerLabel.textContent = 'Choose Replacement';
+          setHidden(progress, true);
+          progressBar.value = 0;
         } else {
           status.innerHTML = oldStatus;
           error.textContent = '✕ Upload failed. ' + (result.message || 'Please try again.');

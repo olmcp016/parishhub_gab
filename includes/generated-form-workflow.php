@@ -67,7 +67,7 @@ function generatedFormWorkflowState(?array $form, ?array $document = null, bool 
             'label' => 'Draft saved',
             'description' => $hasDocument
                 ? 'Your answers are saved. Generate a new PDF before submitting these changes for review.'
-                : 'Your answers are saved. Generate the PDF when the form is complete.',
+                : 'Your answers are saved, but this form is not complete yet. Continue editing and select Generate PDF when finished.',
             'has_document' => $hasDocument,
         ];
     }
@@ -93,7 +93,7 @@ function generatedFormWorkflowState(?array $form, ?array $document = null, bool 
     return [
         'code' => 'draft',
         'label' => 'Draft saved',
-        'description' => 'Your answers are saved. Generate the PDF when the form is complete.',
+        'description' => 'Your answers are saved, but this form is not complete yet. Continue editing and select Generate PDF when finished.',
         'has_document' => false,
     ];
 }
@@ -114,10 +114,21 @@ function generatedFormWorkflowGuide(bool $isDraft = true): void
 {
     ?>
     <div class="generated-form-guide" role="note">
-      <strong>How this form works</strong>
-      <p><?= $isDraft
-          ? 'Save Draft stores your answers only. Generate the PDF when complete, then submit the booking request to send it to the Secretary for review.'
-          : 'Save Draft stores your answers only. Generate the PDF to submit the form for Secretary review. This form can be revised until it is approved.' ?></p>
+      <strong>UNSAON PAGHUMAN ANI NGA FORM</strong>
+      <span class="generated-form-guide-translation">(How to complete this form)</span>
+      <p>
+        Kung dili pa kompleto ang imong tubag, i-click ang I-SAVE ANG DRAFT aron ma-save ug mahimo nimong ipadayon unya.
+        <span class="generated-form-guide-translation">(If your answers are not yet complete, click Save Draft so you can continue later.)</span><br>
+        Kung kompleto na ang tanan, i-click ang HIMOA ANG PDF aron mahimo ang final nga form.
+        <span class="generated-form-guide-translation">(When everything is complete, click Generate PDF to create the final form.)</span><br>
+        <?php if ($isDraft): ?>
+          Human ma-generate ang PDF, balik sa Requirements page ug isumite ang imong booking request aron ma-review sa Secretary.
+          <span class="generated-form-guide-translation">(After generating the PDF, return to the Requirements page and submit your booking request for Secretary review.)</span>
+        <?php else: ?>
+          Human ma-generate ang PDF, ipadala kini sa Secretary alang sa review.
+          <span class="generated-form-guide-translation">(After generating the PDF, it will be sent to the Secretary for review.)</span>
+        <?php endif; ?>
+      </p>
     </div>
     <?php
 }

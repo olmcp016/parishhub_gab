@@ -176,9 +176,8 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
 @media (max-width:600px) { .grid-2 { grid-template-columns:1fr; } }
 </style>
 <div style="max-width:850px; margin:0 auto; padding:20px;">
-  <a href="<?= $backLink ?>" class="back-link">← Back</a>
-  <div style="text-align:center; margin-bottom:30px;"><h1 style="margin:0 0 10px; color:var(--brown);"><?= e($definition['title']) ?></h1><p class="text-muted" style="margin:0;">Complete the fields printed on the official parish form. Signature and verification lines remain blank.</p></div>
-  <?php generatedFormWorkflowGuide(!$isDraft); ?>
+  <a href="<?= $backLink ?>" class="back-link">← Back to <?= $isDraft ? 'Funeral Requirements' : 'Appointment' ?></a>
+  <div style="text-align:center; margin-bottom:30px;"><h1 style="margin:0 0 10px; color:var(--brown);"><?= e($definition['title']) ?></h1><p class="text-muted" style="margin:0;">Kompletoha ang mga field nga makita sa opisyal nga parish form. Ang mga linya para sa pirma ug beripikasyon magpabiling walay sulod. <span class="generated-form-guide-translation">(Complete the fields printed on the official parish form. Signature and verification lines remain blank.)</span></p></div>
   <?php if ($error): ?><div class="alert" style="background:var(--danger-bg); color:var(--danger); border:1px solid #f5c2c2;"><?= e($error) ?></div><?php endif; ?>
   <?php if (!empty($previewDocumentId)): ?><div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">The form was generated. If the PDF did not open automatically, <a href="<?= url('document.php?id=' . $previewDocumentId) ?>" target="_blank" rel="noopener"><strong>View Generated Form</strong></a>.</div><?php endif; ?>
   <?php if (!empty($form) && $form['status'] === 'rejected' && $form['rejection_reason']): ?><div class="alert" style="background:var(--danger-bg); color:var(--danger);"><strong>Secretary requested revisions:</strong> <?= e($form['rejection_reason']) ?></div><?php endif; ?>
@@ -247,9 +246,10 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
       </div>
     </div>
 
+    <?php generatedFormWorkflowGuide(!$isDraft); ?>
     <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
-      <button type="submit" name="action" value="generate" class="btn btn-primary" style="width: 100%;">Generate PDF</button>
-      <button type="submit" name="action" value="save" formnovalidate class="btn btn-outline" style="width: 100%;">Save Draft</button>
+      <button type="submit" name="action" value="save" formnovalidate class="btn btn-outline" style="width: 100%;">I-SAVE ANG DRAFT <span class="generated-form-button-translation">(Save Draft)</span></button>
+      <button type="submit" name="action" value="generate" class="btn btn-primary" style="width: 100%;">HIMOA ANG PDF <span class="generated-form-button-translation">(Generate PDF)</span></button>
       <?php if ($form && $form['document_id']): ?>
         <a href="<?= documentViewUrl((int) $form['document_id']) ?>" target="_blank" rel="noopener" class="btn btn-outline" style="width: 100%;">Preview Current Form</a>
       <?php endif; ?>
