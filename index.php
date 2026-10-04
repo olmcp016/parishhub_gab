@@ -74,8 +74,12 @@ include __DIR__ . '/includes/header.php';
 
 <div class="stats-bar">
   <div class="stat-item">
+    <span class="stat-num">7</span>
+    <span class="stat-label">Sacraments</span>
+  </div>
+  <div class="stat-item">
     <span class="stat-num"><?= $serviceCount ?></span>
-    <span class="stat-label">Sacraments &amp; Services</span>
+    <span class="stat-label">Services</span>
   </div>
   <div class="stat-item">
     <span class="stat-num"><?= $priestCount ?></span>
