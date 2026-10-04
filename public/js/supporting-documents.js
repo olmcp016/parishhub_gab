@@ -40,12 +40,13 @@
       xhr.onload = function () {
         var result = xhr.response || {};
         if (xhr.status >= 200 && xhr.status < 300 && result.success) {
-          status.innerHTML = '<span class="supporting-document-success">✓ Uploaded</span>'
+          status.innerHTML = '<span class="supporting-document-success">Pending Review</span>'
             + '<span class="supporting-document-filename" data-upload-filename></span>'
             + (result.view_url ? ' <a class="btn btn-outline btn-sm" data-upload-view target="_blank" rel="noopener">View</a>' : '')
             + '<span class="supporting-document-replace-label">Replace:</span>';
           status.querySelector('[data-upload-filename]').textContent = result.file_name || file.name;
           if (result.view_url) status.querySelector('[data-upload-view]').href = result.view_url;
+          if (result.document_id) card.dataset.documentId = String(result.document_id);
           card.querySelector('.supporting-document-picker').firstChild.textContent = ' Choose Replacement';
           progressLabel.textContent = 'Upload complete';
           progressBar.value = 100;

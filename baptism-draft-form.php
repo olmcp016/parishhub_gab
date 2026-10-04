@@ -22,6 +22,7 @@ if ($isAppointmentForm) {
     $aq->execute([$appointmentId]);
     $appointment = $aq->fetch();
     if (!$appointment) { http_response_code(404); exit('Appointment not found.'); }
+    if ((int) ($appointment['status_id'] ?? 0) === 3) { http_response_code(409); exit('This appointment was rejected as a whole and must be rebooked.'); }
     if ($user) {
         $ownerQuery = $pdo->prepare('SELECT 1 FROM parishioners WHERE parishioner_id = ? AND user_id = ?');
         $ownerQuery->execute([$appointment['parishioner_id'], $user['user_id']]);

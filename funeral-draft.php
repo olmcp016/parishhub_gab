@@ -63,6 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submi
     try {
         $appointmentParishionerId = !empty($draft['is_guest']) ? guestParishionerId() : (int) ($draft['parishioner_id'] ?? 0);
         if ($appointmentParishionerId < 1) throw new RuntimeException('Appointment owner could not be resolved.');
+        $bookingReference = generateGuestReference();
 
         $pdo->beginTransaction();
         
@@ -83,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submi
             $draft['guest_name'],
             $draft['guest_email'],
             $draft['guest_phone'],
-            $draft['guest_reference'],
+            $bookingReference,
             $draft['contactPhone'],
             $draft['locationAddress'],
             $draft['requirementsSnapshot']
@@ -106,7 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submi
         unset($_SESSION['funeral_booking_drafts'][$draftId]);
         unset($_SESSION['funeral_draft_tokens'][$draftId]);
         redirect(!empty($draft['is_guest'])
-            ? url('status.php?ref=' . urlencode((string) $draft['guest_reference']) . '&contact=' . urlencode((string) (($draft['guest_phone'] ?? '') ?: ($draft['guest_email'] ?? ''))))
+            ? url('status.php?ref=' . urlencode($bookingReference) . '&contact=' . urlencode((string) (($draft['guest_phone'] ?? '') ?: ($draft['guest_email'] ?? ''))))
             : url('parishioner/appointment-detail.php?id=' . $appointmentId));
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();

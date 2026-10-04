@@ -59,11 +59,12 @@ function renderMyAppointmentsTable(array $appointments): void
     ?>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>#</th><th>Service</th><th>Date & Time</th><th>Priest</th><th>Fee</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th>#</th><th>Reference</th><th>Service</th><th>Date & Time</th><th>Priest</th><th>Fee</th><th>Status</th><th></th></tr></thead>
         <tbody>
           <?php foreach ($appointments as $a): ?>
             <tr>
               <td>#<?= $a['appointment_id'] ?></td>
+              <td><?= e($a['guest_reference'] ?: 'Appointment #' . (int) $a['appointment_id']) ?></td>
               <td><?= e($a['service_name']) ?></td>
               <td><?= formatDate($a['appointment_date']) ?><?= $a['appointment_time'] ? ' · ' . date('g:i A', strtotime($a['appointment_time'])) : '' ?></td>
               <td><?= e($a['priest_name'] ?? '—') ?></td>

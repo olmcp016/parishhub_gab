@@ -79,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($appointmentParishionerId <= 0) {
             throw new RuntimeException('Guest appointment owner could not be resolved.');
         }
-        $guestReference = $locked['parishioner_id'] ? null : generateGuestReference();
+        $guestReference = generateGuestReference();
         $stmt = $pdo->prepare(
             "INSERT INTO appointments
              (parishioner_id, service_id, priest_id, appointment_date, appointment_time,

@@ -68,6 +68,7 @@ if ($isDraft) {
     $stmt->execute([$appointmentId]);
     $appointment = $stmt->fetch();
     if (!$appointment) { http_response_code(404); exit('Funeral appointment not found.'); }
+    if ((int) ($appointment['status_id'] ?? 0) === 3) { http_response_code(409); exit('This appointment was rejected as a whole and must be rebooked.'); }
     if ($user) {
         $q = $pdo->prepare('SELECT 1 FROM parishioners WHERE parishioner_id = ? AND user_id = ?');
         $q->execute([$appointment['parishioner_id'], $user['user_id']]);

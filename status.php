@@ -135,7 +135,7 @@ include __DIR__ . '/includes/header.php';
           <span class="badge badge-<?= badgeClass($appointment['status_name']) ?>"><?= e($appointment['status_name']) ?></span>
         <?php endif; ?>
       </div>
-      <p><strong>Reference:</strong> <?= e($appointment['guest_reference']) ?></p>
+      <p><strong>Booking Reference:</strong> <?= e($appointment['guest_reference']) ?></p>
       <?php if ($appointment['status_name'] === 'Payment Verified'): ?>
         <p class="text-muted">Payment verified — awaiting appointment confirmation.</p>
       <?php endif; ?>
@@ -149,7 +149,7 @@ include __DIR__ . '/includes/header.php';
               <?php if ($gf['rejection_reason']): ?><div class="text-muted" style="margin-top:4px; font-size:0.9rem;">Reason: <?= e($gf['rejection_reason']) ?></div><?php endif; ?>
             </div>
             <div class="generated-form-actions">
-              <?php if (($gf['status'] ?? '') !== 'approved'): ?><a class="btn btn-outline btn-sm" href="<?= url('wedding-form.php?appointment_id=' . (int) $appointment['appointment_id'] . '&form_type=' . urlencode($gf['form_type'])) ?>"><?= ($gf['status'] ?? '') === 'rejected' ? 'Edit and Regenerate Form' : 'Edit Form' ?></a><?php endif; ?>
+              <?php if (($gf['status'] ?? '') !== 'approved' && (int) $appointment['status_id'] === 1): ?><a class="btn btn-outline btn-sm" href="<?= url('wedding-form.php?appointment_id=' . (int) $appointment['appointment_id'] . '&form_type=' . urlencode($gf['form_type'])) ?>"><?= ($gf['status'] ?? '') === 'rejected' ? 'Edit and Regenerate Form' : 'Edit Form' ?></a><?php endif; ?>
               <?php if ($gf['document_id']): ?>
                 <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>"><?= $gf['form_type'] === 'matrimony_application' ? 'View Generated Form' : 'View PDF' ?></a>
                 <a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . (int) $gf['document_id'] . '&download=1') ?>">Download PDF</a>
@@ -168,7 +168,7 @@ include __DIR__ . '/includes/header.php';
               <?php if ($gf['rejection_reason']): ?><div class="text-muted" style="margin-top:4px; font-size:0.9rem;">Reason: <?= e($gf['rejection_reason']) ?></div><?php endif; ?>
             </div>
             <div class="generated-form-actions">
-              <?php if (($gf['status'] ?? '') !== 'approved'): ?><a class="btn btn-outline btn-sm" href="<?= url('baptism-draft-form.php?appointment_id=' . (int) $appointment['appointment_id'] . '&form_type=' . urlencode($gf['form_type'])) ?>"><?= $baptismStatus === 'rejected' ? 'Edit and Regenerate Form' : 'Edit Form' ?></a><?php endif; ?>
+              <?php if (($gf['status'] ?? '') !== 'approved' && (int) $appointment['status_id'] === 1): ?><a class="btn btn-outline btn-sm" href="<?= url('baptism-draft-form.php?appointment_id=' . (int) $appointment['appointment_id'] . '&form_type=' . urlencode($gf['form_type'])) ?>"><?= $baptismStatus === 'rejected' ? 'Edit and Regenerate Form' : 'Edit Form' ?></a><?php endif; ?>
               <?php if ($gf['document_id']): ?>
                 <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>">View PDF</a>
                 <a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . (int) $gf['document_id'] . '&download=1') ?>">Download PDF</a>
@@ -198,7 +198,7 @@ include __DIR__ . '/includes/header.php';
             <?php if ($gf && $gf['rejection_reason']): ?><div class="text-muted" style="margin-top:4px; font-size:0.9rem;">Reason: <?= e($gf['rejection_reason']) ?></div><?php endif; ?>
           </div>
           <div class="generated-form-actions">
-            <?php if (!$funeralApproved): ?><a class="btn btn-outline btn-sm" href="<?= url('funeral-form.php?appointment_id=' . (int) $appointment['appointment_id']) ?>"><?= $gfStatus === 'rejected' ? 'Edit and Regenerate Form' : ($gfStatus === 'generated' ? 'Edit Form' : 'Fill Out Form') ?></a><?php endif; ?>
+            <?php if (!$funeralApproved && (int) $appointment['status_id'] === 1): ?><a class="btn btn-outline btn-sm" href="<?= url('funeral-form.php?appointment_id=' . (int) $appointment['appointment_id']) ?>"><?= $gfStatus === 'rejected' ? 'Edit and Regenerate Form' : ($gfStatus === 'generated' ? 'Edit Form' : 'Fill Out Form') ?></a><?php endif; ?>
             <?php if ($gf && $gf['document_id']): ?>
               <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>">View Generated Form</a>
               <a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . (int) $gf['document_id'] . '&download=1') ?>">Download PDF</a>
@@ -222,7 +222,7 @@ include __DIR__ . '/includes/header.php';
               <div style="padding:12px 0; border-bottom:1px solid var(--cream-dark);">
                 <strong><?= e($document['requirement_label'] ?: $document['file_name']) ?></strong>
                 <span class="badge badge-<?= $docStatus === 'approved' ? 'verified' : ($docStatus === 'rejected' ? 'rejected' : 'pending') ?>">
-                  <?= $docStatus === 'approved' ? 'Approved' : ($docStatus === 'rejected' ? 'Needs Replacement' : 'Pending Review') ?>
+                  <?= $docStatus === 'approved' ? 'Approved' : ($docStatus === 'rejected' ? 'Needs Revision' : 'Pending Review') ?>
                 </span>
                 <div class="text-muted" style="font-size:13px; margin-top:4px;">File: <?= e($document['file_name']) ?> · <?= e(formatDate($document['uploaded_at'])) ?></div>
                 <?php if ($docStatus === 'rejected' && $document['rejection_reason']): ?>
@@ -231,9 +231,11 @@ include __DIR__ . '/includes/header.php';
                 <div class="flex gap-2" style="margin-top:8px; flex-wrap:wrap;">
                   <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $document['document_id']) ?>">View Document</a>
                 </div>
-                <?php if ($docStatus === 'rejected'): ?>
+                <?php if ($docStatus === 'rejected' && (int) $appointment['status_id'] === 1): ?>
                   <?php $replacementLabel = $document['requirement_label'] ?: $document['file_name']; ?>
                   <?php renderSupportingDocumentCards([$replacementLabel], [$replacementLabel => $document], 'guest_appointment', (int) $appointment['appointment_id']); ?>
+                <?php elseif ($docStatus === 'rejected' && (int) $appointment['status_id'] === 3): ?>
+                  <p class="text-muted" style="margin:8px 0 0;">This booking was rejected as a whole. Please submit a new booking instead of replacing individual documents.</p>
                 <?php endif; ?>
               </div>
             <?php endforeach; ?>

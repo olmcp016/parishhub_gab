@@ -105,24 +105,28 @@ try {
         );
         $owner->execute([$contextId, $user['user_id']]);
         $appointment = $owner->fetch();
-        if (!$appointment || (int) $appointment['status_id'] !== 3) documentUploadJson(false, 'Documents can only be updated while the appointment is awaiting corrections.', [], 403);
+        if (!$appointment || (int) $appointment['status_id'] !== 1) documentUploadJson(false, 'Only a pending appointment can receive a requirement replacement.', [], 403);
         $requirements = !empty($appointment['requirements_snapshot'])
             ? (json_decode($appointment['requirements_snapshot'], true) ?: [])
             : parseRequirementsList($appointment['requirements']);
         if (!in_array($label, $requirements, true) || $label === 'Katin-awan sa Paglubong') documentUploadJson(false, 'That document is not an upload requirement for this appointment.', [], 422);
 
-        $stored = documentStorageMoveUpload($file['tmp_name'], pathinfo((string) $file['name'], PATHINFO_EXTENSION));
         $pdo->beginTransaction();
+        $active = $pdo->prepare("SELECT document_id, review_status FROM uploaded_documents WHERE appointment_id = ? AND requirement_label = ? AND superseded_by IS NULL ORDER BY document_id DESC LIMIT 1 FOR UPDATE");
+        $active->execute([$contextId, $label]);
+        $activeDocument = $active->fetch();
+        if ($activeDocument && ($activeDocument['review_status'] ?? '') !== 'rejected') {
+            $pdo->rollBack();
+            documentUploadJson(false, 'This requirement already has an active submission. Wait for review before uploading another file.', [], 409);
+        }
+        $stored = documentStorageMoveUpload($file['tmp_name'], pathinfo((string) $file['name'], PATHINFO_EXTENSION));
         $insert = $pdo->prepare("INSERT INTO uploaded_documents (appointment_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source) VALUES (?, ?, ?, ?, ?, 'pending', FALSE, 'uploaded')");
         $insert->execute([$contextId, basename((string) $file['name']), $stored['key'], $stored['mime'], $label]);
         $newId = (int) $pdo->lastInsertId();
-        $old = $pdo->prepare("SELECT document_id FROM uploaded_documents WHERE appointment_id = ? AND requirement_label = ? AND review_status = 'rejected' AND superseded_by IS NULL AND document_id <> ? ORDER BY document_id DESC LIMIT 1");
-        $old->execute([$contextId, $label, $newId]);
-        $oldId = $old->fetchColumn();
+        $oldId = $activeDocument['document_id'] ?? null;
         if ($oldId) $pdo->prepare('UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ?')->execute([$newId, $oldId]);
-        $pdo->prepare('UPDATE appointments SET status_id = 1 WHERE appointment_id = ? AND status_id = 3')->execute([$contextId]);
         $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Documents Updated', ?)")
-            ->execute([(int) $user['user_id'], "Your updated documents for appointment #$contextId have been submitted and are back under review."]);
+            ->execute([(int) $user['user_id'], "Your requirement replacement for appointment #$contextId has been submitted and remains under review."]);
         $secretaries = $pdo->query("SELECT user_id FROM users u JOIN roles r ON r.role_id = u.role_id WHERE r.role_name IN ('Secretary', 'Admin') AND u.status = 'active'")->fetchAll(PDO::FETCH_COLUMN);
         $notify = $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Documents Updated', ?)");
         foreach ($secretaries as $secretaryId) {
@@ -140,10 +144,17 @@ try {
             documentUploadJson(false, 'Please verify your booking again before replacing this document.', [], 403);
         }
         $pdo->beginTransaction();
+        $appointmentLock = $pdo->prepare('SELECT status_id FROM appointments WHERE appointment_id = ? FOR UPDATE');
+        $appointmentLock->execute([$contextId]);
+        if ((int) $appointmentLock->fetchColumn() !== 1) {
+            $pdo->rollBack();
+            documentUploadJson(false, 'This appointment was rejected as a whole and must be rebooked. Requirement replacements are only available while the appointment remains pending.', [], 403);
+        }
         $originalQuery = $pdo->prepare('SELECT * FROM uploaded_documents WHERE document_id = ? AND appointment_id = ? FOR UPDATE');
         $originalQuery->execute([$documentId, $contextId]);
         $original = $originalQuery->fetch();
         if (!$original || ($original['review_status'] ?? '') !== 'rejected' || $original['superseded_by'] !== null) {
+            $pdo->rollBack();
             documentUploadJson(false, 'This document is no longer eligible for replacement.', [], 422);
         }
 

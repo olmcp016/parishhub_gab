@@ -74,7 +74,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', function () {
-    if (!refs()) return;
+    refs();
 
     document.addEventListener('click', function (e) {
       var viewLink = e.target.closest('.js-view-modal');
@@ -115,6 +115,32 @@
         rejectModal.showModal();
         return;
       }
+      if (e.target.closest('#showAppointmentRejectionBtn')) {
+        e.preventDefault();
+        var showButton = e.target.closest('#showAppointmentRejectionBtn');
+        var appointmentPanel = document.getElementById('appointmentRejectionPanel');
+        var appointmentSelect = document.getElementById('rejectionReasonSelect');
+        if (!appointmentPanel || !appointmentSelect) return;
+        appointmentPanel.hidden = false;
+        showButton.hidden = true;
+        appointmentSelect.focus();
+        return;
+      }
+      if (e.target.closest('#cancelAppointmentRejection')) {
+        e.preventDefault();
+        var cancelPanel = document.getElementById('appointmentRejectionPanel');
+        var cancelForm = document.getElementById('rejectForm');
+        var cancelShowButton = document.getElementById('showAppointmentRejectionBtn');
+        if (!cancelPanel || !cancelForm) return;
+        cancelForm.reset();
+        cancelPanel.hidden = true;
+        if (cancelShowButton) cancelShowButton.hidden = false;
+        var cancelGroup = document.getElementById('customRejectionReasonGroup');
+        var cancelField = document.getElementById('customRejectionReason');
+        if (cancelGroup) cancelGroup.style.display = 'none';
+        if (cancelField) cancelField.required = false;
+        return;
+      }
       var rejectionToggle = e.target.closest('.js-open-rejection');
       if (rejectionToggle) {
         e.preventDefault();
@@ -129,16 +155,20 @@
       var rejectionCancel = e.target.closest('.js-cancel-rejection');
       if (rejectionCancel) {
         e.preventDefault();
-        var panel = rejectionCancel.closest('.review-rejection-form');
+        var formPanel = rejectionCancel.closest('.review-rejection-form');
+        var panel = formPanel ? (formPanel.closest('.review-rejection-row') || formPanel) : null;
         if (!panel) return;
         panel.hidden = true;
-        var matchingToggle = modalBody.querySelector('.js-open-rejection[data-target="' + panel.id + '"]');
+        var rejectionRoot = modalBody || document;
+        var matchingToggle = rejectionRoot.querySelector('.js-open-rejection[data-target="' + panel.id + '"]');
+        if (!matchingToggle && formPanel) matchingToggle = rejectionRoot.querySelector('.js-open-rejection[data-target="' + formPanel.id + '"]');
         if (matchingToggle) matchingToggle.hidden = false;
+        if (formPanel) formPanel.reset();
         return;
       }
       // A direct hit on the <dialog> element itself (not a descendant) is
       // a click on its own backdrop/padding area, i.e. "outside" the card.
-      if (e.target === modal) {
+      if (modal && e.target === modal) {
         closeDetailModal();
       }
     });
@@ -212,12 +242,15 @@
 
     // Esc key closes natively via the dialog's "cancel" event — still
     // needs the same dirty-reload follow-up as any other close path.
-    modal.addEventListener('cancel', function () {
-      setTimeout(function () {
-        if (dirty) { dirty = false; window.location.reload(); }
-      }, 0);
-    });
+    if (modal) {
+      modal.addEventListener('cancel', function () {
+        setTimeout(function () {
+          if (dirty) { dirty = false; window.location.reload(); }
+        }, 0);
+      });
+    }
 
+    if (!modal) return;
     modal.addEventListener('submit', function (e) {
       if (e.defaultPrevented) return; // an inline onsubmit (e.g. a confirm() the user cancelled) already handled this
       var form = e.target;

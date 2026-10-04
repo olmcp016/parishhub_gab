@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $schedule = validateBooking('Wedding', $locked['appointment_date'], $locked['appointment_time'], null, $locked['schedule_type'], (int) $locked['service_id']);
         if (!$schedule['valid']) throw new RuntimeException($schedule['message']);
         $finalTime = $schedule['forcedTime'] ?: $locked['appointment_time'];
-        $guestReference = $locked['parishioner_id'] ? null : generateGuestReference();
+        $guestReference = generateGuestReference();
         $appointmentParishionerId = $locked['parishioner_id'] ?: guestParishionerId();
         $finalizationStage = 'insert_appointment';
         $stmt = $pdo->prepare("INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, schedule_type, pss_claim, pss_classification, wedding_sponsor_count, guest_name, guest_email, guest_phone, guest_reference, contact_phone, location_address, requirements_snapshot) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 'pending_verification', ?, ?, ?, ?, ?, ?, ?, ?) RETURNING appointment_id");

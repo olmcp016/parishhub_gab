@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'upload_documents') {
         // Confirm this appointment actually belongs to the logged-in parishioner
         $stmt = db()->prepare(
-            "SELECT a.appointment_id, a.status_id, s.requirements FROM appointments a
+            "SELECT a.appointment_id, a.status_id, a.requirements_snapshot, s.requirements FROM appointments a
              JOIN services s ON a.service_id = s.service_id
              WHERE a.appointment_id = ? AND a.parishioner_id = ?"
         );
@@ -67,16 +67,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$appt) {
             respondAjaxOrRedirect($isAjax, false, 'Appointment not found.', url('parishioner/appointments.php'));
         }
-        if ((int) $appt['status_id'] !== 3) {
+        if ((int) $appt['status_id'] !== 1) {
             respondAjaxOrRedirect(
                 $isAjax,
                 false,
-                'Documents can only be updated while the appointment is awaiting corrections.',
+                'Requirement replacements are only available while the appointment is pending. A whole-appointment rejection requires a new booking.',
                 $redirectUrl
             );
         }
 
-        $requirementsList = parseRequirementsList($appt['requirements']);
+        $requirementsList = !empty($appt['requirements_snapshot'])
+            ? (json_decode($appt['requirements_snapshot'], true) ?: [])
+            : parseRequirementsList($appt['requirements']);
         $pendingUploads = [];
         $skippedFiles = [];
 
@@ -136,12 +138,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'SELECT status_id FROM appointments WHERE appointment_id = ? AND parishioner_id = ? FOR UPDATE'
                 );
                 $lock->execute([$id, $parishionerId]);
-                if ((int) $lock->fetchColumn() !== 3) {
-                    throw new RuntimeException('Appointment is no longer awaiting document corrections.');
+                if ((int) $lock->fetchColumn() !== 1) {
+                    throw new RuntimeException('Appointment is no longer pending for document corrections.');
                 }
 
                 foreach ($pendingUploads as $upload) {
                     $file = $upload['file'];
+                    if ($upload['label']) {
+                        $activeDocument = $pdo->prepare(
+                            'SELECT review_status FROM uploaded_documents WHERE appointment_id = ? AND requirement_label = ? AND superseded_by IS NULL ORDER BY document_id DESC LIMIT 1 FOR UPDATE'
+                        );
+                        $activeDocument->execute([$id, $upload['label']]);
+                        $activeStatus = $activeDocument->fetchColumn();
+                        if ($activeStatus !== false && $activeStatus !== 'rejected') {
+                            throw new RuntimeException('The requirement "' . $upload['label'] . '" already has an active submission.');
+                        }
+                    }
                     $stored = documentStorageMoveUpload(
                         $file['tmp_name'],
                         pathinfo($file['name'], PATHINFO_EXTENSION)
@@ -168,28 +180,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $uploaded++;
                 }
 
-                // Correcting a rejected request returns that same request to
-                // the Secretary's Pending review queue.
-                $statusUpdate = $pdo->prepare(
-                    'UPDATE appointments SET status_id = 1 WHERE appointment_id = ? AND parishioner_id = ? AND status_id = 3'
-                );
-                $statusUpdate->execute([$id, $parishionerId]);
-                if ($statusUpdate->rowCount() !== 1) {
-                    throw new RuntimeException('Appointment status changed while documents were being uploaded.');
-                }
-
                 $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Documents Updated', ?)")
-                    ->execute([$userId, "Your updated documents for appointment #$id have been submitted and are back under review."]);
+                    ->execute([$userId, "Your updated documents for appointment #$id have been submitted and remain under review."]);
                 $secretaries = $pdo->query("SELECT user_id FROM users u JOIN roles r ON r.role_id = u.role_id WHERE r.role_name IN ('Secretary', 'Admin') AND u.status = 'active'")->fetchAll(PDO::FETCH_COLUMN);
                 $notify = $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Documents Updated', ?)");
                 foreach ($secretaries as $secretaryId) {
                     $notify->execute([(int) $secretaryId, "Appointment #$id has updated documents and is ready for review."]);
                 }
-                logActivity($userId, "Resubmitted documents for previously rejected appointment #$id", 'Appointments');
+                logActivity($userId, "Submitted requirement replacements for appointment #$id", 'Appointments');
                 $pdo->commit();
 
                 $anySuccess = true;
-                $messages[] = "$uploaded document(s) uploaded — your request is back under review.";
+                $messages[] = "$uploaded document(s) uploaded — your appointment remains under review.";
             } catch (Throwable $e) {
                 if ($pdo->inTransaction()) $pdo->rollBack();
                 foreach ($createdStorageKeys as $key) {
@@ -291,6 +293,7 @@ if (!$isAjax) {
         <?php endif; ?>
       </div>
     </div>
+    <p><strong>Booking Reference:</strong> <?= e($appointment['guest_reference'] ?: 'Appointment #' . (int) $appointment['appointment_id']) ?></p>
     <p><strong>Date:</strong> <?= formatDate($appointment['appointment_date']) ?><?= $appointment['appointment_time'] ? ' at ' . date('g:i A', strtotime($appointment['appointment_time'])) : ' (To be scheduled)' ?></p>
     <p><strong>Priest:</strong> <?= e($appointment['priest_name'] ?? 'Not yet assigned') ?></p>
     <?php if ($appointment['category'] === 'Wedding'): ?>
@@ -303,7 +306,7 @@ if (!$isAjax) {
             <?php if ($gf['rejection_reason']): ?><div class="text-muted" style="margin-top:4px; font-size:0.9rem;">Reason: <?= e($gf['rejection_reason']) ?></div><?php endif; ?>
           </div>
           <div class="generated-form-actions">
-            <?php if (($gf['status'] ?? '') !== 'approved'): ?><a class="btn btn-outline btn-sm" href="<?= url('wedding-form.php?appointment_id=' . $id . '&form_type=' . urlencode($gf['form_type'])) ?>"><?= $status === 'rejected' ? 'Edit and Regenerate Form' : 'Edit Form' ?></a><?php endif; ?>
+            <?php if (($gf['status'] ?? '') !== 'approved' && (int) $appointment['status_id'] === 1): ?><a class="btn btn-outline btn-sm" href="<?= url('wedding-form.php?appointment_id=' . $id . '&form_type=' . urlencode($gf['form_type'])) ?>"><?= $status === 'rejected' ? 'Edit and Regenerate Form' : 'Edit Form' ?></a><?php endif; ?>
             <?php if ($gf['document_id']): ?>
               <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>"><?= $gf['form_type'] === 'matrimony_application' ? 'View Generated Form' : 'View PDF' ?></a>
               <a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . (int) $gf['document_id'] . '&download=1') ?>">Download PDF</a>
@@ -323,7 +326,7 @@ if (!$isAjax) {
             <?php if ($gf['rejection_reason']): ?><div class="text-muted" style="margin-top:4px; font-size:0.9rem;">Reason: <?= e($gf['rejection_reason']) ?></div><?php endif; ?>
           </div>
           <div class="generated-form-actions">
-            <?php if (($gf['status'] ?? '') !== 'approved'): ?><a class="btn btn-outline btn-sm" href="<?= url('baptism-draft-form.php?appointment_id=' . $id . '&form_type=' . urlencode($gf['form_type'])) ?>"><?= $baptismStatus === 'rejected' ? 'Edit and Regenerate Form' : 'Edit Form' ?></a><?php endif; ?>
+            <?php if (($gf['status'] ?? '') !== 'approved' && (int) $appointment['status_id'] === 1): ?><a class="btn btn-outline btn-sm" href="<?= url('baptism-draft-form.php?appointment_id=' . $id . '&form_type=' . urlencode($gf['form_type'])) ?>"><?= $baptismStatus === 'rejected' ? 'Edit and Regenerate Form' : 'Edit Form' ?></a><?php endif; ?>
             <?php if ($gf['document_id']): ?>
               <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>">View PDF</a>
               <a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . (int) $gf['document_id'] . '&download=1') ?>">Download PDF</a>
@@ -491,16 +494,15 @@ if (!$isAjax) {
               $extraDocuments[] = $d;
           }
       }
-      // Rejected is included so a parishioner can correct/add the missing
-      // documents without starting a brand new booking — see the
-      // "wasRejected" handling above, which puts the request back under
-      // review as soon as they upload something.
-      $canUpload = $appointment['status_name'] === 'Rejected';
+      // A requirement rejection leaves the appointment Pending. The applicant
+      // replaces only that item; a whole-appointment Rejected status requires
+      // a new booking and must not be treated as a document correction.
+      $canUpload = $appointment['status_name'] === 'Pending';
     ?>
     <div class="card">
-      <div class="card-header"><h3><?= $appointment['status_name'] === 'Rejected' ? 'Update Documents' : 'Required Documents' ?></h3></div>
-      <?php if ($appointment['status_name'] === 'Rejected'): ?>
-        <p class="helper-text" style="margin-top:-6px;">Upload the corrected/missing document(s) below — your request will go back to our secretary for review, no need to start a new booking.</p>
+      <div class="card-header"><h3><?= $canUpload ? 'Required Documents &amp; Replacements' : 'Required Documents' ?></h3></div>
+      <?php if ($canUpload): ?>
+        <p class="helper-text" style="margin-top:-6px;">Replace only documents marked “Needs Revision.” The appointment and booking reference stay the same while your replacement is reviewed.</p>
       <?php endif; ?>
       <?php if (empty($requirementsList)): ?>
         <p class="text-muted">No specific documents are required for this service.</p>
@@ -542,7 +544,7 @@ if (!$isAjax) {
                 ?></span>
               </div>
               <div class="generated-form-actions">
-                <?php if (!$funeralApproved && ($canUpload || $gfStatus === 'draft' || $gfStatus === 'rejected')): ?>
+                <?php if (!$funeralApproved && (int) $appointment['status_id'] === 1 && ($canUpload || $gfStatus === 'draft' || $gfStatus === 'rejected')): ?>
                   <a href="<?= url('funeral-form.php?appointment_id=' . (int) $appointment['appointment_id']) ?>" class="btn btn-outline btn-sm"><?= $gfStatus === 'draft' ? 'Fill Out Form' : ($gfStatus === 'rejected' ? 'Edit and Regenerate Form' : 'Edit Form') ?></a>
                 <?php endif; ?>
                 <?php if (!empty($matches)): foreach ($matches as $d): ?>

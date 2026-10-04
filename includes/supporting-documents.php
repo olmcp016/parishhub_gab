@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/document-validation.php';
+require_once __DIR__ . '/appointment-workflow.php';
 
 function supportingDocumentAcceptedFiles(): string
 {
@@ -40,6 +41,8 @@ function renderSupportingDocumentCards(array $requirements, array $documents, st
           $displayLabel = supportingDocumentDisplayLabel($label);
           $fileName = is_array($document) ? (string) ($document['file_name'] ?? '') : '';
           $documentId = is_array($document) ? (int) ($document['document_id'] ?? 0) : 0;
+          $reviewStatus = is_array($document) ? (string) ($document['review_status'] ?? '') : '';
+          $rejectionReason = is_array($document) ? trim((string) ($document['rejection_reason'] ?? '')) : '';
       ?>
         <article class="supporting-document-card" data-supporting-document-card data-requirement-label="<?= e($label) ?>" data-document-id="<?= $documentId ?: '' ?>">
           <div class="supporting-document-card-heading">
@@ -51,10 +54,17 @@ function renderSupportingDocumentCards(array $requirements, array $documents, st
           <p class="supporting-document-help">Accepted files: <?= e(supportingDocumentAcceptedFiles()) ?><br>Maximum size: <?= e(supportingDocumentMaxSizeLabel()) ?></p>
           <div class="supporting-document-status" data-upload-status aria-live="polite">
             <?php if ($fileName): ?>
-              <span class="supporting-document-success">✓ Uploaded</span>
+              <?php if ($reviewStatus === 'rejected'): ?>
+                <span class="supporting-document-error">Needs Revision</span>
+              <?php elseif ($reviewStatus === 'approved' || (is_array($document) && appointmentWorkflowBoolean($document['verified'] ?? false))): ?>
+                <span class="supporting-document-success">✓ Approved</span>
+              <?php else: ?>
+                <span class="supporting-document-success">Pending Review</span>
+              <?php endif; ?>
               <span class="supporting-document-filename" data-upload-filename><?= e($fileName) ?></span>
               <?php if ($documentId): ?><a class="btn btn-outline btn-sm" data-upload-view href="<?= url('document.php?id=' . $documentId) ?>" target="_blank" rel="noopener">View</a><?php endif; ?>
               <span class="supporting-document-replace-label">Replace:</span>
+              <?php if ($rejectionReason): ?><span class="supporting-document-rejection-reason">Reason: <?= e($rejectionReason) ?></span><?php endif; ?>
             <?php else: ?>
               <span class="supporting-document-empty">No file uploaded yet</span>
             <?php endif; ?>

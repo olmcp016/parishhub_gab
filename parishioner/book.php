@@ -96,6 +96,10 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         }
         $guestReference = generateGuestReference();
     }
+    // The same canonical booking reference is stored for registered
+    // parishioners too. Guests use it for public status lookup; parishioners
+    // see it alongside the appointment detail and confirmation.
+    if (!$guestReference) $guestReference = generateGuestReference();
 
     $stmt = db()->prepare('SELECT category, requirements FROM services WHERE service_id = ?');
     $massIntentionStage = 'load_service';
@@ -549,7 +553,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         } else {
             $successMessage = 'Appointment request submitted! Our secretary will review your requirements before approving.';
         }
-        if ($isGuest) {
+        if ($guestReference) {
             $successMessage .= " Your reference code is $guestReference — save it to check your request's status anytime.";
         }
 
