@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/includes/scheduling.php';
 
 $stmt = db()->prepare(
     "SELECT * FROM announcements WHERE status='published' AND (end_date IS NULL OR end_date >= ?)
@@ -131,6 +132,29 @@ include __DIR__ . '/includes/header.php';
         <div class="svc-eyebrow"><?= e($s['category']) ?></div>
         <h3><?= e($s['service_name']) ?></h3>
         <p><?= e($s['description']) ?></p>
+        <?php 
+        $scheduleDisplay = null;
+        if (in_array($s['category'], ['Baptism', 'Wedding', 'Blessing', 'Confirmation'])) {
+            $scheduleDesc = describeRegularSchedule((int)$s['service_id']);
+            if (str_starts_with($scheduleDesc, 'No Regular schedule')) {
+                $scheduleDisplay = 'Schedule arranged with the Parish Office';
+            } else {
+                $scheduleDisplay = $scheduleDesc;
+            }
+        } elseif ($s['category'] === 'Funeral' || $s['category'] === 'Wake') {
+            $scheduleDisplay = 'Schedule arranged with the Parish Office';
+        } elseif ($s['category'] === 'Mass Intention') {
+            $scheduleDisplay = 'Daily Mass at 6:00 AM / Sundays at 6:00 AM, 9:00 AM, 4:00 PM';
+        } else {
+            $scheduleDisplay = 'Schedule arranged with the Parish Office';
+        }
+        ?>
+        <?php if ($scheduleDisplay): ?>
+            <p class="svc-schedule" style="font-size: 13px; font-weight: 500; color: var(--brown-dark); margin-bottom: 12px; margin-top: -6px; display: flex; align-items: center; gap: 4px;">
+                <i data-lucide="calendar" style="width:14px; height:14px;"></i>
+                <?= e($scheduleDisplay) ?>
+            </p>
+        <?php endif; ?>
         <?php if ((float) $s['fee'] > 0): ?>
           <span class="svc-fee fixed">🔒 Fixed: <?= money((float) $s['fee']) ?></span>
         <?php else: ?>

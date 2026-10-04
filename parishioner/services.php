@@ -71,6 +71,29 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
       <h3><?= e($s['service_name']) ?></h3>
       <p class="text-muted" style="font-size:12.5px; text-transform:uppercase; letter-spacing:.4px;"><?= e($s['category']) ?></p>
       <p style="font-size:14px;"><?= e($s['description']) ?></p>
+      <?php 
+      $scheduleDisplay = null;
+      if (in_array($s['category'], ['Baptism', 'Wedding', 'Blessing', 'Confirmation'])) {
+          $scheduleDesc = describeRegularSchedule((int)$s['service_id']);
+          if (str_starts_with($scheduleDesc, 'No Regular schedule')) {
+              $scheduleDisplay = 'Schedule arranged with the Parish Office';
+          } else {
+              $scheduleDisplay = $scheduleDesc;
+          }
+      } elseif ($s['category'] === 'Funeral' || $s['category'] === 'Wake') {
+          $scheduleDisplay = 'Schedule arranged with the Parish Office';
+      } elseif ($s['category'] === 'Mass Intention') {
+          $scheduleDisplay = 'Daily Mass at 6:00 AM / Sundays at 6:00 AM, 9:00 AM, 4:00 PM';
+      } else {
+          $scheduleDisplay = 'Schedule arranged with the Parish Office';
+      }
+      ?>
+      <?php if ($scheduleDisplay): ?>
+          <p class="svc-schedule" style="font-size: 13px; font-weight: 500; color: var(--brown-dark); margin-bottom: 12px; margin-top: -6px; display: flex; align-items: center; gap: 4px;">
+              <i data-lucide="calendar" style="width:14px; height:14px;"></i>
+              <?= e($scheduleDisplay) ?>
+          </p>
+      <?php endif; ?>
       <?php if (in_array($s['category'], ['Baptism', 'Wedding'], true) && !empty($feeRulesByCategory[$s['category']])): ?>
         <p class="text-muted" style="font-size:13px; margin-bottom:4px;">Regular and Special fees available by PSS classification.</p>
         <button type="button" class="btn btn-secondary btn-sm" style="align-self:flex-start; margin-bottom:12px;" onclick="document.getElementById('fees-<?= strtolower($s['category']) ?>').showModal()">View Fees</button>
@@ -117,7 +140,7 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
           <h4><?= e($feeSchedule) ?> Schedule</h4>
           <div class="table-wrap"><table><thead><tr><th></th><th>PSS Giver</th><th>Non-PSS Giver</th></tr></thead><tbody>
           <?php $pssRule = array_values(array_filter($feeRulesByCategory[$feeCategory], fn($r) => $r['schedule_type'] === $feeSchedule && $r['pss_classification'] === 'pss'))[0] ?? null; $nonRule = array_values(array_filter($feeRulesByCategory[$feeCategory], fn($r) => $r['schedule_type'] === $feeSchedule && $r['pss_classification'] === 'non_pss'))[0] ?? null; ?>
-          <?php if ($pssRule && $nonRule): ?><tr><td>Base Fee</td><td><?= feeLabel((float) $pssRule['base_fee']) ?></td><td><?= feeLabel((float) $nonRule['base_fee']) ?></td></tr><tr><td>Priest Stipend</td><td><?= feeLabel((float) $pssRule['priest_stipend']) ?></td><td><?= feeLabel((float) $nonRule['priest_stipend']) ?></td></tr><tr><td>Additional Sponsor</td><td><?= feeLabel((float) $pssRule['additional_sponsor_fee']) ?> each after <?= (int) $pssRule['included_sponsors'] ?></td><td><?= feeLabel((float) $nonRule['additional_sponsor_fee']) ?> each after <?= (int) $nonRule['included_sponsors'] ?></td></tr><?php endif; ?>
+          <?php if ($pssRule && $nonRule): ?><tr><td>Base Fee</td><td><?= feeLabel((float) $pssRule['base_fee']) ?></td><td><?= feeLabel((float) $nonRule['base_fee']) ?></td></tr><tr><td>Priest Stipend</td><td><?= feeLabel((float) $pssRule['priest_stipend']) ?></td><td><?= feeLabel((float) $nonRule['priest_stipend']) ?></td></tr><tr><td>Additional Sponsor</td><td><span style="font-size:0.85em;color:var(--gray-dark);">(No fees up to <?= (int) $pssRule['included_sponsors'] ?> sponsors)</span><br><?= feeLabel((float) $pssRule['additional_sponsor_fee']) ?> per additional sponsor</td><td><span style="font-size:0.85em;color:var(--gray-dark);">(No fees up to <?= (int) $nonRule['included_sponsors'] ?> sponsors)</span><br><?= feeLabel((float) $nonRule['additional_sponsor_fee']) ?> per additional sponsor</td></tr><?php endif; ?>
           </tbody></table></div>
         <?php endforeach; ?>
       </div>
@@ -188,7 +211,7 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
             <option value="">-- Choose a service --</option>
             <?php foreach ($services as $s): ?>
               <option value="<?= $s['service_id'] ?>" data-category="<?= e($s['category']) ?>">
-                <?= e($s['service_name']) ?> (<?= in_array($s['category'], $variableFeeCategories, true) ? 'Fee varies by schedule/PSS status' : feeLabel((float) $s['fee']) ?>)
+                <?= e($s['service_name']) ?>
               </option>
             <?php endforeach; ?>
           </select>
