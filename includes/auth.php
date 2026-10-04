@@ -33,7 +33,7 @@ function requireLogin(): void
 {
     sendNoCacheHeaders();
     if (!isLoggedIn()) {
-        flash('error', 'Please log in to continue.');
+        flash('error', 'Your session has expired or you are not signed in. Please log in again.');
         redirect(url('auth/login.php'));
     }
 }

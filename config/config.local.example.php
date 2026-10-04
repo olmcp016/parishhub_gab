@@ -17,6 +17,11 @@ putenv('SUPABASE_URL=https://your-project.supabase.co');
 putenv('SUPABASE_SECRET_KEY=server-only-secret');
 putenv('SUPABASE_DOCUMENT_BUCKET=parish-documents');
 
+// Render production should use database sessions after applying
+// database/migration_sessions.sql in Supabase.
+putenv('SESSION_DRIVER=files');
+putenv('SESSION_GC_MAXLIFETIME=7200');
+
 // Brevo (transactional email) — used to email guests (no account, so no
 // in-app notification) when their appointment is approved/rescheduled/etc.
 // See includes/mailer.php. Leave unset/placeholder to disable email sending.
