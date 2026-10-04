@@ -7,6 +7,7 @@ require_once __DIR__ . '/includes/document-validation.php';
 require_once __DIR__ . '/includes/supporting-documents.php';
 require_once __DIR__ . '/includes/wedding-forms.php';
 require_once __DIR__ . '/includes/scheduling.php';
+require_once __DIR__ . '/includes/generated-form-workflow.php';
 
 $draftId = (int) ($_GET['draft_id'] ?? $_POST['draft_id'] ?? 0);
 $user = currentUser();
@@ -106,17 +107,12 @@ $uploadedDocuments = [];
 foreach ($docs->fetchAll() as $document) {
     if (!isset($uploadedDocuments[$document['requirement_label']])) $uploadedDocuments[$document['requirement_label']] = $document;
 }
-$uploaded = array_keys($uploadedDocuments);
-$forms = $pdo->prepare('SELECT form_type, status, document_id FROM generated_wedding_forms WHERE draft_id = ?');
+$forms = $pdo->prepare('SELECT f.form_type, f.status, f.document_id, d.review_status, d.verified, d.rejection_reason FROM generated_wedding_forms f LEFT JOIN uploaded_documents d ON d.document_id = f.document_id WHERE f.draft_id = ?');
 $forms->execute([$draftId]);
 $formRows = [];
 foreach ($forms->fetchAll() as $row) $formRows[$row['form_type']] = $row;
-$requiredDocumentsComplete = count(array_intersect(weddingDraftRequiredDocuments($draft), $uploaded)) === count(weddingDraftRequiredDocuments($draft));
-$generatedFormsComplete = true;
-foreach (WEDDING_DRAFT_FORMS as $requiredForm) {
-    if (empty($formRows[$requiredForm]['document_id'])) { $generatedFormsComplete = false; break; }
-}
-$canSubmit = $requiredDocumentsComplete && $generatedFormsComplete;
+$missingRequirements = weddingDraftComplete($pdo, $draft);
+$canSubmit = $missingRequirements === [];
 $pageTitle = 'Wedding Requirements';
 $usesPublicShell = !$user;
 include __DIR__ . '/includes/header.php';
@@ -125,21 +121,22 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
 <div class="card" style="max-width:850px;margin:auto;"><h2>Supporting Documents</h2><?php renderSupportingDocumentCards(weddingDraftRequiredDocuments($draft), $uploadedDocuments, 'wedding_draft', $draftId); ?></div>
 <div class="card" style="max-width:850px;margin:auto;">
   <h2>Wedding Forms</h2>
+  <?php generatedFormWorkflowGuide(true); ?>
   <?php foreach (WEDDING_DRAFT_FORMS as $type):
     $row = $formRows[$type] ?? null;
     $title = weddingFormDefinition($type)['title'];
     $documentId = $row && !empty($row['document_id']) ? (int) $row['document_id'] : 0;
-    $editLabel = $type === 'matrimony_application'
-        ? ($row ? 'Edit Form' : 'Fill Out Form')
-        : ($row ? 'Edit Form' : 'Complete Form');
+    $state = generatedFormWorkflowState($row, $row, true);
   ?>
     <div class="generated-form-item">
       <div class="generated-form-header">
         <span class="generated-form-title"><?= e($title) ?></span>
-        <span class="generated-form-status"><?= $documentId ? '✓ Generated' : ($row ? '○ Draft' : '○ Not completed') ?></span>
+        <span class="generated-form-status"><?= $state['code'] === 'approved' ? '✓ ' : ($state['code'] === 'not_started' ? '○ ' : '') ?><?= e($state['label']) ?></span>
+        <div class="text-muted" style="margin-top:4px; font-size:.9rem;"><?= e($state['description']) ?></div>
+        <?php if (!empty($row['rejection_reason'])): ?><div class="text-muted" style="margin-top:4px; font-size:.9rem;">Secretary's note: <?= e($row['rejection_reason']) ?></div><?php endif; ?>
       </div>
       <div class="generated-form-actions">
-        <a class="btn btn-outline btn-sm" href="<?= url('wedding-draft-form.php?draft_id=' . $draftId . '&form_type=' . urlencode($type)) ?>"><?= e($editLabel) ?></a>
+        <?php if ($state['code'] !== 'approved'): ?><a class="btn btn-outline btn-sm" href="<?= url('wedding-draft-form.php?draft_id=' . $draftId . '&form_type=' . urlencode($type)) ?>"><?= e(generatedFormWorkflowActionLabel($state)) ?></a><?php endif; ?>
         <?php if ($documentId): ?>
           <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . $documentId) ?>"><?= $type === 'matrimony_application' ? 'View Generated Form' : 'View PDF' ?></a>
           <a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . $documentId . '&download=1') ?>">Download PDF</a>

@@ -1324,6 +1324,9 @@ input.amount-no-spinner {
   margin-bottom: 16px;
   background: #fff;
 }
+.generated-form-guide { margin:12px 0 18px; padding:14px 16px; border:1px solid var(--cream-dark); border-left:4px solid var(--gold,#b8904a); border-radius:8px; background:rgba(255,255,255,.7); color:var(--brown-mid); }
+.generated-form-guide strong { color:var(--brown-dark); }
+.generated-form-guide p { margin:5px 0 0; line-height:1.5; font-size:.92rem; }
 .generated-form-header {
   margin-bottom: 12px;
 }

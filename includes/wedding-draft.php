@@ -32,6 +32,10 @@ function weddingDraftLoad(PDO $pdo, int $draftId, ?array $user, ?string $guestTo
 function weddingDraftRequiredDocuments(array $draft): array
 {
     if (($draft['category'] ?? '') === 'Wedding') {
+        $configured = parseRequirementsList($draft['requirements'] ?? '');
+        if ($configured) return $configured;
+        // Keep older/partial draft records usable when their service snapshot
+        // did not include the catalog requirement text.
         return ["Groom's Baptismal Certificate", "Bride's Baptismal Certificate", "Groom's Confirmation Certificate", "Bride's Confirmation Certificate", "Sponsors' Baptismal Certificate"];
     }
     return parseRequirementsList($draft['requirements'] ?? '');
@@ -47,6 +51,7 @@ function weddingDraftComplete(PDO $pdo, array $draft): array
         FROM generated_wedding_forms f
         INNER JOIN uploaded_documents d ON d.document_id = f.document_id
         WHERE f.draft_id = ?
+          AND f.status IN ('generated', 'pending_review', 'approved')
           AND f.document_id IS NOT NULL
           AND d.superseded_by IS NULL
           AND d.document_source = 'generated'

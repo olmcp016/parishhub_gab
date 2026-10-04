@@ -3,6 +3,7 @@ require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/funeral-draft.php';
 require_once __DIR__ . '/includes/funeral-forms.php';
+require_once __DIR__ . '/includes/generated-form-workflow.php';
 
 $appointmentId = (int) ($_GET['appointment_id'] ?? $_POST['appointment_id'] ?? 0);
 $draftId = $_GET['draft_id'] ?? $_POST['draft_id'] ?? '';
@@ -29,9 +30,20 @@ if ($isDraft) {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         verifyCsrf();
         $data = funeralKatinAwanNormalizeData($_POST);
-        $errors = funeralKatinAwanValidationErrors($data);
+        $action = ($_POST['action'] ?? '') === 'save' ? 'save' : 'generate';
+        $errors = funeralKatinAwanValidationErrors($data, $action === 'generate');
         if ($errors) {
             $error = implode(' ', $errors);
+        } elseif ($action === 'save') {
+            $oldPayload = funeralKatinAwanNormalizeData($draft['katin_awan_payload'] ?? []);
+            $oldDocument = $draft['generated_document'] ?? null;
+            $_SESSION['funeral_booking_drafts'][$draftId]['katin_awan_payload'] = $data;
+            if ($oldPayload !== $data && is_array($oldDocument) && !empty($oldDocument['key'])) {
+                try { documentStorageDelete((string) $oldDocument['key']); } catch (Throwable $cleanupError) { error_log('Old Funeral draft PDF cleanup failed: ' . $cleanupError->getMessage()); }
+                unset($_SESSION['funeral_booking_drafts'][$draftId]['generated_document']);
+            }
+            flash('success', 'Funeral form draft saved. Generate the PDF when it is complete.');
+            redirect(url('funeral-draft.php?draft_id=' . $draftId));
         } else {
             $stored = null;
             try {
@@ -87,11 +99,34 @@ if ($isDraft) {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         verifyCsrf();
         $data = funeralKatinAwanNormalizeData($_POST);
+        $action = ($_POST['action'] ?? '') === 'save' ? 'save' : 'generate';
         $errors = ($form && ($form['review_status'] ?? '') === 'approved')
             ? ['Approved forms require Secretary review before they can be changed.']
-            : funeralKatinAwanValidationErrors($data);
+            : funeralKatinAwanValidationErrors($data, $action === 'generate');
         if ($errors) {
             $error = implode(' ', $errors);
+        } elseif ($action === 'save') {
+            try {
+                $pdo->beginTransaction();
+                $lock = $pdo->prepare('SELECT * FROM generated_funeral_forms WHERE appointment_id = ? AND form_type = ? FOR UPDATE');
+                $lock->execute([$appointmentId, $type]);
+                $lockedForm = $lock->fetch() ?: null;
+                $encoded = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+                if ($lockedForm) {
+                    $pdo->prepare("UPDATE generated_funeral_forms SET form_data = ?, status = 'draft', updated_at = CURRENT_TIMESTAMP WHERE generated_form_id = ?")
+                        ->execute([$encoded, $lockedForm['generated_form_id']]);
+                } else {
+                    $pdo->prepare("INSERT INTO generated_funeral_forms (appointment_id, form_type, form_data, document_id, status) VALUES (?, ?, ?, NULL, 'draft')")
+                        ->execute([$appointmentId, $type, $encoded]);
+                }
+                $pdo->commit();
+                flash('success', 'Funeral form draft saved. Generate the PDF when it is complete.');
+                redirect(url('funeral-form.php?appointment_id=' . $appointmentId));
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                error_log('Funeral form draft save failed: ' . $e->getMessage());
+                $error = 'The Funeral form draft could not be saved. Please try again.';
+            }
         } else {
             try {
                 processFuneralGeneratedForm($appointmentId, $type, $data, $form ? (int) $form['document_id'] : null);
@@ -136,6 +171,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
 <div style="max-width:850px; margin:0 auto; padding:20px;">
   <a href="<?= $backLink ?>" class="back-link">← Back</a>
   <div style="text-align:center; margin-bottom:30px;"><h1 style="margin:0 0 10px; color:var(--brown);"><?= e($definition['title']) ?></h1><p class="text-muted" style="margin:0;">Complete the fields printed on the official parish form. Signature and verification lines remain blank.</p></div>
+  <?php generatedFormWorkflowGuide(!$isDraft); ?>
   <?php if ($error): ?><div class="alert" style="background:var(--danger-bg); color:var(--danger); border:1px solid #f5c2c2;"><?= e($error) ?></div><?php endif; ?>
   <?php if (!empty($previewDocumentId)): ?><div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">The form was generated. If the PDF did not open automatically, <a href="<?= url('document.php?id=' . $previewDocumentId) ?>" target="_blank" rel="noopener"><strong>View Generated Form</strong></a>.</div><?php endif; ?>
   <?php if (!empty($form) && $form['status'] === 'rejected' && $form['rejection_reason']): ?><div class="alert" style="background:var(--danger-bg); color:var(--danger);"><strong>Secretary requested revisions:</strong> <?= e($form['rejection_reason']) ?></div><?php endif; ?>
@@ -205,7 +241,8 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
     </div>
 
     <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
-      <button type="submit" class="btn btn-primary" style="width: 100%;">Generate PDF</button>
+      <button type="submit" name="action" value="generate" class="btn btn-primary" style="width: 100%;">Generate PDF</button>
+      <button type="submit" name="action" value="save" formnovalidate class="btn btn-outline" style="width: 100%;">Save Draft</button>
       <?php if ($form && $form['document_id']): ?>
         <a href="<?= documentViewUrl((int) $form['document_id']) ?>" target="_blank" rel="noopener" class="btn btn-outline" style="width: 100%;">Preview Current Form</a>
       <?php endif; ?>
@@ -237,6 +274,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
   marriageChoices.forEach(function (choice) { choice.addEventListener('change', syncMarriage); });
   syncMarriage();
   form.addEventListener('submit', function (event) {
+    if (!event.submitter || event.submitter.value !== 'generate') return;
     if (!form.checkValidity()) return;
     if (!hilog.checked && !kumpisal.checked && !wala.checked) { event.preventDefault(); alert('Select the sacrament received, or select Wala.'); return; }
     <?php if (!$isDraft): ?>window.open('about:blank', 'parishhubFuneralPdf');<?php endif; ?>

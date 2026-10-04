@@ -37,7 +37,7 @@ function baptismDraftComplete(PDO $pdo, array $d): array
     $labels = $q->fetchAll(PDO::FETCH_COLUMN);
     foreach (array_diff(baptismDraftRequiredDocuments($d), $labels) as $label) $missing[] = $label;
 
-    $q = $pdo->prepare("SELECT f.form_type FROM generated_baptism_forms f JOIN uploaded_documents u ON u.document_id=f.document_id WHERE f.draft_id=? AND f.status IN ('pending_review','approved') AND f.document_id IS NOT NULL AND u.baptism_draft_id=? AND u.appointment_id IS NULL AND u.superseded_by IS NULL AND u.document_source='generated' AND u.generated_form_type=f.form_type AND u.file_type='application/pdf'");
+    $q = $pdo->prepare("SELECT f.form_type FROM generated_baptism_forms f JOIN uploaded_documents u ON u.document_id=f.document_id WHERE f.draft_id=? AND f.status IN ('generated','pending_review','approved') AND f.document_id IS NOT NULL AND u.baptism_draft_id=? AND u.appointment_id IS NULL AND u.superseded_by IS NULL AND u.document_source='generated' AND u.generated_form_type=f.form_type AND u.file_type='application/pdf'");
     $q->execute([$d['draft_id'], $d['draft_id']]);
     $forms = $q->fetchAll(PDO::FETCH_COLUMN);
     foreach (BAPTISM_DRAFT_FORMS as $type) if (!in_array($type, $forms, true)) $missing[] = $type;

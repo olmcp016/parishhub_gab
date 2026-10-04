@@ -4,6 +4,7 @@ require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/wedding-draft.php';
 require_once __DIR__ . '/includes/wedding-forms.php';
 require_once __DIR__ . '/includes/document-storage.php';
+require_once __DIR__ . '/includes/generated-form-workflow.php';
 
 $draftId = (int) ($_GET['draft_id'] ?? $_POST['draft_id'] ?? 0);
 $type = (string) ($_GET['form_type'] ?? $_POST['form_type'] ?? '');
@@ -16,7 +17,7 @@ if (!$draft) { http_response_code(403); exit('Not authorized.'); }
 if ($draft['status'] !== 'draft') exit('This Wedding booking draft is no longer editable.');
 if (strtotime($draft['expires_at']) <= time()) exit('This Wedding booking draft has expired.');
 
-$q = $pdo->prepare('SELECT * FROM generated_wedding_forms WHERE draft_id = ? AND form_type = ?');
+$q = $pdo->prepare('SELECT g.*, d.review_status, d.verified, d.rejection_reason FROM generated_wedding_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.draft_id = ? AND g.form_type = ?');
 $q->execute([$draftId, $type]);
 $form = $q->fetch() ?: null;
 $data = $form ? (json_decode($form['form_data'], true) ?: []) : [];
@@ -148,11 +149,14 @@ if ($form && !empty($form['document_id'])) {
 }
 $pageTitle = $definition['title'];
 $usesPublicShell = !$user;
+$backLink = url('wedding-draft.php?draft_id=' . $draftId);
 include __DIR__ . '/includes/header.php';
 include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 'dash-start.php');
 ?>
 <div class="card" style="max-width:900px;margin:auto;">
+    <p style="margin-top:0;"><a href="<?= $backLink ?>" class="back-link">← Back to Wedding Requirements</a></p>
     <h2><?= e($definition['title']) ?></h2>
+    <?php generatedFormWorkflowGuide(true); ?>
     <?php if (in_array($type, ['matrimony_application', 'cluster_clearance'])): ?><p class="text-muted">Review and correct the applicant information before generating the official PDF. Ages are calculated from each birth date as of the wedding date.</p><?php endif; ?>
     <?php if ($error): ?><div class="alert"><?= e($error) ?></div><?php endif; ?>
     <?php if ($previewDocumentId): ?>
@@ -161,6 +165,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
             <a id="generatedFormFallback" href="<?= url('document.php?id=' . $previewDocumentId) ?>" target="_blank" rel="noopener"><strong>View Generated Form</strong></a>.
         </div>
     <?php endif; ?>
+    <?php if ($form && (($form['status'] ?? '') === 'rejected' || ($form['review_status'] ?? '') === 'rejected')): ?><div class="alert" style="background:var(--danger-bg); color:var(--danger);"><strong>Secretary requested revisions.</strong><?= !empty($form['rejection_reason']) ? ' ' . e($form['rejection_reason']) : ' Please review the form and generate a corrected PDF.' ?></div><?php endif; ?>
     <?php if ($type === 'matrimony_application' && $bookingContact['name'] !== ''): ?>
         <div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">
             <strong>Booking contact:</strong> <?= e($bookingContact['name']) ?><?= $bookingContact['phone'] ? ' · ' . e($bookingContact['phone']) : '' ?>

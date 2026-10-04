@@ -36,8 +36,16 @@ function appointmentGeneratedFormTitle(string $formType): string
 /** @return string[] */
 function appointmentReviewRequirementLabels(array $appointment): array
 {
+    // Finalized appointments carry the exact requirement set shown during
+    // booking. Prefer that snapshot so later catalog edits cannot silently
+    // change the review checklist for an existing appointment.
+    if (!empty($appointment['requirements_snapshot'])) {
+        $snapshot = json_decode((string) $appointment['requirements_snapshot'], true);
+        if (is_array($snapshot)) return array_values(array_filter(array_map('strval', $snapshot)));
+    }
+
     if (($appointment['category'] ?? '') === 'Wedding' && function_exists('weddingDraftRequiredDocuments')) {
-        return weddingDraftRequiredDocuments(['category' => 'Wedding']);
+        return weddingDraftRequiredDocuments($appointment);
     }
     if (($appointment['category'] ?? '') === 'Baptism' && function_exists('baptismDraftRequiredDocuments')) {
         return baptismDraftRequiredDocuments($appointment);
@@ -51,10 +59,6 @@ function appointmentReviewRequirementLabels(array $appointment): array
         return $snapshot ?: funeralDraftRequiredDocuments();
     }
 
-    if (!empty($appointment['requirements_snapshot'])) {
-        $snapshot = json_decode((string) $appointment['requirements_snapshot'], true);
-        if (is_array($snapshot)) return array_values(array_filter(array_map('strval', $snapshot)));
-    }
     return parseRequirementsList($appointment['requirements'] ?? '');
 }
 
@@ -172,7 +176,7 @@ function appointmentApprovalEligibility(array $appointment): array
     $generatedForms = appointmentGeneratedFormReviewRows($pdo, $appointmentId, $category);
     foreach ($generatedForms as $form) {
         $title = appointmentGeneratedFormTitle((string) $form['form_type']);
-        if (empty($form['document_id'])) {
+        if (empty($form['document_id']) || ($form['generated_status'] ?? '') === 'draft') {
             $addBlocking($title . ' is missing.');
         } elseif (!appointmentWorkflowBoolean($form['verified'] ?? false)) {
             $addBlocking($title . (($form['review_status'] ?? '') === 'rejected'

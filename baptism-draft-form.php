@@ -5,6 +5,7 @@ require_once __DIR__ . '/includes/baptism-draft.php';
 require_once __DIR__ . '/includes/baptism-forms.php';
 require_once __DIR__ . '/includes/wedding-forms.php';
 require_once __DIR__ . '/includes/document-storage.php';
+require_once __DIR__ . '/includes/generated-form-workflow.php';
 
 $id = (int) ($_GET['draft_id'] ?? $_POST['draft_id'] ?? 0);
 $appointmentId = (int) ($_GET['appointment_id'] ?? $_POST['appointment_id'] ?? 0);
@@ -34,7 +35,7 @@ if ($isAppointmentForm) {
         'contact_phone' => (string) (($appointment['contact_phone'] ?? '') ?: ($appointment['guest_phone'] ?? '')),
         'appointment_date' => (string) ($appointment['appointment_date'] ?? ''),
     ];
-    $q = $pdo->prepare('SELECT * FROM generated_baptism_forms WHERE appointment_id = ? AND form_type = ?');
+    $q = $pdo->prepare('SELECT g.*, d.review_status, d.verified, d.rejection_reason FROM generated_baptism_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.appointment_id = ? AND g.form_type = ?');
     $q->execute([$appointmentId, $type]);
 } else {
     $draft = baptismDraftLoad($pdo, $id, $user, baptismDraftToken($id));
@@ -43,7 +44,7 @@ if ($isAppointmentForm) {
         http_response_code(410);
         exit('This Baptism booking draft has expired or is no longer editable.');
     }
-    $q = $pdo->prepare('SELECT * FROM generated_baptism_forms WHERE draft_id = ? AND form_type = ?');
+    $q = $pdo->prepare('SELECT g.*, d.review_status, d.verified, d.rejection_reason FROM generated_baptism_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.draft_id = ? AND g.form_type = ?');
     $q->execute([$id, $type]);
 }
 $form = $q->fetch() ?: null;
@@ -159,14 +160,22 @@ if ($form && !empty($form['document_id'])) {
 }
 $pageTitle = $def['title'];
 $usesPublicShell = !$user;
+$backLink = $isAppointmentForm
+    ? ($isGuest
+        ? url('status.php?ref=' . urlencode((string) ($appointment['guest_reference'] ?? '')))
+        : url('parishioner/appointment-detail.php?id=' . $appointmentId))
+    : url('baptism-draft.php?draft_id=' . $id);
 include __DIR__ . '/includes/header.php';
 include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 'dash-start.php');
 ?>
 <div class="card">
+  <p style="margin-top:0;"><a href="<?= $backLink ?>" class="back-link">← Back to <?= $isAppointmentForm ? 'Appointment' : 'Baptism Requirements' ?></a></p>
   <h2><?= e($def['title']) ?></h2>
+  <?php generatedFormWorkflowGuide(!$isAppointmentForm); ?>
   <?php include __DIR__ . '/includes/flash.php'; ?>
   <?php if ($error): ?><div class="alert"><?= e($error) ?></div><?php endif; ?>
   <?php if ($previewDocumentId): ?><div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">The form was generated. If the PDF did not open automatically, <a href="<?= url('document.php?id=' . $previewDocumentId) ?>" target="_blank" rel="noopener"><strong>View Generated Form</strong></a>.</div><?php endif; ?>
+  <?php if ($form && (($form['status'] ?? '') === 'rejected' || ($form['review_status'] ?? '') === 'rejected')): ?><div class="alert" style="background:var(--danger-bg); color:var(--danger);"><strong>Secretary requested revisions.</strong><?= !empty($form['rejection_reason']) ? ' ' . e($form['rejection_reason']) : ' Please review the form and generate a corrected PDF.' ?></div><?php endif; ?>
   <form method="POST" id="baptismGeneratedForm">
     <?= csrfField() ?>
     <?php if ($isAppointmentForm): ?>
@@ -279,9 +288,6 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
       <button class="btn btn-outline" style="width: 100%;" name="action" value="save" formnovalidate>Save Draft</button>
     </div>
   </form>
-  <?php if (!$isAppointmentForm): ?>
-    <p style="margin-top:14px;"><a href="<?= url('baptism-draft.php?draft_id=' . $id) ?>">← Back to Baptism Requirements</a></p>
-  <?php endif; ?>
 </div>
 <script>
 (function () {

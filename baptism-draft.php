@@ -8,6 +8,7 @@ require_once __DIR__ . '/includes/document-validation.php';
 require_once __DIR__ . '/includes/supporting-documents.php';
 require_once __DIR__ . '/includes/wedding-forms.php';
 require_once __DIR__ . '/includes/scheduling.php';
+require_once __DIR__ . '/includes/generated-form-workflow.php';
 
 $id = (int) ($_GET['draft_id'] ?? $_POST['draft_id'] ?? 0);
 $pdo = db();
@@ -137,11 +138,12 @@ $uploadedDocuments = [];
 foreach ($stmt->fetchAll() as $document) {
     if (!isset($uploadedDocuments[$document['requirement_label']])) $uploadedDocuments[$document['requirement_label']] = $document;
 }
-$uploaded = array_keys($uploadedDocuments);
-$stmt = $pdo->prepare('SELECT form_type, document_id, status FROM generated_baptism_forms WHERE draft_id = ?');
+$stmt = $pdo->prepare('SELECT f.form_type, f.document_id, f.status, d.review_status, d.verified, d.rejection_reason FROM generated_baptism_forms f LEFT JOIN uploaded_documents d ON d.document_id = f.document_id WHERE f.draft_id = ?');
 $stmt->execute([$id]);
 $forms = [];
 foreach ($stmt->fetchAll() as $row) $forms[$row['form_type']] = $row;
+$missingRequirements = baptismDraftComplete($pdo, $draft);
+$canSubmit = $missingRequirements === [];
 $pageTitle = 'Baptism Requirements';
 $usesPublicShell = !$user;
 include __DIR__ . '/includes/header.php';
@@ -151,32 +153,29 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
 <?php renderSupportingDocumentCards(baptismDraftAllDocuments($draft), $uploadedDocuments, 'baptism_draft', $id); ?>
 </div>
 <div class="card"><h2>Baptism Forms</h2>
+<?php generatedFormWorkflowGuide(true); ?>
 <?php foreach (BAPTISM_DRAFT_FORMS as $type):
   $row = $forms[$type] ?? null;
   $documentId = $row && !empty($row['document_id']) ? (int) $row['document_id'] : 0;
-  $formStatus = (string) ($row['status'] ?? '');
-  $isGenerated = $documentId > 0;
-  $statusLabel = match ($formStatus) {
-      'draft' => 'Draft saved',
-      'pending_review' => 'Generated',
-      'approved' => 'Approved',
-      'rejected' => 'Needs Revision',
-      default => 'Not completed',
-  };
+  $state = generatedFormWorkflowState($row, $row, true);
   $title = baptismFormDefinition($type)['title'];
 ?>
 <div class="generated-form-item">
   <div class="generated-form-header">
     <span class="generated-form-title"><?= e($title) ?></span>
-    <span class="generated-form-status"><?= $isGenerated ? '✓ ' : '○ ' ?><?= e($statusLabel) ?></span>
+    <span class="generated-form-status"><?= $state['code'] === 'approved' ? '✓ ' : ($state['code'] === 'not_started' ? '○ ' : '') ?><?= e($state['label']) ?></span>
+    <div class="text-muted" style="margin-top:4px; font-size:.9rem;"><?= e($state['description']) ?></div>
+    <?php if (!empty($row['rejection_reason'])): ?><div class="text-muted" style="margin-top:4px; font-size:.9rem;">Secretary's note: <?= e($row['rejection_reason']) ?></div><?php endif; ?>
   </div>
   <div class="generated-form-actions">
-    <a class="btn btn-outline btn-sm" href="<?= url('baptism-draft-form.php?draft_id=' . $id . '&form_type=' . urlencode($type)) ?>"><?= !$row ? 'Complete Form' : ($formStatus === 'draft' ? 'Continue Editing' : ($formStatus === 'rejected' ? 'Edit and Regenerate' : 'Edit Form')) ?></a>
+    <?php if ($state['code'] !== 'approved'): ?><a class="btn btn-outline btn-sm" href="<?= url('baptism-draft-form.php?draft_id=' . $id . '&form_type=' . urlencode($type)) ?>"><?= e(generatedFormWorkflowActionLabel($state)) ?></a><?php endif; ?>
     <?php if ($documentId): ?>
       <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . $documentId) ?>">View PDF</a>
       <a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . $documentId . '&download=1') ?>">Download PDF</a>
     <?php endif; ?>
   </div>
 </div>
-<?php endforeach; ?><form method="POST"><?= csrfField() ?><button class="btn btn-primary" type="submit">Submit Appointment Request</button></form></div>
+<?php endforeach; ?>
+<?php if (!$canSubmit): ?><p class="helper-text">Complete all required supporting documents and generate every required Baptism form before submitting.</p><?php endif; ?>
+<form method="POST"><?= csrfField() ?><input type="hidden" name="action" value="submit_appointment"><button class="btn btn-primary" type="submit" <?= $canSubmit ? '' : 'disabled' ?>>Submit Appointment Request</button></form></div>
 <?php include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-end.php' : 'dash-end.php'); include __DIR__ . '/includes/footer.php';

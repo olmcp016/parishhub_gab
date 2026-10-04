@@ -98,7 +98,7 @@ function funeralKatinAwanNormalizeData(array $data): array
 }
 
 /** @return string[] */
-function funeralKatinAwanValidationErrors(array $data): array
+function funeralKatinAwanValidationErrors(array $data, bool $requireComplete = true): array
 {
     $data = funeralKatinAwanNormalizeData($data);
     $errors = [];
@@ -107,7 +107,9 @@ function funeralKatinAwanValidationErrors(array $data): array
         'kanus_a_namatay' => 'Kanus-a Namatay', 'unsay_namatyan' => 'Unsay Namatyan',
         'kanus_a_ilubong' => 'Kanus-a Ilubong', 'oras_sa_lubong' => 'Oras', 'responde' => 'Responde', 'kasal' => 'Unsang Kasala ang Nadawat',
     ];
-    foreach ($required as $key => $label) if ($data[$key] === '') $errors[] = $label . ' is required.';
+    if ($requireComplete) {
+        foreach ($required as $key => $label) if ($data[$key] === '') $errors[] = $label . ' is required.';
+    }
 
     if ($data['ngalan_sa_ilubong'] !== '' && validateName($data['ngalan_sa_ilubong']) === false) $errors[] = 'Name of the deceased must contain letters and may only use common name punctuation.';
     if ($data['edad'] !== '' && validateAge($data['edad']) === false) $errors[] = 'Enter a valid whole-number age from 0 to 120.';

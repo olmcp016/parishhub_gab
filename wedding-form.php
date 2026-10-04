@@ -7,6 +7,7 @@ require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/wedding-forms.php';
 require_once __DIR__ . '/includes/document-storage.php';
+require_once __DIR__ . '/includes/generated-form-workflow.php';
 
 $appointmentId = (int) ($_GET['appointment_id'] ?? $_POST['appointment_id'] ?? 0);
 $type = (string) ($_GET['form_type'] ?? $_POST['form_type'] ?? '');
@@ -28,7 +29,7 @@ if ($user) {
     if (!$q->fetchColumn()) { http_response_code(403); exit('Not authorized.'); }
 } elseif (!$isGuest) { http_response_code(403); exit('Verify the guest appointment before accessing this form.'); }
 
-$formQuery = db()->prepare('SELECT * FROM generated_wedding_forms WHERE appointment_id = ? AND form_type = ?');
+$formQuery = db()->prepare('SELECT g.*, d.review_status, d.verified, d.rejection_reason FROM generated_wedding_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.appointment_id = ? AND g.form_type = ?');
 $formQuery->execute([$appointmentId, $type]);
 $form = $formQuery->fetch() ?: null;
 $data = $form ? (json_decode($form['form_data'], true) ?: []) : [];
@@ -144,17 +145,23 @@ if ($form && !empty($form['document_id'])) {
 }
 $pageTitle = $def['title'];
 $usesPublicShell = !$user;
+$backLink = $isGuest
+    ? url('status.php?ref=' . urlencode((string) ($appointment['guest_reference'] ?? '')))
+    : url('parishioner/appointment-detail.php?id=' . $appointmentId);
 include __DIR__ . '/includes/header.php';
 include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 'dash-start.php');
 ?>
 <div class="card" style="max-width:900px; margin:auto;">
+  <p style="margin-top:0;"><a href="<?= $backLink ?>" class="back-link">← Back to Appointment</a></p>
   <h2><?= e($def['title']) ?></h2>
+  <?php generatedFormWorkflowGuide(false); ?>
   <p class="text-muted"><?= $type === 'matrimony_application' ? 'Review and correct the applicant information before generating the official PDF. Ages are calculated from each birth date as of the wedding date.' : 'Complete the form, save a draft, or generate a printable unsigned PDF. Physical signature areas remain blank.' ?></p>
   <?php include __DIR__ . '/includes/flash.php'; ?>
   <?php if ($error): ?><div class="alert" style="background:var(--danger-bg); color:var(--danger); border:1px solid #f5c2c2;"><?= e($error) ?></div><?php endif; ?>
   <?php if ($previewDocumentId): ?>
     <div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">The application form was generated. If the PDF did not open automatically, <a href="<?= url('document.php?id=' . $previewDocumentId) ?>" target="_blank" rel="noopener"><strong>View Generated Form</strong></a>.</div>
   <?php endif; ?>
+  <?php if ($form && (($form['status'] ?? '') === 'rejected' || ($form['review_status'] ?? '') === 'rejected')): ?><div class="alert" style="background:var(--danger-bg); color:var(--danger);"><strong>Secretary requested revisions.</strong><?= !empty($form['rejection_reason']) ? ' ' . e($form['rejection_reason']) : ' Please review the form and generate a corrected PDF.' ?></div><?php endif; ?>
   <?php if ($type === 'matrimony_application' && $bookingContact['name'] !== ''): ?>
     <div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">
       <strong>Booking contact:</strong> <?= e($bookingContact['name']) ?><?= $bookingContact['phone'] ? ' · ' . e($bookingContact['phone']) : '' ?>

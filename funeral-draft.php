@@ -6,6 +6,7 @@ require_once __DIR__ . '/includes/document-validation.php';
 require_once __DIR__ . '/includes/supporting-documents.php';
 require_once __DIR__ . '/includes/funeral-draft.php';
 require_once __DIR__ . '/includes/funeral-forms.php';
+require_once __DIR__ . '/includes/generated-form-workflow.php';
 
 $draftId = (int) ($_GET['draft_id'] ?? $_POST['draft_id'] ?? 0);
 $user = currentUser();
@@ -123,6 +124,13 @@ foreach (array_filter($draft['uploaded_keys'] ?? [], 'is_array') as $document) {
     if (!isset($uploadedDocuments[$document['label'] ?? ''])) $uploadedDocuments[$document['label'] ?? ''] = $document;
 }
 $hasKatinAwan = funeralDraftHasGeneratedForm($draft);
+$funeralFormState = generatedFormWorkflowState(
+    $hasKatinAwan ? ['status' => 'generated', '_has_document' => true] : null,
+    null,
+    true
+);
+$missingRequirements = funeralDraftMissingRequirements($draft);
+$canSubmit = $missingRequirements === [];
 
 $pageTitle = 'Funeral Requirements';
 $usesPublicShell = !empty($draft['is_guest']);
@@ -134,18 +142,21 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
 <?php renderSupportingDocumentCards(funeralDraftRequiredDocuments(), $uploadedDocuments, 'funeral_draft', $draftId); ?>
 </div>
 <div class="card"><h2>Funeral Forms</h2>
+<?php generatedFormWorkflowGuide(true); ?>
 <div class="generated-form-item">
   <div class="generated-form-header">
     <span class="generated-form-title">Katin-awan sa Paglubong</span>
-    <span class="generated-form-status"><?= $hasKatinAwan ? '✓ Generated' : '○ Not completed' ?></span>
+    <span class="generated-form-status"><?= $funeralFormState['code'] === 'generated' ? '✓ ' : '○ ' ?><?= e($funeralFormState['label']) ?></span>
+    <div class="text-muted" style="margin-top:4px; font-size:.9rem;"><?= e($funeralFormState['description']) ?></div>
   </div>
   <div class="generated-form-actions">
-    <a class="btn btn-outline btn-sm" href="<?= url('funeral-form.php?draft_id=' . $draftId) ?>"><?= $hasKatinAwan ? 'Edit Form' : 'Complete Form' ?></a>
+    <a class="btn btn-outline btn-sm" href="<?= url('funeral-form.php?draft_id=' . $draftId) ?>"><?= e(generatedFormWorkflowActionLabel($funeralFormState)) ?></a>
     <?php if ($hasKatinAwan): ?>
       <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?funeral_draft_id=' . $draftId) ?>">View PDF</a>
       <a class="btn btn-outline btn-sm" href="<?= url('document.php?funeral_draft_id=' . $draftId . '&download=1') ?>">Download PDF</a>
     <?php endif; ?>
   </div>
 </div>
-<form method="POST"><?= csrfField() ?><input type="hidden" name="draft_id" value="<?= $draftId ?>"><input type="hidden" name="action" value="submit_appointment"><button class="btn btn-primary" type="submit">Submit Appointment Request</button></form></div>
+<?php if (!$canSubmit): ?><p class="helper-text">Upload the required Death Certificate and generate the Funeral form before submitting.</p><?php endif; ?>
+<form method="POST"><?= csrfField() ?><input type="hidden" name="draft_id" value="<?= $draftId ?>"><input type="hidden" name="action" value="submit_appointment"><button class="btn btn-primary" type="submit" <?= $canSubmit ? '' : 'disabled' ?>>Submit Appointment Request</button></form></div>
 <?php include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-end.php' : 'dash-end.php'); include __DIR__ . '/includes/footer.php';

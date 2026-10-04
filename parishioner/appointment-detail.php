@@ -6,6 +6,7 @@ require_once __DIR__ . '/../includes/wedding-forms.php';
 require_once __DIR__ . '/../includes/baptism-forms.php';
 require_once __DIR__ . '/../includes/document-validation.php';
 require_once __DIR__ . '/../includes/supporting-documents.php';
+require_once __DIR__ . '/../includes/generated-form-workflow.php';
 requireRole('Parishioner');
 
 $userId = currentUser()['user_id'];
@@ -298,15 +299,16 @@ if (!$isAjax) {
     <p><strong>Priest:</strong> <?= e($appointment['priest_name'] ?? 'Not yet assigned') ?></p>
     <?php if ($appointment['category'] === 'Wedding'): ?>
       <hr style="border-color:var(--cream-dark); margin:18px 0;"><h4>Wedding Forms</h4>
-      <?php foreach ($generatedForms as $gf): $status = $gf['review_status'] ?? 'pending'; ?>
+      <?php foreach ($generatedForms as $gf): $state = generatedFormWorkflowState($gf, $gf, false); ?>
         <div class="generated-form-item">
           <div class="generated-form-header">
             <span class="generated-form-title"><?= e(weddingFormDefinition($gf['form_type'])['title']) ?></span>
-            <span class="generated-form-status">Status: <?= e(weddingFormStatusLabel($gf['status'])) ?></span>
+            <span class="generated-form-status">Status: <?= e($state['label']) ?></span>
+            <div class="text-muted" style="margin-top:4px; font-size:.9rem;"><?= e($state['description']) ?></div>
             <?php if ($gf['rejection_reason']): ?><div class="text-muted" style="margin-top:4px; font-size:0.9rem;">Reason: <?= e($gf['rejection_reason']) ?></div><?php endif; ?>
           </div>
           <div class="generated-form-actions">
-            <?php if (($gf['status'] ?? '') !== 'approved' && (int) $appointment['status_id'] === 1): ?><a class="btn btn-outline btn-sm" href="<?= url('wedding-form.php?appointment_id=' . $id . '&form_type=' . urlencode($gf['form_type'])) ?>"><?= $status === 'rejected' ? 'Edit and Regenerate Form' : 'Edit Form' ?></a><?php endif; ?>
+            <?php if ($state['code'] !== 'approved' && (int) $appointment['status_id'] === 1): ?><a class="btn btn-outline btn-sm" href="<?= url('wedding-form.php?appointment_id=' . $id . '&form_type=' . urlencode($gf['form_type'])) ?>"><?= e(generatedFormWorkflowActionLabel($state)) ?></a><?php endif; ?>
             <?php if ($gf['document_id']): ?>
               <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>"><?= $gf['form_type'] === 'matrimony_application' ? 'View Generated Form' : 'View PDF' ?></a>
               <a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . (int) $gf['document_id'] . '&download=1') ?>">Download PDF</a>
@@ -318,15 +320,16 @@ if (!$isAjax) {
     <?php elseif ($appointment['category'] === 'Baptism'): ?>
       <hr style="border-color:var(--cream-dark); margin:18px 0;"><h4>Baptism Forms</h4>
       <?php $baptismTitles = ['katin_awan_bunyag' => 'KATIN-AWAN SA BUNYAG', 'cluster_clearance_baptism_sponsor' => 'CLUSTER CLEARANCE FOR BAPTISM SPONSOR']; ?>
-      <?php foreach ($generatedForms as $gf): $baptismStatus = $gf['review_status'] ?? 'pending'; ?>
+      <?php foreach ($generatedForms as $gf): $state = generatedFormWorkflowState($gf, $gf, false); ?>
         <div class="generated-form-item">
           <div class="generated-form-header">
             <span class="generated-form-title"><?= e($baptismTitles[$gf['form_type']] ?? $gf['form_type']) ?></span>
-            <span class="generated-form-status">Status: <?= e($baptismStatus === 'rejected' ? 'Needs Revision' : ($baptismStatus === 'approved' ? 'Approved' : 'Pending Review')) ?></span>
+            <span class="generated-form-status">Status: <?= e($state['label']) ?></span>
+            <div class="text-muted" style="margin-top:4px; font-size:.9rem;"><?= e($state['description']) ?></div>
             <?php if ($gf['rejection_reason']): ?><div class="text-muted" style="margin-top:4px; font-size:0.9rem;">Reason: <?= e($gf['rejection_reason']) ?></div><?php endif; ?>
           </div>
           <div class="generated-form-actions">
-            <?php if (($gf['status'] ?? '') !== 'approved' && (int) $appointment['status_id'] === 1): ?><a class="btn btn-outline btn-sm" href="<?= url('baptism-draft-form.php?appointment_id=' . $id . '&form_type=' . urlencode($gf['form_type'])) ?>"><?= $baptismStatus === 'rejected' ? 'Edit and Regenerate Form' : 'Edit Form' ?></a><?php endif; ?>
+            <?php if ($state['code'] !== 'approved' && (int) $appointment['status_id'] === 1): ?><a class="btn btn-outline btn-sm" href="<?= url('baptism-draft-form.php?appointment_id=' . $id . '&form_type=' . urlencode($gf['form_type'])) ?>"><?= e(generatedFormWorkflowActionLabel($state)) ?></a><?php endif; ?>
             <?php if ($gf['document_id']): ?>
               <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>">View PDF</a>
               <a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . (int) $gf['document_id'] . '&download=1') ?>">Download PDF</a>
@@ -529,23 +532,20 @@ if (!$isAjax) {
                 $gfQuery = db()->prepare('SELECT * FROM generated_funeral_forms WHERE appointment_id = ?');
                 $gfQuery->execute([$appointment['appointment_id']]);
                 $gf = $gfQuery->fetch() ?: null;
-                $gfStatus = $gf ? $gf['status'] : 'draft';
-                if (!empty($matches)) { $gfStatus = 'generated'; }
-                $funeralApproved = !empty($matches) && (($matches[0]['review_status'] ?? 'pending') === 'approved' || ($matches[0]['verified'] ?? false));
+                $stateForm = $gf ?: (!empty($matches) ? ['status' => 'generated', 'document_id' => $matches[0]['document_id']] : null);
+                $state = generatedFormWorkflowState($stateForm, $matches[0] ?? null, false);
+                $funeralApproved = $state['code'] === 'approved';
             ?>
             <div class="generated-form-item" style="margin-top: 16px;">
               <div class="generated-form-header">
                 <span class="generated-form-title"><?= e($label) ?></span>
-                <span class="generated-form-status">Status: <?php
-                  if ($gfStatus === 'draft') echo '<span class="badge badge-rejected">Missing</span>';
-                  elseif ($gfStatus === 'generated' && (($matches[0]['review_status'] ?? 'pending') === 'approved' || ($matches[0]['verified'] ?? false))) echo '<span class="badge badge-verified">Verified/Accepted</span>';
-                  elseif ($gfStatus === 'rejected') echo '<span class="badge badge-rejected">Needs Revision</span>';
-                  else echo '<span class="badge badge-pending">Generated — Pending Review</span>';
-                ?></span>
+                <span class="generated-form-status">Status: <?= e($state['label']) ?></span>
+                <div class="text-muted" style="margin-top:4px; font-size:.9rem;"><?= e($state['description']) ?></div>
+                <?php if (!empty($gf['rejection_reason'])): ?><div class="text-muted" style="margin-top:4px; font-size:.9rem;">Secretary's note: <?= e($gf['rejection_reason']) ?></div><?php endif; ?>
               </div>
               <div class="generated-form-actions">
-                <?php if (!$funeralApproved && (int) $appointment['status_id'] === 1 && ($canUpload || $gfStatus === 'draft' || $gfStatus === 'rejected')): ?>
-                  <a href="<?= url('funeral-form.php?appointment_id=' . (int) $appointment['appointment_id']) ?>" class="btn btn-outline btn-sm"><?= $gfStatus === 'draft' ? 'Fill Out Form' : ($gfStatus === 'rejected' ? 'Edit and Regenerate Form' : 'Edit Form') ?></a>
+                <?php if (!$funeralApproved && (int) $appointment['status_id'] === 1 && ($canUpload || $state['code'] === 'draft' || $state['code'] === 'needs_revision')): ?>
+                  <a href="<?= url('funeral-form.php?appointment_id=' . (int) $appointment['appointment_id']) ?>" class="btn btn-outline btn-sm"><?= e(generatedFormWorkflowActionLabel($state)) ?></a>
                 <?php endif; ?>
                 <?php if (!empty($matches)): foreach ($matches as $d): ?>
                   <a href="<?= documentViewUrl((int) $d['document_id']) ?>" target="_blank" rel="noopener" class="btn btn-outline btn-sm">View Generated Form</a>

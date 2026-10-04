@@ -7,6 +7,7 @@ require_once __DIR__ . '/../includes/wedding-forms.php';
 require_once __DIR__ . '/../includes/wedding-draft.php';
 require_once __DIR__ . '/../includes/baptism-forms.php';
 require_once __DIR__ . '/../includes/appointment-workflow.php';
+require_once __DIR__ . '/../includes/generated-form-workflow.php';
 requireRole('Secretary', 'Admin');
 
 $id = (int) ($_GET['id'] ?? 0);
@@ -688,26 +689,28 @@ if (!$isAjax) {
             <thead><tr><th>Requirement</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               <?php foreach ($generatedForms as $gf): ?>
-                <?php $formStatus = $gf['document_id'] ? ($gf['review_status'] ?? 'pending') : 'missing'; ?>
+                <?php $formState = generatedFormWorkflowState($gf, $gf, false); $formStatus = $formState['code']; ?>
                 <tr>
                   <td data-label="Requirement">
-                    <strong><?= e($formTitles[$gf['form_type']] ?? $gf['form_type']) ?></strong><br>
+                    <strong><?= e(appointmentGeneratedFormTitle((string) $gf['form_type'])) ?></strong><br>
                     <?php if ($gf['document_id']): ?>
                       <a href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>" target="_blank" rel="noopener" style="font-size:0.9em; display:inline-flex; align-items:center; gap:4px; margin-top:4px;">📄 View Generated PDF</a>
                     <?php else: ?>
                       <span class="text-muted" style="font-size:0.9em;">Not completed yet</span>
                     <?php endif; ?>
+                    <div class="text-muted" style="font-size:0.85em; margin-top:4px;"><?= e($formState['description']) ?></div>
                     <?php if ($gf['rejection_reason']): ?><div class="text-muted" style="font-size:0.85em; margin-top:4px;">Reason: <?= e($gf['rejection_reason']) ?></div><?php endif; ?>
                   </td>
                   <td data-label="Status">
                     <?php if ($formStatus === 'approved'): ?><span class="badge badge-verified">Approved</span>
-                    <?php elseif ($formStatus === 'rejected'): ?><span class="badge badge-rejected">Needs Revision</span>
-                    <?php elseif ($formStatus === 'missing'): ?><span class="badge badge-rejected">Missing</span>
+                    <?php elseif ($formStatus === 'needs_revision'): ?><span class="badge badge-rejected">Needs Revision</span>
+                    <?php elseif ($formStatus === 'not_started'): ?><span class="badge badge-rejected">Missing</span>
+                    <?php elseif ($formStatus === 'draft'): ?><span class="badge badge-pending">Draft saved</span>
                     <?php else: ?><span class="badge badge-pending">Pending Review</span><?php endif; ?>
                   </td>
                   <td data-label="Actions">
                     <div class="review-actions">
-                    <?php if ($gf['document_id'] && $formStatus === 'pending' && (int) $appointment['status_id'] === 1): ?>
+                    <?php if ($gf['document_id'] && $formStatus === 'pending_review' && (int) $appointment['status_id'] === 1): ?>
                       <form method="POST" action="<?= e($redirectUrl) ?>" class="review-approve-form">
                         <?= csrfField() ?><input type="hidden" name="action" value="verify_document"><input type="hidden" name="document_id" value="<?= $gf['document_id'] ?>">
                         <button type="submit" class="btn btn-success btn-sm">Approve</button>
@@ -717,7 +720,7 @@ if (!$isAjax) {
                     </div>
                   </td>
                 </tr>
-                <?php if ($gf['document_id'] && $formStatus === 'pending' && (int) $appointment['status_id'] === 1): ?>
+                <?php if ($gf['document_id'] && $formStatus === 'pending_review' && (int) $appointment['status_id'] === 1): ?>
                   <tr id="rejectFormRow_<?= $gf['document_id'] ?>" class="review-rejection-row" hidden>
                     <td colspan="3">
                       <form id="rejectForm_<?= $gf['document_id'] ?>" class="review-rejection-form" method="POST" action="<?= e($redirectUrl) ?>">

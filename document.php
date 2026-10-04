@@ -122,12 +122,22 @@ if ($formType) {
     
     $formData = [];
     if (in_array($formType, ['matrimony_application', 'cluster_clearance', 'wedding_sponsor_clearance'])) {
-        $stmt = db()->prepare('SELECT form_data FROM generated_wedding_forms WHERE draft_id = ? AND form_type = ?');
-        $stmt->execute([$document['draft_id'], $formType]);
+        if ($document['appointment_id'] !== null) {
+            $stmt = db()->prepare('SELECT form_data FROM generated_wedding_forms WHERE appointment_id = ? AND form_type = ?');
+            $stmt->execute([$document['appointment_id'], $formType]);
+        } else {
+            $stmt = db()->prepare('SELECT form_data FROM generated_wedding_forms WHERE draft_id = ? AND form_type = ?');
+            $stmt->execute([$document['draft_id'], $formType]);
+        }
         if ($row = $stmt->fetch()) $formData = json_decode($row['form_data'], true) ?: [];
     } elseif (in_array($formType, ['katin_awan_bunyag', 'cluster_clearance_baptism_sponsor'])) {
-        $stmt = db()->prepare('SELECT form_data FROM generated_baptism_forms WHERE draft_id = ? AND form_type = ?');
-        $stmt->execute([$document['baptism_draft_id'], $formType]);
+        if ($document['appointment_id'] !== null) {
+            $stmt = db()->prepare('SELECT form_data FROM generated_baptism_forms WHERE appointment_id = ? AND form_type = ?');
+            $stmt->execute([$document['appointment_id'], $formType]);
+        } else {
+            $stmt = db()->prepare('SELECT form_data FROM generated_baptism_forms WHERE draft_id = ? AND form_type = ?');
+            $stmt->execute([$document['baptism_draft_id'], $formType]);
+        }
         if ($row = $stmt->fetch()) $formData = json_decode($row['form_data'], true) ?: [];
     } elseif ($formType === 'katin_awan_paglubong') {
         $stmt = db()->prepare('SELECT form_data FROM generated_funeral_forms WHERE appointment_id = ?');
