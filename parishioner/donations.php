@@ -230,7 +230,7 @@ include __DIR__ . '/../includes/' . ($isGuest ? 'public-shell-start.php' : 'dash
 
         <div class="form-group">
           <label>Donation Amount</label>
-          <input type="number" name="amount" min="1" step="0.01" placeholder="e.g. 500" required>
+          <input type="number" name="amount" min="1" step="0.01" value="0" class="amount-no-spinner" onfocus="if(this.value==='0') this.value='';" onblur="if(this.value==='') this.value='0';" required>
         </div>
 
         <div class="form-group">
