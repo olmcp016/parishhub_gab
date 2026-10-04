@@ -73,7 +73,9 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
       <p style="font-size:14px;"><?= e($s['description']) ?></p>
       <?php 
       $scheduleDisplay = null;
-      if (in_array($s['category'], ['Baptism', 'Wedding', 'Blessing', 'Confirmation'])) {
+      if ($s['category'] === 'Blessing') {
+          $scheduleDisplay = null;
+      } elseif (in_array($s['category'], ['Baptism', 'Wedding', 'Confirmation'])) {
           $scheduleDesc = describeRegularSchedule((int)$s['service_id']);
           if (str_starts_with($scheduleDesc, 'No Regular schedule')) {
               $scheduleDisplay = 'Schedule arranged with the Parish Office';
@@ -140,7 +142,14 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
           <h4><?= e($feeSchedule) ?> Schedule</h4>
           <div class="table-wrap"><table><thead><tr><th></th><th>PSS Giver</th><th>Non-PSS Giver</th></tr></thead><tbody>
           <?php $pssRule = array_values(array_filter($feeRulesByCategory[$feeCategory], fn($r) => $r['schedule_type'] === $feeSchedule && $r['pss_classification'] === 'pss'))[0] ?? null; $nonRule = array_values(array_filter($feeRulesByCategory[$feeCategory], fn($r) => $r['schedule_type'] === $feeSchedule && $r['pss_classification'] === 'non_pss'))[0] ?? null; ?>
-          <?php if ($pssRule && $nonRule): ?><tr><td>Base Fee</td><td><?= feeLabel((float) $pssRule['base_fee']) ?></td><td><?= feeLabel((float) $nonRule['base_fee']) ?></td></tr><tr><td>Priest Stipend</td><td><?= feeLabel((float) $pssRule['priest_stipend']) ?></td><td><?= feeLabel((float) $nonRule['priest_stipend']) ?></td></tr><tr><td>Additional Sponsor</td><td><span style="font-size:0.85em;color:var(--gray-dark);">(No fees up to <?= (int) $pssRule['included_sponsors'] ?> sponsors)</span><br><?= feeLabel((float) $pssRule['additional_sponsor_fee']) ?> per additional sponsor</td><td><span style="font-size:0.85em;color:var(--gray-dark);">(No fees up to <?= (int) $nonRule['included_sponsors'] ?> sponsors)</span><br><?= feeLabel((float) $nonRule['additional_sponsor_fee']) ?> per additional sponsor</td></tr><?php endif; ?>
+          <?php if ($pssRule && $nonRule): ?>
+            <tr><td>Base Fee</td><td><?= feeLabel((float) $pssRule['base_fee']) ?></td><td><?= feeLabel((float) $nonRule['base_fee']) ?></td></tr>
+            <tr><td>Priest Stipend</td><td><?= feeLabel((float) $pssRule['priest_stipend']) ?></td><td><?= feeLabel((float) $nonRule['priest_stipend']) ?></td></tr>
+            <tr><td>Additional Sponsor</td>
+                <td><span style="font-size:0.85em;color:var(--gray-dark);">(No fees up to <?= $feeCategory === 'Wedding' ? 2 : (int) $pssRule['included_sponsors'] ?> sponsors)</span><br><?= feeLabel((float) $pssRule['additional_sponsor_fee']) ?> per additional sponsor</td>
+                <td><span style="font-size:0.85em;color:var(--gray-dark);">(No fees up to <?= $feeCategory === 'Wedding' ? 2 : (int) $nonRule['included_sponsors'] ?> sponsors)</span><br><?= feeLabel((float) $nonRule['additional_sponsor_fee']) ?> per additional sponsor</td>
+            </tr>
+          <?php endif; ?>
           </tbody></table></div>
         <?php endforeach; ?>
       </div>
@@ -259,7 +268,7 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
           <label>Number of Sponsors</label><input type="number" class="numeric-no-spinner numeric-zero-friendly" name="sponsor_count" id="sponsorCountInput" min="0" max="100" step="1" value="0">
         </div>
         <div id="weddingSponsorCountGroup" class="form-group" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px;">
-          <label>Number of Individual Sponsors</label><input type="number" class="numeric-no-spinner numeric-zero-friendly" name="wedding_sponsor_count" id="weddingSponsorCountInput" min="0" max="200" step="1" value="0"><p class="helper-text">The first 4 individual sponsors (2 pairs) are included; each additional individual sponsor is ₱100.</p>
+          <label>Number of Individual Sponsors</label><input type="number" class="numeric-no-spinner numeric-zero-friendly" name="wedding_sponsor_count" id="weddingSponsorCountInput" min="0" max="200" step="1" value="0"><p class="helper-text">The first 2 sponsors are included; each additional individual sponsor is ₱100.</p>
         </div>
         <div id="regularSlotGroup" class="form-group" style="display:none;">
           <label>Preferred Date</label>

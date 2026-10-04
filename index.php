@@ -134,7 +134,9 @@ include __DIR__ . '/includes/header.php';
         <p><?= e($s['description']) ?></p>
         <?php 
         $scheduleDisplay = null;
-        if (in_array($s['category'], ['Baptism', 'Wedding', 'Blessing', 'Confirmation'])) {
+        if ($s['category'] === 'Blessing') {
+            $scheduleDisplay = null;
+        } elseif (in_array($s['category'], ['Baptism', 'Wedding', 'Confirmation'])) {
             $scheduleDesc = describeRegularSchedule((int)$s['service_id']);
             if (str_starts_with($scheduleDesc, 'No Regular schedule')) {
                 $scheduleDisplay = 'Schedule arranged with the Parish Office';
