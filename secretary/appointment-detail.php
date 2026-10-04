@@ -6,6 +6,7 @@ require_once __DIR__ . '/../includes/service-fees.php';
 require_once __DIR__ . '/../includes/wedding-forms.php';
 require_once __DIR__ . '/../includes/wedding-draft.php';
 require_once __DIR__ . '/../includes/baptism-forms.php';
+require_once __DIR__ . '/../includes/appointment-workflow.php';
 requireRole('Secretary', 'Admin');
 
 $id = (int) ($_GET['id'] ?? 0);
@@ -69,8 +70,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'reject_document') {
         $reason = trim($_POST['document_rejection_reason'] ?? '');
-        if ($reason === '' || mb_strlen($reason) > 1000) {
-            respondAjaxOrRedirect($isAjax, false, 'A document rejection reason is required.', $redirectUrl);
+        if ($reason === '') {
+            respondAjaxOrRedirect($isAjax, false, 'Please provide a reason for rejection.', $redirectUrl);
+        }
+        if (mb_strlen($reason) > 1000) {
+            respondAjaxOrRedirect($isAjax, false, 'The rejection reason must be 1000 characters or fewer.', $redirectUrl);
         }
         if ($currentStatusId !== 1) {
             respondAjaxOrRedirect($isAjax, false, 'Documents can only be reviewed while the appointment is pending.', $redirectUrl);
@@ -171,90 +175,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($currentStatusId !== 1 || in_array($actionAppointment['category'], ['Mass Intention', 'Donation'], true)) {
             respondAjaxOrRedirect($isAjax, false, 'This appointment is no longer pending approval.', $redirectUrl);
         }
-        // Require that EVERY named requirement has a verified upload before
-        // approving — not just "at least one document total" as before.
-        // Mass Intentions and Donations never require documents — they're
-        // auto-approved on submission anyway, but this also covers any
-        // legacy pending records.
-        $stmt = db()->prepare(
-            "SELECT a.requirements_snapshot, s.requirements, s.category FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_id = ?"
-        );
-        $stmt->execute([$id]);
-        $svc = $stmt->fetch();
-        $requirementsList = $svc['category'] === 'Wedding'
-            ? weddingDraftRequiredDocuments(['category' => 'Wedding'])
-            : (!empty($svc['requirements_snapshot']) ? (json_decode($svc['requirements_snapshot'], true) ?: []) : parseRequirementsList($svc['requirements']));
 
-        if (!in_array($svc['category'], ['Mass Intention', 'Donation'], true)) {
-            $stmt = db()->prepare('SELECT document_source, requirement_label, verified FROM uploaded_documents WHERE appointment_id = ? AND superseded_by IS NULL');
+        // Lock the appointment while evaluating the same prerequisites shown
+        // in the modal. This makes two near-simultaneous approval requests
+        // converge on one canonical status transition.
+        $pdo = db();
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare(
+                'SELECT a.*, s.category, s.requirements
+                 FROM appointments a JOIN services s ON a.service_id = s.service_id
+                 WHERE a.appointment_id = ? FOR UPDATE'
+            );
             $stmt->execute([$id]);
-            $docs = $stmt->fetchAll();
-            $hasAnyLabel = array_reduce($docs, fn($carry, $d) => $carry || $d['requirement_label'], false);
-
-            if ($hasAnyLabel || !empty($requirementsList)) {
-                // New-style upload with per-requirement labels — every named item must be verified.
-                $latestByLabel = [];
-                foreach ($docs as $doc) {
-                    if (!$doc['requirement_label'] || !isset($latestByLabel[$doc['requirement_label']])) {
-                        $latestByLabel[$doc['requirement_label']] = $doc;
-                    }
-                }
-                $verifiedLabels = array_keys(array_filter($latestByLabel, fn($d) => $d['verified']));
-                $missing = array_diff($requirementsList, $verifiedLabels);
-                
-                // Add checks for generated forms
-                $generatedForms = [];
-                if ($svc['category'] === 'Wedding') {
-                    $stmt = db()->prepare("SELECT g.form_type, d.verified FROM generated_wedding_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.appointment_id = ?");
-                    $stmt->execute([$id]);
-                    $generatedForms = $stmt->fetchAll();
-                } elseif ($svc['category'] === 'Baptism') {
-                    $stmt = db()->prepare("SELECT g.form_type, d.verified FROM generated_baptism_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.appointment_id = ?");
-                    $stmt->execute([$id]);
-                    $generatedForms = $stmt->fetchAll();
-                } elseif ($svc['category'] === 'Funeral') {
-                    $stmt = db()->prepare("SELECT g.form_type, d.verified FROM generated_funeral_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.appointment_id = ?");
-                    $stmt->execute([$id]);
-                    $generatedForms = $stmt->fetchAll();
-                }
-                
-                $formTitles = [
-                    'marriage_application' => 'Marriage Requirement and Application Form',
-                    'katin_awan_kasal' => 'Katin-awan sa Kasal',
-                    'cluster_clearance_wedding_sponsor' => 'Cluster Clearance for Wedding Sponsor',
-                    'katin_awan_bunyag' => 'Katin-awan sa Bunyag',
-                    'cluster_clearance_baptism_sponsor' => 'Cluster Clearance for Baptism Sponsor',
-                    'katin_awan_paglubong' => 'Katin-awan sa Paglubong'
-                ];
-                
-                foreach ($generatedForms as $gf) {
-                    if (empty($gf['verified'])) {
-                        $missing[] = $formTitles[$gf['form_type']] ?? $gf['form_type'];
-                    }
-                }
-
-                if (!empty($missing)) {
-                    respondAjaxOrRedirect($isAjax, false, 'The following required document(s) still need to be uploaded and verified before approving: ' . implode(', ', $missing) . '.', $redirectUrl);
-                }
-            } else {
-                // Legacy appointment (uploaded before per-requirement tracking existed) —
-                // keep the original, looser "at least one verified document" check.
-                $verifiedCount = count(array_filter($docs, fn($d) => $d['verified']));
-                if ($verifiedCount === 0) {
-                    respondAjaxOrRedirect($isAjax, false, 'This service requires documents (' . $svc['requirements'] . '). Please verify at least one uploaded document before approving, or contact the parishioner to submit them.', $redirectUrl);
-                }
+            $lockedAppointment = $stmt->fetch();
+            if (!$lockedAppointment || (int) $lockedAppointment['status_id'] !== 1) {
+                throw new RuntimeException('This appointment is no longer pending approval.');
             }
+
+            $eligibility = appointmentApprovalEligibility($lockedAppointment);
+            if (!$eligibility['can_approve']) {
+                $pdo->rollBack();
+                respondAjaxOrRedirect(
+                    $isAjax,
+                    false,
+                    'Cannot approve yet: ' . implode(' ', $eligibility['blocking_reasons']),
+                    $redirectUrl
+                );
+            }
+
+            $update = $pdo->prepare(
+                'UPDATE appointments
+                 SET status_id = 2, approved_by = ?, approved_at = NOW()
+                 WHERE appointment_id = ? AND status_id = 1'
+            );
+            $update->execute([$userId, $id]);
+            if ($update->rowCount() !== 1) {
+                throw new RuntimeException('This appointment is no longer pending approval.');
+            }
+            $parId = $lockedAppointment['parishioner_id'];
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            if ($e instanceof RuntimeException && str_starts_with($e->getMessage(), 'This appointment is no longer')) {
+                respondAjaxOrRedirect($isAjax, false, $e->getMessage(), $redirectUrl);
+            }
+            error_log('Appointment approval failed: ' . $e->getMessage());
+            respondAjaxOrRedirect($isAjax, false, 'The appointment could not be approved. Please try again.', $redirectUrl);
         }
 
-        $update = db()->prepare("UPDATE appointments SET status_id = 2, approved_by = ?, approved_at = NOW() WHERE appointment_id = ? AND status_id = 1");
-        $update->execute([$userId, $id]);
-        if ($update->rowCount() !== 1) {
-            respondAjaxOrRedirect($isAjax, false, 'This appointment is no longer pending approval.', $redirectUrl);
-        }
-        $stmt = db()->prepare("SELECT parishioner_id FROM appointments WHERE appointment_id = ?");
-        $stmt->execute([$id]);
-        $parId = $stmt->fetchColumn();
-        $stmt = db()->prepare("SELECT user_id FROM parishioners WHERE parishioner_id = ?");
+        $stmt = db()->prepare('SELECT user_id FROM parishioners WHERE parishioner_id = ?');
         $stmt->execute([$parId]);
         $puid = $stmt->fetchColumn();
         db()->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Appointment Approved', ?)")
@@ -274,7 +244,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($selectedReason === 'Other') {
             $reason = trim($_POST['custom_rejection_reason'] ?? '');
             if ($reason === '') {
-                respondAjaxOrRedirect($isAjax, false, 'Please specify the reason for rejecting this appointment.', $redirectUrl);
+                respondAjaxOrRedirect($isAjax, false, 'Please provide a reason for rejection.', $redirectUrl);
             }
             if (mb_strlen($reason) > 500) {
                 respondAjaxOrRedirect($isAjax, false, 'The custom rejection reason must be 500 characters or fewer.', $redirectUrl);
@@ -312,10 +282,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$id]);
         $slot = $stmt->fetch();
 
-        $availability = priestIsAvailable((int) $priestId, $slot['appointment_date'], $slot['appointment_time'], $id);
-
-        if (!$availability['available']) {
-            respondAjaxOrRedirect($isAjax, false, $availability['reason'], $redirectUrl);
+        if (!empty($slot['appointment_date']) && !empty($slot['appointment_time'])) {
+            $availability = priestIsAvailable((int) $priestId, $slot['appointment_date'], $slot['appointment_time'], $id);
+            if (!$availability['available']) {
+                respondAjaxOrRedirect($isAjax, false, $availability['reason'], $redirectUrl);
+            }
+        } else {
+            $activeCheck = db()->prepare("SELECT 1 FROM priests WHERE priest_id = ? AND status = 'active'");
+            $activeCheck->execute([$priestId]);
+            if (!$activeCheck->fetchColumn()) {
+                respondAjaxOrRedirect($isAjax, false, 'Please choose an active priest.', $redirectUrl);
+            }
         }
         $update = db()->prepare("UPDATE appointments SET priest_id = ? WHERE appointment_id = ? AND status_id IN (1, 2, 4, 5)");
         $update->execute([$priestId, $id]);
@@ -450,6 +427,7 @@ if (($appointment['category'] ?? '') === 'Wedding') {
     $stmt->execute([$id]);
     $generatedForms = $stmt->fetchAll();
 }
+$approvalEligibility = appointmentApprovalEligibility($appointment);
 
 // Each priest's upcoming schedule and declared unavailability, so the
 // secretary can check availability before assigning — directly at the
@@ -462,7 +440,7 @@ if (!$isAjax) {
 }
 ?>
 
-<div style="display:grid; grid-template-columns: 1.4fr 1fr; gap: 22px;" class="detail-grid">
+<div style="display:grid; grid-template-columns:minmax(0, 1.4fr) minmax(280px, 1fr); gap:22px;" class="detail-grid">
   <div class="card">
     <div class="card-header">
       <h3><?= e($appointment['service_name']) ?></h3>
@@ -583,8 +561,8 @@ if (!$isAjax) {
       <?php if (empty($requirementsList) && empty($documents)): ?>
         <p class="text-muted">No supporting documents are required or uploaded.</p>
       <?php else: ?>
-        <div class="table-wrap">
-          <table>
+        <div class="review-table-wrap">
+          <table class="review-table">
             <thead><tr><th>Requirement</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               <?php 
@@ -593,10 +571,10 @@ if (!$isAjax) {
                   $docMatch = array_values(array_filter($documents, fn($d) => $d['requirement_label'] === $label));
                   $d = $docMatch[0] ?? null;
                   if ($d) $matchedDocIds[] = $d['document_id'];
-                  $docStatus = $d ? ($d['review_status'] ?? ($d['verified'] ? 'approved' : 'pending')) : 'missing';
+                  $docStatus = $d ? ($d['review_status'] ?? (appointmentWorkflowBoolean($d['verified'] ?? false) ? 'approved' : 'pending')) : 'missing';
               ?>
                 <tr>
-                  <td>
+                  <td data-label="Requirement">
                     <strong><?= e($label) ?></strong><br>
                     <?php if ($d): ?>
                       <a href="<?= url('document.php?id=' . (int) $d['document_id']) ?>" target="_blank" rel="noopener" style="font-size:0.9em; display:inline-flex; align-items:center; gap:4px; margin-top:4px;">📄 <?= e($d['file_name']) ?></a>
@@ -605,25 +583,31 @@ if (!$isAjax) {
                     <?php endif; ?>
                     <?php if ($d && $d['rejection_reason']): ?><div class="text-muted" style="font-size:0.85em; margin-top:4px;">Reason: <?= e($d['rejection_reason']) ?></div><?php endif; ?>
                   </td>
-                  <td>
+                  <td data-label="Status">
                     <?php if ($docStatus === 'approved'): ?><span class="badge badge-verified">Approved</span>
                     <?php elseif ($docStatus === 'rejected'): ?><span class="badge badge-rejected">Needs Replacement</span>
                     <?php elseif ($docStatus === 'missing'): ?><span class="badge badge-rejected">Missing</span>
                     <?php else: ?><span class="badge badge-pending">Pending Review</span><?php endif; ?>
                   </td>
-                  <td>
+                  <td data-label="Actions">
+                    <div class="review-actions">
                     <?php if ($d && $docStatus === 'pending' && $d['superseded_by'] === null && (int) $appointment['status_id'] === 1): ?>
-                      <form method="POST" action="<?= e($redirectUrl) ?>" style="display:inline-block; margin-bottom:4px;">
+                      <form method="POST" action="<?= e($redirectUrl) ?>" class="review-approve-form">
                         <?= csrfField() ?><input type="hidden" name="action" value="verify_document"><input type="hidden" name="document_id" value="<?= $d['document_id'] ?>">
-                        <button type="submit" class="btn btn-outline btn-sm">Approve</button>
+                        <button type="submit" class="btn btn-success btn-sm">Approve</button>
                       </form>
-                      <button type="button" class="btn btn-danger btn-sm" onclick="document.getElementById('rejectDoc_<?= $d['document_id'] ?>').style.display='block'; this.style.display='none';">Reject</button>
-                      <form id="rejectDoc_<?= $d['document_id'] ?>" method="POST" action="<?= e($redirectUrl) ?>" style="display:none; margin-top:8px;">
+                      <button type="button" class="btn btn-danger btn-sm js-open-rejection" data-target="rejectDoc_<?= $d['document_id'] ?>">Reject</button>
+                      <form id="rejectDoc_<?= $d['document_id'] ?>" class="review-rejection-form" method="POST" action="<?= e($redirectUrl) ?>" hidden>
                         <?= csrfField() ?><input type="hidden" name="action" value="reject_document"><input type="hidden" name="document_id" value="<?= $d['document_id'] ?>">
-                        <textarea name="document_rejection_reason" rows="2" maxlength="1000" placeholder="Reason for rejection" required style="width:100%; margin-bottom:4px; font-size:0.9em; padding:4px;"></textarea>
-                        <button type="submit" class="btn btn-danger btn-sm" style="width:100%;">Confirm</button>
+                        <label for="rejectDocReason_<?= $d['document_id'] ?>">Reason for rejection</label>
+                        <textarea id="rejectDocReason_<?= $d['document_id'] ?>" name="document_rejection_reason" rows="4" maxlength="1000" placeholder="Explain what needs to be replaced or corrected." required></textarea>
+                        <div class="review-rejection-buttons">
+                          <button type="button" class="btn btn-outline btn-sm js-cancel-rejection">Cancel</button>
+                          <button type="submit" class="btn btn-danger btn-sm">Confirm Rejection</button>
+                        </div>
                       </form>
                     <?php endif; ?>
+                    </div>
                   </td>
                 </tr>
               <?php endforeach; ?>
@@ -631,32 +615,38 @@ if (!$isAjax) {
               <?php foreach ($documents as $d): ?>
                 <?php 
                   if (in_array($d['document_id'], $matchedDocIds, true)) continue;
-                  $docStatus = $d['review_status'] ?? ($d['verified'] ? 'approved' : 'pending');
+                  $docStatus = $d['review_status'] ?? (appointmentWorkflowBoolean($d['verified'] ?? false) ? 'approved' : 'pending');
                 ?>
                 <tr>
-                  <td>
+                  <td data-label="Requirement">
                     <strong><?= e($d['requirement_label'] ?: 'Uploaded Document') ?></strong><br>
                     <a href="<?= url('document.php?id=' . (int) $d['document_id']) ?>" target="_blank" rel="noopener" style="font-size:0.9em; display:inline-flex; align-items:center; gap:4px; margin-top:4px;">📄 <?= e($d['file_name']) ?></a>
                     <?php if ($d['rejection_reason']): ?><div class="text-muted" style="font-size:0.85em; margin-top:4px;">Reason: <?= e($d['rejection_reason']) ?></div><?php endif; ?>
                   </td>
-                  <td>
+                  <td data-label="Status">
                     <?php if ($docStatus === 'approved'): ?><span class="badge badge-verified">Approved</span>
                     <?php elseif ($docStatus === 'rejected'): ?><span class="badge badge-rejected">Needs Replacement</span>
                     <?php else: ?><span class="badge badge-pending">Pending Review</span><?php endif; ?>
                   </td>
-                  <td>
+                  <td data-label="Actions">
+                    <div class="review-actions">
                     <?php if ($docStatus === 'pending' && $d['superseded_by'] === null && (int) $appointment['status_id'] === 1): ?>
-                      <form method="POST" action="<?= e($redirectUrl) ?>" style="display:inline-block; margin-bottom:4px;">
+                      <form method="POST" action="<?= e($redirectUrl) ?>" class="review-approve-form">
                         <?= csrfField() ?><input type="hidden" name="action" value="verify_document"><input type="hidden" name="document_id" value="<?= $d['document_id'] ?>">
-                        <button type="submit" class="btn btn-outline btn-sm">Approve</button>
+                        <button type="submit" class="btn btn-success btn-sm">Approve</button>
                       </form>
-                      <button type="button" class="btn btn-danger btn-sm" onclick="document.getElementById('rejectDoc_<?= $d['document_id'] ?>').style.display='block'; this.style.display='none';">Reject</button>
-                      <form id="rejectDoc_<?= $d['document_id'] ?>" method="POST" action="<?= e($redirectUrl) ?>" style="display:none; margin-top:8px;">
+                      <button type="button" class="btn btn-danger btn-sm js-open-rejection" data-target="rejectDoc_<?= $d['document_id'] ?>">Reject</button>
+                      <form id="rejectDoc_<?= $d['document_id'] ?>" class="review-rejection-form" method="POST" action="<?= e($redirectUrl) ?>" hidden>
                         <?= csrfField() ?><input type="hidden" name="action" value="reject_document"><input type="hidden" name="document_id" value="<?= $d['document_id'] ?>">
-                        <textarea name="document_rejection_reason" rows="2" maxlength="1000" placeholder="Reason for rejection" required style="width:100%; margin-bottom:4px; font-size:0.9em; padding:4px;"></textarea>
-                        <button type="submit" class="btn btn-danger btn-sm" style="width:100%;">Confirm</button>
+                        <label for="rejectDocReason_<?= $d['document_id'] ?>">Reason for rejection</label>
+                        <textarea id="rejectDocReason_<?= $d['document_id'] ?>" name="document_rejection_reason" rows="4" maxlength="1000" placeholder="Explain what needs to be replaced or corrected." required></textarea>
+                        <div class="review-rejection-buttons">
+                          <button type="button" class="btn btn-outline btn-sm js-cancel-rejection">Cancel</button>
+                          <button type="submit" class="btn btn-danger btn-sm">Confirm Rejection</button>
+                        </div>
                       </form>
                     <?php endif; ?>
+                    </div>
                   </td>
                 </tr>
               <?php endforeach; ?>
@@ -670,14 +660,14 @@ if (!$isAjax) {
       <?php if (empty($generatedForms)): ?>
         <p class="text-muted">No generated forms have been submitted yet.</p>
       <?php else: ?>
-        <div class="table-wrap">
-          <table>
+        <div class="review-table-wrap">
+          <table class="review-table">
             <thead><tr><th>Requirement</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               <?php foreach ($generatedForms as $gf): ?>
                 <?php $formStatus = $gf['document_id'] ? ($gf['review_status'] ?? 'pending') : 'missing'; ?>
                 <tr>
-                  <td>
+                  <td data-label="Requirement">
                     <strong><?= e($formTitles[$gf['form_type']] ?? $gf['form_type']) ?></strong><br>
                     <?php if ($gf['document_id']): ?>
                       <a href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>" target="_blank" rel="noopener" style="font-size:0.9em; display:inline-flex; align-items:center; gap:4px; margin-top:4px;">📄 View Generated PDF</a>
@@ -686,25 +676,31 @@ if (!$isAjax) {
                     <?php endif; ?>
                     <?php if ($gf['rejection_reason']): ?><div class="text-muted" style="font-size:0.85em; margin-top:4px;">Reason: <?= e($gf['rejection_reason']) ?></div><?php endif; ?>
                   </td>
-                  <td>
+                  <td data-label="Status">
                     <?php if ($formStatus === 'approved'): ?><span class="badge badge-verified">Approved</span>
                     <?php elseif ($formStatus === 'rejected'): ?><span class="badge badge-rejected">Needs Revision</span>
                     <?php elseif ($formStatus === 'missing'): ?><span class="badge badge-rejected">Missing</span>
                     <?php else: ?><span class="badge badge-pending">Pending Review</span><?php endif; ?>
                   </td>
-                  <td>
+                  <td data-label="Actions">
+                    <div class="review-actions">
                     <?php if ($gf['document_id'] && $formStatus === 'pending' && (int) $appointment['status_id'] === 1): ?>
-                      <form method="POST" action="<?= e($redirectUrl) ?>" style="display:inline-block; margin-bottom:4px;">
+                      <form method="POST" action="<?= e($redirectUrl) ?>" class="review-approve-form">
                         <?= csrfField() ?><input type="hidden" name="action" value="verify_document"><input type="hidden" name="document_id" value="<?= $gf['document_id'] ?>">
-                        <button type="submit" class="btn btn-outline btn-sm">Approve</button>
+                        <button type="submit" class="btn btn-success btn-sm">Approve</button>
                       </form>
-                      <button type="button" class="btn btn-danger btn-sm" onclick="document.getElementById('rejectForm_<?= $gf['document_id'] ?>').style.display='block'; this.style.display='none';">Reject</button>
-                      <form id="rejectForm_<?= $gf['document_id'] ?>" method="POST" action="<?= e($redirectUrl) ?>" style="display:none; margin-top:8px;">
+                      <button type="button" class="btn btn-danger btn-sm js-open-rejection" data-target="rejectForm_<?= $gf['document_id'] ?>">Reject</button>
+                      <form id="rejectForm_<?= $gf['document_id'] ?>" class="review-rejection-form" method="POST" action="<?= e($redirectUrl) ?>" hidden>
                         <?= csrfField() ?><input type="hidden" name="action" value="reject_document"><input type="hidden" name="document_id" value="<?= $gf['document_id'] ?>">
-                        <textarea name="document_rejection_reason" rows="2" maxlength="1000" placeholder="Reason for revision" required style="width:100%; margin-bottom:4px; font-size:0.9em; padding:4px;"></textarea>
-                        <button type="submit" class="btn btn-danger btn-sm" style="width:100%;">Confirm</button>
+                        <label for="rejectFormReason_<?= $gf['document_id'] ?>">Reason for rejection</label>
+                        <textarea id="rejectFormReason_<?= $gf['document_id'] ?>" name="document_rejection_reason" rows="4" maxlength="1000" placeholder="Explain what needs to be corrected in this form." required></textarea>
+                        <div class="review-rejection-buttons">
+                          <button type="button" class="btn btn-outline btn-sm js-cancel-rejection">Cancel</button>
+                          <button type="submit" class="btn btn-danger btn-sm">Confirm Rejection</button>
+                        </div>
                       </form>
                     <?php endif; ?>
+                    </div>
                   </td>
                 </tr>
               <?php endforeach; ?>
@@ -719,16 +715,26 @@ if (!$isAjax) {
 
   <div>
     <div class="card">
-      <div class="card-header"><h3>Actions</h3></div>
+      <div class="card-header"><h3>Appointment Decision</h3></div>
       <?php if ($appointment['status_name'] === 'Pending' && in_array($appointment['category'], ['Mass Intention', 'Donation'], true)): ?>
         <p class="text-muted">This request is approved automatically — no action needed.</p>
       <?php elseif ($appointment['status_name'] === 'Pending'): ?>
+        <?php if (!$approvalEligibility['can_approve']): ?>
+          <div class="approval-blockers" role="status">
+            <strong>Cannot approve yet:</strong>
+            <ul>
+              <?php foreach ($approvalEligibility['blocking_reasons'] as $blockingReason): ?><li><?= e($blockingReason) ?></li><?php endforeach; ?>
+            </ul>
+          </div>
+        <?php endif; ?>
         <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>" class="mb-3">
           <?= csrfField() ?>
           <input type="hidden" name="action" value="approve">
-          <button type="submit" class="btn btn-success btn-block">✔ Approve</button>
+          <button type="submit" class="btn btn-success btn-block" <?= $approvalEligibility['can_approve'] ? '' : 'disabled title="Complete the listed prerequisites before approving this appointment."' ?>>✔ Approve Appointment</button>
         </form>
-        <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>" id="rejectForm">
+        <button type="button" class="btn btn-danger btn-block" id="showAppointmentRejectionBtn">&#10006; Reject Appointment</button>
+        <div id="appointmentRejectionPanel" class="appointment-rejection-panel" hidden>
+        <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>" id="rejectForm" class="appointment-rejection-form">
           <?= csrfField() ?>
           <input type="hidden" name="action" value="reject">
           <div class="form-group">
@@ -742,11 +748,15 @@ if (!$isAjax) {
             </select>
           </div>
           <div class="form-group" id="customRejectionReasonGroup" style="display:none;">
-            <label for="customRejectionReason">Please Specify Reason</label>
-            <textarea name="custom_rejection_reason" id="customRejectionReason" rows="3" maxlength="500" placeholder="Enter the reason for rejection..."></textarea>
+            <label for="customRejectionReason">Reason details</label>
+            <textarea name="custom_rejection_reason" id="customRejectionReason" rows="5" maxlength="500" placeholder="Please explain the reason for rejection..."></textarea>
           </div>
-          <button type="button" class="btn btn-danger btn-block" id="openRejectConfirmBtn">&#10006; Reject</button>
+          <div class="review-rejection-buttons">
+            <button type="button" class="btn btn-outline" id="cancelAppointmentRejection">Cancel</button>
+            <button type="button" class="btn btn-danger" id="openRejectConfirmBtn">Continue</button>
+          </div>
         </form>
+        </div>
       <?php elseif ($appointment['status_name'] === 'Payment Verified' && in_array($appointment['category'], ['Mass Intention', 'Donation'], true)): ?>
         <p class="text-muted">This request is being finalized by the Cashier — no action needed here.</p>
       <?php elseif ($appointment['status_name'] === 'Payment Verified'): ?>
@@ -783,7 +793,7 @@ if (!$isAjax) {
       }
     ?>
     <div class="card">
-      <div class="card-header"><h3><?= $priestAlreadySet ? 'Priest Assignment' : 'Assign Priest' ?></h3></div>
+      <div class="card-header"><h3><?= $priestAlreadySet ? 'Priest Assignment' : 'Assign Priest' ?></h3><span class="badge badge-pending">Required before approval</span></div>
 
       <?php if ($priestAlreadySet): ?>
         <!-- The parishioner already picked (and the system already checked
@@ -792,6 +802,7 @@ if (!$isAjax) {
              an authorized emergency reassignment (e.g. the assigned priest
              becomes unavailable), never as a required step. -->
         <p style="margin-top:0;"><strong>Currently assigned:</strong> <?= $assignedPriest ? e($assignedPriest['title'] . ' ' . $assignedPriest['full_name']) : 'Not yet assigned' ?></p>
+        <?php if (!$assignedPriest || ($assignedPriest['status'] ?? '') !== 'active'): ?><p class="approval-inline-warning">This priest is no longer active. Reassign an active priest before approving.</p><?php endif; ?>
         <details>
           <summary class="text-muted" style="cursor:pointer; font-size:13px;">Reassign priest (emergency only)</summary>
           <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>" class="mb-3 mt-2">
@@ -809,7 +820,7 @@ if (!$isAjax) {
           </form>
         </details>
       <?php else: ?>
-        <p class="helper-text" style="margin-top:-6px;">The parishioner didn't request a specific priest — please assign one.</p>
+        <p class="helper-text" style="margin-top:-6px;">No active priest is assigned yet. Assign one before approving this appointment.</p>
         <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>" class="mb-3">
           <?= csrfField() ?>
           <input type="hidden" name="action" value="assign_priest">
@@ -900,7 +911,7 @@ if (!$isAjax) {
   <p><strong>Reason:</strong> <span id="rejectConfirmReason"></span></p>
   <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
     <button type="button" class="btn btn-outline" onclick="document.getElementById('rejectApptModal').close()">Cancel</button>
-    <button type="button" class="btn btn-danger" onclick="document.getElementById('rejectApptModal').close(); document.getElementById('rejectForm').submit();">Yes, Reject</button>
+    <button type="button" class="btn btn-danger" onclick="document.getElementById('rejectApptModal').close(); document.getElementById('rejectForm').requestSubmit();">Yes, Reject</button>
   </div>
 </dialog>
 
@@ -910,6 +921,9 @@ if (!$isAjax) {
   var customGroup = document.getElementById('customRejectionReasonGroup');
   var customField = document.getElementById('customRejectionReason');
   var openButton = document.getElementById('openRejectConfirmBtn');
+  var showButton = document.getElementById('showAppointmentRejectionBtn');
+  var cancelButton = document.getElementById('cancelAppointmentRejection');
+  var rejectionPanel = document.getElementById('appointmentRejectionPanel');
   var confirmReason = document.getElementById('rejectConfirmReason');
   var modal = document.getElementById('rejectApptModal');
   if (!select || !openButton || !modal) return;
@@ -921,10 +935,21 @@ if (!$isAjax) {
   }
   select.addEventListener('change', updateReasonField);
   updateReasonField();
+  if (showButton && rejectionPanel) showButton.addEventListener('click', function () {
+    rejectionPanel.hidden = false;
+    showButton.hidden = true;
+    select.focus();
+  });
+  if (cancelButton && rejectionPanel && showButton) cancelButton.addEventListener('click', function () {
+    rejectionPanel.hidden = true;
+    showButton.hidden = false;
+    document.getElementById('rejectForm').reset();
+    updateReasonField();
+  });
   openButton.addEventListener('click', function () {
     updateReasonField();
     if (!select.value) { select.setCustomValidity('Please select a reason for rejection.'); select.reportValidity(); select.setCustomValidity(''); return; }
-    if (select.value === 'Other' && !customField.value.trim()) { customField.setCustomValidity('Please specify the reason for rejection.'); customField.reportValidity(); customField.setCustomValidity(''); return; }
+    if (select.value === 'Other' && !customField.value.trim()) { customField.setCustomValidity('Please provide a reason for rejection.'); customField.reportValidity(); customField.setCustomValidity(''); return; }
     confirmReason.textContent = select.value === 'Other' ? customField.value.trim() : select.value;
     modal.showModal();
   });

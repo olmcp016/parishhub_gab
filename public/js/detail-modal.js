@@ -115,6 +115,27 @@
         rejectModal.showModal();
         return;
       }
+      var rejectionToggle = e.target.closest('.js-open-rejection');
+      if (rejectionToggle) {
+        e.preventDefault();
+        var rejectionPanel = document.getElementById(rejectionToggle.dataset.target || '');
+        if (!rejectionPanel) return;
+        rejectionPanel.hidden = false;
+        rejectionToggle.hidden = true;
+        var rejectionField = rejectionPanel.querySelector('textarea');
+        if (rejectionField) rejectionField.focus();
+        return;
+      }
+      var rejectionCancel = e.target.closest('.js-cancel-rejection');
+      if (rejectionCancel) {
+        e.preventDefault();
+        var panel = rejectionCancel.closest('.review-rejection-form');
+        if (!panel) return;
+        panel.hidden = true;
+        var matchingToggle = modalBody.querySelector('.js-open-rejection[data-target="' + panel.id + '"]');
+        if (matchingToggle) matchingToggle.hidden = false;
+        return;
+      }
       // A direct hit on the <dialog> element itself (not a descendant) is
       // a click on its own backdrop/padding area, i.e. "outside" the card.
       if (e.target === modal) {
@@ -207,17 +228,45 @@
       // dialog is open: a genuine navigation just leaves the whole page,
       // dialog included, exactly as if the modal had never been there.
       if (form.dataset.plainSubmit) return;
+      if (form.dataset.submitting === '1') {
+        e.preventDefault();
+        return;
+      }
+      if (form.classList.contains('review-rejection-form')) {
+        var reasonField = form.querySelector('textarea[name="document_rejection_reason"]');
+        var reason = reasonField ? reasonField.value.trim() : '';
+        if (!reason) {
+          e.preventDefault();
+          if (reasonField) {
+            reasonField.setCustomValidity('Please provide a reason for rejection.');
+            reasonField.reportValidity();
+            reasonField.setCustomValidity('');
+          }
+          return;
+        }
+        reasonField.value = reason;
+      }
       e.preventDefault();
 
       var submitButtons = form.querySelectorAll('button[type="submit"]');
-      submitButtons.forEach(function (btn) { btn.disabled = true; });
+      form.dataset.submitting = '1';
+      submitButtons.forEach(function (btn) {
+        btn.disabled = true;
+        btn.dataset.originalText = btn.textContent;
+        btn.textContent = 'Processing…';
+      });
 
       fetch(form.getAttribute('action'), {
         method: 'POST',
         body: new FormData(form),
         headers: { 'X-Requested-With': 'XMLHttpRequest' }
       })
-        .then(function (res) { return res.json(); })
+        .then(function (res) {
+          return res.json().then(function (data) {
+            if (!res.ok) throw new Error(data.message || 'The request could not be completed.');
+            return data;
+          });
+        })
         .then(function (data) {
           if (data.redirect) {
             // The record this modal was showing no longer exists in the
@@ -233,7 +282,11 @@
           });
         })
         .catch(function () {
-          submitButtons.forEach(function (btn) { btn.disabled = false; });
+          form.dataset.submitting = '0';
+          submitButtons.forEach(function (btn) {
+            btn.disabled = false;
+            if (btn.dataset.originalText) btn.textContent = btn.dataset.originalText;
+          });
           alert('Something went wrong submitting that. Please try again.');
         });
     });

@@ -317,6 +317,7 @@ img { max-width: 100%; }
 .btn-outline:hover { background: #fff; border-color: var(--gold); color: var(--brown-darkest); }
 .btn-success { background: var(--success); color: #fff; }
 .btn-danger { background: var(--danger); color: #fff; }
+.btn:disabled { opacity: .55; cursor: not-allowed; }
 .btn-sm { padding: 6px 14px; font-size: 12px; border-radius: 8px; }
 .btn-block { width: 100%; }
 
@@ -1078,26 +1079,69 @@ dialog.modal {
   padding: 0;
   width: 480px;
   max-width: calc(100vw - 40px);
-  max-height: calc(100vh - 80px);
+  max-height: calc(100vh - 40px);
   background: var(--cream);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 dialog.modal.modal-lg { width: 680px; }
-dialog.modal.modal-xl { width: 960px; }
+dialog.modal.modal-xl { width: min(1200px, calc(100vw - 40px)); }
 dialog.modal::backdrop { background: rgba(36, 22, 17, 0.55); }
 .modal-head {
   background: var(--brown-dark); color: var(--gold-light);
   padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex: 0 0 auto;
 }
-.modal-head h3 { margin: 0; font-size: 16px; color: var(--ivory); }
+.modal-head h3 { margin: 0; min-width: 0; font-size: 16px; color: var(--ivory); overflow-wrap: anywhere; }
 .modal-close { background: none; border: none; color: var(--gold-light); opacity: .75; cursor: pointer; font-size: 20px; padding: 4px; line-height: 1; }
 .modal-close:hover { opacity: 1; }
-.modal-body { padding: 18px 20px; overflow-y: auto; max-height: calc(100vh - 160px); }
+.modal-body { padding: 18px 20px; min-width: 0; min-height: 0; flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; }
 
 /* Two-column detail layout reused inside the Secretary's View/Review
    modals (Parishioners, Mass Intentions, Appointments) — stacks to one
    column on narrow screens/modals instead of squeezing both columns. */
-@media (max-width: 760px) {
+.detail-grid { min-width: 0; }
+.detail-grid > * { min-width: 0; }
+@media (max-width: 900px) {
   .detail-grid { grid-template-columns: 1fr !important; }
+}
+
+/* Secretary appointment requirements: actions stay readable and rejection
+   fields get their own full-width panel instead of being squeezed beside a
+   long filename. */
+.review-table-wrap { width: 100%; min-width: 0; overflow: visible; }
+.review-table { width: 100%; table-layout: fixed; }
+.review-table th, .review-table td { min-width: 0; vertical-align: top; overflow-wrap: anywhere; }
+.review-table th:nth-child(1), .review-table td:nth-child(1) { width: 48%; }
+.review-table th:nth-child(2), .review-table td:nth-child(2) { width: 20%; }
+.review-table th:nth-child(3), .review-table td:nth-child(3) { width: 32%; }
+.review-table a { display: inline-block; max-width: 100%; overflow-wrap: anywhere; word-break: break-word; }
+.review-actions { display: flex; flex-direction: column; align-items: stretch; gap: 8px; min-width: 0; }
+.review-actions > form, .review-actions > .btn { width: 100%; margin: 0; }
+.review-actions .btn { min-height: 42px; white-space: normal; }
+.review-rejection-form { padding: 12px; border: 1px solid var(--cream-dark); border-radius: 10px; background: var(--cream); }
+.review-rejection-form label { display: block; margin-bottom: 6px; font-weight: 700; color: var(--brown-dark); }
+.review-rejection-form textarea { box-sizing: border-box; width: 100%; min-height: 110px; resize: vertical; padding: 10px; line-height: 1.45; }
+.review-rejection-buttons { display: flex; gap: 8px; margin-top: 10px; }
+.review-rejection-buttons .btn { flex: 1 1 0; }
+.appointment-rejection-panel { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--cream-dark); }
+.appointment-rejection-form textarea { box-sizing: border-box; width: 100%; min-height: 110px; resize: vertical; padding: 10px; line-height: 1.45; }
+.approval-blockers { margin: 0 0 14px; padding: 12px 14px; border: 1px solid #e5c4a9; border-radius: 10px; background: #fff5e8; color: var(--brown-dark); }
+.approval-blockers strong { display: block; margin-bottom: 6px; }
+.approval-blockers ul { margin: 0; padding-left: 20px; }
+.approval-inline-warning { color: var(--danger); font-size: 13px; }
+
+@media (max-width: 700px) {
+  dialog.modal { width: calc(100vw - 24px); max-width: calc(100vw - 24px); max-height: calc(100vh - 24px); border-radius: 14px; }
+  dialog.modal.modal-xl, dialog.modal.modal-lg { width: calc(100vw - 24px); }
+  .modal-body { padding: 14px; }
+  .review-table thead { display: none; }
+  .review-table, .review-table tbody, .review-table tr, .review-table td { display: block; width: 100%; box-sizing: border-box; }
+  .review-table tr { margin-bottom: 12px; padding: 12px; border: 1px solid var(--cream-dark); border-radius: 10px; background: rgba(255,255,255,.35); }
+  .review-table td { border: 0; padding: 5px 0; }
+  .review-table td::before { content: attr(data-label); display: block; margin-bottom: 3px; color: var(--brown-mid); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+  .review-table td[data-label="Actions"] { padding-top: 10px; }
 }
 
 /* ---------- Print (reports "Print / Export" button) ---------- */
