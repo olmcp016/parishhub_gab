@@ -64,6 +64,14 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
   </div>
 <?php endif; ?>
 
+<?php if ($donationEnabled): ?>
+  <div class="card" style="background: linear-gradient(135deg, var(--cream-dark), #faf0d0); text-align: center; padding: 32px 22px; margin-bottom: 28px;">
+    <h3 style="font-size: 24px; margin-bottom: 8px;">🤲 Donate to Our Parish</h3>
+    <p style="font-size: 15px; color: var(--brown-dark); max-width: 600px; margin: 0 auto 20px;">Support our ministries and services with a voluntary offering — any amount is welcome.</p>
+    <a href="<?= url('parishioner/donations.php?donate=1') ?>" class="btn btn-primary" style="min-width: 200px;">Donate Now</a>
+  </div>
+<?php endif; ?>
+
 <div class="grid-3">
   <?php foreach ($services as $s): ?>
     <?php $isMassIntention = $s['category'] === 'Mass Intention'; ?>
@@ -117,19 +125,6 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
     </div>
   <?php endforeach; ?>
 
-  <?php if ($donationEnabled): ?>
-    <div class="card" style="background: linear-gradient(135deg, var(--cream-dark), #faf0d0); display:flex; flex-direction:column;">
-      <h3>🤲 Donate to Our Parish</h3>
-      <p class="text-muted" style="font-size:12.5px; text-transform:uppercase; letter-spacing:.4px;">Donation</p>
-      <p style="font-size:14px;">Support our ministries and services with a voluntary offering — any amount is welcome.</p>
-      <div style="margin-top:auto; padding-top:16px;">
-        <div style="margin-bottom:12px;">
-          <span class="text-gold" style="font-weight:700; font-size:14px; display:block;">Voluntary</span>
-        </div>
-        <a href="<?= url('parishioner/donations.php?donate=1') ?>" class="btn btn-primary btn-block" style="width:100%; text-align:center;">Donate Now</a>
-      </div>
-    </div>
-  <?php endif; ?>
 </div>
 
 <?php foreach (['Baptism', 'Wedding'] as $feeCategory): ?>

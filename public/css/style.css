@@ -1242,7 +1242,7 @@ dialog.modal::backdrop { background: rgba(36, 22, 17, 0.55); }
 .field-error-msg { display: block; color: var(--danger); font-size: 12px; margin-top: 4px; }
 
 /* ---------- Compact "native-style" date picker (Regular-schedule booking) ---------- */
-.mini-dp { position: relative; max-width: 280px; }
+.mini-dp { position: relative; width: 100%; }
 .mini-dp-field {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   width: 100%; padding: 12px 14px; border: 1.5px solid #ddd5bb; border-radius: 10px;
