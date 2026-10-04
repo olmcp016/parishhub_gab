@@ -191,7 +191,7 @@ include __DIR__ . '/includes/header.php';
             <span class="generated-form-title">Katin-awan sa Paglubong</span>
             <span class="generated-form-status">Status: <?php
               if ($gfStatus === 'draft') echo '<span class="badge badge-rejected">Missing</span>';
-              elseif ($gfStatus === 'rejected') echo '<span class="badge badge-rejected">Rejected</span>';
+              elseif ($gfStatus === 'rejected') echo '<span class="badge badge-rejected">Needs Revision</span>';
               elseif ($gfStatus === 'generated' && (($gf['review_status'] ?? 'pending') === 'approved' || ($gf['verified'] ?? false))) echo '<span class="badge badge-verified">Verified/Accepted</span>';
               else echo '<span class="badge badge-pending">Generated — Pending Review</span>';
             ?></span>
@@ -214,7 +214,7 @@ include __DIR__ . '/includes/header.php';
           <?php elseif ($appointmentSnapshot): ?><?= feeLabel($displayFee) ?>
           <?php else: ?><?= feeLabel((float) $appointment['fee']) ?><?php endif; ?>
         </p>
-        <?php if ($documents && $contact !== ''): ?>
+        <?php if ($documents): ?>
           <div class="card" style="margin-top:18px;">
             <div class="card-header"><h3>Submitted Documents</h3></div>
             <?php foreach ($documents as $document): ?>

@@ -539,7 +539,7 @@ if (!$isAjax) {
                 <span class="generated-form-status">Status: <?php
                   if ($gfStatus === 'draft') echo '<span class="badge badge-rejected">Missing</span>';
                   elseif ($gfStatus === 'generated' && (($matches[0]['review_status'] ?? 'pending') === 'approved' || ($matches[0]['verified'] ?? false))) echo '<span class="badge badge-verified">Verified/Accepted</span>';
-                  elseif ($gfStatus === 'rejected') echo '<span class="badge badge-rejected">Rejected</span>';
+                  elseif ($gfStatus === 'rejected') echo '<span class="badge badge-rejected">Needs Revision</span>';
                   else echo '<span class="badge badge-pending">Generated — Pending Review</span>';
                 ?></span>
               </div>

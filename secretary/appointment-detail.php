@@ -246,7 +246,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             respondAjaxOrRedirect($isAjax, false, 'This appointment is no longer pending review.', $redirectUrl);
         }
         $selectedReason = trim($_POST['rejection_reason'] ?? '');
-        $allowedReasons = ['Schedule Conflict', 'Incomplete Documents', 'Requirements Not Met', 'Other'];
+        $allowedReasons = ['Unresolvable Schedule Conflict', 'Invalid or Ineligible Request', 'Duplicate Request', 'Other'];
         if (!in_array($selectedReason, $allowedReasons, true)) {
             respondAjaxOrRedirect($isAjax, false, 'Please select a valid reason for rejecting this appointment.', $redirectUrl);
         }
@@ -479,7 +479,7 @@ if (!$isAjax) {
         <?php endif; ?>
       </div>
     </div>
-    <p><strong>Booking Reference:</strong> <?= e($appointment['guest_reference'] ?: 'Appointment #' . (int) $appointment['appointment_id']) ?></p>
+    <p class="appointment-reference"><strong>Booking Reference:</strong> <span><?= e($appointment['guest_reference'] ?: 'Appointment #' . (int) $appointment['appointment_id']) ?></span></p>
     <?php if ($appointment['guest_name']): ?>
       <p><strong>Guest:</strong> <?= e($appointment['guest_name']) ?> (<?= e($appointment['guest_phone']) ?><?= $appointment['guest_email'] ? ', ' . e($appointment['guest_email']) : '' ?>)</p>
     <?php else: ?>
@@ -768,17 +768,17 @@ if (!$isAjax) {
           <?= csrfField() ?>
           <input type="hidden" name="action" value="reject">
           <div class="form-group">
-            <label for="rejectionReasonSelect">Reason for Rejection</label>
+            <label for="rejectionReasonSelect">Reason for Rejection <span class="required-mark">*</span></label>
             <select name="rejection_reason" id="rejectionReasonSelect" required>
               <option value="">Select a reason</option>
-              <option value="Schedule Conflict">Schedule Conflict</option>
-              <option value="Incomplete Documents">Incomplete Documents</option>
-              <option value="Requirements Not Met">Requirements Not Met</option>
+              <option value="Unresolvable Schedule Conflict">Unresolvable Schedule Conflict</option>
+              <option value="Invalid or Ineligible Request">Invalid or Ineligible Request</option>
+              <option value="Duplicate Request">Duplicate Request</option>
               <option value="Other">Other</option>
             </select>
           </div>
           <div class="form-group" id="customRejectionReasonGroup" style="display:none;">
-            <label for="customRejectionReason">Reason details</label>
+            <label for="customRejectionReason">Reason details <span class="required-mark">*</span></label>
             <textarea name="custom_rejection_reason" id="customRejectionReason" rows="5" maxlength="500" placeholder="Please explain the reason for rejection..."></textarea>
           </div>
           <div class="review-rejection-buttons">

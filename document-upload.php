@@ -163,6 +163,11 @@ try {
         $insert->execute([$contextId, $original['requirement_id'], $original['requirement_label'], basename((string) $file['name']), $stored['key'], $stored['mime']]);
         $newId = (int) $pdo->lastInsertId();
         $pdo->prepare('UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ?')->execute([$newId, $documentId]);
+        $secretaries = $pdo->query("SELECT user_id FROM users u JOIN roles r ON r.role_id = u.role_id WHERE r.role_name IN ('Secretary', 'Admin') AND u.status = 'active'")->fetchAll(PDO::FETCH_COLUMN);
+        $notify = $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Guest Document Updated', ?)");
+        foreach ($secretaries as $secretaryId) {
+            $notify->execute([(int) $secretaryId, "A guest replacement for appointment #$contextId has been submitted and is ready for review."]);
+        }
         $pdo->commit();
         documentUploadJson(true, 'Replacement uploaded for review.', ['document_id' => $newId, 'file_name' => basename((string) $file['name']), 'view_url' => url('document.php?id=' . $newId)]);
     }

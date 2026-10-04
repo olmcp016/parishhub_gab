@@ -19,14 +19,15 @@
 <dialog class="modal appointment-rejection-confirm-modal" id="rejectApptModal" aria-labelledby="rejectApptTitle">
   <div class="modal-head">
     <h3 id="rejectApptTitle">Reject Appointment?</h3>
-    <button type="button" class="modal-close" onclick="document.getElementById('rejectApptModal').close()" aria-label="Close">✕</button>
+    <button type="button" class="modal-close" id="closeRejectApptModal" aria-label="Close">✕</button>
   </div>
   <div class="modal-body">
-    <p>This will reject the entire appointment request. The applicant will need to submit a new booking if they want to proceed.</p>
+    <p><strong>This rejects the entire appointment request.</strong> The applicant will need to submit a new booking if the request is rejected.</p>
+    <p class="appointment-rejection-warning">If only a document or generated form needs correction, cancel this confirmation and reject that requirement instead. The appointment and booking reference will remain active.</p>
     <p><strong>Reason:</strong> <span id="rejectConfirmReason"></span></p>
     <div class="review-rejection-buttons">
-      <button type="button" class="btn btn-outline" onclick="document.getElementById('rejectApptModal').close()">Cancel</button>
-      <button type="button" class="btn btn-danger" style="white-space:nowrap;" onclick="document.getElementById('rejectApptModal').close(); document.getElementById('rejectForm').requestSubmit();">Reject Appointment</button>
+      <button type="button" class="btn btn-outline" id="cancelRejectApptModal">Cancel</button>
+      <button type="button" class="btn btn-danger" id="confirmRejectApptBtn">Reject Appointment</button>
     </div>
   </div>
 </dialog>

@@ -149,6 +149,41 @@
         rejectModal.showModal();
         return;
       }
+      if (e.target.closest('#closeRejectApptModal') || e.target.closest('#cancelRejectApptModal')) {
+        e.preventDefault();
+        var confirmationModal = document.getElementById('rejectApptModal');
+        if (confirmationModal && confirmationModal.open) confirmationModal.close();
+        return;
+      }
+      if (e.target.closest('#confirmRejectApptBtn')) {
+        e.preventDefault();
+        var confirmation = document.getElementById('rejectApptModal');
+        var appointmentRejectForm = document.getElementById('rejectForm');
+        var reasonSelect = document.getElementById('rejectionReasonSelect');
+        var customReasonField = document.getElementById('customRejectionReason');
+        if (!confirmation || !appointmentRejectForm || !reasonSelect) return;
+        if (!reasonSelect.value) {
+          reasonSelect.setCustomValidity('Please select a reason for rejecting the appointment.');
+          reasonSelect.reportValidity();
+          reasonSelect.setCustomValidity('');
+          return;
+        }
+        if (reasonSelect.value === 'Other' && (!customReasonField || !customReasonField.value.trim())) {
+          if (customReasonField) {
+            customReasonField.setCustomValidity('Please explain why the entire appointment cannot proceed.');
+            customReasonField.reportValidity();
+            customReasonField.setCustomValidity('');
+          }
+          return;
+        }
+        if (confirmation.open) confirmation.close();
+        if (typeof appointmentRejectForm.requestSubmit === 'function') {
+          appointmentRejectForm.requestSubmit();
+        } else {
+          appointmentRejectForm.submit();
+        }
+        return;
+      }
       if (e.target.closest('#showAppointmentRejectionBtn')) {
         e.preventDefault();
         var showButton = e.target.closest('#showAppointmentRejectionBtn');

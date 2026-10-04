@@ -1121,19 +1121,21 @@ dialog.modal::backdrop { background: rgba(36, 22, 17, 0.55); }
 .review-table th:nth-child(2), .review-table td:nth-child(2) { width: 20%; }
 .review-table th:nth-child(3), .review-table td:nth-child(3) { width: 32%; }
 .review-table a { display: inline-block; max-width: 100%; overflow-wrap: anywhere; word-break: break-word; }
-.review-actions { display: flex; flex-direction: row; align-items: stretch; gap: 8px; min-width: 0; }
-.review-actions > form.review-approve-form, .review-actions > .js-open-rejection { flex: 1 1 0; width: auto; min-width: 0; margin: 0; }
-.review-actions .btn { min-height: 42px; width: 100%; padding-left: 10px; padding-right: 10px; white-space: nowrap; }
+.review-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 8px; min-width: 0; }
+.review-actions > form.review-approve-form, .review-actions > .js-open-rejection { display: flex; width: auto; min-width: 0; min-height: 40px; margin: 0; }
+.review-actions .btn { box-sizing: border-box; min-height: 40px; width: 100%; min-width: 0; padding: 7px 8px; font-size: 12px; white-space: nowrap; }
 .review-rejection-row > td { padding: 0 !important; border-top: 0; }
 .review-rejection-form { width: 100%; box-sizing: border-box; padding: 14px; border: 1px solid var(--cream-dark); border-radius: 10px; background: var(--cream); }
 .review-rejection-form label { display: block; margin-bottom: 6px; font-weight: 700; color: var(--brown-dark); }
 .review-rejection-form textarea { box-sizing: border-box; width: 100%; min-height: 110px; resize: vertical; padding: 10px; line-height: 1.45; }
-.review-rejection-buttons { display: flex; gap: 8px; margin-top: 10px; }
-.review-rejection-buttons { justify-content: flex-end; }
-.review-rejection-buttons .btn { flex: 0 0 auto; min-width: 120px; white-space: nowrap; }
+.review-rejection-buttons { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+.review-rejection-buttons .btn { box-sizing: border-box; flex: 0 0 auto; min-width: 128px; padding: 8px 12px; font-size: 12px; white-space: nowrap; }
 .appointment-rejection-panel { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--cream-dark); }
 .appointment-rejection-form textarea { box-sizing: border-box; width: 100%; min-height: 110px; resize: vertical; padding: 10px; line-height: 1.45; }
 .appointment-rejection-warning { margin-bottom: 12px; padding: 10px 12px; border: 1px solid #e5c4a9; border-radius: 8px; background: #fff5e8; color: var(--brown-dark); font-size: 13px; line-height: 1.45; }
+.appointment-reference { padding: 10px 12px; border: 1px solid var(--cream-dark); border-radius: 8px; background: var(--cream); }
+.appointment-reference span { color: var(--brown-darkest); font-weight: 800; letter-spacing: .04em; }
+.required-mark { color: var(--danger); }
 .approval-blockers { margin: 0 0 14px; padding: 12px 14px; border: 1px solid #e5c4a9; border-radius: 10px; background: #fff5e8; color: var(--brown-dark); }
 .approval-blockers strong { display: block; margin-bottom: 6px; }
 .approval-blockers ul { margin: 0; padding-left: 20px; }
@@ -1154,8 +1156,10 @@ dialog.modal::backdrop { background: rgba(36, 22, 17, 0.55); }
 }
 
 @media (max-width: 420px) {
-  .review-actions { flex-direction: column; }
+  .review-actions { grid-template-columns: 1fr; }
   .review-actions > form.review-approve-form, .review-actions > .js-open-rejection { width: 100%; }
+  .review-rejection-buttons { justify-content: stretch; }
+  .review-rejection-buttons .btn { flex: 1 1 0; min-width: 0; }
 }
 
 /* ---------- Print (reports "Print / Export" button) ---------- */
