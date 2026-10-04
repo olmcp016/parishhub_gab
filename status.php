@@ -54,7 +54,7 @@ if ($searched) {
     }
 
     if ($appointment) {
-        $stmt = db()->prepare('SELECT * FROM uploaded_documents WHERE appointment_id = ? AND superseded_by IS NULL ORDER BY requirement_label, document_id');
+        $stmt = db()->prepare("SELECT * FROM uploaded_documents WHERE appointment_id = ? AND superseded_by IS NULL AND (document_source IS NULL OR document_source <> 'generated') ORDER BY requirement_label, document_id");
         $stmt->execute([$appointment['appointment_id']]);
         $documents = $stmt->fetchAll();
         $generatedForms = [];

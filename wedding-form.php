@@ -100,10 +100,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $form = $lock->fetch() ?: null;
             $documentId = $form['document_id'] ?? null;
             $status = 'draft';
+            $encoded = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+            if ($form && $form['status'] === 'approved') {
+                throw new RuntimeException('Approved forms require Secretary review before they can be changed.');
+            }
+            $dataChanged = $form && (string) ($form['form_data'] ?? '') !== $encoded;
+            if ($action === 'save' && $dataChanged && $documentId) {
+                // Keep the historical document row, but detach it from the
+                // edited draft until a new PDF is generated.
+                $documentId = null;
+            }
             if ($action === 'generate') {
-                if ($form && $form['status'] === 'approved') {
-                    throw new RuntimeException('Approved forms require Secretary review before they can be changed.');
-                }
+                $previousDocumentQuery = $pdo->prepare("SELECT document_id FROM uploaded_documents WHERE appointment_id = ? AND document_source = 'generated' AND generated_form_type = ? AND superseded_by IS NULL ORDER BY document_id DESC LIMIT 1 FOR UPDATE");
+                $previousDocumentQuery->execute([$appointmentId, $type]);
+                $previousDocumentId = (int) ($previousDocumentQuery->fetchColumn() ?: 0);
                 $pdf = weddingFormPdf($type, $data);
                 $stored = documentStorageWriteBytes($pdf);
                 $newPath = $stored['path'];
@@ -111,13 +121,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $insert = $pdo->prepare("INSERT INTO uploaded_documents (appointment_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source, generated_form_type) VALUES (?, ?, ?, 'application/pdf', ?, 'pending', FALSE, 'generated', ?)");
                 $insert->execute([$appointmentId, $label, $stored['key'], $label, $type]);
                 $newDocumentId = (int) $pdo->lastInsertId();
-                if ($documentId) {
-                    $pdo->prepare("UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ? AND appointment_id = ? AND superseded_by IS NULL")->execute([$newDocumentId, $documentId, $appointmentId]);
+                if ($previousDocumentId) {
+                    $pdo->prepare("UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ? AND appointment_id = ? AND superseded_by IS NULL")->execute([$newDocumentId, $previousDocumentId, $appointmentId]);
                 }
                 $documentId = $newDocumentId;
                 $status = 'pending_review';
             }
-            $encoded = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
             if ($form) {
                 $pdo->prepare('UPDATE generated_wedding_forms SET form_data = ?, document_id = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE generated_form_id = ?')->execute([$encoded, $documentId, $status, $form['generated_form_id']]);
             } else {

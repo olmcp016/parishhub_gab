@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/scheduling.php';
+require_once __DIR__ . '/../includes/wedding-draft.php';
 $identity = requireParishionerOrGuest();
 
 $services = db()->query("SELECT * FROM services WHERE is_active = 1 AND category != 'Donation' ORDER BY category, service_name")->fetchAll();
@@ -37,16 +38,9 @@ $policies = [];
 $requirementsByService = [];
 foreach ($services as $s) {
     $policies[$s['category']] = schedulingPolicyText($s['category'], (int) $s['service_id']);
-    $requirementsByService[$s['service_id']] = parseRequirementsList($s['requirements']);
-    if ($s['category'] === 'Wedding') {
-        $requirementsByService[$s['service_id']] = [
-            "Groom's Baptismal Certificate",
-            "Bride's Baptismal Certificate",
-            "Groom's Confirmation Certificate",
-            "Bride's Confirmation Certificate",
-            "Sponsors' Baptismal Certificate"
-        ];
-    }
+    $requirementsByService[$s['service_id']] = $s['category'] === 'Wedding'
+        ? weddingRequiredDocumentsFromCatalog($s['requirements'])
+        : parseRequirementsList($s['requirements']);
 }
 foreach (['Mass Intention', 'Funeral', 'First Communion'] as $cat) {
     if (!isset($policies[$cat])) {
@@ -399,7 +393,7 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
 
         <div id="requirementsPreviewBox" style="display:none; margin-top:20px; border:1px solid var(--cream-dark); border-radius:8px; padding:16px; background:var(--white);">
           <h4 style="margin:0 0 8px; color:var(--brown-dark);">Requirements for the Next Step</h4>
-          <p style="margin:0 0 16px; color:var(--brown-mid); font-size:14px;">Please prepare these before continuing.</p>
+          <p style="margin:0 0 16px; color:var(--brown-mid); font-size:14px;">Please prepare the following documents. You will upload them in the next step.</p>
           
           <div id="previewSupportingDocuments" style="margin-bottom:16px;">
             <h5 style="margin:0 0 6px; font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--gray-dark);">Supporting Documents</h5>

@@ -25,7 +25,7 @@ function generatedFormWorkflowState(?array $form, ?array $document = null, bool 
         || !empty($form['_has_document']);
     $verified = generatedFormWorkflowBoolean($document['verified'] ?? $form['verified'] ?? false);
 
-    if (!$hasForm) {
+    if (!$hasForm || (array_key_exists('form_exists', $form) && !generatedFormWorkflowBoolean($form['form_exists']))) {
         return [
             'code' => 'not_started',
             'label' => 'Not started',
@@ -40,6 +40,15 @@ function generatedFormWorkflowState(?array $form, ?array $document = null, bool 
             'label' => 'Needs revision',
             'description' => 'Review the Secretary\'s note, update the form, and generate a new PDF.',
             'has_document' => $hasDocument,
+        ];
+    }
+
+    if (($status === 'approved' || $reviewStatus === 'approved' || $verified) && !$hasDocument) {
+        return [
+            'code' => 'not_started',
+            'label' => 'Not started',
+            'description' => 'Generate the PDF again before this form can be reviewed.',
+            'has_document' => false,
         ];
     }
 

@@ -112,9 +112,16 @@ if ($isDraft) {
                 $lock->execute([$appointmentId, $type]);
                 $lockedForm = $lock->fetch() ?: null;
                 $encoded = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+                $dataChanged = $lockedForm && (string) ($lockedForm['form_data'] ?? '') !== $encoded;
+                $documentId = $lockedForm['document_id'] ?? null;
+                if ($dataChanged && $documentId) {
+                    // Preserve the old PDF row, but remove it from the active
+                    // form link until the edited answers are regenerated.
+                    $documentId = null;
+                }
                 if ($lockedForm) {
-                    $pdo->prepare("UPDATE generated_funeral_forms SET form_data = ?, status = 'draft', updated_at = CURRENT_TIMESTAMP WHERE generated_form_id = ?")
-                        ->execute([$encoded, $lockedForm['generated_form_id']]);
+                    $pdo->prepare("UPDATE generated_funeral_forms SET form_data = ?, document_id = ?, status = 'draft', updated_at = CURRENT_TIMESTAMP WHERE generated_form_id = ?")
+                        ->execute([$encoded, $documentId, $lockedForm['generated_form_id']]);
                 } else {
                     $pdo->prepare("INSERT INTO generated_funeral_forms (appointment_id, form_type, form_data, document_id, status) VALUES (?, ?, ?, NULL, 'draft')")
                         ->execute([$appointmentId, $type, $encoded]);

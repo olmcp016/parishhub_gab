@@ -228,10 +228,6 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     // ---- Validate every submitted file BEFORE touching the database or filesystem ----
     $requirementsList = parseRequirementsList($service['requirements']);
     $requirementsSnapshot = null;
-    if ($category === 'Wedding') {
-        $requirementsList = ['Baptismal Certificate', 'Confirmation Certificate', "Sponsors' Baptismal Certificate"];
-        $requirementsSnapshot = json_encode($requirementsList);
-    }
     $pendingUploads = []; // [ ['file' => $_FILES-entry, 'label' => ?string], ... ]
 
     $skippedFiles = [];

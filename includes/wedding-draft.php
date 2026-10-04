@@ -1,7 +1,10 @@
 <?php
 require_once __DIR__ . '/functions.php';
+require_once __DIR__ . '/wedding-forms.php';
 
-const WEDDING_DRAFT_FORMS = ['matrimony_application', 'cluster_clearance', 'wedding_sponsor_clearance'];
+// Backward-compatible name used by the draft pages; the generated-form
+// definitions themselves live in wedding-forms.php.
+const WEDDING_DRAFT_FORMS = WEDDING_FORM_TYPES;
 
 function weddingDraftGuestToken(int $draftId): ?string
 {
@@ -29,16 +32,14 @@ function weddingDraftLoad(PDO $pdo, int $draftId, ?array $user, ?string $guestTo
     return $draft;
 }
 
+function weddingRequiredDocumentsFromCatalog(?string $requirements): array
+{
+    return parseRequirementsList($requirements ?? '');
+}
+
 function weddingDraftRequiredDocuments(array $draft): array
 {
-    if (($draft['category'] ?? '') === 'Wedding') {
-        $configured = parseRequirementsList($draft['requirements'] ?? '');
-        if ($configured) return $configured;
-        // Keep older/partial draft records usable when their service snapshot
-        // did not include the catalog requirement text.
-        return ["Groom's Baptismal Certificate", "Bride's Baptismal Certificate", "Groom's Confirmation Certificate", "Bride's Confirmation Certificate", "Sponsors' Baptismal Certificate"];
-    }
-    return parseRequirementsList($draft['requirements'] ?? '');
+    return weddingRequiredDocumentsFromCatalog($draft['requirements'] ?? '');
 }
 
 function weddingDraftComplete(PDO $pdo, array $draft): array

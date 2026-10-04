@@ -39,13 +39,16 @@ function processFuneralGeneratedForm(int $appointmentId, string $type, array $da
             $reviewQuery->execute([$existingDocumentId, $appointmentId]);
             if ($reviewQuery->fetchColumn() === 'approved') throw new RuntimeException('Approved forms require Secretary review before they can be changed.');
         }
+        $previousDocumentQuery = $pdo->prepare("SELECT document_id FROM uploaded_documents WHERE appointment_id = ? AND document_source = 'generated' AND generated_form_type = ? AND superseded_by IS NULL ORDER BY document_id DESC LIMIT 1 FOR UPDATE");
+        $previousDocumentQuery->execute([$appointmentId, $type]);
+        $previousDocumentId = (int) ($previousDocumentQuery->fetchColumn() ?: 0);
         $stored = documentStorageWriteBytes(funeralKatinAwanPdf($data));
         $insert = $pdo->prepare("INSERT INTO uploaded_documents (appointment_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source, generated_form_type) VALUES (?, ?, ?, 'application/pdf', ?, 'pending', FALSE, 'generated', ?)");
         $insert->execute([$appointmentId, $fileName, $stored['key'], $definition['title'], $type]);
         $documentId = (int) $pdo->lastInsertId();
-        if ($existingDocumentId) {
+        if ($previousDocumentId) {
             $pdo->prepare('UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ? AND appointment_id = ? AND superseded_by IS NULL')
-                ->execute([$documentId, $existingDocumentId, $appointmentId]);
+                ->execute([$documentId, $previousDocumentId, $appointmentId]);
         }
 
         $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);

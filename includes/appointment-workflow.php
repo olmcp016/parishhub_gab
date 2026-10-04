@@ -6,6 +6,10 @@
  * so a disabled button is only a usability hint, never the source of truth.
  */
 
+require_once __DIR__ . '/wedding-forms.php';
+require_once __DIR__ . '/baptism-forms.php';
+require_once __DIR__ . '/funeral-forms.php';
+
 function appointmentCategoryRequiresPriest(?string $category): bool
 {
     // Mass Intentions are read at the scheduled Mass and are handled by the
@@ -31,6 +35,17 @@ function appointmentGeneratedFormTitle(string $formType): string
         'cluster_clearance_baptism_sponsor' => 'Cluster Clearance for Baptism Sponsor',
         'katin_awan_paglubong' => 'Katin-awan sa Paglubong',
     ][$formType] ?? $formType;
+}
+
+/** @return string[] */
+function appointmentRequiredGeneratedFormTypes(string $category): array
+{
+    return match ($category) {
+        'Wedding' => WEDDING_FORM_TYPES,
+        'Baptism' => BAPTISM_FORM_TYPES,
+        'Funeral' => FUNERAL_FORM_TYPES,
+        default => [],
+    };
 }
 
 /** @return string[] */
@@ -76,14 +91,50 @@ function appointmentGeneratedFormReviewRows(PDO $pdo, int $appointmentId, string
     // The table name comes only from the fixed category map above.
     $stmt = $pdo->prepare(
         "SELECT g.form_type, g.status AS generated_status, g.document_id,
-                d.review_status, d.verified, d.rejection_reason
+                d.document_id AS active_document_id, d.file_name,
+                d.review_status, d.verified, d.rejection_reason,
+                TRUE AS form_exists
          FROM {$table} g
-         LEFT JOIN uploaded_documents d ON d.document_id = g.document_id
+         LEFT JOIN uploaded_documents d
+           ON d.document_id = g.document_id
+          AND d.appointment_id = g.appointment_id
+          AND d.superseded_by IS NULL
+          AND d.document_source = 'generated'
+          AND d.generated_form_type = g.form_type
+          AND d.file_type = 'application/pdf'
          WHERE g.appointment_id = ?
          ORDER BY g.form_type"
     );
     $stmt->execute([$appointmentId]);
-    return $stmt->fetchAll();
+    $rowsByType = [];
+    foreach ($stmt->fetchAll() as $row) {
+        // Only an active, correctly-owned generated document is reviewable.
+        // Keep the form row visible, but expose the active document as the
+        // document_id consumed by the UI and eligibility checks.
+        $row['document_id'] = $row['active_document_id'] ?? null;
+        unset($row['active_document_id']);
+        $rowsByType[(string) $row['form_type']] = $row;
+    }
+
+    $rows = [];
+    foreach (appointmentRequiredGeneratedFormTypes($category) as $formType) {
+        $rows[] = $rowsByType[$formType] ?? [
+            'form_type' => $formType,
+            'generated_status' => null,
+            'document_id' => null,
+            'file_name' => null,
+            'review_status' => null,
+            'verified' => false,
+            'rejection_reason' => null,
+            'form_exists' => false,
+        ];
+        unset($rowsByType[$formType]);
+    }
+
+    // Preserve unexpected legacy rows for visibility without allowing them to
+    // satisfy the required-form set above.
+    foreach ($rowsByType as $row) $rows[] = $row;
+    return $rows;
 }
 
 /**
@@ -176,12 +227,18 @@ function appointmentApprovalEligibility(array $appointment): array
     $generatedForms = appointmentGeneratedFormReviewRows($pdo, $appointmentId, $category);
     foreach ($generatedForms as $form) {
         $title = appointmentGeneratedFormTitle((string) $form['form_type']);
-        if (empty($form['document_id']) || ($form['generated_status'] ?? '') === 'draft') {
-            $addBlocking($title . ' is missing.');
-        } elseif (!appointmentWorkflowBoolean($form['verified'] ?? false)) {
-            $addBlocking($title . (($form['review_status'] ?? '') === 'rejected'
-                ? ' needs revision.'
-                : ' is still pending review.'));
+        if (empty($form['form_exists'])) {
+            $addBlocking($title . ' has not been completed.');
+        } elseif (($form['generated_status'] ?? '') === 'draft') {
+            $addBlocking($title . ' is still a draft.');
+        } elseif (($form['generated_status'] ?? '') === 'rejected'
+            || ($form['review_status'] ?? '') === 'rejected') {
+            $addBlocking($title . ' needs revision.');
+        } elseif (empty($form['document_id'])) {
+            $addBlocking($title . ' has not been generated.');
+        } elseif (($form['review_status'] ?? '') !== 'approved'
+            && !appointmentWorkflowBoolean($form['verified'] ?? false)) {
+            $addBlocking($title . ' is still pending review.');
         }
     }
 

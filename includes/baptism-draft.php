@@ -1,6 +1,9 @@
 <?php
 require_once __DIR__ . '/functions.php';
-const BAPTISM_DRAFT_FORMS = ['katin_awan_bunyag', 'cluster_clearance_baptism_sponsor'];
+require_once __DIR__ . '/baptism-forms.php';
+// Backward-compatible name used by the draft pages; canonical form types are
+// defined in baptism-forms.php.
+const BAPTISM_DRAFT_FORMS = BAPTISM_FORM_TYPES;
 function baptismDraftToken(int $id): ?string { $v=$_SESSION['baptism_draft_tokens'][$id]??null; return is_string($v)&&$v!==''?$v:null; }
 function baptismDraftLoad(PDO $pdo,int $id,?array $user,?string $token,bool $lock=false):?array { $sql='SELECT d.*,s.category,s.requirements FROM baptism_booking_drafts d JOIN services s ON s.service_id=d.service_id WHERE d.draft_id=?';if($lock)$sql.=' FOR UPDATE';$q=$pdo->prepare($sql);$q->execute([$id]);$d=$q->fetch()?:null;if(!$d||$d['category']!=='Baptism')return null;if($user&&($user['role_name']??'')==='Parishioner'){$q=$pdo->prepare('SELECT parishioner_id FROM parishioners WHERE user_id=?');$q->execute([$user['user_id']]);return (int)$q->fetchColumn()===(int)$d['parishioner_id']?$d:null;}return $token&&hash_equals((string)$d['guest_access_token_hash'],hash('sha256',$token))?$d:null; }
 function baptismDraftAllDocuments(array $d): array

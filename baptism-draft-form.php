@@ -105,9 +105,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             if ($action === 'save') {
+                $dataChanged = $form && (string) ($form['form_data'] ?? '') !== $json;
+                $documentId = $form['document_id'] ?? null;
+                if ($dataChanged && $documentId) {
+                    // Keep the old PDF row for history, but detach it from the
+                    // current form until a new PDF is generated.
+                    $documentId = null;
+                }
                 if ($form) {
-                    $pdo->prepare("UPDATE generated_baptism_forms SET form_data = ?, status = 'draft', updated_at = CURRENT_TIMESTAMP WHERE generated_form_id = ?")
-                        ->execute([$json, $form['generated_form_id']]);
+                    $pdo->prepare("UPDATE generated_baptism_forms SET form_data = ?, document_id = ?, status = 'draft', updated_at = CURRENT_TIMESTAMP WHERE generated_form_id = ?")
+                        ->execute([$json, $documentId, $form['generated_form_id']]);
                 } else {
                     $pdo->prepare("INSERT INTO generated_baptism_forms (appointment_id, draft_id, form_type, form_data, document_id, status) VALUES (?, ?, ?, ?, NULL, 'draft')")
                         ->execute([$isAppointmentForm ? $appointmentId : null, $isAppointmentForm ? null : $id, $type, $json]);
@@ -118,17 +125,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 redirect(url('baptism-draft-form.php?' . $contextQuery . '&form_type=' . urlencode($type)));
             }
 
+            $previousDocumentQuery = $pdo->prepare($isAppointmentForm
+                ? "SELECT document_id FROM uploaded_documents WHERE appointment_id = ? AND document_source = 'generated' AND generated_form_type = ? AND superseded_by IS NULL ORDER BY document_id DESC LIMIT 1 FOR UPDATE"
+                : "SELECT document_id FROM uploaded_documents WHERE baptism_draft_id = ? AND document_source = 'generated' AND generated_form_type = ? AND superseded_by IS NULL ORDER BY document_id DESC LIMIT 1 FOR UPDATE");
+            $previousDocumentQuery->execute([$isAppointmentForm ? $appointmentId : $id, $type]);
+            $previousDocumentId = (int) ($previousDocumentQuery->fetchColumn() ?: 0);
+
             $pdf = baptismFormPdf($type, $data);
             $stored = documentStorageWriteBytes($pdf);
             $label = baptismFormDefinition($type)['title'] . '.pdf';
             $pdo->prepare("INSERT INTO uploaded_documents (appointment_id, draft_id, baptism_draft_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source, generated_form_type) VALUES (?, NULL, ?, ?, ?, 'application/pdf', ?, 'pending', FALSE, 'generated', ?)")
                 ->execute([$isAppointmentForm ? $appointmentId : null, $isAppointmentForm ? null : $id, $label, $stored['key'], $label, $type]);
             $newId = (int) $pdo->lastInsertId();
-            if ($form && !empty($form['document_id'])) {
+            if ($previousDocumentId) {
                 $supersede = $pdo->prepare($isAppointmentForm
                     ? 'UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ? AND appointment_id = ? AND superseded_by IS NULL'
                     : 'UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ? AND baptism_draft_id = ? AND superseded_by IS NULL');
-                $supersede->execute([$newId, $form['document_id'], $isAppointmentForm ? $appointmentId : $id]);
+                $supersede->execute([$newId, $previousDocumentId, $isAppointmentForm ? $appointmentId : $id]);
             }
             if ($form) {
                 $pdo->prepare("UPDATE generated_baptism_forms SET form_data = ?, document_id = ?, status = 'pending_review', updated_at = CURRENT_TIMESTAMP WHERE generated_form_id = ?")

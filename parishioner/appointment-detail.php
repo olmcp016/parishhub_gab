@@ -259,7 +259,7 @@ $onlineUnfinished = $payment && (int) $payment['method_id'] === 7 && $payment['p
 $canPay = $appointment['status_name'] === 'Approved'
     && (!$payment || $onlineUnfinished || in_array($payment['payment_status'], ['failed', 'cancelled'], true));
 
-$stmt = db()->prepare('SELECT * FROM uploaded_documents WHERE appointment_id = ? AND superseded_by IS NULL ORDER BY uploaded_at DESC, document_id DESC');
+$stmt = db()->prepare("SELECT * FROM uploaded_documents WHERE appointment_id = ? AND superseded_by IS NULL AND (document_source IS NULL OR document_source <> 'generated') ORDER BY uploaded_at DESC, document_id DESC");
 $stmt->execute([$id]);
 $documents = $stmt->fetchAll();
 $generatedForms = [];
