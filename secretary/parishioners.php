@@ -65,6 +65,7 @@ include __DIR__ . '/../includes/dash-start.php';
 </div>
 
 <?php include __DIR__ . '/../includes/detail-modal.php'; ?>
+<?php include __DIR__ . '/../includes/secretary-modal-shells.php'; ?>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

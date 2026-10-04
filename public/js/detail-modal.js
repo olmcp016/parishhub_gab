@@ -22,6 +22,10 @@
 (function () {
   var modal, modalBody, modalTitle;
   var dirty = false;
+  var activeDetailRequest = 0;
+  var detailAbortController = null;
+  var activeScheduleRequest = 0;
+  var scheduleAbortController = null;
 
   function refs() {
     modal = document.getElementById('detailModal');
@@ -38,22 +42,52 @@
     modalBody.innerHTML = '<p class="text-muted" style="padding:30px; text-align:center;">Could not load details. Please try again.</p>';
   }
 
-  function fetchFragment(url) {
-    return fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then(function (res) { return res.text(); });
+  function fetchFragment(url, signal) {
+    var options = { headers: { 'X-Requested-With': 'XMLHttpRequest' } };
+    if (signal) options.signal = signal;
+    return fetch(url, options).then(function (res) { return res.text(); });
+  }
+
+  function closeChildModals() {
+    activeScheduleRequest += 1;
+    if (scheduleAbortController) scheduleAbortController.abort();
+    scheduleAbortController = null;
+    var scheduleModal = document.getElementById('priestScheduleModal');
+    var rejectModal = document.getElementById('rejectApptModal');
+    if (scheduleModal && scheduleModal.open) scheduleModal.close();
+    if (rejectModal && rejectModal.open) rejectModal.close();
   }
 
   function openDetailModal(url, title) {
     if (!refs()) return;
+    closeChildModals();
+    activeDetailRequest += 1;
+    var requestId = activeDetailRequest;
+    if (detailAbortController) detailAbortController.abort();
+    detailAbortController = window.AbortController ? new AbortController() : null;
     if (modalTitle) modalTitle.textContent = title || 'Details';
     modal.dataset.currentUrl = url;
     showLoading();
-    modal.showModal();
-    fetchFragment(url).then(function (html) { modalBody.innerHTML = html; }).catch(showLoadError);
+    if (!modal.open) modal.showModal();
+    fetchFragment(url, detailAbortController && detailAbortController.signal)
+      .then(function (html) {
+        if (requestId !== activeDetailRequest || !modal.open) return;
+        modalBody.innerHTML = html;
+      })
+      .catch(function (error) {
+        if (error && error.name === 'AbortError') return;
+        if (requestId === activeDetailRequest && modal.open) showLoadError();
+      });
   }
 
   function closeDetailModal() {
-    if (!refs() || !modal.open) return;
-    modal.close();
+    if (!refs()) return;
+    activeDetailRequest += 1;
+    if (detailAbortController) detailAbortController.abort();
+    detailAbortController = null;
+    closeChildModals();
+    if (modal.open) modal.close();
+    modalBody.replaceChildren();
     if (dirty) {
       dirty = false;
       window.location.reload();
@@ -191,14 +225,25 @@
       var priestId = button.dataset.priestId;
       var priestName = button.dataset.priestName || 'Priest';
       var offset = 0;
-      scheduleModal.querySelector('h3').textContent = 'Priest Schedule';
+      activeScheduleRequest += 1;
+      var requestId = activeScheduleRequest;
+      if (scheduleAbortController) scheduleAbortController.abort();
+      scheduleAbortController = window.AbortController ? new AbortController() : null;
+      var heading = scheduleModal.querySelector('h3');
+      if (heading) heading.textContent = 'Priest Schedule';
       body.innerHTML = '<p><strong>' + escapeHtml(priestName) + '</strong></p><p class="text-muted">Loading schedule…</p>';
-      scheduleModal.showModal();
+      body.removeAttribute('data-priest-id');
+      body.removeAttribute('data-offset');
+      body.removeAttribute('data-schedule-url');
+      if (!scheduleModal.open) scheduleModal.showModal();
 
       function loadSchedule() {
-        fetch(button.dataset.scheduleUrl + '?priest_id=' + encodeURIComponent(priestId) + '&offset=' + offset, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        var options = { headers: { 'X-Requested-With': 'XMLHttpRequest' } };
+        if (scheduleAbortController) options.signal = scheduleAbortController.signal;
+        fetch(button.dataset.scheduleUrl + '?priest_id=' + encodeURIComponent(priestId) + '&offset=' + offset, options)
           .then(function (res) { return res.json(); })
           .then(function (data) {
+            if (requestId !== activeScheduleRequest || !scheduleModal.open) return;
             if (!data.success) throw new Error(data.message || 'Unable to load schedule.');
             var html = '<div class="priest-schedule-identity"><strong>' + escapeHtml(data.priest.full_name) + '</strong><span>' + escapeHtml(data.priest.title || 'Priest') + '</span></div><h4 class="priest-schedule-heading">Upcoming Appointments' + (data.appointments.length ? ' (' + data.appointments.length + ')' : '') + '</h4>';
             if (!data.appointments.length && offset === 0) html += '<div class="priest-schedule-empty"><strong>No upcoming appointments</strong><span>This priest currently has no upcoming appointments scheduled.</span></div>';
@@ -209,19 +254,27 @@
             body.dataset.offset = String(offset + data.appointments.length);
             body.dataset.scheduleUrl = button.dataset.scheduleUrl;
           })
-          .catch(function (error) { body.innerHTML = '<p class="text-muted">' + escapeHtml(error.message) + '</p>'; });
+          .catch(function (error) {
+            if (error && error.name === 'AbortError') return;
+            if (requestId === activeScheduleRequest && scheduleModal.open) body.innerHTML = '<p class="text-muted">' + escapeHtml(error.message) + '</p>';
+          });
       }
       loadSchedule();
     }
 
     function loadMorePriestSchedule() {
       var body = document.getElementById('priestScheduleModalBody');
-      if (!body || !body.dataset.priestId || !body.dataset.scheduleUrl) return;
+      var scheduleModal = document.getElementById('priestScheduleModal');
+      if (!body || !scheduleModal || !scheduleModal.open || !body.dataset.priestId || !body.dataset.scheduleUrl) return;
+      var requestId = activeScheduleRequest;
       var oldButton = body.querySelector('.js-load-more-priest-schedule');
       if (oldButton) oldButton.disabled = true;
-      fetch(body.dataset.scheduleUrl + '?priest_id=' + encodeURIComponent(body.dataset.priestId) + '&offset=' + encodeURIComponent(body.dataset.offset || '0'), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      var options = { headers: { 'X-Requested-With': 'XMLHttpRequest' } };
+      if (scheduleAbortController) options.signal = scheduleAbortController.signal;
+      fetch(body.dataset.scheduleUrl + '?priest_id=' + encodeURIComponent(body.dataset.priestId) + '&offset=' + encodeURIComponent(body.dataset.offset || '0'), options)
         .then(function (res) { return res.json(); })
         .then(function (data) {
+          if (requestId !== activeScheduleRequest || !scheduleModal.open) return;
           if (!data.success) throw new Error(data.message || 'Unable to load more appointments.');
           if (oldButton) oldButton.remove();
           data.appointments.forEach(function (item) {
@@ -232,7 +285,12 @@
           body.dataset.offset = String(Number(body.dataset.offset || '0') + data.appointments.length);
           if (data.has_more) { var more = document.createElement('button'); more.type = 'button'; more.className = 'btn btn-outline btn-block js-load-more-priest-schedule'; more.textContent = 'Load More'; body.appendChild(more); }
         })
-        .catch(function (error) { if (oldButton) { oldButton.disabled = false; } var errorNote = document.createElement('p'); errorNote.className = 'text-muted'; errorNote.textContent = error.message; body.appendChild(errorNote); });
+        .catch(function (error) {
+          if (error && error.name === 'AbortError') return;
+          if (requestId !== activeScheduleRequest || !scheduleModal.open) return;
+          if (oldButton) { oldButton.disabled = false; }
+          var errorNote = document.createElement('p'); errorNote.className = 'text-muted'; errorNote.textContent = error.message; body.appendChild(errorNote);
+        });
     }
 
     function escapeHtml(value) { return String(value).replace(/[&<>"']/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]); }); }
@@ -244,6 +302,11 @@
     // needs the same dirty-reload follow-up as any other close path.
     if (modal) {
       modal.addEventListener('cancel', function () {
+        activeDetailRequest += 1;
+        if (detailAbortController) detailAbortController.abort();
+        detailAbortController = null;
+        closeChildModals();
+        modalBody.replaceChildren();
         setTimeout(function () {
           if (dirty) { dirty = false; window.location.reload(); }
         }, 0);
@@ -282,6 +345,8 @@
       e.preventDefault();
 
       var submitButtons = form.querySelectorAll('button[type="submit"]');
+      var submitRequestId = activeDetailRequest;
+      var submitUrl = modal.dataset.currentUrl;
       form.dataset.submitting = '1';
       submitButtons.forEach(function (btn) {
         btn.disabled = true;
@@ -301,6 +366,7 @@
           });
         })
         .then(function (data) {
+          if (submitRequestId !== activeDetailRequest || !modal.open) return;
           if (data.redirect) {
             // The record this modal was showing no longer exists in the
             // underlying list the way it did (e.g. it was cancelled) —
@@ -309,12 +375,15 @@
             return;
           }
           if (data.success) dirty = true;
-          return fetchFragment(modal.dataset.currentUrl).then(function (html) {
+          return fetchFragment(submitUrl, detailAbortController && detailAbortController.signal).then(function (html) {
+            if (submitRequestId !== activeDetailRequest || !modal.open) return;
             modalBody.innerHTML = html;
             if (data.message) prependBanner(!!data.success, data.message);
           });
         })
-        .catch(function () {
+        .catch(function (error) {
+          if (error && error.name === 'AbortError') return;
+          if (submitRequestId !== activeDetailRequest || !modal.open) return;
           form.dataset.submitting = '0';
           submitButtons.forEach(function (btn) {
             btn.disabled = false;

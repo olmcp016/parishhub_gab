@@ -903,16 +903,6 @@ if (!$isAjax) {
     </div>
     <?php endif; ?>
 
-    <dialog class="modal modal-lg priest-schedule-modal" id="priestScheduleModal">
-      <div class="modal-head">
-        <h3>Priest Schedule</h3>
-        <button type="button" class="modal-close js-close-priest-schedule" aria-label="Close">✕</button>
-      </div>
-      <div class="modal-body" id="priestScheduleModalBody">
-        <p class="text-muted">Select View Schedule to load appointments.</p>
-      </div>
-    </dialog>
-
     <?php if (!in_array($appointment['category'], ['Mass Intention', 'Donation'], true) && in_array((int) $appointment['status_id'], [1, 2, 4, 5], true)): ?>
     <div class="card">
       <div class="card-header"><h3>Reschedule</h3></div>
@@ -935,17 +925,8 @@ if (!$isAjax) {
   </div>
 </div>
 
-<dialog id="rejectApptModal" style="max-width:400px;padding:24px;border-radius:8px;border:none;">
-  <h3 style="margin-top:0;">Reject Appointment?</h3>
-  <p style="color:var(--text-muted,#555);">This will reject the entire appointment request. The applicant will need to submit a new booking if they want to proceed.</p>
-  <p><strong>Reason:</strong> <span id="rejectConfirmReason"></span></p>
-  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
-    <button type="button" class="btn btn-outline" onclick="document.getElementById('rejectApptModal').close()">Cancel</button>
-    <button type="button" class="btn btn-danger" style="white-space:nowrap;" onclick="document.getElementById('rejectApptModal').close(); document.getElementById('rejectForm').requestSubmit();">Reject Appointment</button>
-  </div>
-</dialog>
-
 <?php if (!$isAjax): ?>
+<?php include __DIR__ . '/../includes/secretary-modal-shells.php'; ?>
 <script src="<?= url('public/js/detail-modal.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/detail-modal.js') ?>"></script>
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

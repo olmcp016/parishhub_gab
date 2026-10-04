@@ -1085,8 +1085,12 @@ dialog.modal {
   display: flex;
   flex-direction: column;
 }
+/* The native dialog user-agent stylesheet hides closed dialogs. Keep that
+   invariant explicit because the shared open-state layout uses display:flex. */
+dialog.modal:not([open]) { display: none; }
 dialog.modal.modal-lg { width: 680px; }
 dialog.modal.modal-xl { width: min(1200px, calc(100vw - 40px)); }
+dialog.appointment-rejection-confirm-modal { width: min(480px, calc(100vw - 40px)); }
 dialog.modal::backdrop { background: rgba(36, 22, 17, 0.55); }
 .modal-head {
   background: var(--brown-dark); color: var(--gold-light);
