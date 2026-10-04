@@ -3,6 +3,7 @@ require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/wedding-forms.php';
 require_once __DIR__ . '/includes/baptism-forms.php';
+require_once __DIR__ . '/includes/supporting-documents.php';
 
 /**
  * Public, no-account status lookup for a guest booking/Mass Intention/
@@ -229,14 +230,11 @@ include __DIR__ . '/includes/header.php';
                 <?php endif; ?>
                 <div class="flex gap-2" style="margin-top:8px; flex-wrap:wrap;">
                   <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $document['document_id']) ?>">View Document</a>
-                  <?php if ($docStatus === 'rejected'): ?>
-                    <form method="POST" action="<?= url('guest-document-replace.php') ?>" enctype="multipart/form-data" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-                      <?= csrfField() ?><input type="hidden" name="appointment_id" value="<?= (int) $appointment['appointment_id'] ?>"><input type="hidden" name="document_id" value="<?= (int) $document['document_id'] ?>"><input type="hidden" name="ref" value="<?= e($reference) ?>">
-                      <input type="file" name="replacement" accept=".pdf,.jpg,.jpeg,.png" required>
-                      <button class="btn btn-primary btn-sm" type="submit">Replace Document</button>
-                    </form>
-                  <?php endif; ?>
                 </div>
+                <?php if ($docStatus === 'rejected'): ?>
+                  <?php $replacementLabel = $document['requirement_label'] ?: $document['file_name']; ?>
+                  <?php renderSupportingDocumentCards([$replacementLabel], [$replacementLabel => $document], 'guest_appointment', (int) $appointment['appointment_id']); ?>
+                <?php endif; ?>
               </div>
             <?php endforeach; ?>
           </div>

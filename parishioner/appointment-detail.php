@@ -5,6 +5,7 @@ require_once __DIR__ . '/../includes/document-storage.php';
 require_once __DIR__ . '/../includes/wedding-forms.php';
 require_once __DIR__ . '/../includes/baptism-forms.php';
 require_once __DIR__ . '/../includes/document-validation.php';
+require_once __DIR__ . '/../includes/supporting-documents.php';
 requireRole('Parishioner');
 
 $userId = currentUser()['user_id'];
@@ -255,7 +256,7 @@ $onlineUnfinished = $payment && (int) $payment['method_id'] === 7 && $payment['p
 $canPay = $appointment['status_name'] === 'Approved'
     && (!$payment || $onlineUnfinished || in_array($payment['payment_status'], ['failed', 'cancelled'], true));
 
-$stmt = db()->prepare('SELECT * FROM uploaded_documents WHERE appointment_id = ? ORDER BY uploaded_at DESC, document_id DESC');
+$stmt = db()->prepare('SELECT * FROM uploaded_documents WHERE appointment_id = ? AND superseded_by IS NULL ORDER BY uploaded_at DESC, document_id DESC');
 $stmt->execute([$id]);
 $documents = $stmt->fetchAll();
 $generatedForms = [];
@@ -504,6 +505,21 @@ if (!$isAjax) {
       <?php if (empty($requirementsList)): ?>
         <p class="text-muted">No specific documents are required for this service.</p>
       <?php else: ?>
+        <?php
+          $supportingRequirements = array_values(array_filter(
+              $requirementsList,
+              static fn(string $label): bool => $label !== 'Katin-awan sa Paglubong'
+          ));
+          $supportingDocuments = [];
+          foreach ($documentsByLabel as $documentLabel => $labelDocuments) {
+              if (!empty($labelDocuments)) $supportingDocuments[$documentLabel] = $labelDocuments[0];
+          }
+        ?>
+        <?php if ($supportingRequirements): ?>
+          <div class="supporting-document-card-list">
+            <?php renderSupportingDocumentCards($supportingRequirements, $supportingDocuments, 'appointment', $id, $canUpload); ?>
+          </div>
+        <?php endif; ?>
         <?php foreach ($requirementsList as $i => $label): ?>
           <?php $matches = $documentsByLabel[$label] ?? []; ?>
           <?php if ($label === 'Katin-awan sa Paglubong'): ?>
@@ -535,29 +551,7 @@ if (!$isAjax) {
                 <?php endforeach; endif; ?>
               </div>
             </div>
-          <?php else: ?>
-          <div class="form-group doc-req-row">
-            <label>
-              <?= e($label) ?>
-              <?php if (empty($matches)): ?>
-                <span class="badge badge-rejected">Missing</span>
-              <?php elseif (($matches[0]['review_status'] ?? ($matches[0]['verified'] ? 'approved' : 'pending')) === 'approved'): ?>
-                <span class="badge badge-verified">Verified/Accepted</span>
-              <?php else: ?>
-                <span class="badge badge-pending">Uploaded — Pending Review</span>
-              <?php endif; ?>
-            </label>
-            <?php foreach ($matches as $d): ?>
-              <p style="margin:2px 0;">
-                <a href="<?= documentViewUrl((int) $d['document_id']) ?>" target="_blank" rel="noopener">View Current File: <?= e($d['file_name']) ?></a>
-              </p>
-            <?php endforeach; ?>
-            <?php if ($canUpload): ?>
-              <label class="helper-text" style="display:block; margin-top:8px;">Replace this document</label>
-              <input type="file" form="uploadDocsForm" name="req_doc_<?= $i ?>" accept=".pdf,.jpg,.jpeg,.png">
-            <?php endif; ?>
-          </div>
-        <?php endif; ?>
+          <?php endif; ?>
         <?php endforeach; ?>
       <?php endif; ?>
 
@@ -580,15 +574,12 @@ if (!$isAjax) {
       <?php endif; ?>
 
       <?php if ($canUpload): ?>
-        <form method="POST" action="<?= url('parishioner/appointment-detail.php?id=' . $id) ?>" enctype="multipart/form-data" class="mt-3" id="uploadDocsForm">
-          <?= csrfField() ?>
-          <input type="hidden" name="action" value="upload_documents">
-          <div class="form-group">
-            <label>Additional Documents (optional)</label>
-            <input type="file" name="documents[]" multiple accept=".pdf,.jpg,.jpeg,.png">
-            <p class="helper-text">Max <?= e(ini_get('upload_max_filesize')) ?> per file, <?= e(ini_get('post_max_size')) ?> total. Files must be readable, correctly formatted (PDF/JPG/PNG), and portrait-oriented — these are checked automatically before final staff review.</p>
-          </div>
-          <button type="submit" class="btn btn-outline btn-sm"><?= $appointment['status_name'] === 'Rejected' ? 'Update Documents' : 'Upload' ?></button>
+        <form method="POST" action="<?= url('parishioner/appointment-detail.php?id=' . $id) ?>" enctype="multipart/form-data" class="mt-3">
+          <?= csrfField() ?><input type="hidden" name="action" value="upload_documents">
+          <label>Additional Documents (optional)</label>
+          <input type="file" name="documents[]" multiple accept=".pdf,.jpg,.jpeg,.png">
+          <p class="helper-text">Accepted files: PDF, JPG, JPEG, PNG. Maximum size: <?= e((string) MAX_DOCUMENT_UPLOAD_MB) ?> MB per file.</p>
+          <button type="submit" class="btn btn-outline btn-sm">Upload Additional Documents</button>
         </form>
       <?php endif; ?>
     </div>

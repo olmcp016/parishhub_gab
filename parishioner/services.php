@@ -378,7 +378,8 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
               <li>Document must be in portrait orientation.</li>
               <li>Make sure all information is visible.</li>
               <li>Do not upload blurry, corrupted, or incorrect files.</li>
-              <li>Upload the required document as a PDF, JPG, or PNG file.</li>
+              <li>Upload the required document as a PDF, JPG, JPEG, or PNG file.</li>
+              <li>Maximum file size: <?= e((string) MAX_DOCUMENT_UPLOAD_MB) ?> MB.</li>
             </ul>
             <p style="margin:8px 0 0;">These automated checks confirm a file is readable and correctly formatted — they do not verify authenticity. Our parish staff will do a final manual review before approval.</p>
           </div>
@@ -1013,10 +1014,12 @@ function rebuildRequirementRows(serviceId) {
         '<input type="hidden" name="req_doc_' + i + '_generated" value="1">' +
       '</div>';
     }
+    var optionalIfMarried = /\(\s*if\s+married\s*\)/i.test(label);
+    var displayLabel = label.replace(/\s*\(\s*if\s+married\s*\)/i, '');
     return (
       '<div class="form-group doc-req-row">' +
-        '<label>' + label + ' <span style="color:var(--danger);">*</span> <span class="badge badge-rejected doc-status-pill">Required</span></label>' +
-        '<input type="file" name="req_doc_' + i + '" accept=".pdf,.jpg,.jpeg,.png" required data-label="' + label.replace(/"/g, '&quot;') + '">' +
+        '<label>' + displayLabel + (optionalIfMarried ? ' <span class="badge badge-pending doc-status-pill">Optional — only if parents are married</span>' : ' <span style="color:var(--danger);">*</span> <span class="badge badge-rejected doc-status-pill">Required</span>') + '</label>' +
+        '<input type="file" name="req_doc_' + i + '" accept=".pdf,.jpg,.jpeg,.png"' + (optionalIfMarried ? '' : ' required') + ' data-label="' + label.replace(/"/g, '&quot;') + '">' +
       '</div>'
     );
   }).join('');

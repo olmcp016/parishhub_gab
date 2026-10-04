@@ -4,6 +4,7 @@ require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/wedding-draft.php';
 require_once __DIR__ . '/includes/document-storage.php';
 require_once __DIR__ . '/includes/document-validation.php';
+require_once __DIR__ . '/includes/supporting-documents.php';
 require_once __DIR__ . '/includes/wedding-forms.php';
 require_once __DIR__ . '/includes/scheduling.php';
 
@@ -99,9 +100,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$docs = $pdo->prepare('SELECT requirement_label FROM uploaded_documents WHERE draft_id = ? AND superseded_by IS NULL');
+$docs = $pdo->prepare("SELECT requirement_label, document_id, file_name FROM uploaded_documents WHERE draft_id = ? AND superseded_by IS NULL AND document_source = 'uploaded' ORDER BY document_id DESC");
 $docs->execute([$draftId]);
-$uploaded = array_unique($docs->fetchAll(PDO::FETCH_COLUMN));
+$uploadedDocuments = [];
+foreach ($docs->fetchAll() as $document) {
+    if (!isset($uploadedDocuments[$document['requirement_label']])) $uploadedDocuments[$document['requirement_label']] = $document;
+}
+$uploaded = array_keys($uploadedDocuments);
 $forms = $pdo->prepare('SELECT form_type, status, document_id FROM generated_wedding_forms WHERE draft_id = ?');
 $forms->execute([$draftId]);
 $formRows = [];
@@ -117,7 +122,7 @@ $usesPublicShell = !$user;
 include __DIR__ . '/includes/header.php';
 include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 'dash-start.php');
 ?>
-<div class="card" style="max-width:850px;margin:auto;"><h2>Supporting Documents</h2><form method="POST" enctype="multipart/form-data"><?= csrfField() ?><input type="hidden" name="action" value="upload_documents"><?php foreach (weddingDraftRequiredDocuments($draft) as $index => $label): if (in_array($label, $uploaded, true)): ?><p style="margin:8px 0;">✓ <?= e($label) ?> — <strong>Uploaded</strong></p><?php else: ?><p style="margin:8px 0;">○ <?= e($label) ?> — <strong>Required</strong><br><input type="file" name="req_doc_<?= $index ?>" accept=".pdf,.jpg,.jpeg,.png" required></p><?php endif; endforeach; ?><button class="btn btn-secondary" type="submit">Save Documents</button></form></div>
+<div class="card" style="max-width:850px;margin:auto;"><h2>Supporting Documents</h2><?php renderSupportingDocumentCards(weddingDraftRequiredDocuments($draft), $uploadedDocuments, 'wedding_draft', $draftId); ?></div>
 <div class="card" style="max-width:850px;margin:auto;">
   <h2>Wedding Forms</h2>
   <?php foreach (WEDDING_DRAFT_FORMS as $type):

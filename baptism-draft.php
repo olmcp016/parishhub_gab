@@ -5,6 +5,7 @@ require_once __DIR__ . '/includes/baptism-draft.php';
 require_once __DIR__ . '/includes/baptism-forms.php';
 require_once __DIR__ . '/includes/document-storage.php';
 require_once __DIR__ . '/includes/document-validation.php';
+require_once __DIR__ . '/includes/supporting-documents.php';
 require_once __DIR__ . '/includes/wedding-forms.php';
 require_once __DIR__ . '/includes/scheduling.php';
 
@@ -28,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'uploa
     $storedKeys = [];
     try {
         $pdo->beginTransaction();
-        foreach (baptismDraftRequiredDocuments($draft) as $i => $label) {
+        foreach (baptismDraftAllDocuments($draft) as $i => $label) {
             $field = 'req_doc_' . $i;
             $file = $_FILES[$field] ?? null;
             if (!$file || ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) continue;
@@ -130,9 +131,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$stmt = $pdo->prepare('SELECT requirement_label FROM uploaded_documents WHERE baptism_draft_id = ? AND superseded_by IS NULL');
+$stmt = $pdo->prepare('SELECT requirement_label, document_id, file_name FROM uploaded_documents WHERE baptism_draft_id = ? AND superseded_by IS NULL AND document_source = \'uploaded\' ORDER BY document_id DESC');
 $stmt->execute([$id]);
-$uploaded = $stmt->fetchAll(PDO::FETCH_COLUMN);
+$uploadedDocuments = [];
+foreach ($stmt->fetchAll() as $document) {
+    if (!isset($uploadedDocuments[$document['requirement_label']])) $uploadedDocuments[$document['requirement_label']] = $document;
+}
+$uploaded = array_keys($uploadedDocuments);
 $stmt = $pdo->prepare('SELECT form_type, document_id, status FROM generated_baptism_forms WHERE draft_id = ?');
 $stmt->execute([$id]);
 $forms = [];
@@ -143,14 +148,8 @@ include __DIR__ . '/includes/header.php';
 include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 'dash-start.php');
 ?>
 <div class="card"><h2>Supporting Documents</h2>
-<?php foreach (baptismDraftRequiredDocuments($draft) as $label): ?>
-<p><?= in_array($label, $uploaded, true) ? '✓' : '○' ?> <?= e($label) ?> — <?= in_array($label, $uploaded, true) ? 'Uploaded' : 'Required' ?></p>
-<?php endforeach; ?>
-<form method="POST" enctype="multipart/form-data">
-<?= csrfField() ?><input type="hidden" name="action" value="upload_documents">
-<?php foreach (baptismDraftRequiredDocuments($draft) as $i => $label): ?><div class="form-group"><label><?= e($label) ?></label><input type="file" name="req_doc_<?= (int) $i ?>" accept=".pdf,.jpg,.jpeg,.png"></div><?php endforeach; ?>
-<button class="btn btn-outline" type="submit">Save Documents</button>
-</form></div>
+<?php renderSupportingDocumentCards(baptismDraftAllDocuments($draft), $uploadedDocuments, 'baptism_draft', $id); ?>
+</div>
 <div class="card"><h2>Baptism Forms</h2>
 <?php foreach (BAPTISM_DRAFT_FORMS as $type):
   $row = $forms[$type] ?? null;

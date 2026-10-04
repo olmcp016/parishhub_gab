@@ -3,6 +3,7 @@ require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/document-storage.php';
 require_once __DIR__ . '/includes/document-validation.php';
+require_once __DIR__ . '/includes/supporting-documents.php';
 require_once __DIR__ . '/includes/funeral-draft.php';
 require_once __DIR__ . '/includes/funeral-forms.php';
 
@@ -116,6 +117,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submi
 }
 
 $uploadedLabels = funeralDraftUploadedLabels($draft);
+$uploadedDocuments = [];
+foreach (array_filter($draft['uploaded_keys'] ?? [], 'is_array') as $document) {
+    if (!isset($uploadedDocuments[$document['label'] ?? ''])) $uploadedDocuments[$document['label'] ?? ''] = $document;
+}
 $hasKatinAwan = funeralDraftHasGeneratedForm($draft);
 
 $pageTitle = 'Funeral Requirements';
@@ -125,16 +130,8 @@ include __DIR__ . '/includes/header.php';
 include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 'dash-start.php');
 ?>
 <div class="card"><h2>Supporting Documents</h2>
-<?php foreach (funeralDraftRequiredDocuments() as $label): ?>
-<p><?= in_array($label, $uploadedLabels, true) ? '✓' : '○' ?> <?= e($label) ?> — <?= in_array($label, $uploadedLabels, true) ? 'Uploaded' : 'Required' ?></p>
-<?php endforeach; ?>
-<form method="POST" enctype="multipart/form-data">
-<?= csrfField() ?><input type="hidden" name="draft_id" value="<?= $draftId ?>"><input type="hidden" name="action" value="upload_documents">
-<?php foreach (funeralDraftRequiredDocuments() as $i => $label): if (in_array($label, $uploadedLabels, true)) continue; ?>
-<div class="form-group"><label><?= e($label) ?> *</label><input type="file" name="req_doc_<?= (int) $i ?>" accept=".pdf,.jpg,.jpeg,.png" required></div>
-<?php endforeach; ?>
-<?php if (count($uploadedLabels) < count(funeralDraftRequiredDocuments())): ?><button class="btn btn-outline" type="submit">Save Documents</button><?php endif; ?>
-</form></div>
+<?php renderSupportingDocumentCards(funeralDraftRequiredDocuments(), $uploadedDocuments, 'funeral_draft', $draftId); ?>
+</div>
 <div class="card"><h2>Funeral Forms</h2>
 <div class="generated-form-item">
   <div class="generated-form-header">
