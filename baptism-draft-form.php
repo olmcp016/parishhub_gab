@@ -152,8 +152,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $pdo->commit();
             flash('success', 'Baptism form generated and submitted for review.');
-            $contextQuery = $isAppointmentForm ? 'appointment_id=' . $appointmentId : 'draft_id=' . $id;
-            redirect(url('baptism-draft-form.php?' . $contextQuery . '&form_type=' . urlencode($type) . '&generated_document_id=' . $newId));
+            if ($isAppointmentForm) {
+                redirect($isGuest
+                    ? url('status.php?ref=' . urlencode((string) ($appointment['guest_reference'] ?? '')))
+                    : url('parishioner/appointment-detail.php?id=' . $appointmentId));
+            }
+            redirect(url('baptism-draft.php?draft_id=' . $id));
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) { $pdo->rollBack(); }
             if ($stored) { try { documentStorageDelete($stored['key']); } catch (Throwable $cleanupError) { error_log('Baptism generated-document cleanup failed.'); } }
@@ -295,10 +299,10 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
       </div>
     <?php endforeach; ?>
     <?php endif; ?>
-    <?php generatedFormWorkflowGuide(!$isAppointmentForm); ?>
+    <?php generatedFormWorkflowActionHelper(); ?>
     <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
-      <button class="btn btn-outline" style="width: 100%;" name="action" value="save" formnovalidate>I-SAVE ANG DRAFT <span class="generated-form-button-translation">(Save Draft)</span></button>
-      <button class="btn btn-primary" style="width: 100%;" name="action" value="generate">HIMOA ANG PDF <span class="generated-form-button-translation">(Generate PDF)</span></button>
+      <button class="btn btn-outline" style="width: 100%;" name="action" value="save" formnovalidate>Save Draft</button>
+      <button class="btn btn-primary" style="width: 100%;" name="action" value="generate">Generate PDF</button>
     </div>
   </form>
 </div>

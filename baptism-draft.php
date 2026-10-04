@@ -161,7 +161,6 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
 <?php renderSupportingDocumentCards(baptismDraftAllDocuments($draft), $uploadedDocuments, 'baptism_draft', $id); ?>
 </div>
 <div class="card"><h2>Baptism Forms</h2>
-<?php generatedFormWorkflowGuide(true); ?>
 <?php foreach (BAPTISM_DRAFT_FORMS as $type):
   $row = $forms[$type] ?? null;
   $documentId = $row && !empty($row['document_id']) ? (int) $row['document_id'] : 0;

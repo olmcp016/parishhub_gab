@@ -1324,11 +1324,8 @@ input.amount-no-spinner {
   margin-bottom: 16px;
   background: #fff;
 }
-.generated-form-guide { margin:12px 0 18px; padding:14px 16px; border:1px solid var(--cream-dark); border-left:4px solid var(--gold,#b8904a); border-radius:8px; background:rgba(255,255,255,.7); color:var(--brown-mid); }
-.generated-form-guide strong { color:var(--brown-dark); display:block; }
+.generated-form-action-helper { margin:14px 0 10px; color:var(--brown-mid); font-size:.9rem; line-height:1.5; }
 .generated-form-guide-translation { color:var(--text-muted,#666); font-size:.88em; font-weight:400; }
-.generated-form-guide p { margin:5px 0 0; line-height:1.5; font-size:.92rem; }
-.generated-form-button-translation { display:block; font-size:.82em; font-weight:400; }
 .generated-form-header {
   margin-bottom: 12px;
 }

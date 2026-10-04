@@ -137,7 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $pdo->commit();
             if ($action === 'generate') {
-                redirect(url('wedding-draft-form.php?draft_id=' . $draftId . '&form_type=' . urlencode($type) . '&generated_document_id=' . $documentId));
+                redirect(url('wedding-draft.php?draft_id=' . $draftId));
             }
             redirect(url('wedding-draft.php?draft_id=' . $draftId));
         } catch (Throwable $e) {
@@ -352,10 +352,10 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
             </div>
         <?php endforeach; ?>
         <?php endif; ?>
-        <?php generatedFormWorkflowGuide(true); ?>
+        <?php generatedFormWorkflowActionHelper(); ?>
         <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
-          <button class="btn btn-outline" style="width: 100%;" name="action" value="save" <?= in_array($type, ['matrimony_application', 'cluster_clearance', 'wedding_sponsor_clearance']) ? 'formnovalidate' : '' ?>>I-SAVE ANG DRAFT <span class="generated-form-button-translation">(Save Draft)</span></button>
-          <button class="btn btn-primary" style="width: 100%;" name="action" value="generate">HIMOA ANG PDF <span class="generated-form-button-translation">(Generate PDF)</span></button>
+          <button class="btn btn-outline" style="width: 100%;" name="action" value="save" <?= in_array($type, ['matrimony_application', 'cluster_clearance', 'wedding_sponsor_clearance']) ? 'formnovalidate' : '' ?>>Save Draft</button>
+          <button class="btn btn-primary" style="width: 100%;" name="action" value="generate">Generate PDF</button>
         </div>
     </form>
 </div>

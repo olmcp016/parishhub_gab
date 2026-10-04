@@ -121,7 +121,6 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
 <div class="card" style="max-width:850px;margin:auto;"><h2>Supporting Documents</h2><?php renderSupportingDocumentCards(weddingDraftRequiredDocuments($draft), $uploadedDocuments, 'wedding_draft', $draftId); ?></div>
 <div class="card" style="max-width:850px;margin:auto;">
   <h2>Wedding Forms</h2>
-  <?php generatedFormWorkflowGuide(true); ?>
   <?php foreach (WEDDING_DRAFT_FORMS as $type):
     $row = $formRows[$type] ?? null;
     $title = weddingFormDefinition($type)['title'];

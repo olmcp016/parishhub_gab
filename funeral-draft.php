@@ -142,7 +142,6 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
 <?php renderSupportingDocumentCards(funeralDraftRequiredDocuments(), $uploadedDocuments, 'funeral_draft', $draftId); ?>
 </div>
 <div class="card"><h2>Funeral Forms</h2>
-<?php generatedFormWorkflowGuide(true); ?>
 <div class="generated-form-item">
   <div class="generated-form-header">
     <span class="generated-form-title">Katin-awan sa Paglubong</span>

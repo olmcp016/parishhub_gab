@@ -37,7 +37,7 @@ function generatedFormWorkflowState(?array $form, ?array $document = null, bool 
     if ($status === 'rejected' || $reviewStatus === 'rejected') {
         return [
             'code' => 'needs_revision',
-            'label' => 'Needs revision',
+            'label' => 'Needs Revision',
             'description' => 'Review the Secretary\'s note, update the form, and generate a new PDF.',
             'has_document' => $hasDocument,
         ];
@@ -75,7 +75,7 @@ function generatedFormWorkflowState(?array $form, ?array $document = null, bool 
     if ($isDraft && $hasDocument) {
         return [
             'code' => 'generated',
-            'label' => 'Generated — ready to submit',
+            'label' => 'Generated — Ready to Submit',
             'description' => 'The PDF is ready. Submit the booking request to send it for Secretary review.',
             'has_document' => true,
         ];
@@ -110,25 +110,12 @@ function generatedFormWorkflowActionLabel(array $state): string
     };
 }
 
-function generatedFormWorkflowGuide(bool $isDraft = true): void
+function generatedFormWorkflowActionHelper(): void
 {
     ?>
-    <div class="generated-form-guide" role="note">
-      <strong>UNSAON PAGHUMAN ANI NGA FORM</strong>
-      <span class="generated-form-guide-translation">(How to complete this form)</span>
-      <p>
-        Kung dili pa kompleto ang imong tubag, i-click ang I-SAVE ANG DRAFT aron ma-save ug mahimo nimong ipadayon unya.
-        <span class="generated-form-guide-translation">(If your answers are not yet complete, click Save Draft so you can continue later.)</span><br>
-        Kung kompleto na ang tanan, i-click ang HIMOA ANG PDF aron mahimo ang final nga form.
-        <span class="generated-form-guide-translation">(When everything is complete, click Generate PDF to create the final form.)</span><br>
-        <?php if ($isDraft): ?>
-          Human ma-generate ang PDF, balik sa Requirements page ug isumite ang imong booking request aron ma-review sa Secretary.
-          <span class="generated-form-guide-translation">(After generating the PDF, return to the Requirements page and submit your booking request for Secretary review.)</span>
-        <?php else: ?>
-          Human ma-generate ang PDF, ipadala kini sa Secretary alang sa review.
-          <span class="generated-form-guide-translation">(After generating the PDF, it will be sent to the Secretary for review.)</span>
-        <?php endif; ?>
-      </p>
-    </div>
+    <p class="generated-form-action-helper" role="note">
+      Kompleto na ang impormasyon? Himoa ang PDF aron mahuman kini nga requirement.
+      <span class="generated-form-guide-translation">(Information complete? Generate the PDF to complete this requirement.)</span>
+    </p>
     <?php
 }

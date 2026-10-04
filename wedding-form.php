@@ -134,8 +134,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $pdo->commit();
             flash('success', $action === 'generate' ? 'Form generated and submitted for review.' : 'Draft saved.');
-            $preview = $action === 'generate' ? '&generated_document_id=' . $documentId : '';
-            redirect(url('wedding-form.php?appointment_id=' . $appointmentId . '&form_type=' . urlencode($type) . $preview));
+            if ($action === 'generate') {
+                redirect($isGuest
+                    ? url('status.php?ref=' . urlencode((string) ($appointment['guest_reference'] ?? '')))
+                    : url('parishioner/appointment-detail.php?id=' . $appointmentId));
+            }
+            redirect(url('wedding-form.php?appointment_id=' . $appointmentId . '&form_type=' . urlencode($type)));
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) { $pdo->rollBack(); }
             if ($newPath && is_file($newPath)) { @unlink($newPath); }
@@ -225,10 +229,10 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
     <?php endforeach; ?>
     <?php endif; ?>
     <?php if ($type === 'wedding_sponsor_clearance'): ?><p class="text-muted">Serbisyo nga gipangayo: Kasal (ang ubang opisyal nga kapilian makita sa nahimong form). <span class="generated-form-guide-translation">(Service requested: Kasal; the other official choices remain printed on the generated form.)</span></p><?php endif; ?>
-    <?php generatedFormWorkflowGuide(false); ?>
+    <?php generatedFormWorkflowActionHelper(); ?>
     <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
-      <button class="btn btn-outline" style="width: 100%;" name="action" value="save" formnovalidate>I-SAVE ANG DRAFT <span class="generated-form-button-translation">(Save Draft)</span></button>
-      <button class="btn btn-primary" style="width: 100%;" name="action" value="generate">HIMOA ANG PDF <span class="generated-form-button-translation">(Generate PDF)</span></button>
+      <button class="btn btn-outline" style="width: 100%;" name="action" value="save" formnovalidate>Save Draft</button>
+      <button class="btn btn-primary" style="width: 100%;" name="action" value="generate">Generate PDF</button>
     </div>
   </form>
 </div>

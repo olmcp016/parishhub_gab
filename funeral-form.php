@@ -141,7 +141,9 @@ if ($isDraft) {
                 $updatedForm = $formQuery->fetch();
                 $newDocumentId = (int) ($updatedForm['document_id'] ?? 0);
                 flash('success', 'Katin-awan sa Paglubong has been generated and submitted for review.');
-                redirect(url('funeral-form.php?appointment_id=' . $appointmentId . '&generated_document_id=' . $newDocumentId));
+                redirect($isGuest
+                    ? url('status.php?ref=' . urlencode((string) ($appointment['guest_reference'] ?? '')))
+                    : url('parishioner/appointment-detail.php?id=' . $appointmentId));
             } catch (Throwable $e) {
                 error_log('Funeral form generation failed: ' . $e->getMessage());
                 $error = $e->getMessage() === 'Approved forms require Secretary review before they can be changed.'
@@ -246,10 +248,10 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
       </div>
     </div>
 
-    <?php generatedFormWorkflowGuide(!$isDraft); ?>
+    <?php generatedFormWorkflowActionHelper(); ?>
     <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
-      <button type="submit" name="action" value="save" formnovalidate class="btn btn-outline" style="width: 100%;">I-SAVE ANG DRAFT <span class="generated-form-button-translation">(Save Draft)</span></button>
-      <button type="submit" name="action" value="generate" class="btn btn-primary" style="width: 100%;">HIMOA ANG PDF <span class="generated-form-button-translation">(Generate PDF)</span></button>
+      <button type="submit" name="action" value="save" formnovalidate class="btn btn-outline" style="width: 100%;">Save Draft</button>
+      <button type="submit" name="action" value="generate" class="btn btn-primary" style="width: 100%;">Generate PDF</button>
       <?php if ($form && $form['document_id']): ?>
         <a href="<?= documentViewUrl((int) $form['document_id']) ?>" target="_blank" rel="noopener" class="btn btn-outline" style="width: 100%;">Preview Current Form</a>
       <?php endif; ?>
