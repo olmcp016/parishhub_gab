@@ -87,7 +87,7 @@ function renderNavSection(string $slug, string $title, array $items, string $act
         [url('treasurer/dashboard.php'), 'dashboard', 'layout-dashboard', 'Dashboard'],
       ], $__active); ?>
       <?php renderNavSection('payments-transactions', 'Payments & Transactions', [
-        [url('treasurer/payments.php'), 'payments', 'history', 'Transaction History'],
+        [url('treasurer/payments.php'), 'payments', 'history', 'Payments'],
         [url('treasurer/donations.php'), 'donations', 'hand-heart', 'Donations'],
         [url('secretary/mass-intentions.php'), 'mass-intentions', 'flame', 'Mass Intentions'],
       ], $__active); ?>
