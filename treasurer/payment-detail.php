@@ -183,16 +183,7 @@ if (!$isModalRequest) {
         <div class="form-group"><label>Official Reference Number</label><input type="text" name="reference_number" value="<?= e($payment['reference_number'] ?? '') ?>" placeholder="Enter Reference/OR Number" required style="padding:8px; width:100%; max-width:300px; border:1px solid #ccc; border-radius:6px;"></div>
         <button type="button" class="btn btn-success" id="verifyBtn" onclick="document.getElementById('confirmPayModal').showModal()">&#10004; Verify Payment &amp; Issue Receipt</button>
       </form>
-    <?php elseif ($payment['payment_status'] === 'verified' && (int) $payment['appointment_status_id'] === 4 && in_array($payment['category'], ['Mass Intention', 'Donation'], true)): ?>
-      <form method="POST" action="<?= url('treasurer/payment-detail.php?id=' . $id) ?>" class="mt-3" id="confirmForm">
-        <?= csrfField() ?>
-        <input type="hidden" name="action" value="confirm">
-        <p class="helper-text" style="margin-top:0;">
-          <?= $payment['category'] === 'Mass Intention' ? 'Confirming approves this Mass Intention and makes it eligible for the public "Today\'s Mass Intentions" display on its scheduled date.' : 'Confirming finalizes this donation.' ?>
-        </p>
-        <button type="button" class="btn btn-success" onclick="document.getElementById('confirmPayModal').showModal()">&#10004; Confirm Payment</button>
-      </form>
-    <?php endif; ?>
+
   </div>
 
 <!-- Verify/Confirm styled modal -->

@@ -503,10 +503,11 @@ function verifyPaymentAndIssueReceipt(int $paymentId, ?int $verifiedByUserId, st
         }
         $payment['reference_number'] = $referenceNumber;
 
+        $targetStatus = in_array($payment['category'], ['Mass Intention', 'Donation'], true) ? 5 : 4;
         $appointmentUpdate = $pdo->prepare(
-            'UPDATE appointments SET status_id = 4 WHERE appointment_id = ? AND status_id = 2'
+            'UPDATE appointments SET status_id = ? WHERE appointment_id = ? AND status_id = 2'
         );
-        $appointmentUpdate->execute([$payment['appointment_id']]);
+        $appointmentUpdate->execute([$targetStatus, $payment['appointment_id']]);
         if ($appointmentUpdate->rowCount() !== 1) {
             throw new RuntimeException('Appointment status changed during payment verification.');
         }

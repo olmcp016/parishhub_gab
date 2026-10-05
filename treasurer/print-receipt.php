@@ -8,14 +8,15 @@ $stmt = db()->prepare("
     SELECT p.*, r.receipt_number, r.issue_date, 
            u.firstname, u.lastname, u.email,
            a.guest_name, a.guest_phone, a.guest_reference,
-           s.name AS service_name, s.category,
-           pm.name AS method_name
+           s.service_name, s.category,
+           pm.method_name
     FROM payments p
-    LEFT JOIN receipts r ON p.payment_id = r.payment_id
+    LEFT JOIN official_receipts r ON p.payment_id = r.payment_id
     JOIN appointments a ON p.appointment_id = a.appointment_id
     JOIN services s ON a.service_id = s.service_id
     JOIN payment_methods pm ON p.method_id = pm.method_id
-    LEFT JOIN users u ON p.user_id = u.user_id
+    LEFT JOIN parishioners par ON a.parishioner_id = par.parishioner_id
+    LEFT JOIN users u ON par.user_id = u.user_id
     WHERE p.payment_id = ?
 ");
 $stmt->execute([$id]);
