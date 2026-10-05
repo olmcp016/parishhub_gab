@@ -75,6 +75,7 @@ $__chatData = [
 <script>
   window.PARISHHUB_BASE_URL = "<?= url('') ?>";
   window.PARISH_DATA = <?php echo json_encode($__chatData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
+  window.PARISH_USER_ROLE = <?= json_encode(currentUser()['role_name'] ?? 'Guest') ?>;
 </script>
 <script src="<?= url('public/js/app.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/app.js') ?>"></script>
 <script src="<?= url('public/js/chatbot.js') ?>"></script>

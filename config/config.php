@@ -113,6 +113,8 @@ final class ParishHubDatabaseSessionHandler implements SessionUpdateTimestampHan
     }
 }
 
+define('GEMINI_API_KEY', (string) (getenv('GEMINI_API_KEY') ?: ''));
+
 define('APP_NAME', 'PARISHHUB');
 define('APP_URL', 'http://localhost/parishhub'); // change to match your local path
 define('MAX_UPLOAD_MB', 5);

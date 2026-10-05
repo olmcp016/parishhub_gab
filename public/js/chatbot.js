@@ -4,6 +4,7 @@
 (function () {
   const data = window.PARISH_DATA || {};
   const base = (window.PARISHHUB_BASE_URL || '/').replace(/\/$/, '');
+  const role = window.PARISH_USER_ROLE || 'Guest';
 
   const fab = document.getElementById('chatFab');
   const panel = document.getElementById('chatPanel');
@@ -15,13 +16,44 @@
 
   if (!fab || !panel || !form || !input || !body) return;
 
-  const suggestions = [
-    'Requirements for baptism?',
-    'How much is confirmation?',
-    'What are your office hours?',
-    'Documents needed for burial?',
-    'How do I book an appointment?',
-  ];
+  const SUGGESTIONS_BY_ROLE = {
+    Parishioner: [
+      'Requirements for baptism?',
+      'How much is confirmation?',
+      'What are your office hours?',
+      'Documents needed for burial?',
+      'How do I book an appointment?',
+    ],
+    Secretary: [
+      'What are the wedding requirements?',
+      'Documents needed for burial?',
+      'What are your office hours?',
+      'What services are available?',
+      'Who are the active priests?',
+    ],
+    Treasurer: [
+      'What are the current service fees?',
+      'What are your office hours?',
+      'Who are the active priests?',
+      'How much is a baptism?',
+      'What services require payment?',
+    ],
+    Priest: [
+      'What are the wedding requirements?',
+      'What is the Mass schedule?',
+      'What are your office hours?',
+      'Who are the other parish priests?',
+      'Requirements for baptism?',
+    ],
+    Admin: [
+      'What services are available?',
+      'What are the current fees?',
+      'What are your office hours?',
+      'Who are the active priests?',
+      'How do I book an appointment?',
+    ],
+  };
+  const suggestions = SUGGESTIONS_BY_ROLE[role] || SUGGESTIONS_BY_ROLE['Parishioner'];
 
   // Sacrament keyword map — recognizes both English and Tagalog terms and
   // maps them to the `category` values stored on the services table.
@@ -159,10 +191,12 @@
       return 'To book: log in to your account, go to "Book Appointment," choose a service, fill up the form, upload requirements, pick a schedule, and submit. Our secretary will review your request.';
     }
 
-    return "I can help with sacrament requirements, fees, office hours, Mass schedule, priest availability, or booking instructions — try one of the suggestions below, or rephrase your question.";
+    // Return null to signal the caller to ask Gemini instead.
+    return null;
   }
 
-  function logExchange(message, replyText) {
+  function logLocalExchange(message, replyText) {
+    // Log client-computed answers in the background (no reply needed from server).
     fetch(base + '/chatbot.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -173,13 +207,32 @@
   function respondTo(text) {
     addBubble(text, 'user');
     showTyping();
-    const answer = reply(text);
-    const delay = 400 + Math.random() * 400; // 400ms–800ms, feels conversational
-    setTimeout(() => {
-      hideTyping();
-      addBubble(answer, 'bot');
-      logExchange(text, answer);
-    }, delay);
+    const localAnswer = reply(text);
+
+    if (localAnswer !== null) {
+      // Instant local answer — simulate a short thinking delay, then log in background.
+      setTimeout(() => {
+        hideTyping();
+        addBubble(localAnswer, 'bot');
+        logLocalExchange(text, localAnswer);
+      }, 400 + Math.random() * 400);
+    } else {
+      // No local match — ask the server (Gemini). Server handles logging.
+      fetch(base + '/chatbot.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      })
+        .then(function (res) { return res.json(); })
+        .then(function (json) {
+          hideTyping();
+          addBubble(json.reply || "I'm sorry, I didn't get a response. Please try again.", 'bot');
+        })
+        .catch(function () {
+          hideTyping();
+          addBubble("I'm having trouble connecting right now. Please try again in a moment, or contact the parish office directly.", 'bot');
+        });
+    }
   }
 
   function renderSuggestions() {
