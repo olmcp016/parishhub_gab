@@ -53,13 +53,20 @@ include __DIR__ . '/../includes/dash-start.php';
     <button type="button" class="btn btn-outline btn-sm" style="display:flex; align-items:center; gap:6px;"><i data-lucide="chevron-down" id="addProjectIcon" style="width:16px; height:16px;"></i> Toggle Form</button>
   </div>
   <div id="addProjectForm" style="display: none; padding-top: 16px; border-top: 1px solid var(--border); margin-top: 16px;">
-    <form method="POST" action="<?= url('secretary/projects.php') ?>" style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start;">
+    <form method="POST" action="<?= url('secretary/projects.php') ?>" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; align-items: stretch;">
       <?= csrfField() ?>
       <input type="hidden" name="action" value="add">
-      <div class="form-group" style="flex: 1 1 200px; margin-bottom:0;"><label>Project Name</label><input type="text" name="project_name" required placeholder="e.g. Church Renovation"></div>
-      <div class="form-group" style="flex: 2 1 300px; margin-bottom:0;"><label>Description</label><textarea name="description" rows="1" placeholder="Short description..."></textarea></div>
-      <div class="form-group" style="flex: 1 1 150px; margin-bottom:0;"><label>Target (₱)</label><input type="number" name="target_amount" min="0" step="0.01" required></div>
-      <div class="form-group" style="flex: 0 0 auto; margin-bottom:0; align-self:flex-end;"><button type="submit" class="btn btn-primary" style="padding:12px 24px; height:47.5px;">Add</button></div>
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div class="form-group" style="margin-bottom:0;"><label>Project Name</label><input type="text" name="project_name" required placeholder="e.g. Church Renovation"></div>
+        <div class="form-group" style="margin-bottom:0;"><label>Target Amount (₱)</label><input type="number" name="target_amount" min="0" step="0.01" required placeholder="0" onfocus="if(this.value=='0')this.value='';" onblur="if(this.value=='')this.value='0';"></div>
+      </div>
+      <div class="form-group" style="margin-bottom:0; display: flex; flex-direction: column;">
+        <label>Description</label>
+        <textarea name="description" required placeholder="Description..." style="resize: none; flex-grow: 1; height: 100px;"></textarea>
+      </div>
+      <div style="grid-column: 1 / -1; display: flex; justify-content: flex-end;">
+        <button type="submit" class="btn btn-primary" style="padding:12px 32px; height:47.5px;">Add</button>
+      </div>
     </form>
   </div>
 </div>
