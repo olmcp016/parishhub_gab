@@ -86,6 +86,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect($destination);
 }
 
+// Intercept the post-registration success flash so it shows as a modal
+// instead of the standard auto-hiding alert that users miss.
+$__regModal = null;
+if (!empty($_SESSION['flash']['success'])) {
+    foreach ($_SESSION['flash']['success'] as $i => $msg) {
+        if (str_contains($msg, 'verification link')) {
+            $__regModal = strip_tags($msg, '<strong><b>');
+            array_splice($_SESSION['flash']['success'], $i, 1);
+            if (empty($_SESSION['flash']['success'])) {
+                unset($_SESSION['flash']['success']);
+            }
+            break;
+        }
+    }
+}
+
 $pageTitle = 'Log In';
 include __DIR__ . '/../includes/header.php';
 ?>
@@ -148,6 +164,27 @@ include __DIR__ . '/../includes/header.php';
     </div>
   </div>
 </div>
+
+<?php if ($__regModal): ?>
+<dialog id="regSuccessModal" style="max-width:460px;width:90%;padding:0;border:none;border-radius:14px;box-shadow:0 10px 48px rgba(0,0,0,0.20);">
+  <div style="padding:36px 32px 28px;text-align:center;">
+    <div style="width:64px;height:64px;background:#e8f5ee;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:30px;line-height:1;">✅</div>
+    <h2 style="margin:0 0 10px;font-size:20px;color:#1d4429;">Registration Successful!</h2>
+    <p style="color:#4a5568;font-size:14px;line-height:1.7;margin:0 0 20px;">
+      <?= $__regModal ?>
+    </p>
+    <div style="background:#f0faf5;border:1px solid #b2dfcc;border-radius:8px;padding:14px 16px;margin:0 0 24px;text-align:left;">
+      <p style="margin:0;font-size:13px;color:#276245;line-height:1.6;">
+        <strong>Next steps:</strong><br>
+        1. Open your email inbox (check your <strong>Spam / Junk</strong> folder too).<br>
+        2. Click the <em>"Verify My Email"</em> button in the email.<br>
+        3. Return here and log in.
+      </p>
+    </div>
+    <button type="button" id="regSuccessOk" class="btn btn-primary" style="min-width:120px;">Got it, thanks!</button>
+  </div>
+</dialog>
+<?php endif; ?>
 <script src="<?= url('public/js/validation.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/validation.js') ?>"></script>
 <script>
 function parishToggle(id, btn) {
@@ -204,5 +241,17 @@ function parishToggle(id, btn) {
       });
   });
 })();
+
+<?php if ($__regModal): ?>
+(function () {
+  var modal = document.getElementById('regSuccessModal');
+  var okBtn = document.getElementById('regSuccessOk');
+  if (modal) {
+    modal.showModal();
+    okBtn.addEventListener('click', function () { modal.close(); });
+    modal.addEventListener('click', function (e) { if (e.target === modal) modal.close(); });
+  }
+})();
+<?php endif; ?>
 </script>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

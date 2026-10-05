@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // the same `.alert` styling (e.g. book.php's policy box, appointment
   // status notes), which JS keeps referencing throughout the page's life.
   document.querySelectorAll('.alert-success, .alert-error').forEach((el) => {
-    setTimeout(() => { el.style.transition = 'opacity .4s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 400); }, 4500);
+    setTimeout(() => { el.style.transition = 'opacity .4s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 400); }, 8000);
   });
 
   // Note: the chatbot widget (FAB, panel, suggestions) is handled by
