@@ -52,8 +52,8 @@ include __DIR__ . '/../includes/dash-start.php';
     <h3 style="margin: 0;">Add Project</h3>
     <button type="button" class="btn btn-outline btn-sm" style="display:flex; align-items:center; gap:6px;"><i data-lucide="chevron-down" id="addProjectIcon" style="width:16px; height:16px;"></i> Toggle Form</button>
   </div>
-  <div id="addProjectForm" style="display: none; padding-top: 16px; border-top: 1px solid var(--border); margin-top: 16px;">
-    <form method="POST" action="<?= url('secretary/projects.php') ?>" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; align-items: stretch;">
+  <div id="addProjectForm" style="display: none; padding-top: 16px;">
+    <form method="POST" action="<?= url('secretary/projects.php') ?>" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: stretch;">
       <?= csrfField() ?>
       <input type="hidden" name="action" value="add">
       <div style="display: flex; flex-direction: column; gap: 16px;">
