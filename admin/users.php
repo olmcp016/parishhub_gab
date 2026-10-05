@@ -54,17 +54,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // This page manages STAFF accounts only (Admin/Secretary/Cashier/etc.) —
 // ordinary Parishioner accounts have their own dedicated management page
-// (secretary/parishioners.php) and shouldn't be mixed into staff tooling.
+// (secretary/parishioners.php), and Priests have their own page (admin/priests.php).
 $roles = db()->query('SELECT * FROM roles')->fetchAll();
-$staffRoles = array_values(array_filter($roles, fn($r) => $r['role_name'] !== 'Parishioner'));
+$staffRoles = array_values(array_filter($roles, fn($r) => !in_array($r['role_name'], ['Parishioner', 'Priest'])));
 
 $totalStaff = (int) db()->query(
-    "SELECT COUNT(*) FROM users u JOIN roles r ON u.role_id = r.role_id WHERE r.role_name != 'Parishioner'"
+    "SELECT COUNT(*) FROM users u JOIN roles r ON u.role_id = r.role_id WHERE r.role_name NOT IN ('Parishioner', 'Priest')"
 )->fetchColumn();
 $pagination = paginate($totalStaff, 10);
 $stmt = db()->prepare(
     "SELECT u.*, r.role_name FROM users u JOIN roles r ON u.role_id = r.role_id
-     WHERE r.role_name != 'Parishioner'
+     WHERE r.role_name NOT IN ('Parishioner', 'Priest')
      ORDER BY u.created_at DESC LIMIT ? OFFSET ?"
 );
 $stmt->bindValue(1, $pagination['limit'], PDO::PARAM_INT);
