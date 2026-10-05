@@ -140,10 +140,8 @@ include __DIR__ . '/../includes/dash-start.php';
       <table>
         <thead>
           <tr>
-            <th>Date</th><th>Time</th><th>Type</th><th>Offerer</th><th>Intention For</th>
-            <?php if ($showPayment): ?><th>Message</th><?php endif; ?>
-            <th>Requested By</th>
-            <?php if ($showPayment): ?><th>Amount</th><th>Payment</th><?php endif; ?>
+            <th>Mass Date</th><th>Type</th><th>Offerer</th><th>Intention For</th>
+            <?php if ($showPayment): ?><th>Amount</th><?php endif; ?>
             <th>Status</th><th></th>
           </tr>
         </thead>
@@ -151,16 +149,12 @@ include __DIR__ . '/../includes/dash-start.php';
           <?php foreach ($intentions as $row): ?>
             <?php [$miLabel, $miClass] = massIntentionStatusDisplay($row['status_name'], $row['payment_id'] ? true : false, $isSecretaryViewer); ?>
             <tr>
-              <td><?= formatDate($row['appointment_date']) ?></td>
-              <td><?= date('g:i A', strtotime($row['appointment_time'])) ?></td>
+              <td><?= formatDate($row['appointment_date']) ?><br><span class="text-muted" style="font-size:13px;"><?= date('g:i A', strtotime($row['appointment_time'])) ?></span></td>
               <td><?= e($row['intention_type']) ?></td>
               <td><?= e($row['offerer_name']) ?></td>
               <td><?= e($row['intention_for']) ?></td>
-              <?php if ($showPayment): ?><td style="max-width:220px;"><?= e($row['message'] ?: '—') ?></td><?php endif; ?>
-              <td><?= $row['guest_name'] ? e($row['guest_name']) . ' <span class="text-muted">(guest)</span>' : e($row['firstname']) . ' ' . e($row['lastname']) ?></td>
               <?php if ($showPayment): ?>
                 <td><?= $row['payment_id'] ? money((float) $row['amount']) : '<span class="text-muted">—</span>' ?></td>
-                <td><?php if ($row['payment_status']): ?><span class="badge badge-<?= e($row['payment_status']) ?>"><?= e($row['payment_status']) ?></span><?php else: ?><span class="text-muted">—</span><?php endif; ?></td>
               <?php endif; ?>
               <td><span class="badge badge-<?= $miClass ?>"><?= e($miLabel) ?></span></td>
               <td>
@@ -168,7 +162,7 @@ include __DIR__ . '/../includes/dash-start.php';
                   <a href="<?= url('treasurer/payment-detail.php?id=' . $row['payment_id']) ?>"
                     data-url="<?= url('treasurer/payment-detail.php?id=' . $row['payment_id']) ?>"
                     data-title="<?= e(in_array((int) $row['status_id'], [2, 4], true) ? 'Review Mass Intention Payment' : 'Payment Details') ?>"
-                    class="btn btn-outline btn-sm js-view-modal"><?= in_array((int) $row['status_id'], [2, 4], true) ? 'Review Payment' : 'View Payment' ?></a>
+                    class="btn btn-outline btn-sm js-view-modal">View</a>
                 <?php else: ?>
                   <a href="<?= url('secretary/appointment-detail.php?id=' . $row['appointment_id']) ?>" class="btn btn-outline btn-sm js-view-modal" data-url="<?= url('secretary/appointment-detail.php?id=' . $row['appointment_id']) ?>" data-title="<?= e('Mass Intention — ' . formatDate($row['appointment_date']) . ' ' . date('g:i A', strtotime($row['appointment_time']))) ?>">View</a>
                 <?php endif; ?>
