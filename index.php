@@ -54,7 +54,7 @@ include __DIR__ . '/includes/header.php';
     <div class="hero-actions">
       <?php if (!$__user): ?>
         <a href="<?= url('parishioner/services.php') ?>" class="btn-hero-primary">Request a Service →</a>
-        <a href="<?= url('auth/login.php') ?>" class="btn-hero-ghost">Sign In</a>
+        <a href="<?= url('auth/login.php') ?>" class="btn-hero-ghost">Login</a>
       <?php else: ?>
         <a href="<?= redirectForRole($__user['role_name']) ?>" class="btn-hero-primary">Go to your dashboard →</a>
         <form method="POST" action="<?= url('auth/logout.php') ?>" style="display:contents;">
@@ -208,7 +208,7 @@ include __DIR__ . '/includes/header.php';
   <div class="cta-btns">
     <?php if (!$__user): ?>
       <a href="<?= url('auth/register.php') ?>" class="btn btn-dark">Create Account</a>
-      <a href="<?= url('auth/login.php') ?>" class="btn btn-outline">Sign In</a>
+      <a href="<?= url('auth/login.php') ?>" class="btn btn-outline">Login</a>
     <?php else: ?>
       <a href="<?= redirectForRole($__user['role_name']) ?>" class="btn btn-dark">Go to your dashboard →</a>
     <?php endif; ?>

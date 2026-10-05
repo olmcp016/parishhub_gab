@@ -68,7 +68,7 @@ include __DIR__ . '/../includes/header.php';
         "Ask, and it will be given to you; seek, and you will find; knock, and it will be opened to you."
         <cite>Matthew 7:7</cite>
       </blockquote>
-      <p class="panel-foot">Sign in to submit requests, track appointments, and manage your parish services.</p>
+      <p class="panel-foot">Log in to submit requests, track appointments, and manage your parish services.</p>
     </div>
   </div>
 
@@ -78,7 +78,7 @@ include __DIR__ . '/../includes/header.php';
     <div class="auth-card">
       <div class="form-heading">
         <h1>Welcome back</h1>
-        <p class="subtitle">Sign in to manage your parish requests</p>
+        <p class="subtitle">Log in to manage your parish requests</p>
       </div>
 
       <?php // $__flash was already populated once by header.php's own getFlash() call —
@@ -102,7 +102,7 @@ include __DIR__ . '/../includes/header.php';
             <button type="button" class="toggle-pw" onclick="parishToggle('pwInput', this)"><i data-lucide="eye"></i></button>
           </div>
         </div>
-        <button type="submit" class="btn btn-primary btn-block">Sign In →</button>
+        <button type="submit" class="btn btn-primary btn-block">Login →</button>
       </form>
 
       <div class="auth-footer">

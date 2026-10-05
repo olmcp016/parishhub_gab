@@ -19,8 +19,10 @@ $publicNavUser = $__user ?? currentUser();
         <button type="submit" class="nav-logout-btn">Logout</button>
       </form>
     <?php else: ?>
-      <a href="<?= url('auth/login.php') ?>">Sign In</a>
-      <a href="<?= url('auth/register.php') ?>" class="btn btn-primary btn-sm">Create Account</a>
+      <div style="display:flex; gap: 8px; align-items:center;">
+        <a href="<?= url('auth/login.php') ?>" class="btn btn-outline btn-sm">Login</a>
+        <a href="<?= url('auth/register.php') ?>" class="btn btn-primary btn-sm">Create Account</a>
+      </div>
     <?php endif; ?>
   </div>
 </nav>
