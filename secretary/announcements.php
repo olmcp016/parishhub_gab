@@ -111,8 +111,8 @@ include __DIR__ . '/../includes/dash-start.php';
     <?= csrfField() ?>
     <input type="hidden" name="action" value="create">
     
-    <div style="display:flex; flex-wrap:wrap; gap:32px;">
-      <div style="flex: 1 1 350px;">
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:40px; align-items: start;">
+      <div>
         <div class="form-group"><label>Title</label><input type="text" name="title" id="annTitleInput" required></div>
         <div class="form-group">
           <label>Category</label>
@@ -121,6 +121,11 @@ include __DIR__ . '/../includes/dash-start.php';
           </select>
         </div>
         <div class="form-group"><label>Content</label><textarea name="content" id="annContentInput" rows="4" required></textarea></div>
+        
+        <div class="form-group">
+          <label>Poster / Image (optional)</label>
+          <input type="file" name="image" id="announcementImage" accept=".jpg,.jpeg,.png,.pdf" onchange="previewAnnouncementImage(event)">
+        </div>
         
         <div class="form-group">
           <label>Duration</label>
@@ -152,16 +157,11 @@ include __DIR__ . '/../includes/dash-start.php';
         <button type="submit" class="btn btn-primary">Publish</button>
       </div>
 
-      <div style="flex: 0 0 300px; display:flex; flex-direction:column;">
+      <div>
         <div class="form-group">
-          <label>Poster / Image (optional)</label>
-          <input type="file" name="image" id="announcementImage" accept=".jpg,.jpeg,.png,.pdf" onchange="previewAnnouncementImage(event)">
-        </div>
-        
-        <div class="form-group" style="margin-top:16px;">
           <label>Live Preview</label>
-          <div style="background:var(--cream-dark,#f4ecdc); padding:16px; border-radius:10px; display:flex; justify-content:center;">
-            <article class="ann-card" style="margin:0; width:100%; pointer-events:none;">
+          <div style="background:var(--cream-dark,#f4ecdc); padding:20px; border-radius:12px; display:flex; justify-content:center;">
+            <article class="ann-card" style="margin:0; width:100%; pointer-events:none; background:#fff;">
               <div class="ann-thumb" id="livePreviewThumb" style="display:none;">
                  <img id="livePreviewImg" src="" alt="">
               </div>
