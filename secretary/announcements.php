@@ -105,49 +105,66 @@ include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/dash-start.php';
 ?>
 
-<div class="card" style="max-width:640px;">
+<div class="card">
   <div class="card-header"><h3>Post Announcement</h3></div>
   <form method="POST" action="<?= url('secretary/announcements.php') ?>" enctype="multipart/form-data">
     <?= csrfField() ?>
     <input type="hidden" name="action" value="create">
-    <div class="form-group"><label>Title</label><input type="text" name="title" required></div>
-    <div class="form-group">
-      <label>Category</label>
-      <select name="category">
-        <?php foreach (ANNOUNCEMENT_CATEGORIES as $cat): ?><option value="<?= e($cat) ?>"><?= e($cat) ?></option><?php endforeach; ?>
-      </select>
-    </div>
-    <div class="form-group"><label>Content</label><textarea name="content" rows="4" required></textarea></div>
-    <div class="form-group"><label>Poster / Image (optional)</label><input type="file" name="image" accept=".jpg,.jpeg,.png,.pdf"></div>
+    
+    <div style="display:flex; flex-wrap:wrap; gap:32px;">
+      <div style="flex: 1 1 350px;">
+        <div class="form-group"><label>Title</label><input type="text" name="title" required></div>
+        <div class="form-group">
+          <label>Category</label>
+          <select name="category">
+            <?php foreach (ANNOUNCEMENT_CATEGORIES as $cat): ?><option value="<?= e($cat) ?>"><?= e($cat) ?></option><?php endforeach; ?>
+          </select>
+        </div>
+        <div class="form-group"><label>Content</label><textarea name="content" rows="4" required></textarea></div>
+        
+        <div class="form-group">
+          <label>Duration</label>
+          <select name="duration_type" id="durationType" onchange="toggleDurationFields()">
+            <option value="">No expiry (always active)</option>
+            <option value="specific_date">Specific Date</option>
+            <option value="month">Whole Month</option>
+            <option value="year">Whole Year</option>
+            <option value="custom_range">Custom Date Range</option>
+          </select>
+        </div>
+        <div class="form-group duration-field" data-for="specific_date" style="display:none;">
+          <label>Date</label><input type="date" name="specific_date">
+        </div>
+        <div class="form-group duration-field" data-for="month" style="display:none;">
+          <label>Month</label><input type="month" name="duration_month">
+        </div>
+        <div class="form-group duration-field" data-for="year" style="display:none;">
+          <label>Year</label><input type="number" name="duration_year" min="2020" max="2100" value="<?= date('Y') ?>">
+        </div>
+        <div class="form-row duration-field" data-for="custom_range" style="display:none;">
+          <div class="form-group"><label>Start Date</label><input type="date" name="start_date"></div>
+          <div class="form-group"><label>End Date</label><input type="date" name="end_date"></div>
+        </div>
 
-    <div class="form-group">
-      <label>Duration</label>
-      <select name="duration_type" id="durationType" onchange="toggleDurationFields()">
-        <option value="">No expiry (always active)</option>
-        <option value="specific_date">Specific Date</option>
-        <option value="month">Whole Month</option>
-        <option value="year">Whole Year</option>
-        <option value="custom_range">Custom Date Range</option>
-      </select>
-    </div>
-    <div class="form-group duration-field" data-for="specific_date" style="display:none;">
-      <label>Date</label><input type="date" name="specific_date">
-    </div>
-    <div class="form-group duration-field" data-for="month" style="display:none;">
-      <label>Month</label><input type="month" name="duration_month">
-    </div>
-    <div class="form-group duration-field" data-for="year" style="display:none;">
-      <label>Year</label><input type="number" name="duration_year" min="2020" max="2100" value="<?= date('Y') ?>">
-    </div>
-    <div class="form-row duration-field" data-for="custom_range" style="display:none;">
-      <div class="form-group"><label>Start Date</label><input type="date" name="start_date"></div>
-      <div class="form-group"><label>End Date</label><input type="date" name="end_date"></div>
-    </div>
+        <div class="form-group">
+          <label><input type="checkbox" name="is_pinned" value="1" style="width:auto; display:inline-block; margin-right:6px;"> Pin to top</label>
+        </div>
+        <button type="submit" class="btn btn-primary">Publish</button>
+      </div>
 
-    <div class="form-group">
-      <label><input type="checkbox" name="is_pinned" value="1" style="width:auto; display:inline-block; margin-right:6px;"> Pin to top</label>
+      <div style="flex: 0 0 300px; display:flex; flex-direction:column;">
+        <div class="form-group">
+          <label>Poster / Image (optional)</label>
+          <input type="file" name="image" id="announcementImage" accept=".jpg,.jpeg,.png,.pdf" onchange="previewAnnouncementImage(event)">
+        </div>
+        <div id="imagePreviewContainer" style="display:none; flex: 1; min-height: 200px; border: 1.5px dashed var(--cream-dark); border-radius: 10px; padding: 12px; text-align: center; background: #faf8f0; align-items:center; justify-content:center; flex-direction:column;">
+          <span style="font-size: 12px; font-weight: 700; color: var(--brown-mid); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Preview</span>
+          <img id="imagePreview" src="" alt="Preview" style="max-width: 100%; max-height: 250px; border-radius: 6px; object-fit: contain; margin-bottom: 12px; display: none;">
+          <div id="pdfPreview" style="display:none; color: var(--brown-dark); font-weight:600; margin: 20px 0;">📄 PDF Document Selected</div>
+          <button type="button" class="btn btn-outline btn-sm" onclick="clearAnnouncementImage()">Remove File</button>
+        </div>
+      </div>
     </div>
-    <button type="submit" class="btn btn-primary">Publish</button>
   </form>
 </div>
 
@@ -243,6 +260,39 @@ include __DIR__ . '/../includes/dash-start.php';
 </dialog>
 
 <script>
+function previewAnnouncementImage(event) {
+  const file = event.target.files[0];
+  const container = document.getElementById('imagePreviewContainer');
+  const imgPreview = document.getElementById('imagePreview');
+  const pdfPreview = document.getElementById('pdfPreview');
+
+  if (file && file.type.startsWith('image/')) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      imgPreview.src = e.target.result;
+      imgPreview.style.display = 'block';
+      pdfPreview.style.display = 'none';
+      container.style.display = 'flex';
+    };
+    reader.readAsDataURL(file);
+  } else if (file && file.type === 'application/pdf') {
+    imgPreview.style.display = 'none';
+    imgPreview.src = '';
+    pdfPreview.style.display = 'block';
+    container.style.display = 'flex';
+  } else {
+    clearAnnouncementImage();
+  }
+}
+
+function clearAnnouncementImage() {
+  document.getElementById('announcementImage').value = '';
+  document.getElementById('imagePreviewContainer').style.display = 'none';
+  document.getElementById('imagePreview').src = '';
+  document.getElementById('imagePreview').style.display = 'none';
+  document.getElementById('pdfPreview').style.display = 'none';
+}
+
 function toggleDurationFields() {
   var type = document.getElementById('durationType').value;
   document.querySelectorAll('.duration-field').forEach(function (el) {
