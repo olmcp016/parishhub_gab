@@ -2,7 +2,6 @@
 <header class="topbar">
   <div class="flex gap-3" style="align-items:center;">
     <button class="menu-toggle" id="menuToggle">☰</button>
-    <h1><?= e($pageTitle ?? APP_NAME) ?></h1>
   </div>
   <div class="user-chip">
     <?php if ($__photoUrl): ?><img class="avatar avatar-photo" src="<?= e($__photoUrl) ?>" alt="Profile photo">

@@ -104,13 +104,11 @@ $active = 'appointments';
 $pageTitle = 'My Appointments';
 include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/dash-start.php';
-?>
-
-<div class="card">
-  <div class="card-header" style="flex-wrap:wrap; gap:16px;">
+?><div class="card">
+  <div class="card-header" style="flex-wrap:wrap; gap:16px; justify-content:space-between;">
     <h3>My Appointments</h3>
     <form method="GET" action="<?= url('parishioner/appointments.php') ?>" style="display:flex; gap:8px; align-items:center;">
-      <select name="status" class="form-control form-control-sm" style="width:auto; height:34px;" onchange="this.form.submit()">
+      <select name="status" class="form-control form-control-sm" style="min-width:150px; height:34px;" onchange="this.form.submit()">
         <option value="">All Statuses</option>
         <option value="Pending" <?= $statusFilter==='Pending'?'selected':'' ?>>Pending</option>
         <option value="Approved" <?= $statusFilter==='Approved'?'selected':'' ?>>Approved</option>
