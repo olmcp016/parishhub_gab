@@ -221,7 +221,6 @@ include __DIR__ . '/../includes/dash-start.php';
             <td>
               <?php if (!empty($p['user_id'])): ?>
                 <div class="priest-login-summary">
-                  <span><?= e($p['login_email'] ?? 'Account unavailable') ?></span>
                   <span class="badge <?= ($p['login_status'] ?? '') === 'active' ? 'badge-verified' : 'badge-cancelled' ?>"><?= e(ucfirst($p['login_status'] ?? 'Unknown')) ?></span>
                   <button type="button" class="btn btn-outline btn-sm js-manage-login" data-priest-id="<?= (int) $p['priest_id'] ?>" data-priest-name="<?= e(trim(($p['title'] ?? '') . ' ' . ($p['full_name'] ?? ''))) ?>" data-login-email="<?= e($p['login_email'] ?? '') ?>" data-login-status="<?= e($p['login_status'] ?? '') ?>">Manage Login</button>
                 </div>
@@ -304,7 +303,7 @@ include __DIR__ . '/../includes/dash-start.php';
     <p><strong>Account Status</strong><br><span id="manageLoginStatus"></span></p>
     <form method="POST" action="<?= url('admin/priests.php') ?>" id="manageLoginForm">
       <?= csrfField() ?><input type="hidden" name="action" value="manage_login"><input type="hidden" name="priest_id" id="manageLoginPriestId"><input type="hidden" name="login_operation" id="manageLoginOperation">
-      <div class="flex gap-2" style="justify-content:flex-end; flex-wrap:wrap;"><button type="submit" class="btn btn-outline js-login-operation" data-operation="reset">Reset Access</button><button type="submit" class="btn btn-danger js-login-operation" data-operation="deactivate" id="manageLoginToggle">Deactivate Portal Access</button><button type="button" class="btn btn-outline js-close-login-modal">Close</button></div>
+      <div class="flex gap-2" style="justify-content:flex-end; flex-wrap:wrap;"><button type="submit" class="btn btn-outline js-login-operation" data-operation="reset">Reset Access</button><button type="submit" class="btn btn-danger js-login-operation" data-operation="deactivate" id="manageLoginToggle">Deactivate Portal Access</button></div>
     </form>
   </div>
 </dialog>
