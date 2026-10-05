@@ -37,10 +37,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         logActivity($userId, "Deleted location: " . ($deletedName ?: '#' . $_POST['location_id']), 'Locations');
         flash('success', 'Location removed.');
     }
-    redirect(url('secretary/locations.php'));
+    $backPage = max(1, (int) ($_POST['page'] ?? 1));
+    redirect(url('secretary/locations.php') . ($backPage > 1 ? '?page=' . $backPage : ''));
 }
 
-$locations = db()->query('SELECT * FROM locations ORDER BY name')->fetchAll();
+$perPage     = 10;
+$page        = max(1, (int) ($_GET['page'] ?? 1));
+$totalCount  = (int) db()->query('SELECT COUNT(*) FROM locations')->fetchColumn();
+$totalPages  = max(1, (int) ceil($totalCount / $perPage));
+$page        = min($page, $totalPages);
+$offset      = ($page - 1) * $perPage;
+
+$stmt = db()->prepare('SELECT * FROM locations ORDER BY name LIMIT :limit OFFSET :offset');
+$stmt->bindValue(':limit',  $perPage, PDO::PARAM_INT);
+$stmt->bindValue(':offset', $offset,  PDO::PARAM_INT);
+$stmt->execute();
+$locations = $stmt->fetchAll();
 
 $active = 'locations';
 $pageTitle = 'Manage Locations';
@@ -75,6 +87,7 @@ include __DIR__ . '/../includes/dash-start.php';
                 <?= csrfField() ?>
                 <input type="hidden" name="action" value="update">
                 <input type="hidden" name="location_id" value="<?= $loc['location_id'] ?>">
+                <input type="hidden" name="page" value="<?= $page ?>">
                 <input type="text" name="name" value="<?= e($loc['name']) ?>" required style="margin-bottom:6px;">
                 <select name="location_category" required style="margin-bottom:6px;"><?php foreach ($locationCategories as $value => $label): ?><option value="<?= e($value) ?>" <?= ($loc['location_category'] ?? 'other') === $value ? 'selected' : '' ?>><?= e($label) ?></option><?php endforeach; ?></select>
                 <input type="text" name="notes" value="<?= e($loc['notes'] ?? '') ?>" placeholder="Notes">
@@ -89,6 +102,7 @@ include __DIR__ . '/../includes/dash-start.php';
                 <?= csrfField() ?>
                 <input type="hidden" name="action" value="toggle">
                 <input type="hidden" name="location_id" value="<?= $loc['location_id'] ?>">
+                <input type="hidden" name="page" value="<?= $page ?>">
                 <select name="is_active" onchange="this.form.submit()">
                   <option value="1" <?= $loc['is_active'] ? 'selected' : '' ?>>Active</option>
                   <option value="0" <?= !$loc['is_active'] ? 'selected' : '' ?>>Inactive</option>
@@ -107,6 +121,38 @@ include __DIR__ . '/../includes/dash-start.php';
       </tbody>
     </table>
   </div>
+
+  <?php if ($totalPages > 1): ?>
+  <div class="pagination" style="display:flex; align-items:center; justify-content:space-between; padding:14px 0 4px; gap:8px; flex-wrap:wrap;">
+    <span class="text-muted" style="font-size:13px;">
+      Showing <?= $offset + 1 ?>–<?= min($offset + $perPage, $totalCount) ?> of <?= $totalCount ?> locations
+    </span>
+    <div style="display:flex; gap:4px; align-items:center;">
+      <?php
+        $baseUrl = url('secretary/locations.php');
+        $prevPage = $page - 1;
+        $nextPage = $page + 1;
+      ?>
+      <a href="<?= $baseUrl ?>?page=<?= $prevPage ?>"
+         class="btn btn-outline btn-sm<?= $page <= 1 ? ' disabled' : '' ?>"
+         <?= $page <= 1 ? 'aria-disabled="true" tabindex="-1"' : '' ?>>← Prev</a>
+
+      <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+        <?php if ($i === $page): ?>
+          <span class="btn btn-primary btn-sm" style="cursor:default;"><?= $i ?></span>
+        <?php elseif (abs($i - $page) <= 2 || $i === 1 || $i === $totalPages): ?>
+          <a href="<?= $baseUrl ?>?page=<?= $i ?>" class="btn btn-outline btn-sm"><?= $i ?></a>
+        <?php elseif (abs($i - $page) === 3): ?>
+          <span class="btn btn-outline btn-sm" style="pointer-events:none;">…</span>
+        <?php endif; ?>
+      <?php endfor; ?>
+
+      <a href="<?= $baseUrl ?>?page=<?= $nextPage ?>"
+         class="btn btn-outline btn-sm<?= $page >= $totalPages ? ' disabled' : '' ?>"
+         <?= $page >= $totalPages ? 'aria-disabled="true" tabindex="-1"' : '' ?>>Next →</a>
+    </div>
+  </div>
+  <?php endif; ?>
 </div>
 
 <dialog id="deleteLocationModal" style="max-width:400px;padding:24px;border-radius:8px;border:none;">
@@ -118,6 +164,7 @@ include __DIR__ . '/../includes/dash-start.php';
       <?= csrfField() ?>
       <input type="hidden" name="action" value="delete">
       <input type="hidden" name="location_id" id="deleteLocationId">
+      <input type="hidden" name="page" value="<?= $page ?>">
       <button type="submit" class="btn btn-danger">Yes, Delete</button>
     </form>
   </div>

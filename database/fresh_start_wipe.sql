@@ -9,15 +9,9 @@
 
 -- Use CASCADE to safely truncate tables while bypassing foreign key issues
 TRUNCATE TABLE 
-  generated_funeral_forms,
-  generated_wedding_forms,
-  generated_baptism_forms,
-  wedding_booking_drafts,
-  baptism_booking_drafts,
   transactions,
   official_receipts,
   payments,
-  donations,
   uploaded_documents,
   mass_intentions,
   appointments,
@@ -26,8 +20,6 @@ TRUNCATE TABLE
   notifications,
   activity_logs,
   reports,
-  app_sessions,
-  projects,
   announcements,
   calendar,
   events 
@@ -46,6 +38,6 @@ WHERE role_id = 1
 -- parishioner record so guest bookings have a valid FK.
 INSERT INTO parishioners (user_id)
 SELECT user_id FROM users WHERE email = 'guest@parishhub.internal'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (user_id) DO NOTHING;
 
 SELECT 'Fresh start complete. Staff accounts, services, priests, and settings preserved.' AS status;

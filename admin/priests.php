@@ -76,11 +76,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash('success', 'Priest details updated.');
     } elseif ($action === 'delete') {
         $priestId = (int) ($_POST['priest_id'] ?? 0);
-        // Ensure no active/pending appointments use this priest
+        // Block archive if the priest is assigned to active/pending appointments.
         $stmt = db()->prepare("SELECT COUNT(*) FROM appointments WHERE priest_id = ? AND status_id NOT IN (3, 6, 7)");
         $stmt->execute([$priestId]);
         if ($stmt->fetchColumn() > 0) {
-            flash('error', 'Cannot remove priest: they are assigned to active or upcoming appointments.');
+            flash('error', 'Cannot archive priest: they are assigned to active or upcoming appointments.');
         } else {
             $pdo = db();
             $pdo->beginTransaction();
@@ -89,17 +89,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$priestId]);
                 $uid = $stmt->fetchColumn();
                 if ($uid === false) throw new RuntimeException('Priest not found.');
-                $pdo->prepare("DELETE FROM priests WHERE priest_id = ?")->execute([$priestId]);
-                if ($uid) $pdo->prepare("DELETE FROM users WHERE user_id = ?")->execute([$uid]);
+                // Soft-delete: mark as inactive instead of hard DELETE.
+                $pdo->prepare("UPDATE priests SET status = 'inactive' WHERE priest_id = ?")->execute([$priestId]);
+                // Deactivate the linked portal account (do not delete it).
+                if ($uid) {
+                    $pdo->prepare("UPDATE users SET status = 'inactive' WHERE user_id = ?")->execute([$uid]);
+                }
                 $pdo->commit();
             } catch (Throwable $e) {
                 if ($pdo->inTransaction()) $pdo->rollBack();
                 error_log($e->getMessage());
-                flash('error', 'Could not remove the priest. Please try again.');
+                flash('error', 'Could not archive the priest. Please try again.');
                 redirect(url('admin/priests.php'));
             }
-            logActivity(currentUser()['user_id'], "Removed priest #$priestId", 'Priests');
-            flash('success', 'Priest removed.');
+            logActivity(currentUser()['user_id'], "Archived priest #$priestId", 'Priests');
+            flash('success', 'Priest archived. Their record and appointment history are preserved. You can restore them by editing their status.');
         }
         redirect(url('admin/priests.php'));
     } elseif ($action === 'create_login') {
@@ -250,7 +254,7 @@ include __DIR__ . '/../includes/dash-start.php';
                   data-priest-status="<?= e($p['status'] ?? 'active') ?>">Edit</button>
                 <button type="button" class="btn btn-danger btn-sm js-remove-priest"
                   data-priest-id="<?= (int) $p['priest_id'] ?>"
-                  data-priest-name="<?= e(trim(($p['title'] ?? '') . ' ' . ($p['full_name'] ?? ''))) ?>">Delete</button>
+                  data-priest-name="<?= e(trim(($p['title'] ?? '') . ' ' . ($p['full_name'] ?? ''))) ?>">Archive</button>
               </div>
             </td>
           </tr>
@@ -311,20 +315,20 @@ include __DIR__ . '/../includes/dash-start.php';
 
 <dialog class="modal" id="removePriestModal" aria-labelledby="removePriestTitle">
   <div class="modal-head">
-    <h3 id="removePriestTitle">Remove Priest</h3>
+    <h3 id="removePriestTitle">Archive Priest</h3>
     <button type="button" class="modal-close" id="removePriestClose" aria-label="Close">✕</button>
   </div>
   <div class="modal-body">
-    <p style="margin-top:0;">Are you sure you want to remove this priest?</p>
+    <p style="margin-top:0;">Are you sure you want to archive this priest?</p>
     <p style="font-size:17px; font-weight:700; color:var(--brown-dark); margin:18px 0;" id="removePriestName"></p>
-    <p class="text-muted" style="margin-bottom:20px;">This removes the priest record and any linked priest portal login. Priests with active or upcoming appointments cannot be removed.</p>
+    <p class="text-muted" style="margin-bottom:20px;">Archiving sets their status to <strong>Inactive</strong> and deactivates any linked portal login. Their record and appointment history are <strong>preserved</strong> and can be restored by editing their status. Priests with active or upcoming appointments cannot be archived.</p>
     <form method="POST" action="<?= url('admin/priests.php') ?>" id="removePriestForm">
       <?= csrfField() ?>
       <input type="hidden" name="action" value="delete">
       <input type="hidden" name="priest_id" id="removePriestId" value="">
       <div class="flex gap-3" style="justify-content:flex-end;">
         <button type="button" class="btn btn-outline" id="removePriestCancel">Cancel</button>
-        <button type="submit" class="btn btn-danger" id="removePriestSubmit">Remove Priest</button>
+        <button type="submit" class="btn btn-danger" id="removePriestSubmit">Archive Priest</button>
       </div>
     </form>
   </div>
@@ -381,7 +385,7 @@ document.addEventListener('click', function (event) {
   document.getElementById('removePriestId').value = trigger.dataset.priestId || '';
   document.getElementById('removePriestName').textContent = trigger.dataset.priestName || 'this priest';
   document.getElementById('removePriestSubmit').disabled = false;
-  document.getElementById('removePriestSubmit').textContent = 'Remove Priest';
+  document.getElementById('removePriestSubmit').textContent = 'Archive Priest';
   removePriestModal.showModal();
   document.getElementById('removePriestCancel').focus();
 });
@@ -395,7 +399,7 @@ document.getElementById('removePriestForm').addEventListener('submit', function 
   var submit = document.getElementById('removePriestSubmit');
   if (submit.disabled) return;
   submit.disabled = true;
-  submit.textContent = 'Removing...';
+  submit.textContent = 'Archiving...';
 });
 
 var createLoginModal = document.getElementById('createLoginModal');
