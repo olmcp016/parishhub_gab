@@ -7,18 +7,7 @@ $statusFilter = $_GET['status'] ?? '';
 $search = $_GET['search'] ?? '';
 $isSecretaryViewer = currentUser()['role_name'] === 'Secretary';
 
-/**
- * The main list only ever shows appointments whose date hasn't passed yet
- * (sorted newest-requested-first) — once the date passes, it drops off here
- * automatically and only ever shows up in the History modal instead, so the
- * working list never accumulates old, no-longer-actionable rows. History is
- * its own AJAX-loaded fragment (same page, ?history=1) with its own filters
- * and pagination, requested only from inside the History modal — a normal
- * page load always shows the upcoming list regardless of that param.
- */
-$isHistoryFragment = isDetailModalRequest() && ($_GET['history'] ?? '') === '1';
-
-function buildAppointmentsQuery(bool $history, string $statusFilter, string $search): array
+function buildAppointmentsQuery(string $statusFilter, string $search): array
 {
     $sql = "SELECT a.*, s.service_name, s.category, u.firstname, u.lastname, u.email, st.status_name, p.full_name AS priest_name
             FROM appointments a
@@ -27,7 +16,7 @@ function buildAppointmentsQuery(bool $history, string $statusFilter, string $sea
             JOIN users u ON par.user_id = u.user_id
             JOIN appointment_status st ON a.status_id = st.status_id
             LEFT JOIN priests p ON a.priest_id = p.priest_id
-            WHERE s.category != 'Donation' AND a.appointment_date " . ($history ? '<' : '>=') . ' CURRENT_DATE';
+            WHERE s.category != 'Donation'";
     $params = [];
     if ($statusFilter) {
         $sql .= ' AND st.status_name = ?';
@@ -40,9 +29,9 @@ function buildAppointmentsQuery(bool $history, string $statusFilter, string $sea
     return [$sql, $params];
 }
 
-function fetchAppointmentsPage(bool $history, string $statusFilter, string $search): array
+function fetchAppointmentsPage(string $statusFilter, string $search): array
 {
-    [$sql, $params] = buildAppointmentsQuery($history, $statusFilter, $search);
+    [$sql, $params] = buildAppointmentsQuery($statusFilter, $search);
 
     $countStmt = db()->prepare(str_replace(
         'SELECT a.*, s.service_name, s.category, u.firstname, u.lastname, u.email, st.status_name, p.full_name AS priest_name',
@@ -52,7 +41,7 @@ function fetchAppointmentsPage(bool $history, string $statusFilter, string $sear
     $countStmt->execute($params);
     $pagination = paginate((int) $countStmt->fetchColumn(), 10);
 
-    $sql .= ' ORDER BY ' . ($history ? 'a.appointment_date DESC' : 'a.created_at DESC') . ' LIMIT ? OFFSET ?';
+    $sql .= ' ORDER BY a.created_at DESC LIMIT ? OFFSET ?';
     $stmt = db()->prepare($sql);
     foreach ($params as $i => $val) {
         $stmt->bindValue($i + 1, $val);
@@ -109,38 +98,7 @@ function renderAppointmentsTable(array $appointments, bool $isSecretaryViewer): 
 
 $statuses = db()->query('SELECT * FROM appointment_status')->fetchAll();
 
-if ($isHistoryFragment) {
-    // ---- AJAX fragment for the History modal only — bare content, no page shell ----
-    [$historyAppointments, $historyPagination] = fetchAppointmentsPage(true, $statusFilter, $search);
-    $historyPaginationUrl = url('secretary/appointments.php') . '?' . http_build_query(array_filter(['status' => $statusFilter, 'search' => $search])) . '&history=1';
-    ?>
-    <form method="GET" action="<?= url('secretary/appointments.php') ?>" style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; margin-bottom: 24px;" class="js-history-filter">
-      <input type="hidden" name="history" value="1">
-      <div class="form-group" style="flex: 1 1 150px; margin-bottom:0;">
-        <label>Filter by Status</label>
-        <select name="status">
-          <option value="">All Statuses</option>
-          <?php foreach ($statuses as $s): ?>
-            <option value="<?= e($s['status_name']) ?>" <?= $statusFilter===$s['status_name']?'selected':'' ?>><?= e($s['status_name']) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <div class="form-group" style="flex: 2 1 250px; margin-bottom:0;">
-        <label>Search</label>
-        <input type="text" name="search" value="<?= e($search) ?>" placeholder="Name or service...">
-      </div>
-      <div class="form-group" style="flex: 0 0 auto; margin-bottom:0;">
-        <button class="btn btn-primary" style="padding:12px 24px; height:47.5px;">Search</button>
-      </div>
-    </form>
-    <?php renderAppointmentsTable($historyAppointments, $isSecretaryViewer); ?>
-    <?= renderPagination($historyPagination, $historyPaginationUrl) ?>
-    <?php
-    exit;
-}
-
-// ---- Normal page load — the upcoming (not-yet-past-due) list ----
-[$appointments, $pagination] = fetchAppointmentsPage(false, $statusFilter, $search);
+[$appointments, $pagination] = fetchAppointmentsPage($statusFilter, $search);
 $paginationUrl = url('secretary/appointments.php') . '?' . http_build_query(array_filter(['status' => $statusFilter, 'search' => $search]));
 
 $active = 'appointments';
@@ -152,9 +110,7 @@ include __DIR__ . '/../includes/dash-start.php';
 <div class="card">
   <div class="card-header">
     <h3>All Appointments</h3>
-    <button type="button" class="btn btn-outline btn-sm" onclick="openHistoryModal()">🕒 History</button>
   </div>
-  <p class="helper-text" style="margin-top:-6px;">Shows only upcoming (not yet past-due) requests, newest requested first. Once an appointment's date has passed, it moves to History automatically.</p>
 
   <form method="GET" style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; margin-bottom:16px;">
     <div class="form-group" style="flex: 1 1 150px; margin-bottom:0;">
@@ -181,50 +137,6 @@ include __DIR__ . '/../includes/dash-start.php';
   <?php endif; ?>
 </div>
 
-<dialog class="modal modal-xl" id="historyModal">
-  <div class="modal-head">
-    <h3>Appointment History</h3>
-    <button type="button" class="modal-close" onclick="document.getElementById('historyModal').close()">✕</button>
-  </div>
-  <div class="modal-body" id="historyModalBody"></div>
-</dialog>
-
-<script>
-function loadHistoryFragment(url) {
-  var body = document.getElementById('historyModalBody');
-  body.innerHTML = '<p class="text-muted" style="padding:30px; text-align:center;">Loading…</p>';
-  fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-    .then(function (res) { return res.text(); })
-    .then(function (html) { body.innerHTML = html; })
-    .catch(function () {
-      body.innerHTML = '<p class="text-muted" style="padding:30px; text-align:center;">Could not load history. Please try again.</p>';
-    });
-}
-function openHistoryModal() {
-  document.getElementById('historyModal').showModal();
-  loadHistoryFragment('<?= url('secretary/appointments.php') ?>?history=1');
-}
-document.addEventListener('DOMContentLoaded', function () {
-  var body = document.getElementById('historyModalBody');
-  // Pagination links and the filter form inside the History fragment must
-  // stay inside the modal (re-fetching in place) instead of navigating the
-  // whole page away.
-  body.addEventListener('click', function (e) {
-    var link = e.target.closest('a[href]');
-    if (link && body.contains(link)) {
-      e.preventDefault();
-      loadHistoryFragment(link.getAttribute('href'));
-    }
-  });
-  body.addEventListener('submit', function (e) {
-    var form = e.target.closest('.js-history-filter');
-    if (!form) return;
-    e.preventDefault();
-    var qs = new URLSearchParams(new FormData(form)).toString();
-    loadHistoryFragment(form.getAttribute('action') + '?' + qs);
-  });
-});
-</script>
 
 <?php include __DIR__ . '/../includes/detail-modal.php'; ?>
 <?php include __DIR__ . '/../includes/secretary-modal-shells.php'; ?>
