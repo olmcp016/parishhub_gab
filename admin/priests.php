@@ -206,12 +206,11 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Name</th><th>Contact</th><th>Status</th><th>Portal Login</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Name</th><th>Status</th><th>Portal Login</th><th>Actions</th></tr></thead>
       <tbody id="priestsTableBody">
         <?php foreach ($priests as $p): ?>
           <tr>
             <td><?= e($p['title']) ?> <?= e($p['full_name']) ?></td>
-            <td><?= e($p['contact_number'] ?? '—') ?><br><span class="text-muted" style="font-size:12px;"><?= e($p['email'] ?? '') ?></span></td>
             <td>
               <?php if ($p['status'] === 'active'): ?>
                 <span class="badge badge-verified">Active</span>
@@ -225,7 +224,7 @@ include __DIR__ . '/../includes/dash-start.php';
               <?php if (!empty($p['user_id'])): ?>
                 <div class="priest-login-summary">
                   <span class="badge <?= ($p['login_status'] ?? '') === 'active' ? 'badge-verified' : 'badge-cancelled' ?>"><?= e(ucfirst($p['login_status'] ?? 'Unknown')) ?></span>
-                  <button type="button" class="btn btn-outline btn-sm js-manage-login" data-priest-id="<?= (int) $p['priest_id'] ?>" data-priest-name="<?= e(trim(($p['title'] ?? '') . ' ' . ($p['full_name'] ?? ''))) ?>" data-login-email="<?= e($p['login_email'] ?? '') ?>" data-login-status="<?= e($p['login_status'] ?? '') ?>">Manage Login</button>
+                  <button type="button" class="btn btn-outline btn-sm js-manage-login" data-priest-id="<?= (int) $p['priest_id'] ?>" data-priest-name="<?= e(trim(($p['title'] ?? '') . ' ' . ($p['full_name'] ?? ''))) ?>" data-priest-contact="<?= e($p['contact_number'] ?? '') ?>" data-login-email="<?= e($p['login_email'] ?? '') ?>" data-login-status="<?= e($p['login_status'] ?? '') ?>">Manage Login</button>
                 </div>
               <?php else: ?>
                 <div class="priest-login-summary"><span class="text-muted">Not Created</span><button type="button" class="btn btn-outline btn-sm js-create-login" data-priest-id="<?= (int) $p['priest_id'] ?>" data-priest-name="<?= e(trim(($p['title'] ?? '') . ' ' . ($p['full_name'] ?? ''))) ?>" data-priest-email="<?= e($p['email'] ?? '') ?>">Create Login</button></div>
@@ -338,6 +337,12 @@ include __DIR__ . '/../includes/dash-start.php';
   <div class="modal-head"><h3 id="manageLoginTitle">Manage Priest Login</h3><button type="button" class="modal-close js-close-login-modal" aria-label="Close">✕</button></div>
   <div class="modal-body">
     <p><strong>Priest</strong><br><span id="manageLoginPriestName"></span></p>
+    <p><strong>Contact Number</strong><br>
+      <a href="" id="manageLoginContactLink" style="display:inline-flex; align-items:center; gap:4px; text-decoration:none; color:var(--primary);">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+        <span id="manageLoginContact"></span>
+      </a>
+    </p>
     <p><strong>Portal Email</strong><br><span id="manageLoginEmail"></span></p>
     <p><strong>Account Status</strong><br><span id="manageLoginStatus"></span></p>
     <form method="POST" action="<?= url('admin/priests.php') ?>" id="manageLoginForm">
@@ -401,6 +406,15 @@ document.addEventListener('click', function (event) {
     document.getElementById('manageLoginPriestId').value = manage.dataset.priestId || '';
     document.getElementById('manageLoginPriestName').textContent = manage.dataset.priestName || '';
     document.getElementById('manageLoginEmail').textContent = manage.dataset.loginEmail || '—';
+    var contact = manage.dataset.priestContact || '';
+    document.getElementById('manageLoginContact').textContent = contact || '—';
+    if(contact) {
+      document.getElementById('manageLoginContactLink').href = 'tel:' + contact;
+      document.getElementById('manageLoginContactLink').style.pointerEvents = 'auto';
+    } else {
+      document.getElementById('manageLoginContactLink').removeAttribute('href');
+      document.getElementById('manageLoginContactLink').style.pointerEvents = 'none';
+    }
     var status = manage.dataset.loginStatus || 'unknown';
     document.getElementById('manageLoginStatus').textContent = status.charAt(0).toUpperCase() + status.slice(1);
     var toggle = document.getElementById('manageLoginToggle');
