@@ -104,10 +104,10 @@ include __DIR__ . '/../includes/dash-start.php';
 <div class="card">
   <div class="card-header"><h3>Add Regular Schedule</h3></div>
   <p class="helper-text" style="margin-top:-6px;">These are the fixed schedules parishioners see when they choose "Regular" for Wedding, Baptism, House Blessing, or Confirmation. Add one row per recurring schedule — e.g. add "1st Saturday, 9:00 AM" and "3rd Saturday, 9:00 AM" separately for a "1st and 3rd Saturday" rule.</p>
-  <form method="POST" action="<?= url('admin/service-schedules.php') ?>" class="form-row" style="align-items:end;">
+  <form method="POST" action="<?= url('admin/service-schedules.php') ?>" style="display:flex; flex-wrap:wrap; gap:16px; align-items:end;">
     <?= csrfField() ?>
     <input type="hidden" name="action" value="add">
-    <div class="form-group" style="flex: 2; min-width: 220px;">
+    <div class="form-group" style="flex: 2 1 200px;">
       <label>Service</label>
       <select name="service_id" class="form-control" required>
         <?php foreach ($services as $s): ?>
@@ -115,7 +115,7 @@ include __DIR__ . '/../includes/dash-start.php';
         <?php endforeach; ?>
       </select>
     </div>
-    <div class="form-group" style="flex: 1.5; min-width: 150px;">
+    <div class="form-group" style="flex: 1 1 130px;">
       <label>Weekday</label>
       <select name="weekday" class="form-control" required>
         <?php foreach (['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as $i => $name): ?>
@@ -123,7 +123,7 @@ include __DIR__ . '/../includes/dash-start.php';
         <?php endforeach; ?>
       </select>
     </div>
-    <div class="form-group" style="flex: 1.5; min-width: 150px;">
+    <div class="form-group" style="flex: 1 1 130px;">
       <label>Occurrence</label>
       <select name="occurrence" class="form-control">
         <option value="">Every week</option>
@@ -134,11 +134,13 @@ include __DIR__ . '/../includes/dash-start.php';
         <option value="5">5th</option>
       </select>
     </div>
-    <div class="form-group" style="flex: 1; min-width: 130px;">
+    <div class="form-group" style="flex: 1 1 120px;">
       <label>Time</label>
       <input type="time" name="slot_time" required>
     </div>
-    <div class="form-group"><button type="submit" class="btn btn-primary">Add</button></div>
+    <div class="form-group" style="flex: 0 0 auto;">
+      <button type="submit" class="btn btn-primary" style="padding: 12px 24px; height: 48px;">Add</button>
+    </div>
   </form>
 </div>
 
