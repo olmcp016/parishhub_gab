@@ -177,11 +177,14 @@ if (!$isModalRequest) {
     <?php if ($awaitingGateway): ?>
       <p class="helper-text">This online payment hasn't been completed on PayMongo yet. It verifies automatically once the parishioner pays — nothing to do here until then.</p>
     <?php elseif ($payment['payment_status'] === 'pending'): ?>
-      <form method="POST" action="<?= url('treasurer/payment-detail.php?id=' . $id) ?>" class="mt-3" id="verifyForm">
+      <form method="POST" action="<?= url('treasurer/payment-detail.php?id=' . $id) ?>" class="mt-3" id="verifyForm" style="display: flex; align-items: flex-end; gap: 12px; width: 100%;">
         <?= csrfField() ?>
         <input type="hidden" name="action" value="verify">
-        <div class="form-group"><label>Official Reference Number</label><input type="text" name="reference_number" value="<?= e($payment['reference_number'] ?? '') ?>" placeholder="Enter Reference/OR Number" required style="padding:8px; width:100%; max-width:300px; border:1px solid #ccc; border-radius:6px;"></div>
-        <button type="button" class="btn btn-success" id="verifyBtn" onclick="document.getElementById('confirmPayModal').showModal()">&#10004; Verify Payment &amp; Issue Receipt</button>
+        <div class="form-group" style="flex: 1; margin-bottom: 0;">
+          <label style="display: block; margin-bottom: 5px; font-weight: bold; color: var(--text-color);">Official Reference Number</label>
+          <input type="text" name="reference_number" value="<?= e($payment['reference_number'] ?? '') ?>" placeholder="Enter Reference/OR Number" required style="padding: 10px; width: 100%; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
+        </div>
+        <button type="button" class="btn btn-success" id="verifyBtn" onclick="document.getElementById('confirmPayModal').showModal()" style="padding: 11px 20px; white-space: nowrap; height: 42px;">&#10004; Verify Payment &amp; Issue Receipt</button>
       </form>
     <?php endif; ?>
 
