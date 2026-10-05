@@ -512,9 +512,9 @@ function verifyPaymentAndIssueReceipt(int $paymentId, ?int $verifiedByUserId, st
             throw new RuntimeException('Appointment status changed during payment verification.');
         }
 
-        $receiptNumber = 'OR-' . date('Y') . '-' . str_pad((string) $paymentId, 6, '0', STR_PAD_LEFT);
-        $pdo->prepare("INSERT INTO official_receipts (payment_id, receipt_number, issued_by) VALUES (?, ?, ?)")
-            ->execute([$paymentId, $receiptNumber, $verifiedByUserId]);
+        $receiptStmt = $pdo->prepare("INSERT INTO official_receipts (payment_id, issued_by) VALUES (?, ?) RETURNING receipt_number");
+        $receiptStmt->execute([$paymentId, $verifiedByUserId]);
+        $receiptNumber = (string) $receiptStmt->fetchColumn();
 
         $stmt = $pdo->prepare('SELECT user_id FROM parishioners WHERE parishioner_id = ?');
         $stmt->execute([$payment['parishioner_id']]);

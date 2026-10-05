@@ -39,8 +39,10 @@ if ($documentId < 1) {
 }
 
 $stmt = db()->prepare(
-    'SELECT d.document_id, d.appointment_id, d.draft_id, d.baptism_draft_id, d.file_name, d.file_path, d.file_type, d.generated_form_type, a.parishioner_id
-     FROM uploaded_documents d LEFT JOIN appointments a ON a.appointment_id = d.appointment_id
+    'SELECT d.document_id, d.appointment_id, d.draft_id, d.file_name, d.file_path, d.file_type, d.generated_form_type, a.parishioner_id, ad.service_type AS draft_service_type
+     FROM uploaded_documents d
+     LEFT JOIN appointments a ON a.appointment_id = d.appointment_id
+     LEFT JOIN appointment_drafts ad ON ad.draft_id = d.draft_id
      WHERE d.document_id = ?'
 );
 $stmt->execute([$documentId]);
@@ -58,12 +60,12 @@ if (!$authorized && $user && $user['role_name'] === 'Parishioner') {
     $authorized = (bool) $stmt->fetchColumn();
 }
 if (!$authorized && $document && $document['appointment_id'] === null && $document['draft_id'] !== null) {
-    $draft = weddingDraftLoad(db(), (int) $document['draft_id'], $user, weddingDraftGuestToken((int) $document['draft_id']));
-    $authorized = (bool) $draft;
-}
-if (!$authorized && $document && $document['appointment_id'] === null && !empty($document['baptism_draft_id'])) {
-    $draft = baptismDraftLoad(db(), (int) $document['baptism_draft_id'], $user, baptismDraftToken((int) $document['baptism_draft_id']));
-    $authorized = (bool) $draft;
+    if ($document['draft_service_type'] === 'Wedding') {
+        $draft = weddingDraftLoad(db(), (int) $document['draft_id'], $user, weddingDraftGuestToken((int) $document['draft_id']));
+    } elseif ($document['draft_service_type'] === 'Baptism') {
+        $draft = baptismDraftLoad(db(), (int) $document['draft_id'], $user, baptismDraftToken((int) $document['draft_id']));
+    }
+    $authorized = (bool) ($draft ?? null);
 }
 if (!$authorized && !$user) {
     $guest = $_SESSION['guest_status_verification'] ?? null;
@@ -136,7 +138,7 @@ if ($formType) {
             $stmt->execute([$document['appointment_id'], $formType]);
         } else {
             $stmt = db()->prepare('SELECT form_data FROM generated_forms WHERE service_category = \'Baptism\' AND draft_id = ? AND form_type = ?');
-            $stmt->execute([$document['baptism_draft_id'], $formType]);
+            $stmt->execute([$document['draft_id'], $formType]);
         }
         if ($row = $stmt->fetch()) $formData = json_decode($row['form_data'], true) ?: [];
     } elseif ($formType === 'katin_awan_paglubong') {
@@ -178,7 +180,7 @@ if ($formType) {
     if ($subject) {
         $formalFilename = $base . '_' . $subject . '.pdf';
     } else {
-        $formalFilename = $base . '_' . ($document['appointment_id'] ? 'Appointment_' . $document['appointment_id'] : 'Draft_' . ($document['draft_id'] ?: $document['baptism_draft_id'])) . '.pdf';
+        $formalFilename = $base . '_' . ($document['appointment_id'] ? 'Appointment_' . $document['appointment_id'] : 'Draft_' . $document['draft_id']) . '.pdf';
     }
 }
 

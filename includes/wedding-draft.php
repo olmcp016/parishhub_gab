@@ -25,7 +25,7 @@ function weddingDraftOwner(PDO $pdo, array $draft, ?array $user, ?string $guestT
 
 function weddingDraftLoad(PDO $pdo, int $draftId, ?array $user, ?string $guestToken, bool $lock = false): ?array
 {
-    $sql = 'SELECT d.*, s.category, s.requirements FROM wedding_booking_drafts d JOIN services s ON s.service_id = d.service_id WHERE d.draft_id = ?';
+    $sql = 'SELECT d.*, s.category, s.requirements FROM appointment_drafts d JOIN services s ON s.service_id = d.service_id WHERE d.draft_id = ? AND d.service_type = \'Wedding\'';
     if ($lock) $sql .= ' FOR UPDATE';
     $q = $pdo->prepare($sql); $q->execute([$draftId]); $draft = $q->fetch() ?: null;
     if (!$draft || $draft['category'] !== 'Wedding' || !weddingDraftOwner($pdo, $draft, $user, $guestToken)) return null;

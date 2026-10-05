@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'uploa
             if (!$validation['valid']) throw new RuntimeException($label . ': ' . documentValidationMessage($validation['reason']));
             $stored = documentStorageMoveUpload($file['tmp_name'], pathinfo($file['name'], PATHINFO_EXTENSION));
             $storedKeys[] = $stored['key'];
-            $stmt = $pdo->prepare("INSERT INTO uploaded_documents (appointment_id, draft_id, baptism_draft_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source) VALUES (NULL, NULL, ?, ?, ?, ?, ?, 'pending', FALSE, 'uploaded')");
+            $stmt = $pdo->prepare("INSERT INTO uploaded_documents (appointment_id, draft_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source) VALUES (NULL, ?, ?, ?, ?, ?, 'pending', FALSE, 'uploaded')");
             $stmt->execute([$id, $file['name'], $stored['key'], $stored['mime'], $label]);
         }
         $pdo->commit();
@@ -101,11 +101,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
         $appointmentId = (int) $pdo->lastInsertId();
         $baptismFinalizationStage = 'transfer_documents';
-        $pdo->prepare('UPDATE uploaded_documents SET appointment_id = ?, baptism_draft_id = NULL WHERE baptism_draft_id = ?')->execute([$appointmentId, $id]);
+        $pdo->prepare('UPDATE uploaded_documents SET appointment_id = ?, draft_id = NULL WHERE draft_id = ?')->execute([$appointmentId, $id]);
         $baptismFinalizationStage = 'transfer_generated_forms';
         $pdo->prepare('UPDATE generated_forms SET appointment_id = ?, draft_id = NULL WHERE service_category = \'Baptism\' AND draft_id = ?')->execute([$appointmentId, $id]);
         $baptismFinalizationStage = 'finalize_draft';
-        $pdo->prepare("UPDATE baptism_booking_drafts SET status = 'finalized', finalized_appointment_id = ?, updated_at = CURRENT_TIMESTAMP WHERE draft_id = ?")->execute([$appointmentId, $id]);
+        $pdo->prepare("UPDATE appointment_drafts SET status = 'finalized', finalized_appointment_id = ?, updated_at = CURRENT_TIMESTAMP WHERE draft_id = ? AND service_type = 'Baptism'")->execute([$appointmentId, $id]);
         $baptismFinalizationStage = 'commit';
         $pdo->commit();
         redirect($guestReference
@@ -132,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$stmt = $pdo->prepare('SELECT requirement_label, document_id, file_name FROM uploaded_documents WHERE baptism_draft_id = ? AND superseded_by IS NULL AND document_source = \'uploaded\' ORDER BY document_id DESC');
+$stmt = $pdo->prepare('SELECT requirement_label, document_id, file_name FROM uploaded_documents WHERE draft_id = ? AND superseded_by IS NULL AND document_source = \'uploaded\' ORDER BY document_id DESC');
 $stmt->execute([$id]);
 $uploadedDocuments = [];
 foreach ($stmt->fetchAll() as $document) {

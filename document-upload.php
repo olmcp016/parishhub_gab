@@ -45,10 +45,10 @@ try {
 
         $stored = documentStorageMoveUpload($file['tmp_name'], pathinfo((string) $file['name'], PATHINFO_EXTENSION));
         $pdo->beginTransaction();
-        $insert = $pdo->prepare("INSERT INTO uploaded_documents (appointment_id, draft_id, baptism_draft_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source) VALUES (NULL, NULL, ?, ?, ?, ?, ?, 'pending', FALSE, 'uploaded')");
+        $insert = $pdo->prepare("INSERT INTO uploaded_documents (appointment_id, draft_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source) VALUES (NULL, ?, ?, ?, ?, ?, 'pending', FALSE, 'uploaded')");
         $insert->execute([$contextId, basename((string) $file['name']), $stored['key'], $stored['mime'], $label]);
         $newId = (int) $pdo->lastInsertId();
-        $old = $pdo->prepare("SELECT document_id FROM uploaded_documents WHERE baptism_draft_id = ? AND requirement_label = ? AND superseded_by IS NULL AND document_id <> ? ORDER BY document_id DESC LIMIT 1");
+        $old = $pdo->prepare("SELECT document_id FROM uploaded_documents WHERE draft_id = ? AND requirement_label = ? AND superseded_by IS NULL AND document_id <> ? ORDER BY document_id DESC LIMIT 1");
         $old->execute([$contextId, $label, $newId]);
         $oldId = $old->fetchColumn();
         if ($oldId) $pdo->prepare('UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ?')->execute([$newId, $oldId]);

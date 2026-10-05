@@ -79,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $finalizationStage = 'transfer_generated_forms';
         $pdo->prepare('UPDATE generated_forms SET appointment_id = ?, draft_id = NULL WHERE service_category = \'Wedding\' AND draft_id = ?')->execute([$appointmentId, $draftId]);
         $finalizationStage = 'finalize_draft';
-        $pdo->prepare("UPDATE wedding_booking_drafts SET status = 'finalized', finalized_appointment_id = ?, updated_at = CURRENT_TIMESTAMP WHERE draft_id = ?")->execute([$appointmentId, $draftId]);
+        $pdo->prepare("UPDATE appointment_drafts SET status = 'finalized', finalized_appointment_id = ?, updated_at = CURRENT_TIMESTAMP WHERE draft_id = ? AND service_type = 'Wedding'")->execute([$appointmentId, $draftId]);
         $finalizationStage = 'commit';
         $pdo->commit();
         redirect($guestReference ? url('status.php?ref=' . urlencode($guestReference) . '&contact=' . urlencode((string) ($locked['guest_phone'] ?: $locked['guest_email']))) : url('parishioner/appointment-detail.php?id=' . $appointmentId));

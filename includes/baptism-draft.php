@@ -5,7 +5,7 @@ require_once __DIR__ . '/baptism-forms.php';
 // defined in baptism-forms.php.
 const BAPTISM_DRAFT_FORMS = BAPTISM_FORM_TYPES;
 function baptismDraftToken(int $id): ?string { $v=$_SESSION['baptism_draft_tokens'][$id]??null; return is_string($v)&&$v!==''?$v:null; }
-function baptismDraftLoad(PDO $pdo,int $id,?array $user,?string $token,bool $lock=false):?array { $sql='SELECT d.*,s.category,s.requirements FROM baptism_booking_drafts d JOIN services s ON s.service_id=d.service_id WHERE d.draft_id=?';if($lock)$sql.=' FOR UPDATE';$q=$pdo->prepare($sql);$q->execute([$id]);$d=$q->fetch()?:null;if(!$d||$d['category']!=='Baptism')return null;if($user&&($user['role_name']??'')==='Parishioner'){$q=$pdo->prepare('SELECT parishioner_id FROM parishioners WHERE user_id=?');$q->execute([$user['user_id']]);return (int)$q->fetchColumn()===(int)$d['parishioner_id']?$d:null;}return $token&&hash_equals((string)$d['guest_access_token_hash'],hash('sha256',$token))?$d:null; }
+function baptismDraftLoad(PDO $pdo,int $id,?array $user,?string $token,bool $lock=false):?array { $sql='SELECT d.*,s.category,s.requirements FROM appointment_drafts d JOIN services s ON s.service_id=d.service_id WHERE d.draft_id=? AND d.service_type='Baptism'';if($lock)$sql.=' FOR UPDATE';$q=$pdo->prepare($sql);$q->execute([$id]);$d=$q->fetch()?:null;if(!$d||$d['category']!=='Baptism')return null;if($user&&($user['role_name']??'')==='Parishioner'){$q=$pdo->prepare('SELECT parishioner_id FROM parishioners WHERE user_id=?');$q->execute([$user['user_id']]);return (int)$q->fetchColumn()===(int)$d['parishioner_id']?$d:null;}return $token&&hash_equals((string)$d['guest_access_token_hash'],hash('sha256',$token))?$d:null; }
 function baptismDraftAllDocuments(array $d): array
 {
     return parseRequirementsList($d['requirements'] ?? '');
@@ -35,12 +35,12 @@ function baptismDraftOptionalDocuments(array $d): array
 function baptismDraftComplete(PDO $pdo, array $d): array
 {
     $missing = [];
-    $q = $pdo->prepare("SELECT requirement_label FROM uploaded_documents WHERE baptism_draft_id=? AND superseded_by IS NULL AND review_status IN ('pending','approved')");
+    $q = $pdo->prepare("SELECT requirement_label FROM uploaded_documents WHERE draft_id=? AND superseded_by IS NULL AND review_status IN ('pending','approved')");
     $q->execute([$d['draft_id']]);
     $labels = $q->fetchAll(PDO::FETCH_COLUMN);
     foreach (array_diff(baptismDraftRequiredDocuments($d), $labels) as $label) $missing[] = $label;
 
-    $q = $pdo->prepare("SELECT f.form_type FROM generated_forms f JOIN uploaded_documents u ON u.document_id=f.document_id WHERE f.service_category='Baptism' AND f.draft_id=? AND f.status IN ('generated','pending_review','approved') AND f.document_id IS NOT NULL AND u.baptism_draft_id=? AND u.appointment_id IS NULL AND u.superseded_by IS NULL AND u.document_source='generated' AND u.generated_form_type=f.form_type AND u.file_type='application/pdf'");
+    $q = $pdo->prepare("SELECT f.form_type FROM generated_forms f JOIN uploaded_documents u ON u.document_id=f.document_id WHERE f.service_category='Baptism' AND f.draft_id=? AND f.status IN ('generated','pending_review','approved') AND f.document_id IS NOT NULL AND u.draft_id=? AND u.appointment_id IS NULL AND u.superseded_by IS NULL AND u.document_source='generated' AND u.generated_form_type=f.form_type AND u.file_type='application/pdf'");
     $q->execute([$d['draft_id'], $d['draft_id']]);
     $forms = $q->fetchAll(PDO::FETCH_COLUMN);
     foreach (BAPTISM_DRAFT_FORMS as $type) if (!in_array($type, $forms, true)) $missing[] = $type;

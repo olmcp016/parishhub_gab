@@ -220,7 +220,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($update->rowCount() !== 1) {
                 throw new RuntimeException('This appointment is no longer pending approval.');
             }
-            $parId = $lockedAppointment['parishioner_id'];
             $pdo->commit();
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
@@ -231,11 +230,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             respondAjaxOrRedirect($isAjax, false, 'The appointment could not be approved. Please try again.', $redirectUrl);
         }
 
-        $stmt = db()->prepare('SELECT user_id FROM parishioners WHERE parishioner_id = ?');
-        $stmt->execute([$parId]);
-        $puid = $stmt->fetchColumn();
-        db()->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Appointment Approved', ?)")
-            ->execute([$puid, "Your appointment #$id has been approved. Please proceed with payment."]);
         logActivity($userId, "Approved appointment #$id", 'Appointments');
         respondAjaxOrRedirect($isAjax, true, 'Appointment approved. The parishioner may now proceed to payment.', $redirectUrl);
     } elseif ($action === 'reject') {
@@ -361,14 +355,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($update->rowCount() !== 1) {
             respondAjaxOrRedirect($isAjax, false, 'This appointment is no longer awaiting confirmation.', $redirectUrl);
         }
-        $stmt = db()->prepare("SELECT parishioner_id FROM appointments WHERE appointment_id = ?");
-        $stmt->execute([$id]);
-        $parId = $stmt->fetchColumn();
-        $stmt = db()->prepare("SELECT user_id FROM parishioners WHERE parishioner_id = ?");
-        $stmt->execute([$parId]);
-        $puid = $stmt->fetchColumn();
-        db()->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Appointment Confirmed', ?)")
-            ->execute([$puid, "Your appointment #$id is confirmed. We look forward to seeing you."]);
         logActivity($userId, "Confirmed appointment #$id", 'Appointments');
         respondAjaxOrRedirect($isAjax, true, 'Appointment confirmed.', $redirectUrl);
     } elseif ($action === 'complete') {

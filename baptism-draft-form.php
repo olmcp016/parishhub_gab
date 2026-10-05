@@ -127,20 +127,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $previousDocumentQuery = $pdo->prepare($isAppointmentForm
                 ? "SELECT document_id FROM uploaded_documents WHERE appointment_id = ? AND document_source = 'generated' AND generated_form_type = ? AND superseded_by IS NULL ORDER BY document_id DESC LIMIT 1 FOR UPDATE"
-                : "SELECT document_id FROM uploaded_documents WHERE baptism_draft_id = ? AND document_source = 'generated' AND generated_form_type = ? AND superseded_by IS NULL ORDER BY document_id DESC LIMIT 1 FOR UPDATE");
+                : "SELECT document_id FROM uploaded_documents WHERE draft_id = ? AND document_source = 'generated' AND generated_form_type = ? AND superseded_by IS NULL ORDER BY document_id DESC LIMIT 1 FOR UPDATE");
             $previousDocumentQuery->execute([$isAppointmentForm ? $appointmentId : $id, $type]);
             $previousDocumentId = (int) ($previousDocumentQuery->fetchColumn() ?: 0);
 
             $pdf = baptismFormPdf($type, $data);
             $stored = documentStorageWriteBytes($pdf);
             $label = baptismFormDefinition($type)['title'] . '.pdf';
-            $pdo->prepare("INSERT INTO uploaded_documents (appointment_id, draft_id, baptism_draft_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source, generated_form_type) VALUES (?, NULL, ?, ?, ?, 'application/pdf', ?, 'pending', FALSE, 'generated', ?)")
+            $pdo->prepare("INSERT INTO uploaded_documents (appointment_id, draft_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source, generated_form_type) VALUES (?, ?, ?, ?, 'application/pdf', ?, 'pending', FALSE, 'generated', ?)")
                 ->execute([$isAppointmentForm ? $appointmentId : null, $isAppointmentForm ? null : $id, $label, $stored['key'], $label, $type]);
             $newId = (int) $pdo->lastInsertId();
             if ($previousDocumentId) {
                 $supersede = $pdo->prepare($isAppointmentForm
                     ? 'UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ? AND appointment_id = ? AND superseded_by IS NULL'
-                    : 'UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ? AND baptism_draft_id = ? AND superseded_by IS NULL');
+                    : 'UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ? AND draft_id = ? AND superseded_by IS NULL');
                 $supersede->execute([$newId, $previousDocumentId, $isAppointmentForm ? $appointmentId : $id]);
             }
             if ($form) {
