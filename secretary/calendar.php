@@ -83,7 +83,7 @@ include __DIR__ . '/../includes/dash-start.php';
 <div style="display:grid; grid-template-columns: 1fr 300px; gap: 22px; align-items:stretch;" class="calendar-layout">
   <div id="parishCalendar"></div>
 
-  <div style="display:flex; flex-direction:column; gap: 22px;">
+  <div style="display:flex; flex-direction:column; gap: 22px; height: 100%;">
     <div class="card" style="flex: 1; display: flex; flex-direction: column;">
       <div class="card-header"><h3>Add Event</h3></div>
       <div style="padding: 20px; flex: 1; display: flex; flex-direction: column; justify-content: center;">
