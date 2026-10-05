@@ -193,7 +193,7 @@ function baseUrl(): string
         $scriptDir = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME']));
         // Normalize: strip any trailing role subfolder (admin/, secretary/, etc.) to get project root
         $parts = explode('/', trim($scriptDir, '/'));
-        $roleFolders = ['admin', 'secretary', 'treasurer', 'parishioner', 'auth'];
+        $roleFolders = ['admin', 'secretary', 'treasurer', 'parishioner', 'priest', 'auth'];
         if (!empty($parts) && in_array(end($parts), $roleFolders, true)) {
             array_pop($parts);
         }
