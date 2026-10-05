@@ -107,25 +107,25 @@ include __DIR__ . '/../includes/dash-start.php';
   <form method="POST" action="<?= url('admin/service-schedules.php') ?>" class="form-row" style="align-items:end;">
     <?= csrfField() ?>
     <input type="hidden" name="action" value="add">
-    <div class="form-group">
+    <div class="form-group" style="flex: 2; min-width: 220px;">
       <label>Service</label>
-      <select name="service_id" required>
+      <select name="service_id" class="form-control" required>
         <?php foreach ($services as $s): ?>
-          <option value="<?= $s['service_id'] ?>"><?= e($s['service_name']) ?> (<?= e($s['category']) ?>)</option>
+          <option value="<?= $s['service_id'] ?>"><?= e($s['service_name']) ?></option>
         <?php endforeach; ?>
       </select>
     </div>
-    <div class="form-group">
+    <div class="form-group" style="flex: 1.5; min-width: 150px;">
       <label>Weekday</label>
-      <select name="weekday" required>
+      <select name="weekday" class="form-control" required>
         <?php foreach (['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as $i => $name): ?>
           <option value="<?= $i ?>"><?= $name ?></option>
         <?php endforeach; ?>
       </select>
     </div>
-    <div class="form-group">
+    <div class="form-group" style="flex: 1.5; min-width: 150px;">
       <label>Occurrence</label>
-      <select name="occurrence">
+      <select name="occurrence" class="form-control">
         <option value="">Every week</option>
         <option value="1">1st</option>
         <option value="2">2nd</option>
@@ -134,7 +134,7 @@ include __DIR__ . '/../includes/dash-start.php';
         <option value="5">5th</option>
       </select>
     </div>
-    <div class="form-group">
+    <div class="form-group" style="flex: 1; min-width: 130px;">
       <label>Time</label>
       <input type="time" name="slot_time" required>
     </div>
