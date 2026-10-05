@@ -60,14 +60,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
         flash('success', 'Priest added successfully.');
-    } elseif ($action === 'status') {
+    } elseif ($action === 'edit') {
+        $priestId = (int) ($_POST['priest_id'] ?? 0);
         $status = $_POST['status'] ?? '';
+        $title = trim($_POST['title'] ?? '');
+        $fullName = trim($_POST['full_name'] ?? '');
+        $contact = trim($_POST['contact_number'] ?? '');
+        
         if (!in_array($status, ['active', 'on_leave', 'inactive'], true)) {
             flash('error', 'Invalid priest status.');
             redirect(url('admin/priests.php'));
         }
-        db()->prepare('UPDATE priests SET status = ? WHERE priest_id = ?')->execute([$status, (int) $_POST['priest_id']]);
-        flash('success', 'Priest status updated.');
+        
+        db()->prepare('UPDATE priests SET title = ?, full_name = ?, contact_number = ?, status = ? WHERE priest_id = ?')->execute([$title, $fullName, $contact, $status, $priestId]);
+        flash('success', 'Priest details updated.');
     } elseif ($action === 'delete') {
         $priestId = (int) ($_POST['priest_id'] ?? 0);
         // Ensure no active/pending appointments use this priest
@@ -207,16 +213,13 @@ include __DIR__ . '/../includes/dash-start.php';
             <td><?= e($p['title']) ?> <?= e($p['full_name']) ?></td>
             <td><?= e($p['contact_number'] ?? '—') ?><br><span class="text-muted" style="font-size:12px;"><?= e($p['email'] ?? '') ?></span></td>
             <td>
-              <form method="POST" action="<?= url('admin/priests.php') ?>">
-                <?= csrfField() ?>
-                <input type="hidden" name="action" value="status">
-                <input type="hidden" name="priest_id" value="<?= $p['priest_id'] ?>">
-                <select name="status" onchange="this.form.submit()">
-                  <option value="active" <?= $p['status']==='active'?'selected':'' ?>>Active</option>
-                  <option value="on_leave" <?= $p['status']==='on_leave'?'selected':'' ?>>On Leave</option>
-                  <option value="inactive" <?= $p['status']==='inactive'?'selected':'' ?>>Inactive</option>
-                </select>
-              </form>
+              <?php if ($p['status'] === 'active'): ?>
+                <span class="badge badge-verified">Active</span>
+              <?php elseif ($p['status'] === 'on_leave'): ?>
+                <span class="badge" style="background:#fff3cd; color:#856404; border:1px solid #ffeeba;">On Leave</span>
+              <?php else: ?>
+                <span class="badge badge-cancelled">Inactive</span>
+              <?php endif; ?>
             </td>
             <td>
               <?php if (!empty($p['user_id'])): ?>
@@ -229,9 +232,17 @@ include __DIR__ . '/../includes/dash-start.php';
               <?php endif; ?>
             </td>
             <td>
-              <button type="button" class="btn btn-danger btn-sm js-remove-priest"
-                data-priest-id="<?= (int) $p['priest_id'] ?>"
-                data-priest-name="<?= e(trim(($p['title'] ?? '') . ' ' . ($p['full_name'] ?? ''))) ?>">Delete</button>
+              <div class="flex gap-2">
+                <button type="button" class="btn btn-outline btn-sm js-edit-priest"
+                  data-priest-id="<?= (int) $p['priest_id'] ?>"
+                  data-priest-title="<?= e($p['title'] ?? '') ?>"
+                  data-priest-name="<?= e($p['full_name'] ?? '') ?>"
+                  data-priest-contact="<?= e($p['contact_number'] ?? '') ?>"
+                  data-priest-status="<?= e($p['status'] ?? 'active') ?>">Edit</button>
+                <button type="button" class="btn btn-danger btn-sm js-remove-priest"
+                  data-priest-id="<?= (int) $p['priest_id'] ?>"
+                  data-priest-name="<?= e(trim(($p['title'] ?? '') . ' ' . ($p['full_name'] ?? ''))) ?>">Delete</button>
+              </div>
             </td>
           </tr>
         <?php endforeach; ?>
@@ -240,6 +251,34 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
   <?php if (empty($priests)): ?><p class="text-muted text-center mt-3" id="priestsEmptyState">No priests yet.</p><?php endif; ?>
 </div>
+
+<dialog class="modal" id="editPriestModal">
+  <div class="modal-head">
+    <h3>Edit Priest</h3>
+    <button type="button" class="modal-close" onclick="document.getElementById('editPriestModal').close()">✕</button>
+  </div>
+  <div class="modal-body">
+    <form method="POST" action="<?= url('admin/priests.php') ?>">
+      <?= csrfField() ?>
+      <input type="hidden" name="action" value="edit">
+      <input type="hidden" name="priest_id" id="editPriestId">
+      <div class="form-group"><label>Title <span aria-hidden="true">*</span></label><input type="text" name="title" id="editPriestTitle" required></div>
+      <div class="form-group"><label>Full Name <span aria-hidden="true">*</span></label><input type="text" name="full_name" id="editPriestName" required></div>
+      <div class="form-group"><label>Contact #</label><input type="tel" name="contact_number" id="editPriestContact" inputmode="numeric" maxlength="11" pattern="09[0-9]{9}"></div>
+      <div class="form-group"><label>Status <span aria-hidden="true">*</span></label>
+        <select name="status" id="editPriestStatus" required>
+          <option value="active">Active</option>
+          <option value="on_leave">On Leave</option>
+          <option value="inactive">Inactive</option>
+        </select>
+      </div>
+      <div class="flex gap-3" style="justify-content:flex-end;">
+        <button type="button" class="btn btn-outline" onclick="document.getElementById('editPriestModal').close()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Update Priest</button>
+      </div>
+    </form>
+  </div>
+</dialog>
 
 <dialog class="modal" id="addPriestModal">
   <div class="modal-head">
@@ -387,6 +426,17 @@ document.getElementById('createLoginForm').addEventListener('submit', function (
   document.getElementById('createLoginSubmit').textContent = 'Creating...';
 });
 
+document.querySelectorAll('.js-edit-priest').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.getElementById('editPriestId').value = this.dataset.priestId;
+    document.getElementById('editPriestTitle').value = this.dataset.priestTitle;
+    document.getElementById('editPriestName').value = this.dataset.priestName;
+    document.getElementById('editPriestContact').value = this.dataset.priestContact;
+    document.getElementById('editPriestStatus').value = this.dataset.priestStatus;
+    document.getElementById('editPriestModal').showModal();
+  });
+});
+
 document.getElementById('addPriestForm').addEventListener('submit', function (e) {
   e.preventDefault();
   var form = e.target;
@@ -422,51 +472,7 @@ document.getElementById('addPriestForm').addEventListener('submit', function (e)
       submitBtn.disabled = false;
       submitBtn.textContent = originalText;
       if (data.success) {
-        var p = data.priest;
-        var emptyState = document.getElementById('priestsEmptyState');
-        if (emptyState) emptyState.remove();
-
-        var tbody = document.getElementById('priestsTableBody');
-        var tr = document.createElement('tr');
-
-        var nameTd = document.createElement('td');
-        nameTd.textContent = p.title + ' ' + p.full_name;
-
-        var contactTd = document.createElement('td');
-        contactTd.appendChild(document.createTextNode(p.contact_number || '—'));
-        contactTd.appendChild(document.createElement('br'));
-        var emailSpan = document.createElement('span');
-        emailSpan.className = 'text-muted';
-        emailSpan.style.fontSize = '12px';
-        emailSpan.textContent = p.email || '';
-        contactTd.appendChild(emailSpan);
-
-        var statusTd = document.createElement('td');
-        var statusForm = document.createElement('form');
-        statusForm.method = 'POST';
-        statusForm.action = '<?= url('admin/priests.php') ?>';
-        statusForm.innerHTML = <?= json_encode(csrfField()) ?>
-          + '<input type="hidden" name="action" value="status">'
-          + '<input type="hidden" name="priest_id" value="' + p.priest_id + '">'
-          + '<select name="status" onchange="this.form.submit()">'
-          + '<option value="active" selected>Active</option>'
-          + '<option value="on_leave">On Leave</option>'
-          + '<option value="inactive">Inactive</option>'
-          + '</select>';
-        statusTd.appendChild(statusForm);
-
-        var loginTd = document.createElement('td');
-        loginTd.innerHTML = '<div class="priest-login-summary"><span class="text-muted">Not Created</span><button type="button" class="btn btn-outline btn-sm js-create-login" data-priest-id="' + p.priest_id + '" data-priest-name="' + p.title + ' ' + p.full_name + '" data-priest-email="' + (p.email || '') + '">Create Login</button></div>';
-
-        tr.appendChild(nameTd);
-        tr.appendChild(contactTd);
-        tr.appendChild(statusTd);
-        tr.appendChild(loginTd);
-        tbody.appendChild(tr);
-
-        form.reset();
-        form.querySelector('[name="title"]').value = 'Rev. Fr.';
-        document.getElementById('addPriestModal').close();
+        window.location.reload();
       } else {
         errorBox.textContent = data.message;
         errorBox.style.display = 'block';
