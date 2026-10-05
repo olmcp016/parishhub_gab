@@ -39,6 +39,8 @@ include __DIR__ . '/../includes/dash-start.php';
           <option>Blessing</option>
           <option>Confirmation</option>
           <option>First Communion</option>
+          <option>Wake</option>
+          <option>Anointing</option>
         </select>
       </div>
     </div>

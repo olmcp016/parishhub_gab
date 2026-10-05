@@ -512,6 +512,12 @@ if (!$isAjax) {
       <p><strong>Required Documents:</strong> <?= e($appointment['requirements']) ?></p>
     <?php endif; ?>
     <?php if ($appointment['remarks']): ?><p><strong>Remarks:</strong> <?= e($appointment['remarks']) ?></p><?php endif; ?>
+    <?php if (!empty($appointment['requester_name'])): ?>
+      <p><strong>Requested by:</strong> <?= e($appointment['requester_name']) ?></p>
+    <?php endif; ?>
+    <?php if (!empty($appointment['patient_name'])): ?>
+      <p><strong>Sick Person's Name:</strong> <?= e($appointment['patient_name']) ?></p>
+    <?php endif; ?>
     <?php if (!empty($appointment['location_address'])): ?>
       <p><strong>Address to Bless:</strong> <?= nl2br(e($appointment['location_address'])) ?></p>
     <?php endif; ?>

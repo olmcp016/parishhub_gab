@@ -184,6 +184,18 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         }
     }
 
+    // Anointing of the Sick needs the requester's name and the sick person's name.
+    $requesterName = null;
+    $patientName   = null;
+    if ($category === 'Anointing') {
+
+        $requesterName = trim($_POST['requester_name'] ?? '');
+        $patientName   = trim($_POST['patient_name'] ?? '');
+        if ($requesterName === '' || $patientName === '') {
+            bookRespondError($isAjax, 'Please provide both the requester\'s name and the sick person\'s name.', url('parishioner/services.php'));
+        }
+    }
+
     // House Blessing (category "Blessing") needs a contact number and the
     // address to bless — plain text, never a document upload. A registered
     // parishioner's own phone is reused unless they typed a different one;
@@ -440,11 +452,11 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         $approvedAtValue = $isMassIntention ? ', NOW()' : '';
 
         $stmt = $pdo->prepare(
-            "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, date_of_death, schedule_type, pss_claim, pss_classification, sponsor_count, wedding_sponsor_count, guest_name, guest_email, guest_phone, guest_reference, contact_phone, location_address, requirements_snapshot{$approvedAtColumn})
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$approvedAtValue})"
+            "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, date_of_death, schedule_type, pss_claim, pss_classification, sponsor_count, wedding_sponsor_count, guest_name, guest_email, guest_phone, guest_reference, contact_phone, location_address, requirements_snapshot, requester_name, patient_name{$approvedAtColumn})
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$approvedAtValue})"
         );
         if ($isMassIntention) $massIntentionStage = 'insert_appointment';
-        $stmt->execute([$parishionerId, $serviceId, $priestId, $date, $finalTime, $initialStatusId, $remarks, $dateOfDeath, $scheduleTypeToSave, $pssClaim, $pssClassification, $sponsorCount, $weddingSponsorCount, $guestName, $guestEmail, $guestPhone, $guestReference, $contactPhone, $locationAddress, $requirementsSnapshot]);
+        $stmt->execute([$parishionerId, $serviceId, $priestId, $date, $finalTime, $initialStatusId, $remarks, $dateOfDeath, $scheduleTypeToSave, $pssClaim, $pssClassification, $sponsorCount, $weddingSponsorCount, $guestName, $guestEmail, $guestPhone, $guestReference, $contactPhone, $locationAddress, $requirementsSnapshot, $requesterName, $patientName]);
         $appointmentId = $pdo->lastInsertId();
 
         $checkoutUrl = null;

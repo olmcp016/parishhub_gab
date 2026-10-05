@@ -83,10 +83,10 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
       <h3><?= e($s['service_name']) ?></h3>
       <p class="text-muted" style="font-size:12.5px; text-transform:uppercase; letter-spacing:.4px;"><?= e($s['category']) ?></p>
       <p style="font-size:14px;"><?= e($s['description']) ?></p>
-      <?php 
+      <?php
       $scheduleDisplay = null;
-      if ($s['category'] === 'Blessing') {
-          $scheduleDisplay = null;
+      if ($s['category'] === 'Anointing' || $s['category'] === 'Blessing') {
+          $scheduleDisplay = 'Schedule arranged with the Parish Office';
       } elseif (in_array($s['category'], ['Baptism', 'Wedding', 'Confirmation'])) {
           $scheduleDesc = describeRegularSchedule((int)$s['service_id']);
           if (str_starts_with($scheduleDesc, 'No Regular schedule')) {
@@ -107,6 +107,9 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
               <i data-lucide="calendar" style="width:14px; height:14px;"></i>
               <?= e($scheduleDisplay) ?>
           </p>
+      <?php endif; ?>
+      <?php if ($s['category'] === 'Anointing'): ?>
+          <p class="svc-fee" style="font-size: 13px; color: var(--success, #2d7a46); font-weight: 600; margin-bottom: 12px; margin-top: -6px;">Free — No payment required</p>
       <?php endif; ?>
       <?php if (in_array($s['category'], ['Baptism', 'Wedding'], true) && !empty($feeRulesByCategory[$s['category']])): ?>
         <p class="text-muted" style="font-size:13px; margin-bottom:4px;">Regular and Special fees available by PSS classification.</p>
@@ -223,6 +226,19 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
               </option>
             <?php endforeach; ?>
           </select>
+        </div>
+
+        <div id="anointingFields" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px; margin-bottom: 16px;">
+          <h4 style="margin-top:0;">Anointing of the Sick Details</h4>
+          <div class="form-group">
+            <label>Requester's Name <span style="color:var(--danger);">*</span></label>
+            <input type="text" name="requester_name" id="requesterNameInput" placeholder="Full name of the person requesting">
+          </div>
+          <div class="form-group">
+            <label>Sick Person's Name <span style="color:var(--danger);">*</span></label>
+            <input type="text" name="patient_name" id="patientNameInput" placeholder="Full name of the person to be anointed">
+          </div>
+          <p class="helper-text">This sacrament is provided <strong>free of charge</strong>. No payment is required.</p>
         </div>
 
         <div id="blessingFields" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px; margin-bottom: 16px;">
@@ -544,6 +560,11 @@ function toggleServiceUI() {
   updatePayModeUI();
   document.getElementById('dateOfDeathGroup').style.display = category === 'Funeral' ? 'block' : 'none';
   document.getElementById('dateOfDeathInput').required = (category === 'Funeral');
+
+  var isAnointing = category === 'Anointing';
+  document.getElementById('anointingFields').style.display = isAnointing ? 'block' : 'none';
+  document.getElementById('requesterNameInput').required = isAnointing;
+  document.getElementById('patientNameInput').required = isAnointing;
 
   var isBlessing = category === 'Blessing';
   document.getElementById('blessingFields').style.display = isBlessing ? 'block' : 'none';

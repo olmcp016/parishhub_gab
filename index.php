@@ -33,6 +33,7 @@ function serviceCategoryIcon(string $category): string
         'Funeral'         => '✝️',
         'Confirmation'    => '☁️',
         'First Communion' => '🍞',
+        'Anointing'       => '🛢️',
         default           => '📋',
     };
 }

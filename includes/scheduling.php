@@ -587,6 +587,7 @@ function validateBooking(
             $slot = massIntentionSlotAvailability($date, $time5);
             return ['valid' => $slot['available'], 'message' => (string) $slot['reason'], 'forcedTime' => null];
 
+        case 'Anointing':
         case 'First Communion':
         default:
             // No specific fixed rule beyond the staff day-off, already checked above.
@@ -638,6 +639,8 @@ function schedulingPolicyText(string $category, ?int $serviceId = null): string
             return 'Funeral Masses are held after the 9-day mourning period from the date of death, fixed at 1:00 PM.';
         case 'Mass Intention':
             return 'Mass Intentions are offered on Sundays at the 1st Mass (6:00 AM), 2nd Mass (9:00 AM), or 3rd Mass (4:00 PM), and Monday to Saturday at the 6:00 AM Daily Mass — the available times appear after you pick your date. There is no fixed fee, but an offering greater than ₱0 must be paid to submit your intention. Once our Cashier confirms your payment, it is approved.';
+        case 'Anointing':
+            return 'Propose a preferred date and time for the Anointing. This sacrament is free of charge — no payment is required.';
         case 'First Communion':
             return 'Propose a preferred date and time below — just not during a scheduled Mass.';
         default:

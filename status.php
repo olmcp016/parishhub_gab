@@ -241,6 +241,8 @@ include __DIR__ . '/includes/header.php';
           </div>
         <?php endif; ?>
       <?php endif; ?>
+      <?php if (!empty($appointment['requester_name'])): ?><p><strong>Requested by:</strong> <?= e($appointment['requester_name']) ?></p><?php endif; ?>
+      <?php if (!empty($appointment['patient_name'])): ?><p><strong>Sick Person's Name:</strong> <?= e($appointment['patient_name']) ?></p><?php endif; ?>
       <?php if (!empty($appointment['location_address'])): ?><p><strong>Address to Bless:</strong> <?= nl2br(e($appointment['location_address'])) ?></p><?php endif; ?>
       <?php if (!empty($appointment['contact_phone'])): ?><p><strong>Contact Phone:</strong> <?= e($appointment['contact_phone']) ?></p><?php endif; ?>
       <?php if ($appointment['rejection_reason']): ?><p><strong>Reason:</strong> <?= e($appointment['rejection_reason']) ?></p><?php endif; ?>
