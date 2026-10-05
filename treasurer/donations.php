@@ -7,6 +7,15 @@ $userId = currentUser()['user_id'];
 $purposes = ['Church Maintenance', 'Charity', 'Mass / Parish Activities', 'Other / Not Specified'];
 $methods = [1 => 'Cash', 2 => 'GCash', 3 => 'Maya', 4 => 'Bank Transfer', 5 => 'Credit/Debit Card', 6 => 'PayPal'];
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'toggle_donations') {
+    verifyCsrf();
+    $enabled = !empty($_POST['donation_enabled']) ? '1' : '0';
+    db()->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('donation_enabled', ?) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value")->execute([$enabled]);
+    logActivity($userId, 'Updated donation feature setting (' . ($enabled === '1' ? 'enabled' : 'disabled') . ')', 'Donations');
+    flash('success', 'Donation settings updated.');
+    redirect(url('treasurer/donations.php'));
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'manual') {
     verifyCsrf();
 
@@ -93,6 +102,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'manua
     redirect(url('treasurer/donations.php'));
 }
 
+$donationEnabled = db()->query("SELECT setting_value FROM settings WHERE setting_key = 'donation_enabled'")->fetchColumn() !== '0';
+
 $parishioners = db()->query(
     "SELECT p.parishioner_id, u.firstname, u.lastname FROM parishioners p
      JOIN users u ON p.user_id = u.user_id
@@ -151,6 +162,27 @@ $pageTitle = 'Donations';
 include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/dash-start.php';
 ?>
+
+<div class="card" style="max-width:640px; margin-bottom:24px;">
+  <div class="card-header" style="display:flex; align-items:center; justify-content:space-between; gap:16px;">
+    <h3 style="margin:0;">Accept Online Donations</h3>
+    <span class="badge <?= $donationEnabled ? 'badge-verified' : 'badge-cancelled' ?>" style="font-size:12px; padding:4px 10px;">
+      <?= $donationEnabled ? 'ON' : 'OFF' ?>
+    </span>
+  </div>
+  <p class="helper-text" style="margin-top:0; margin-bottom:16px;">
+    Controls whether parishioners see the &ldquo;Donate Now&rdquo; button on their dashboard and can submit online donations.
+  </p>
+  <form method="POST" action="<?= url('treasurer/donations.php') ?>" style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+    <?= csrfField() ?>
+    <input type="hidden" name="action" value="toggle_donations">
+    <label style="display:flex; align-items:center; gap:8px; font-weight:500; font-size:14px; cursor:pointer; text-transform:none;">
+      <input type="checkbox" name="donation_enabled" value="1" <?= $donationEnabled ? 'checked' : '' ?> style="width:auto;">
+      Enable the Donate button for parishioners
+    </label>
+    <button type="submit" class="btn btn-primary btn-sm">Save</button>
+  </form>
+</div>
 
 <div class="stat-grid">
   <div class="stat-card light"><div class="stat-label">Total Verified Donations</div><div class="stat-value"><?= money((float) $totalVerified) ?></div></div>
