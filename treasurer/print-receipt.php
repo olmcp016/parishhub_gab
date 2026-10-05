@@ -129,9 +129,9 @@ if (!$payment || !$payment['receipt_number']) {
 </head>
 <body>
   <div class="receipt-container">
-    <button class="no-print print-btn" onclick="window.print()">🖨️ Print Receipt</button>
     
     <div class="header">
+      <img src="<?= url('public/img/logo.png') ?>" alt="ParishHub Logo" style="width: 64px; height: auto; margin-bottom: 10px;">
       <h1>ParishHub</h1>
       <p>Official Receipt</p>
       <p style="margin-top: 10px; font-weight: bold; color: #333;">OR #: <?= e($payment['receipt_number']) ?></p>
@@ -173,6 +173,8 @@ if (!$payment || !$payment['receipt_number']) {
       Thank you for your generous support!<br>
       Parish Service Portal
     </div>
+
+    <button class="no-print print-btn" onclick="window.print()" style="margin-top: 30px;">🖨️ Print Receipt</button>
   </div>
 
 </body>
