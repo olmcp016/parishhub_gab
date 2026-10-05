@@ -164,10 +164,11 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
   <div id="recordDonationForm" style="display: none; padding-top: 16px;">
     <p class="helper-text" style="margin-top:0; margin-bottom:16px;">For cash or in-person donations, or any offering received outside the website. This is recorded as already verified — no separate confirmation step needed.</p>
-    <form method="POST" action="<?= url('treasurer/donations.php') ?>" style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end;">
+    <form method="POST" action="<?= url('treasurer/donations.php') ?>">
       <?= csrfField() ?>
       <input type="hidden" name="action" value="manual">
-      <div class="form-group" style="flex: 1 1 250px; margin-bottom:0;">
+      
+      <div class="form-group" style="margin-bottom: 16px;">
         <label>Registered Parishioner (optional)</label>
         <input type="hidden" name="parishioner_id" id="donationParishionerIdInput" value="">
         <div class="flex gap-2" style="align-items:center; flex-wrap:wrap; height:47.5px;">
@@ -176,24 +177,47 @@ include __DIR__ . '/../includes/dash-start.php';
           <button type="button" class="btn btn-outline btn-sm" id="donationParishionerClearBtn" style="display:none; height:32px; padding: 0 12px;" onclick="clearParishionerPicker()">Clear</button>
         </div>
       </div>
-      <div class="form-group" style="flex: 1 1 180px; margin-bottom:0;"><label>Donor Name (optional)</label><input type="text" name="donor_name" placeholder="Leave blank for Anonymous"></div>
-      <div class="form-group" style="flex: 1 1 180px; margin-bottom:0;"><label>Email (optional)</label><input type="email" name="donor_email"></div>
-      <div class="form-group" style="flex: 1 1 120px; margin-bottom:0;"><label>Amount</label><input type="number" name="amount" min="0.01" step="0.01" required></div>
-      <div class="form-group" style="flex: 1 1 180px; margin-bottom:0;">
-        <label>Purpose</label>
-        <select name="purpose">
-          <?php foreach ($purposes as $p): ?><option value="<?= e($p) ?>"><?= e($p) ?></option><?php endforeach; ?>
-        </select>
+
+      <div style="display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;">
+        <div class="form-group" style="flex: 1 1 200px; margin-bottom: 0;">
+          <label>Donor Name (optional)</label>
+          <input type="text" name="donor_name" placeholder="Leave blank for Anonymous">
+        </div>
+        <div class="form-group" style="flex: 1 1 200px; margin-bottom: 0;">
+          <label>Email (optional)</label>
+          <input type="email" name="donor_email">
+        </div>
       </div>
-      <div class="form-group" style="flex: 1 1 150px; margin-bottom:0;">
-        <label>Payment Method</label>
-        <select name="method_id" required>
-          <option value="">-- Select --</option>
-          <?php foreach ($methods as $id => $label): ?><option value="<?= $id ?>"><?= e($label) ?></option><?php endforeach; ?>
-        </select>
+
+      <div style="display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;">
+        <div class="form-group" style="flex: 1 1 120px; margin-bottom: 0;">
+          <label>Amount</label>
+          <input type="number" name="amount" min="0.01" step="0.01" required>
+        </div>
+        <div class="form-group" style="flex: 1 1 150px; margin-bottom: 0;">
+          <label>Purpose</label>
+          <select name="purpose">
+            <?php foreach ($purposes as $p): ?><option value="<?= e($p) ?>"><?= e($p) ?></option><?php endforeach; ?>
+          </select>
+        </div>
+        <div class="form-group" style="flex: 1 1 150px; margin-bottom: 0;">
+          <label>Payment Method</label>
+          <select name="method_id" required>
+            <option value="">-- Select --</option>
+            <?php foreach ($methods as $id => $label): ?><option value="<?= $id ?>"><?= e($label) ?></option><?php endforeach; ?>
+          </select>
+        </div>
       </div>
-      <div class="form-group" style="flex: 1 1 180px; margin-bottom:0;"><label>Reference # (optional)</label><input type="text" name="reference_number"></div>
-      <div class="form-group" style="flex: 0 0 auto; margin-bottom:0;"><button type="submit" class="btn btn-primary" style="height:47.5px; padding: 0 24px;">Record</button></div>
+
+      <div style="display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap;">
+        <div class="form-group" style="flex: 3 1 200px; margin-bottom: 0;">
+          <label>Reference # (optional)</label>
+          <input type="text" name="reference_number">
+        </div>
+        <div class="form-group" style="flex: 0 0 auto; margin-bottom: 0;">
+          <button type="submit" class="btn btn-primary" style="height:47.5px; padding: 0 24px;">Record</button>
+        </div>
+      </div>
     </form>
   </div>
 </div>
