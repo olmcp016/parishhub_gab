@@ -130,11 +130,13 @@ if (!$payment || !$payment['receipt_number']) {
 <body>
   <div class="receipt-container">
     
-    <div class="header">
-      <img src="<?= url('public/img/logo.png') ?>" alt="ParishHub Logo" style="width: 64px; height: auto; margin-bottom: 10px;">
-      <h1>ParishHub</h1>
-      <p>Official Receipt</p>
-      <p style="margin-top: 10px; font-weight: bold; color: #333;">OR #: <?= e($payment['receipt_number']) ?></p>
+    <div class="header" style="display: flex; align-items: center; justify-content: center; gap: 16px; text-align: left;">
+      <img src="<?= url('public/img/logo.png') ?>" alt="ParishHub Logo" style="width: 64px; height: auto;">
+      <div>
+        <h1 style="margin-bottom: 2px;">ParishHub</h1>
+        <p>Official Receipt</p>
+        <p style="margin-top: 6px; font-weight: bold; color: #333;">OR #: <?= e($payment['receipt_number']) ?></p>
+      </div>
     </div>
 
     <div class="receipt-details">
