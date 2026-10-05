@@ -30,7 +30,7 @@ include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/dash-start.php';
 ?>
 
-<div class="card" style="max-width: 640px;">
+<div class="card">
   <div class="card-header"><h3>Parish Information</h3></div>
   <form method="POST" action="<?= url('admin/settings.php') ?>">
     <?= csrfField() ?>
@@ -44,16 +44,7 @@ include __DIR__ . '/../includes/dash-start.php';
   </form>
 </div>
 
-<div class="card" style="max-width: 640px;">
-  <div class="card-header"><h3>Theme Colors</h3></div>
-  <form method="POST" action="<?= url('admin/settings.php') ?>" class="form-row">
-    <?= csrfField() ?>
-    <div class="form-group"><label>Primary (Gold)</label><input type="text" name="theme_primary" value="<?= e($map['theme_primary'] ?? '#c99b2f') ?>"></div>
-    <div class="form-group"><label>Secondary (Dark Brown)</label><input type="text" name="theme_secondary" value="<?= e($map['theme_secondary'] ?? '#3e2723') ?>"></div>
-    <div class="form-group"><button type="submit" class="btn btn-outline">Save Theme</button></div>
-  </form>
-  <p class="helper-text">Note: these are stored for reference/branding data. To change the live theme, edit <code>public/css/style.css</code> CSS variables (<code>--gold</code>, <code>--brown-dark</code>, etc).</p>
-</div>
+
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
