@@ -202,7 +202,7 @@ function callGemini(string $systemPrompt, array $history, string $userMessage): 
         'generationConfig'   => ['temperature' => 0.7, 'maxOutputTokens' => 400],
     ]);
 
-    $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=' . urlencode($apiKey);
+    $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=' . urlencode($apiKey);
     $ch  = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
