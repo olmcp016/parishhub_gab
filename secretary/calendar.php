@@ -111,7 +111,7 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
 </div>
 
-<dialog class="modal" id="addEventModal">
+<dialog class="modal" id="addEventModal" style="width: 550px; max-width: 95vw;">
   <div class="modal-head">
     <h3>Add Event</h3>
     <button type="button" class="modal-close" onclick="document.getElementById('addEventModal').close()">✕</button>
@@ -148,7 +148,7 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
 </dialog>
 
-<dialog class="modal" id="blockDateModal">
+<dialog class="modal" id="blockDateModal" style="width: 450px; max-width: 95vw;">
   <div class="modal-head">
     <h3>Block a Date</h3>
     <button type="button" class="modal-close" onclick="document.getElementById('blockDateModal').close()">✕</button>
