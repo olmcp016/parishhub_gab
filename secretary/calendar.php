@@ -110,9 +110,8 @@ include __DIR__ . '/../includes/dash-start.php';
     <span><i class="pcal-dot pcal-dot-dayoff"></i> Staff day off</span>
   </div>
   <p class="helper-text" style="margin: 0; font-size: 13.5px;">
-    <strong>💡 Tip:</strong> Click any date on the calendar to pre-select it before opening the Add Event or Block Date modals.
-    <span style="margin-left: 12px; color: #888;">|</span>
-    <em style="margin-left: 12px;">Note: Tuesdays (shaded) are a full staff day off; Monday afternoons (12:00 PM onward) are also off.</em>
+    <strong>💡 Tip:</strong> Click any date on the calendar to pre-select it before opening the Add Event or Block Date modals.<br>
+    <em style="display: inline-block; margin-top: 6px;">Note: Tuesdays (shaded) are a full staff day off; Monday afternoons (12:00 PM onward) are also off.</em>
   </p>
 </div>
 
