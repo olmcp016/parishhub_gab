@@ -54,7 +54,7 @@ function renderMyAppointmentsTable(array $appointments): void
         <tbody>
           <?php foreach ($appointments as $a): ?>
             <tr>
-              <td><?= e($a['guest_reference'] ?: 'Appointment #' . (int) $a['appointment_id']) ?></td>
+              <td>Appointment #<?= (int) $a['appointment_id'] ?></td>
               <td><?= e($a['service_name']) ?></td>
               <td><?= formatDate($a['appointment_date']) ?><?= $a['appointment_time'] ? ' · ' . date('g:i A', strtotime($a['appointment_time'])) : '' ?></td>
               <td><?= e($a['priest_name'] ?? '—') ?></td>
@@ -63,18 +63,8 @@ function renderMyAppointmentsTable(array $appointments): void
                 <?php if ($a['schedule_type']): ?><span class="badge badge-<?= strtolower($a['schedule_type']) ?>"><?= e($a['schedule_type']) ?></span><?php endif; ?>
                 <?php if ($a['category'] === 'Mass Intention'): $miStatus = massIntentionStatusDisplay($a['status_name']); ?>
                   <span class="badge badge-<?= $miStatus[1] ?>"><?= e($miStatus[0]) ?></span>
-                  <?php if ($a['status_name'] === 'Rejected' && $a['rejection_reason']): ?>
-                    <div style="font-size:12px; margin-top:4px; color:var(--danger); max-width:200px; line-height:1.4;">
-                      <strong>Reason:</strong> <?= e($a['rejection_reason']) ?>
-                    </div>
-                  <?php endif; ?>
                 <?php else: ?>
                   <span class="badge badge-<?= badgeClass($a['status_name']) ?>"><?= e($a['status_name']) ?></span>
-                  <?php if ($a['status_name'] === 'Rejected' && $a['rejection_reason']): ?>
-                    <div style="font-size:12px; margin-top:4px; color:var(--danger); max-width:200px; line-height:1.4;">
-                      <strong>Reason:</strong> <?= e($a['rejection_reason']) ?>
-                    </div>
-                  <?php endif; ?>
                 <?php endif; ?>
               </td>
               <td>
