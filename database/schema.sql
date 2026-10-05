@@ -57,6 +57,7 @@ CREATE TABLE users (
     gender ENUM('Male','Female'),
     profile_photo VARCHAR(255) DEFAULT NULL,
     status ENUM('active','inactive','suspended') DEFAULT 'active',
+    must_change_password SMALLINT DEFAULT 0,
     email_verified_at DATETIME DEFAULT NULL,
     remember_token VARCHAR(255) DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

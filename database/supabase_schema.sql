@@ -114,6 +114,7 @@ CREATE TABLE IF NOT EXISTS users (
     gender user_gender,
     profile_photo VARCHAR(255) DEFAULT NULL,
     status user_status DEFAULT 'active',
+    must_change_password SMALLINT DEFAULT 0,
     email_verified_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     remember_token VARCHAR(255) DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,

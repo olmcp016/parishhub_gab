@@ -9,8 +9,10 @@ try {
     db()->exec("SELECT must_change_password FROM users LIMIT 1");
 } catch (Exception $e) {
     try {
-        db()->exec("ALTER TABLE users ADD COLUMN must_change_password TINYINT(1) DEFAULT 0");
-    } catch (Exception $e2) {}
+        db()->exec("ALTER TABLE users ADD COLUMN must_change_password SMALLINT DEFAULT 0");
+    } catch (Exception $e2) {
+        error_log("Failed to add must_change_password column: " . $e2->getMessage());
+    }
 }
 
 function currentUser(): ?array
