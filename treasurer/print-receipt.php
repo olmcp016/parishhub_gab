@@ -175,11 +175,5 @@ if (!$payment || !$payment['receipt_number']) {
     </div>
   </div>
 
-  <script>
-    // Auto-trigger print when loaded
-    window.onload = function() {
-      window.print();
-    }
-  </script>
 </body>
 </html>

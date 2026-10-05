@@ -198,14 +198,14 @@ if (!$isModalRequest) {
   </div>
 </dialog>
 
-  <div class="card">
-    <div class="card-header"><h3>Official Receipt</h3></div>
+  <div class="card" style="padding:0; overflow:hidden;">
     <?php if ($receipt): ?>
-      <p><strong>Receipt #:</strong> <?= e($receipt['receipt_number']) ?></p>
-      <p><strong>Issued:</strong> <?= formatDateTime($receipt['issue_date']) ?></p>
-      <a href="<?= url('treasurer/print-receipt.php?id=' . $payment['payment_id']) ?>" target="_blank" class="btn btn-outline btn-sm">🖨 Print Receipt</a>
+      <iframe src="<?= url('treasurer/print-receipt.php?id=' . $payment['payment_id']) ?>" style="width:100%; height:100%; min-height:550px; border:none;"></iframe>
     <?php else: ?>
-      <p class="text-muted">No receipt issued yet. Verify the payment to generate one.</p>
+      <div style="padding: 24px;">
+        <h3 style="margin-top:0;">Official Receipt</h3>
+        <p class="text-muted">No receipt issued yet. Verify the payment to generate one.</p>
+      </div>
     <?php endif; ?>
   </div>
 </div>
