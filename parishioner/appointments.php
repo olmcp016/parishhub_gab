@@ -72,8 +72,18 @@ function renderMyAppointmentsTable(array $appointments): void
                 <?php if ($a['schedule_type']): ?><span class="badge badge-<?= strtolower($a['schedule_type']) ?>"><?= e($a['schedule_type']) ?></span><?php endif; ?>
                 <?php if ($a['category'] === 'Mass Intention'): $miStatus = massIntentionStatusDisplay($a['status_name']); ?>
                   <span class="badge badge-<?= $miStatus[1] ?>"><?= e($miStatus[0]) ?></span>
+                  <?php if ($a['status_name'] === 'Rejected' && $a['rejection_reason']): ?>
+                    <div style="font-size:12px; margin-top:4px; color:var(--danger); max-width:200px; line-height:1.4;">
+                      <strong>Reason:</strong> <?= e($a['rejection_reason']) ?>
+                    </div>
+                  <?php endif; ?>
                 <?php else: ?>
                   <span class="badge badge-<?= badgeClass($a['status_name']) ?>"><?= e($a['status_name']) ?></span>
+                  <?php if ($a['status_name'] === 'Rejected' && $a['rejection_reason']): ?>
+                    <div style="font-size:12px; margin-top:4px; color:var(--danger); max-width:200px; line-height:1.4;">
+                      <strong>Reason:</strong> <?= e($a['rejection_reason']) ?>
+                    </div>
+                  <?php endif; ?>
                 <?php endif; ?>
               </td>
               <td>
@@ -82,7 +92,7 @@ function renderMyAppointmentsTable(array $appointments): void
                 <?php if ($a['status_name'] === 'Approved' && $a['category'] !== 'Mass Intention'): ?>
                   <a href="<?= $detailUrl ?>" class="btn btn-primary btn-sm js-view-modal" data-url="<?= $detailUrl ?>" data-title="<?= $detailTitle ?>">Proceed to Payment</a>
                 <?php elseif ($a['status_name'] === 'Rejected'): ?>
-                  <a href="<?= $detailUrl ?>" class="btn btn-outline btn-sm js-view-modal" data-url="<?= $detailUrl ?>" data-title="<?= $detailTitle ?>">Update Documents</a>
+                  <a href="<?= $detailUrl ?>" class="btn btn-outline btn-sm js-view-modal" data-url="<?= $detailUrl ?>" data-title="<?= $detailTitle ?>">View Details</a>
                 <?php else: ?>
                   <a href="<?= $detailUrl ?>" class="btn btn-outline btn-sm js-view-modal" data-url="<?= $detailUrl ?>" data-title="<?= $detailTitle ?>">View</a>
                 <?php endif; ?>
