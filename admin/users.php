@@ -59,6 +59,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         db()->prepare('DELETE FROM users WHERE user_id = ?')->execute([$_POST['user_id']]);
         logActivity($adminId, "Deleted user #{$_POST['user_id']}", 'User Management');
         flash('success', 'User deleted.');
+    } elseif ($action === 'reset') {
+        $tempPassword = bin2hex(random_bytes(5));
+        $hash = password_hash($tempPassword, PASSWORD_BCRYPT);
+        db()->prepare('UPDATE users SET password = ?, must_change_password = 1 WHERE user_id = ?')->execute([$hash, $_POST['user_id']]);
+        
+        $stmt = db()->prepare('SELECT firstname, lastname, email FROM users WHERE user_id = ?');
+        $stmt->execute([$_POST['user_id']]);
+        $targetUser = $stmt->fetch();
+        
+        logActivity($adminId, "Reset password for user #{$_POST['user_id']}", 'User Management');
+        
+        $_SESSION['temp_password_info'] = [
+            'name' => trim($targetUser['firstname'] . ' ' . $targetUser['lastname']),
+            'email' => $targetUser['email'],
+            'password' => $tempPassword
+        ];
+        flash('success', 'Staff password reset successfully.');
     }
     redirect(url('admin/users.php'));
 }
@@ -127,6 +144,12 @@ include __DIR__ . '/../includes/dash-start.php';
               </form>
             </td>
             <td>
+              <form method="POST" action="<?= url('admin/users.php') ?>" style="display:inline-flex; gap:6px;">
+                <?= csrfField() ?>
+                <input type="hidden" name="action" value="reset">
+                <input type="hidden" name="user_id" value="<?= $u['user_id'] ?>">
+                <button type="submit" class="btn btn-outline btn-sm js-confirm-reset" data-name="<?= e($u['firstname'] . ' ' . $u['lastname']) ?>">Reset</button>
+              </form>
               <button type="button" class="btn btn-danger btn-sm js-delete-user" data-id="<?= $u['user_id'] ?>" data-name="<?= e($u['firstname'] . ' ' . $u['lastname']) ?>">Delete</button>
             </td>
           </tr>
@@ -238,6 +261,14 @@ function applyRoleChange() {
 document.addEventListener('DOMContentLoaded', function () {
   document.querySelectorAll('.role-select').forEach(function (sel) {
     sel.dataset.originalValue = sel.value;
+  });
+
+  document.querySelectorAll('.js-confirm-reset').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      if(!confirm('Are you sure you want to reset the password for ' + this.dataset.name + '? They will need to change it on their next login.')) {
+        e.preventDefault();
+      }
+    });
   });
 
   var deleteModal = document.getElementById('deleteUserModal');

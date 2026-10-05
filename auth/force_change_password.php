@@ -74,7 +74,8 @@ include __DIR__ . '/../includes/header.php';
           <label>New Password</label>
           <div class="input-wrap">
             <span class="input-icon"><i data-lucide="lock"></i></span>
-            <input type="password" name="new_password" required minlength="8" placeholder="At least 8 characters" autofocus>
+            <input type="password" name="new_password" id="npw" required minlength="8" placeholder="At least 8 characters" autofocus>
+            <button type="button" class="toggle-pw" onclick="togglePwd('npw', this)"><i data-lucide="eye"></i></button>
           </div>
         </div>
 
@@ -82,7 +83,8 @@ include __DIR__ . '/../includes/header.php';
           <label>Confirm New Password</label>
           <div class="input-wrap">
             <span class="input-icon"><i data-lucide="lock"></i></span>
-            <input type="password" name="confirm_password" required minlength="8" placeholder="Type it again">
+            <input type="password" name="confirm_password" id="cpw" required minlength="8" placeholder="Type it again">
+            <button type="button" class="toggle-pw" onclick="togglePwd('cpw', this)"><i data-lucide="eye"></i></button>
           </div>
         </div>
 
@@ -92,5 +94,13 @@ include __DIR__ . '/../includes/header.php';
   </div>
 </div>
 <script src="https://unpkg.com/lucide@latest"></script>
-<script>lucide.createIcons();</script>
+<script>
+lucide.createIcons();
+function togglePwd(id, btn) {
+  const input = document.getElementById(id);
+  input.type = input.type === 'password' ? 'text' : 'password';
+  btn.innerHTML = input.type === 'password' ? '<i data-lucide="eye"></i>' : '<i data-lucide="eye-off"></i>';
+  lucide.createIcons();
+}
+</script>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
