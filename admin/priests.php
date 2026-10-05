@@ -557,5 +557,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
-</script><?php include __DIR__ . '/../includes/dash-end.php'; ?>
+</script>
+<?php endif; ?>
+<?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
