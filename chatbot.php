@@ -202,7 +202,7 @@ function callGemini(string $systemPrompt, array $history, string $userMessage): 
         'generationConfig'   => ['temperature' => 0.7, 'maxOutputTokens' => 400],
     ]);
 
-    $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' . urlencode($apiKey);
+    $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' . urlencode($apiKey);
     $ch  = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
@@ -224,7 +224,8 @@ function callGemini(string $systemPrompt, array $history, string $userMessage): 
     $data = json_decode($response, true);
     if ($httpCode !== 200 || empty($data['candidates'][0]['content']['parts'][0]['text'])) {
         error_log('Gemini API error (HTTP ' . $httpCode . '): ' . substr((string) $response, 0, 500));
-        return "I couldn't process that right now. For immediate assistance, please contact the parish office.";
+        // DEBUG — remove once the API key and model are confirmed working.
+        return '[DEBUG] HTTP ' . $httpCode . ': ' . substr((string) $response, 0, 600);
     }
 
     return trim($data['candidates'][0]['content']['parts'][0]['text']);
