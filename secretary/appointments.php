@@ -59,11 +59,10 @@ function renderAppointmentsTable(array $appointments, bool $isSecretaryViewer): 
     ?>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>#</th><th>Parishioner</th><th>Service</th><th>Date</th><th>Priest</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th>Parishioner</th><th>Service</th><th>Date</th><th>Priest</th><th>Status</th><th></th></tr></thead>
         <tbody>
           <?php foreach ($appointments as $a): ?>
             <tr>
-              <td>#<?= $a['appointment_id'] ?></td>
               <td>
                 <?php if ($a['guest_name']): ?>
                   <?= e($a['guest_name']) ?> <span class="text-muted">(guest)</span><br><span class="text-muted" style="font-size:12px;"><?= e($a['guest_email'] ?: $a['guest_phone']) ?></span>
