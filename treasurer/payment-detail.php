@@ -211,7 +211,7 @@ if (!$isModalRequest) {
     <?php if ($receipt): ?>
       <p><strong>Receipt #:</strong> <?= e($receipt['receipt_number']) ?></p>
       <p><strong>Issued:</strong> <?= formatDateTime($receipt['issue_date']) ?></p>
-      <button class="btn btn-outline btn-sm" onclick="window.print()">🖨 Print Receipt</button>
+      <a href="<?= url('treasurer/print-receipt.php?id=' . $payment['payment_id']) ?>" target="_blank" class="btn btn-outline btn-sm">🖨 Print Receipt</a>
     <?php else: ?>
       <p class="text-muted">No receipt issued yet. Verify the payment to generate one.</p>
     <?php endif; ?>
