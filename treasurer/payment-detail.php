@@ -183,6 +183,7 @@ if (!$isModalRequest) {
         <div class="form-group"><label>Official Reference Number</label><input type="text" name="reference_number" value="<?= e($payment['reference_number'] ?? '') ?>" placeholder="Enter Reference/OR Number" required style="padding:8px; width:100%; max-width:300px; border:1px solid #ccc; border-radius:6px;"></div>
         <button type="button" class="btn btn-success" id="verifyBtn" onclick="document.getElementById('confirmPayModal').showModal()">&#10004; Verify Payment &amp; Issue Receipt</button>
       </form>
+    <?php endif; ?>
 
   </div>
 
