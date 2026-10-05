@@ -80,7 +80,7 @@ include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/dash-start.php';
 ?>
 
-<div style="display:grid; grid-template-columns: auto 1fr; gap: 22px; align-items:start;" class="calendar-layout">
+<div style="display:grid; grid-template-columns: 1fr 300px; gap: 22px; align-items:start;" class="calendar-layout">
   <div>
     <div id="parishCalendar"></div>
     <div class="pcal-legend">
@@ -92,51 +92,77 @@ include __DIR__ . '/../includes/dash-start.php';
     <p class="helper-text mt-2" style="max-width:480px;">Click any date to load it into the forms on the right. Tuesdays (shaded) are a full staff day off; Monday afternoons (12:00 PM onward) are also off, though not shaded here. Today's date is shown using your browser's own clock.</p>
   </div>
 
-  <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 22px;">
+  <div style="display:flex; flex-direction:column; gap: 22px;">
     <div class="card">
       <div class="card-header"><h3>Add Event</h3></div>
-      <form method="POST" action="<?= url('secretary/calendar.php') ?>">
-        <?= csrfField() ?>
-        <input type="hidden" name="action" value="add_event">
-        <div class="form-group"><label>Title</label><input type="text" name="title" required></div>
-        <div class="form-group"><label>Description</label><textarea name="description" rows="2"></textarea></div>
-        <div class="form-row">
-          <div class="form-group"><label>Date</label><input type="date" name="event_date" id="eventDateInput" required></div>
-          <div class="form-group"><label>Time</label><input type="time" name="event_time"></div>
-        </div>
-        <div class="form-group">
-          <label for="selectedLocationName">Location</label>
-          <button type="button" class="location-picker-trigger" id="selectedLocationName" aria-haspopup="dialog" aria-controls="locationPickerModal" <?= empty($locations) ? 'disabled' : '' ?>>
-            <span id="selectedLocationLabel">Select a location</span><span aria-hidden="true">›</span>
-          </button>
-          <input type="hidden" name="location_id" id="selectedLocationId" value="">
-          <?php if (empty($locations)): ?><p class="helper-text">No locations yet — <a href="<?= url('secretary/locations.php') ?>">add one first</a>.</p><?php endif; ?>
-        </div>
-        <div class="form-group">
-          <label>Priest (optional)</label>
-          <select name="priest_id">
-            <option value="">No preference</option>
-            <?php foreach ($priests as $p): ?>
-              <option value="<?= $p['priest_id'] ?>"><?= e($p['title']) ?> <?= e($p['full_name']) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <button type="submit" class="btn btn-primary btn-block">Add Event</button>
-      </form>
+      <div style="padding: 0 20px 20px;">
+        <p class="text-muted" style="margin-bottom:15px; font-size:14px; line-height:1.4;">Create a new parish event, mass, or activity and assign it to a location and priest.</p>
+        <button type="button" class="btn btn-primary btn-block" onclick="document.getElementById('addEventModal').showModal()">+ Add Event</button>
+      </div>
     </div>
 
     <div class="card">
       <div class="card-header"><h3>Block a Date</h3></div>
-      <form method="POST" action="<?= url('secretary/calendar.php') ?>">
-        <?= csrfField() ?>
-        <input type="hidden" name="action" value="block_date">
-        <div class="form-group"><label>Date to Block</label><input type="date" name="calendar_date" id="blockDateInput" required></div>
-        <div class="form-group"><label>Reason</label><input type="text" name="notes" placeholder="e.g. Diocesan holiday"></div>
-        <button type="submit" class="btn btn-dark btn-block">Block Date</button>
-      </form>
+      <div style="padding: 0 20px 20px;">
+        <p class="text-muted" style="margin-bottom:15px; font-size:14px; line-height:1.4;">Prevent parishioners from booking services on a specific date (e.g., diocesan holidays, parish closures).</p>
+        <button type="button" class="btn btn-dark btn-block" onclick="document.getElementById('blockDateModal').showModal()">Block Date</button>
+      </div>
     </div>
   </div>
 </div>
+
+<dialog class="modal" id="addEventModal">
+  <div class="modal-head">
+    <h3>Add Event</h3>
+    <button type="button" class="modal-close" onclick="document.getElementById('addEventModal').close()">✕</button>
+  </div>
+  <div class="modal-body">
+    <form method="POST" action="<?= url('secretary/calendar.php') ?>">
+      <?= csrfField() ?>
+      <input type="hidden" name="action" value="add_event">
+      <div class="form-group"><label>Title</label><input type="text" name="title" required></div>
+      <div class="form-group"><label>Description</label><textarea name="description" rows="2"></textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label>Date</label><input type="date" name="event_date" id="eventDateInput" required></div>
+        <div class="form-group"><label>Time</label><input type="time" name="event_time"></div>
+      </div>
+      <div class="form-group">
+        <label for="selectedLocationName">Location</label>
+        <button type="button" class="location-picker-trigger" id="selectedLocationName" aria-haspopup="dialog" aria-controls="locationPickerModal" <?= empty($locations) ? 'disabled' : '' ?>>
+          <span id="selectedLocationLabel">Select a location</span><span aria-hidden="true">›</span>
+        </button>
+        <input type="hidden" name="location_id" id="selectedLocationId" value="">
+        <?php if (empty($locations)): ?><p class="helper-text">No locations yet — <a href="<?= url('secretary/locations.php') ?>">add one first</a>.</p><?php endif; ?>
+      </div>
+      <div class="form-group">
+        <label>Priest (optional)</label>
+        <select name="priest_id">
+          <option value="">No preference</option>
+          <?php foreach ($priests as $p): ?>
+            <option value="<?= $p['priest_id'] ?>"><?= e($p['title']) ?> <?= e($p['full_name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">Add Event</button>
+    </form>
+  </div>
+</dialog>
+
+<dialog class="modal" id="blockDateModal">
+  <div class="modal-head">
+    <h3>Block a Date</h3>
+    <button type="button" class="modal-close" onclick="document.getElementById('blockDateModal').close()">✕</button>
+  </div>
+  <div class="modal-body">
+    <form method="POST" action="<?= url('secretary/calendar.php') ?>">
+      <?= csrfField() ?>
+      <input type="hidden" name="action" value="block_date">
+      <div class="form-group"><label>Date to Block</label><input type="date" name="calendar_date" id="blockDateInput" required></div>
+      <div class="form-group"><label>Reason</label><input type="text" name="notes" placeholder="e.g. Diocesan holiday"></div>
+      <button type="submit" class="btn btn-dark btn-block">Block Date</button>
+    </form>
+  </div>
+</dialog>
 
 <dialog class="modal location-picker-modal" id="locationPickerModal" aria-labelledby="locationPickerTitle">
   <div class="modal-head"><h3 id="locationPickerTitle">Select Location</h3><button type="button" class="modal-close" id="locationPickerClose" aria-label="Close">✕</button></div>
