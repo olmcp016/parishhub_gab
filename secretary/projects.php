@@ -47,16 +47,21 @@ include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/dash-start.php';
 ?>
 
-<div class="card" style="max-width:640px;">
-  <div class="card-header"><h3>Add Project</h3></div>
-  <form method="POST" action="<?= url('secretary/projects.php') ?>">
-    <?= csrfField() ?>
-    <input type="hidden" name="action" value="add">
-    <div class="form-group"><label>Project Name</label><input type="text" name="project_name" required placeholder="e.g. Church Renovation"></div>
-    <div class="form-group"><label>Description</label><textarea name="description" rows="3"></textarea></div>
-    <div class="form-group"><label>Target Amount (₱)</label><input type="number" name="target_amount" min="0" step="0.01" required></div>
-    <button type="submit" class="btn btn-primary">Add Project</button>
-  </form>
+<div class="card">
+  <div class="card-header" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;" onclick="var f = document.getElementById('addProjectForm'), i = document.getElementById('addProjectIcon'); if (f.style.display === 'none') { f.style.display = 'block'; i.setAttribute('data-lucide', 'chevron-up'); } else { f.style.display = 'none'; i.setAttribute('data-lucide', 'chevron-down'); } lucide.createIcons();">
+    <h3 style="margin: 0;">Add Project</h3>
+    <button type="button" class="btn btn-outline btn-sm" style="display:flex; align-items:center; gap:6px;"><i data-lucide="chevron-down" id="addProjectIcon" style="width:16px; height:16px;"></i> Toggle Form</button>
+  </div>
+  <div id="addProjectForm" style="display: none; padding-top: 16px; border-top: 1px solid var(--border); margin-top: 16px;">
+    <form method="POST" action="<?= url('secretary/projects.php') ?>" style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start;">
+      <?= csrfField() ?>
+      <input type="hidden" name="action" value="add">
+      <div class="form-group" style="flex: 1 1 200px; margin-bottom:0;"><label>Project Name</label><input type="text" name="project_name" required placeholder="e.g. Church Renovation"></div>
+      <div class="form-group" style="flex: 2 1 300px; margin-bottom:0;"><label>Description</label><textarea name="description" rows="1" placeholder="Short description..."></textarea></div>
+      <div class="form-group" style="flex: 1 1 150px; margin-bottom:0;"><label>Target (₱)</label><input type="number" name="target_amount" min="0" step="0.01" required></div>
+      <div class="form-group" style="flex: 0 0 auto; margin-bottom:0; align-self:flex-end;"><button type="submit" class="btn btn-primary" style="padding:12px 24px; height:47.5px;">Add</button></div>
+    </form>
+  </div>
 </div>
 
 <div class="grid-3">
