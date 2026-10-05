@@ -104,28 +104,24 @@ function renderNavSection(string $slug, string $title, array $items, string $act
       <?php renderNavSection('overview', 'Overview', [
         [url('admin/dashboard.php'), 'dashboard', 'layout-dashboard', 'Dashboard'],
       ], $__active); ?>
-      <?php renderNavSection('user-access', 'User & Access Management', [
-        [url('admin/users.php'), 'users', 'users', 'Users & Roles'],
-        [url('secretary/parishioners.php'), 'parishioners', 'user-cog', 'Parishioner Management'],
+      <?php renderNavSection('accounts-people', 'Accounts & People', [
+        [url('admin/users.php'), 'users', 'users', 'Staff & Roles'],
+        [url('admin/priests.php'), 'priests', 'contact', 'Priests'],
+        [url('secretary/parishioners.php'), 'parishioners', 'user-cog', 'Parishioners'],
       ], $__active); ?>
-      <?php renderNavSection('service-access', 'Service & Access Setup', [
-        [url('admin/priests.php'), 'priests', 'contact', 'Priests & Portal Access'],
-        [url('admin/services.php'), 'services', 'heart-handshake', 'Add Service'],
-      ], $__active); ?>
-      <?php renderNavSection('scheduling-appointments', 'Scheduling & Appointments', [
+      <?php renderNavSection('parish-services', 'Parish Services & Schedule', [
+        [url('admin/services.php'), 'services', 'heart-handshake', 'Manage Services'],
         [url('secretary/calendar.php'), 'calendar', 'calendar-days', 'Calendar'],
         [url('secretary/appointments.php'), 'appointments', 'calendar-check', 'Appointments'],
         [url('secretary/mass-intentions.php'), 'mass-intentions', 'flame', 'Mass Intentions'],
       ], $__active); ?>
-      <?php renderNavSection('payments-finance', 'Payments & Finance', [
-        [url('treasurer/payments.php'), 'payments', 'banknote', 'Payment & Transaction Overview'],
+      <?php renderNavSection('finance-reports', 'Finance & Reports', [
+        [url('treasurer/payments.php'), 'payments', 'banknote', 'Payments'],
         [url('treasurer/donations.php'), 'donations', 'hand-heart', 'Donations'],
-      ], $__active); ?>
-      <?php renderNavSection('reports-monitoring', 'Reports & Monitoring', [
         [url('admin/reports.php'), 'reports', 'bar-chart-3', 'Financial Reports'],
-        [url('admin/activity-logs.php'), 'logs', 'history', 'Activity Logs'],
       ], $__active); ?>
       <?php renderNavSection('system', 'System', [
+        [url('admin/activity-logs.php'), 'logs', 'history', 'Activity Logs'],
         [url('admin/settings.php'), 'settings', 'settings', 'Settings'],
       ], $__active); ?>
     <?php elseif ($__user['role_name'] === 'Priest'): ?>
