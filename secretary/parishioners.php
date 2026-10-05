@@ -30,9 +30,11 @@ include __DIR__ . '/../includes/dash-start.php';
 <div class="card">
   <div class="card-header"><h3>Parishioners</h3></div>
   <form method="GET" class="mb-3">
-    <div class="form-row">
-      <div class="form-group"><input type="text" name="search" value="<?= e($search) ?>" placeholder="Search by name or email..."></div>
-      <div class="form-group">
+    <div style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end;">
+      <div class="form-group" style="flex: 2 1 250px; margin-bottom:0;">
+        <input type="text" name="search" value="<?= e($search) ?>" placeholder="Search by name or email...">
+      </div>
+      <div class="form-group" style="flex: 1 1 150px; margin-bottom:0;">
         <select name="status">
           <option value="">All Statuses</option>
           <option value="active" <?= $statusFilter==='active'?'selected':'' ?>>Active</option>
@@ -40,7 +42,9 @@ include __DIR__ . '/../includes/dash-start.php';
           <option value="suspended" <?= $statusFilter==='suspended'?'selected':'' ?>>Suspended</option>
         </select>
       </div>
-      <div class="form-group" style="max-width:140px;"><button class="btn btn-primary btn-block">Search</button></div>
+      <div class="form-group" style="flex: 0 0 auto; margin-bottom:0;">
+        <button class="btn btn-primary" style="padding:12px 24px; height:47.5px;">Search</button>
+      </div>
     </div>
   </form>
 

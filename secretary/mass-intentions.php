@@ -113,10 +113,10 @@ include __DIR__ . '/../includes/dash-start.php';
   <?php if ($isSecretaryViewer): ?>
     <p class="helper-text" style="margin-top:0;">Shows Mass Intentions the Cashier has approved — the ones to be read at Mass.</p>
   <?php endif; ?>
-  <form method="GET" class="form-row mb-3">
-    <div class="form-group"><label>Mass Date</label><input type="date" name="date" value="<?= e($dateFilter) ?>"></div>
+  <form method="GET" style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; margin-bottom: 24px;">
+    <div class="form-group" style="flex: 1 1 150px; margin-bottom:0;"><label>Mass Date</label><input type="date" name="date" value="<?= e($dateFilter) ?>"></div>
     <?php if ($showPayment): ?>
-      <div class="form-group">
+      <div class="form-group" style="flex: 1 1 150px; margin-bottom:0;">
         <label>Status</label>
         <select name="status">
           <option value="">All</option>
@@ -126,10 +126,10 @@ include __DIR__ . '/../includes/dash-start.php';
         </select>
       </div>
     <?php endif; ?>
-    <div class="form-group"><label>Search</label><input type="text" name="search" value="<?= e($search) ?>" placeholder="Parishioner, offerer, or intention for..."></div>
-    <div class="form-group" style="align-self:end;"><button class="btn btn-primary">Filter</button></div>
+    <div class="form-group" style="flex: 2 1 250px; margin-bottom:0;"><label>Search</label><input type="text" name="search" value="<?= e($search) ?>" placeholder="Parishioner, offerer, or intention for..."></div>
+    <div class="form-group" style="flex: 0 0 auto; margin-bottom:0;"><button class="btn btn-primary" style="padding:12px 24px; height:47.5px;">Filter</button></div>
     <?php if ($dateFilter || $search || $statusFilter): ?>
-      <div class="form-group" style="align-self:end;"><a href="<?= url('secretary/mass-intentions.php') ?>" class="btn btn-outline">Clear</a></div>
+      <div class="form-group" style="flex: 0 0 auto; margin-bottom:0;"><a href="<?= url('secretary/mass-intentions.php') ?>" class="btn btn-outline" style="padding:12px 24px; height:47.5px; display:inline-flex; align-items:center;">Clear</a></div>
     <?php endif; ?>
   </form>
 

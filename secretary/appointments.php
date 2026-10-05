@@ -114,9 +114,9 @@ if ($isHistoryFragment) {
     [$historyAppointments, $historyPagination] = fetchAppointmentsPage(true, $statusFilter, $search);
     $historyPaginationUrl = url('secretary/appointments.php') . '?' . http_build_query(array_filter(['status' => $statusFilter, 'search' => $search])) . '&history=1';
     ?>
-    <form method="GET" action="<?= url('secretary/appointments.php') ?>" class="form-row mb-3 js-history-filter">
+    <form method="GET" action="<?= url('secretary/appointments.php') ?>" style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; margin-bottom: 24px;" class="js-history-filter">
       <input type="hidden" name="history" value="1">
-      <div class="form-group">
+      <div class="form-group" style="flex: 1 1 150px; margin-bottom:0;">
         <label>Filter by Status</label>
         <select name="status">
           <option value="">All Statuses</option>
@@ -125,11 +125,13 @@ if ($isHistoryFragment) {
           <?php endforeach; ?>
         </select>
       </div>
-      <div class="form-group">
+      <div class="form-group" style="flex: 2 1 250px; margin-bottom:0;">
         <label>Search</label>
         <input type="text" name="search" value="<?= e($search) ?>" placeholder="Name or service...">
       </div>
-      <div class="form-group" style="align-self:end;"><button class="btn btn-primary">Search</button></div>
+      <div class="form-group" style="flex: 0 0 auto; margin-bottom:0;">
+        <button class="btn btn-primary" style="padding:12px 24px; height:47.5px;">Search</button>
+      </div>
     </form>
     <?php renderAppointmentsTable($historyAppointments, $isSecretaryViewer); ?>
     <?= renderPagination($historyPagination, $historyPaginationUrl) ?>
@@ -154,8 +156,8 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
   <p class="helper-text" style="margin-top:-6px;">Shows only upcoming (not yet past-due) requests, newest requested first. Once an appointment's date has passed, it moves to History automatically.</p>
 
-  <form method="GET" class="form-row mb-3">
-    <div class="form-group">
+  <form method="GET" style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; margin-bottom:16px;">
+    <div class="form-group" style="flex: 1 1 150px; margin-bottom:0;">
       <label>Filter by Status</label>
       <select name="status" onchange="this.form.submit()">
         <option value="">All Statuses</option>
@@ -164,12 +166,12 @@ include __DIR__ . '/../includes/dash-start.php';
         <?php endforeach; ?>
       </select>
     </div>
-    <div class="form-group">
+    <div class="form-group" style="flex: 2 1 250px; margin-bottom:0;">
       <label>Search</label>
       <input type="text" name="search" value="<?= e($search) ?>" placeholder="Name or service...">
     </div>
-    <div class="form-group" style="align-self:end;">
-      <button class="btn btn-primary">Search</button>
+    <div class="form-group" style="flex: 0 0 auto; margin-bottom:0;">
+      <button class="btn btn-primary" style="padding:12px 24px; height:47.5px;">Search</button>
     </div>
   </form>
 

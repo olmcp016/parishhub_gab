@@ -51,13 +51,13 @@ include __DIR__ . '/../includes/dash-start.php';
 <div class="card">
   <div class="card-header"><h3>Add Location</h3></div>
   <p class="helper-text" style="margin-top:-6px;">These locations become available in the Add Event form's Location dropdown. Deactivating (rather than deleting) a location keeps past events' location intact while hiding it from new events.</p>
-  <form method="POST" action="<?= url('secretary/locations.php') ?>" class="form-row" style="align-items:end;">
+  <form method="POST" action="<?= url('secretary/locations.php') ?>" style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end;">
     <?= csrfField() ?>
     <input type="hidden" name="action" value="add">
-    <div class="form-group"><label>Name</label><input type="text" name="name" required placeholder="e.g. Barangay Chapel"></div>
-    <div class="form-group"><label>Category</label><select name="location_category" required><?php foreach ($locationCategories as $value => $label): ?><option value="<?= e($value) ?>"><?= e($label) ?></option><?php endforeach; ?></select></div>
-    <div class="form-group"><label>Notes (optional)</label><input type="text" name="notes" placeholder="e.g. Seats 50"></div>
-    <div class="form-group"><button type="submit" class="btn btn-primary">Add</button></div>
+    <div class="form-group" style="flex: 2 1 200px; margin-bottom:0;"><label>Name</label><input type="text" name="name" required placeholder="e.g. Barangay Chapel"></div>
+    <div class="form-group" style="flex: 1 1 150px; margin-bottom:0;"><label>Category</label><select name="location_category" required><?php foreach ($locationCategories as $value => $label): ?><option value="<?= e($value) ?>"><?= e($label) ?></option><?php endforeach; ?></select></div>
+    <div class="form-group" style="flex: 2 1 200px; margin-bottom:0;"><label>Notes (optional)</label><input type="text" name="notes" placeholder="e.g. Seats 50"></div>
+    <div class="form-group" style="flex: 0 0 auto; margin-bottom:0;"><button type="submit" class="btn btn-primary" style="padding:12px 24px; height:47.5px;">Add</button></div>
   </form>
 </div>
 
