@@ -80,40 +80,40 @@ include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/dash-start.php';
 ?>
 
-<div style="display:grid; grid-template-columns: 1fr 300px; gap: 22px; align-items:start;" class="calendar-layout">
-  <div>
-    <div id="parishCalendar"></div>
-    <div style="margin-top: 16px; padding: 16px; background-color: var(--cream); border-radius: var(--radius); border: 1px solid var(--border);">
-      <div class="pcal-legend" style="margin-bottom: 8px;">
-        <span><i class="pcal-dot pcal-dot-today"></i> Today</span>
-        <span><i class="pcal-dot pcal-dot-event"></i> Event</span>
-        <span><i class="pcal-dot pcal-dot-blocked"></i> Unavailable</span>
-        <span><i class="pcal-dot pcal-dot-dayoff"></i> Staff day off</span>
-      </div>
-      <p class="helper-text" style="margin: 0; font-size: 13.5px;">
-        <strong>💡 Tip:</strong> Click any date on the calendar to pre-select it before opening the Add Event or Block Date modals. <br>
-        <em>Note: Tuesdays (shaded) are a full staff day off; Monday afternoons (12:00 PM onward) are also off.</em>
-      </p>
-    </div>
-  </div>
+<div style="display:grid; grid-template-columns: 1fr 300px; gap: 22px; align-items:stretch;" class="calendar-layout">
+  <div id="parishCalendar"></div>
 
   <div style="display:flex; flex-direction:column; gap: 22px;">
-    <div class="card">
+    <div class="card" style="flex: 1; display: flex; flex-direction: column;">
       <div class="card-header"><h3>Add Event</h3></div>
-      <div style="padding: 0 20px 20px;">
-        <p class="text-muted" style="margin-bottom:15px; font-size:14px; line-height:1.4; min-height:60px;">Create a new parish event, mass, or activity and assign it to a location and priest.</p>
+      <div style="padding: 20px; flex: 1; display: flex; flex-direction: column; justify-content: center;">
+        <p class="text-muted" style="margin-bottom:15px; font-size:14px; line-height:1.4;">Create a new parish event, mass, or activity and assign it to a location and priest.</p>
         <button type="button" class="btn btn-primary btn-block" onclick="document.getElementById('addEventModal').showModal()">+ Add Event</button>
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" style="flex: 1; display: flex; flex-direction: column;">
       <div class="card-header"><h3>Block a Date</h3></div>
-      <div style="padding: 0 20px 20px;">
-        <p class="text-muted" style="margin-bottom:15px; font-size:14px; line-height:1.4; min-height:60px;">Prevent parishioners from booking services on a specific date (e.g., diocesan holidays, parish closures).</p>
+      <div style="padding: 20px; flex: 1; display: flex; flex-direction: column; justify-content: center;">
+        <p class="text-muted" style="margin-bottom:15px; font-size:14px; line-height:1.4;">Prevent parishioners from booking services on a specific date (e.g., diocesan holidays, parish closures).</p>
         <button type="button" class="btn btn-dark btn-block" onclick="document.getElementById('blockDateModal').showModal()">Block Date</button>
       </div>
     </div>
   </div>
+</div>
+
+<div style="margin-top: 22px; margin-bottom: 32px; padding: 16px; background-color: var(--cream); border-radius: var(--radius); border: 1px solid var(--border);">
+  <div class="pcal-legend" style="margin-bottom: 8px;">
+    <span><i class="pcal-dot pcal-dot-today"></i> Today</span>
+    <span><i class="pcal-dot pcal-dot-event"></i> Event</span>
+    <span><i class="pcal-dot pcal-dot-blocked"></i> Unavailable</span>
+    <span><i class="pcal-dot pcal-dot-dayoff"></i> Staff day off</span>
+  </div>
+  <p class="helper-text" style="margin: 0; font-size: 13.5px;">
+    <strong>💡 Tip:</strong> Click any date on the calendar to pre-select it before opening the Add Event or Block Date modals.
+    <span style="margin-left: 12px; color: #888;">|</span>
+    <em style="margin-left: 12px;">Note: Tuesdays (shaded) are a full staff day off; Monday afternoons (12:00 PM onward) are also off.</em>
+  </p>
 </div>
 
 <dialog class="modal" id="addEventModal" style="width: 550px; max-width: 95vw;">
