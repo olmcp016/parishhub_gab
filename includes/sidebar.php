@@ -60,16 +60,16 @@ function renderNavSection(string $slug, string $title, array $items, string $act
       <?php renderNavSection('overview', 'Overview', [
         [url('secretary/dashboard.php'), 'dashboard', 'layout-dashboard', 'Dashboard'],
       ], $__active); ?>
-      <?php renderNavSection('parishioner-priest', 'Parishioner & Priest Management', [
-        [url('secretary/parishioners.php'), 'parishioners', 'users', 'Parishioners'],
-        [url('admin/priests.php'), 'priests', 'contact', 'Priests & Portal Access'],
+      <?php renderNavSection('people', 'People', [
+        [url('admin/priests.php'), 'priests', 'contact', 'Priests'],
         [url('secretary/priest-unavailability.php'), 'priest-unavailability', 'user-x', 'Priest Unavailability'],
+        [url('secretary/parishioners.php'), 'parishioners', 'users', 'Parishioners'],
       ], $__active); ?>
-      <?php renderNavSection('services-scheduling', 'Services & Scheduling', [
-        [url('secretary/services.php'), 'services', 'heart-handshake', 'Service Catalog'],
-        [url('admin/service-schedules.php'), 'service-schedules', 'calendar-clock', 'Regular Schedules'],
+      <?php renderNavSection('services-scheduling', 'Services & Schedule', [
+        [url('secretary/services.php'), 'services', 'heart-handshake', 'Manage Services'],
+        [url('secretary/locations.php'), 'locations', 'map-pin', 'Manage Locations'],
+        [url('admin/service-schedules.php'), 'service-schedules', 'calendar-clock', 'Service Schedules'],
         [url('secretary/calendar.php'), 'calendar', 'calendar-days', 'Calendar'],
-        [url('secretary/locations.php'), 'locations', 'map-pin', 'Locations'],
         [url('secretary/appointments.php'), 'appointments', 'calendar-check', 'Appointments'],
       ], $__active); ?>
       <?php renderNavSection('parish-content', 'Parish Content', [
@@ -86,15 +86,15 @@ function renderNavSection(string $slug, string $title, array $items, string $act
       <?php renderNavSection('overview', 'Overview', [
         [url('treasurer/dashboard.php'), 'dashboard', 'layout-dashboard', 'Dashboard'],
       ], $__active); ?>
-      <?php renderNavSection('payments-transactions', 'Payments & Transactions', [
-        [url('treasurer/payments.php'), 'payments', 'history', 'Payments'],
+      <?php renderNavSection('transactions', 'Transactions & Verifications', [
+        [url('treasurer/payments.php'), 'payments', 'banknote', 'Service Payments'],
         [url('treasurer/donations.php'), 'donations', 'hand-heart', 'Donations'],
         [url('secretary/mass-intentions.php'), 'mass-intentions', 'flame', 'Mass Intentions'],
       ], $__active); ?>
       <?php renderNavSection('scheduling', 'Scheduling', [
         [url('secretary/calendar.php'), 'calendar', 'calendar-days', 'Calendar'],
       ], $__active); ?>
-      <?php renderNavSection('financial-reports', 'Financial Reports', [
+      <?php renderNavSection('reports', 'Reports', [
         [url('treasurer/reports.php'), 'reports', 'bar-chart-3', 'Financial Reports'],
       ], $__active); ?>
       <?php renderNavSection('system', 'System', [
