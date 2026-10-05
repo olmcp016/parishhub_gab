@@ -17,7 +17,7 @@ if (!$draft) { http_response_code(403); exit('Not authorized.'); }
 if ($draft['status'] !== 'draft') exit('This Wedding booking draft is no longer editable.');
 if (strtotime($draft['expires_at']) <= time()) exit('This Wedding booking draft has expired.');
 
-$q = $pdo->prepare('SELECT g.*, d.review_status, d.verified, d.rejection_reason FROM generated_wedding_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.draft_id = ? AND g.form_type = ?');
+$q = $pdo->prepare('SELECT g.*, d.review_status, d.verified, d.rejection_reason FROM generated_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.service_category = \'Wedding\' AND g.draft_id = ? AND g.form_type = ?');
 $q->execute([$draftId, $type]);
 $form = $q->fetch() ?: null;
 $data = $form ? (json_decode($form['form_data'], true) ?: []) : [];
@@ -74,7 +74,7 @@ if ($type === 'matrimony_application') {
     }
 } elseif ($type === 'wedding_sponsor_clearance') {
     if (!$form) {
-        $qApp = $pdo->prepare('SELECT form_data FROM generated_wedding_forms WHERE draft_id = ? AND form_type = ?');
+        $qApp = $pdo->prepare('SELECT form_data FROM generated_forms WHERE service_category = \'Wedding\' AND draft_id = ? AND form_type = ?');
         $qApp->execute([$draftId, 'matrimony_application']);
         $appForm = $qApp->fetch();
         $appData = $appForm ? (json_decode($appForm['form_data'], true) ?: []) : [];
@@ -102,7 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stored = null;
         $pdo->beginTransaction();
         try {
-            $q = $pdo->prepare('SELECT * FROM generated_wedding_forms WHERE draft_id = ? AND form_type = ? FOR UPDATE');
+            $q = $pdo->prepare('SELECT * FROM generated_forms WHERE service_category = \'Wedding\' AND draft_id = ? AND form_type = ? FOR UPDATE');
             $q->execute([$draftId, $type]);
             $form = $q->fetch() ?: null;
             $documentId = $form['document_id'] ?? null;
@@ -131,9 +131,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $status = 'pending_review';
             }
             if ($form) {
-                $pdo->prepare('UPDATE generated_wedding_forms SET form_data = ?, document_id = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE generated_form_id = ?')->execute([$json, $documentId, $status, $form['generated_form_id']]);
+                $pdo->prepare('UPDATE generated_forms SET form_data = ?, document_id = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE generated_form_id = ?')->execute([$json, $documentId, $status, $form['generated_form_id']]);
             } else {
-                $pdo->prepare('INSERT INTO generated_wedding_forms (appointment_id, draft_id, form_type, form_data, document_id, status) VALUES (NULL, ?, ?, ?, ?, ?)')->execute([$draftId, $type, $json, $documentId, $status]);
+                $pdo->prepare('INSERT INTO generated_forms (service_category, appointment_id, draft_id, form_type, form_data, document_id, status) VALUES (\'Wedding\', NULL, ?, ?, ?, ?, ?)')->execute([$draftId, $type, $json, $documentId, $status]);
             }
             $pdo->commit();
             if ($action === 'generate') {

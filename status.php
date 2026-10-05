@@ -59,10 +59,10 @@ if ($searched) {
         $documents = $stmt->fetchAll();
         $generatedForms = [];
         if (($appointment['category'] ?? '') === 'Wedding') {
-            $stmt = db()->prepare('SELECT g.*, d.document_id, d.review_status, d.rejection_reason FROM generated_wedding_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.appointment_id = ? ORDER BY g.form_type');
+            $stmt = db()->prepare('SELECT g.*, d.document_id, d.review_status, d.rejection_reason FROM generated_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.service_category = \'Wedding\' AND g.appointment_id = ? ORDER BY g.form_type');
             $stmt->execute([$appointment['appointment_id']]); $generatedForms = $stmt->fetchAll();
         } elseif (($appointment['category'] ?? '') === 'Baptism') {
-            $stmt = db()->prepare('SELECT g.*, d.document_id, d.review_status, d.rejection_reason FROM generated_baptism_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.appointment_id = ? ORDER BY g.form_type');
+            $stmt = db()->prepare('SELECT g.*, d.document_id, d.review_status, d.rejection_reason FROM generated_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.service_category = \'Baptism\' AND g.appointment_id = ? ORDER BY g.form_type');
             $stmt->execute([$appointment['appointment_id']]); $generatedForms = $stmt->fetchAll();
         }
         $stmt = db()->prepare('SELECT * FROM mass_intentions WHERE appointment_id = ?');
@@ -182,7 +182,7 @@ include __DIR__ . '/includes/header.php';
       <?php endif; ?>
       <?php if ($appointment['category'] === 'Funeral'): ?>
         <?php
-          $gfQuery = db()->prepare("SELECT f.*, d.review_status, d.verified FROM generated_funeral_forms f LEFT JOIN uploaded_documents d ON d.document_id = f.document_id WHERE f.appointment_id = ? AND f.form_type = 'katin_awan_paglubong'");
+          $gfQuery = db()->prepare("SELECT f.*, d.review_status, d.verified FROM generated_forms f LEFT JOIN uploaded_documents d ON d.document_id = f.document_id WHERE f.service_category = 'Funeral' AND f.appointment_id = ? AND f.form_type = 'katin_awan_paglubong'");
           $gfQuery->execute([$appointment['appointment_id']]);
           $gf = $gfQuery->fetch() ?: null;
           $state = generatedFormWorkflowState($gf, $gf, false);

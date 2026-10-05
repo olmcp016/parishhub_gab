@@ -264,10 +264,10 @@ $stmt->execute([$id]);
 $documents = $stmt->fetchAll();
 $generatedForms = [];
 if (($appointment['category'] ?? '') === 'Wedding') {
-    $stmt = db()->prepare('SELECT g.*, d.document_id, d.review_status, d.rejection_reason FROM generated_wedding_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.appointment_id = ? ORDER BY g.form_type');
+    $stmt = db()->prepare('SELECT g.*, d.document_id, d.review_status, d.rejection_reason FROM generated_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.service_category = \'Wedding\' AND g.appointment_id = ? ORDER BY g.form_type');
     $stmt->execute([$id]); $generatedForms = $stmt->fetchAll();
 } elseif (($appointment['category'] ?? '') === 'Baptism') {
-    $stmt = db()->prepare('SELECT g.*, d.document_id, d.review_status, d.rejection_reason FROM generated_baptism_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.appointment_id = ? ORDER BY g.form_type');
+    $stmt = db()->prepare('SELECT g.*, d.document_id, d.review_status, d.rejection_reason FROM generated_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.service_category = \'Baptism\' AND g.appointment_id = ? ORDER BY g.form_type');
     $stmt->execute([$id]); $generatedForms = $stmt->fetchAll();
 }
 
@@ -535,7 +535,7 @@ if (!$isAjax) {
           <?php $matches = $documentsByLabel[$label] ?? []; ?>
           <?php if ($label === 'Katin-awan sa Paglubong'): ?>
             <?php
-                $gfQuery = db()->prepare('SELECT * FROM generated_funeral_forms WHERE appointment_id = ?');
+                $gfQuery = db()->prepare('SELECT * FROM generated_forms WHERE service_category = \'Funeral\' AND appointment_id = ?');
                 $gfQuery->execute([$appointment['appointment_id']]);
                 $gf = $gfQuery->fetch() ?: null;
                 $stateForm = $gf ?: (!empty($matches) ? ['status' => 'generated', 'document_id' => $matches[0]['document_id']] : null);

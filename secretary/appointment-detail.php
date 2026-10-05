@@ -56,9 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->rollBack();
                 respondAjaxOrRedirect($isAjax, false, 'This document is no longer pending review.', $redirectUrl);
             }
-            $pdo->prepare("UPDATE generated_wedding_forms SET status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$documentId, $id]);
-            $pdo->prepare("UPDATE generated_baptism_forms SET status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$documentId, $id]);
-            $pdo->prepare("UPDATE generated_funeral_forms SET status = 'generated', rejection_reason = NULL, updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$documentId, $id]);
+            $pdo->prepare("UPDATE generated_forms SET status = CASE WHEN service_category = 'Funeral' THEN 'generated' ELSE 'approved' END, rejection_reason = NULL, updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$documentId, $id]);
             $pdo->commit();
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
@@ -103,9 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->rollBack();
                 respondAjaxOrRedirect($isAjax, false, 'This document is no longer pending review.', $redirectUrl);
             }
-            $pdo->prepare("UPDATE generated_wedding_forms SET status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$documentId, $id]);
-            $pdo->prepare("UPDATE generated_baptism_forms SET status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$documentId, $id]);
-            $pdo->prepare("UPDATE generated_funeral_forms SET status = 'rejected', rejection_reason = ?, updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$reason, $documentId, $id]);
+            $pdo->prepare("UPDATE generated_forms SET status = 'rejected', rejection_reason = ?, updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$reason, $documentId, $id]);
             $recipient = $pdo->prepare('SELECT u.user_id FROM appointments a JOIN parishioners p ON p.parishioner_id = a.parishioner_id JOIN users u ON u.user_id = p.user_id WHERE a.appointment_id = ?');
             $recipient->execute([$id]);
             $parishionerUserId = $recipient->fetchColumn();

@@ -35,7 +35,7 @@ if ($isAppointmentForm) {
         'contact_phone' => (string) (($appointment['contact_phone'] ?? '') ?: ($appointment['guest_phone'] ?? '')),
         'appointment_date' => (string) ($appointment['appointment_date'] ?? ''),
     ];
-    $q = $pdo->prepare('SELECT g.*, d.review_status, d.verified, d.rejection_reason FROM generated_baptism_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.appointment_id = ? AND g.form_type = ?');
+    $q = $pdo->prepare('SELECT g.*, d.review_status, d.verified, d.rejection_reason FROM generated_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.service_category = \'Baptism\' AND g.appointment_id = ? AND g.form_type = ?');
     $q->execute([$appointmentId, $type]);
 } else {
     $draft = baptismDraftLoad($pdo, $id, $user, baptismDraftToken($id));
@@ -44,7 +44,7 @@ if ($isAppointmentForm) {
         http_response_code(410);
         exit('This Baptism booking draft has expired or is no longer editable.');
     }
-    $q = $pdo->prepare('SELECT g.*, d.review_status, d.verified, d.rejection_reason FROM generated_baptism_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.draft_id = ? AND g.form_type = ?');
+    $q = $pdo->prepare('SELECT g.*, d.review_status, d.verified, d.rejection_reason FROM generated_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.service_category = \'Baptism\' AND g.draft_id = ? AND g.form_type = ?');
     $q->execute([$id, $type]);
 }
 $form = $q->fetch() ?: null;
@@ -67,8 +67,8 @@ if ($type === 'katin_awan_bunyag' && !$form) {
     ];
 } elseif ($type === 'cluster_clearance_baptism_sponsor' && !$form) {
     $kq = $pdo->prepare($isAppointmentForm
-        ? 'SELECT form_data FROM generated_baptism_forms WHERE appointment_id = ? AND form_type = ?'
-        : 'SELECT form_data FROM generated_baptism_forms WHERE draft_id = ? AND form_type = ?');
+        ? 'SELECT form_data FROM generated_forms WHERE service_category = \'Baptism\' AND appointment_id = ? AND form_type = ?'
+        : 'SELECT form_data FROM generated_forms WHERE service_category = \'Baptism\' AND draft_id = ? AND form_type = ?');
     $kq->execute([$isAppointmentForm ? $appointmentId : $id, 'katin_awan_bunyag']);
     $katin = $kq->fetchColumn();
     if ($katin) {
@@ -95,8 +95,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
             $pdo->beginTransaction();
             $lockedQuery = $pdo->prepare($isAppointmentForm
-                ? 'SELECT * FROM generated_baptism_forms WHERE appointment_id = ? AND form_type = ? FOR UPDATE'
-                : 'SELECT * FROM generated_baptism_forms WHERE draft_id = ? AND form_type = ? FOR UPDATE');
+                ? 'SELECT * FROM generated_forms WHERE service_category = \'Baptism\' AND appointment_id = ? AND form_type = ? FOR UPDATE'
+                : 'SELECT * FROM generated_forms WHERE service_category = \'Baptism\' AND draft_id = ? AND form_type = ? FOR UPDATE');
             $lockedQuery->execute([$isAppointmentForm ? $appointmentId : $id, $type]);
             $form = $lockedQuery->fetch() ?: $form;
 
@@ -113,10 +113,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $documentId = null;
                 }
                 if ($form) {
-                    $pdo->prepare("UPDATE generated_baptism_forms SET form_data = ?, document_id = ?, status = 'draft', updated_at = CURRENT_TIMESTAMP WHERE generated_form_id = ?")
+                    $pdo->prepare("UPDATE generated_forms SET form_data = ?, document_id = ?, status = 'draft', updated_at = CURRENT_TIMESTAMP WHERE generated_form_id = ?")
                         ->execute([$json, $documentId, $form['generated_form_id']]);
                 } else {
-                    $pdo->prepare("INSERT INTO generated_baptism_forms (appointment_id, draft_id, form_type, form_data, document_id, status) VALUES (?, ?, ?, ?, NULL, 'draft')")
+                    $pdo->prepare("INSERT INTO generated_forms (service_category, appointment_id, draft_id, form_type, form_data, document_id, status) VALUES ('Baptism', ?, ?, ?, ?, NULL, 'draft')")
                         ->execute([$isAppointmentForm ? $appointmentId : null, $isAppointmentForm ? null : $id, $type, $json]);
                 }
                 $pdo->commit();
@@ -144,10 +144,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $supersede->execute([$newId, $previousDocumentId, $isAppointmentForm ? $appointmentId : $id]);
             }
             if ($form) {
-                $pdo->prepare("UPDATE generated_baptism_forms SET form_data = ?, document_id = ?, status = 'pending_review', updated_at = CURRENT_TIMESTAMP WHERE generated_form_id = ?")
+                $pdo->prepare("UPDATE generated_forms SET form_data = ?, document_id = ?, status = 'pending_review', updated_at = CURRENT_TIMESTAMP WHERE generated_form_id = ?")
                     ->execute([$json, $newId, $form['generated_form_id']]);
             } else {
-                $pdo->prepare("INSERT INTO generated_baptism_forms (appointment_id, draft_id, form_type, form_data, document_id, status) VALUES (?, ?, ?, ?, ?, 'pending_review')")
+                $pdo->prepare("INSERT INTO generated_forms (service_category, appointment_id, draft_id, form_type, form_data, document_id, status) VALUES ('Baptism', ?, ?, ?, ?, ?, 'pending_review')")
                     ->execute([$isAppointmentForm ? $appointmentId : null, $isAppointmentForm ? null : $id, $type, $json, $newId]);
             }
             $pdo->commit();

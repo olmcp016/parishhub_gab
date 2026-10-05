@@ -29,7 +29,7 @@ if ($user) {
     if (!$q->fetchColumn()) { http_response_code(403); exit('Not authorized.'); }
 } elseif (!$isGuest) { http_response_code(403); exit('Verify the guest appointment before accessing this form.'); }
 
-$formQuery = db()->prepare('SELECT g.*, d.review_status, d.verified, d.rejection_reason FROM generated_wedding_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.appointment_id = ? AND g.form_type = ?');
+$formQuery = db()->prepare('SELECT g.*, d.review_status, d.verified, d.rejection_reason FROM generated_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.service_category = \'Wedding\' AND g.appointment_id = ? AND g.form_type = ?');
 $formQuery->execute([$appointmentId, $type]);
 $form = $formQuery->fetch() ?: null;
 $data = $form ? (json_decode($form['form_data'], true) ?: []) : [];
@@ -95,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stored = null;
         try {
             $pdo->beginTransaction();
-            $lock = $pdo->prepare('SELECT * FROM generated_wedding_forms WHERE appointment_id = ? AND form_type = ? FOR UPDATE');
+            $lock = $pdo->prepare('SELECT * FROM generated_forms WHERE service_category = \'Wedding\' AND appointment_id = ? AND form_type = ? FOR UPDATE');
             $lock->execute([$appointmentId, $type]);
             $form = $lock->fetch() ?: null;
             $documentId = $form['document_id'] ?? null;
@@ -128,9 +128,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $status = 'pending_review';
             }
             if ($form) {
-                $pdo->prepare('UPDATE generated_wedding_forms SET form_data = ?, document_id = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE generated_form_id = ?')->execute([$encoded, $documentId, $status, $form['generated_form_id']]);
+                $pdo->prepare('UPDATE generated_forms SET form_data = ?, document_id = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE generated_form_id = ?')->execute([$encoded, $documentId, $status, $form['generated_form_id']]);
             } else {
-                $pdo->prepare('INSERT INTO generated_wedding_forms (appointment_id, form_type, form_data, document_id, status) VALUES (?, ?, ?, ?, ?)')->execute([$appointmentId, $type, $encoded, $documentId, $status]);
+                $pdo->prepare('INSERT INTO generated_forms (service_category, appointment_id, form_type, form_data, document_id, status) VALUES (\'Wedding\', ?, ?, ?, ?, ?)')->execute([$appointmentId, $type, $encoded, $documentId, $status]);
             }
             $pdo->commit();
             flash('success', $action === 'generate' ? 'Form generated and submitted for review.' : 'Draft saved.');

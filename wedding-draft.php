@@ -77,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Generated PDF metadata is included in uploaded_documents and was
         // transferred by the ownership update above.
         $finalizationStage = 'transfer_generated_forms';
-        $pdo->prepare('UPDATE generated_wedding_forms SET appointment_id = ?, draft_id = NULL WHERE draft_id = ?')->execute([$appointmentId, $draftId]);
+        $pdo->prepare('UPDATE generated_forms SET appointment_id = ?, draft_id = NULL WHERE service_category = \'Wedding\' AND draft_id = ?')->execute([$appointmentId, $draftId]);
         $finalizationStage = 'finalize_draft';
         $pdo->prepare("UPDATE wedding_booking_drafts SET status = 'finalized', finalized_appointment_id = ?, updated_at = CURRENT_TIMESTAMP WHERE draft_id = ?")->execute([$appointmentId, $draftId]);
         $finalizationStage = 'commit';
@@ -107,7 +107,7 @@ $uploadedDocuments = [];
 foreach ($docs->fetchAll() as $document) {
     if (!isset($uploadedDocuments[$document['requirement_label']])) $uploadedDocuments[$document['requirement_label']] = $document;
 }
-$forms = $pdo->prepare('SELECT f.form_type, f.status, f.document_id, d.review_status, d.verified, d.rejection_reason FROM generated_wedding_forms f LEFT JOIN uploaded_documents d ON d.document_id = f.document_id WHERE f.draft_id = ?');
+$forms = $pdo->prepare('SELECT f.form_type, f.status, f.document_id, d.review_status, d.verified, d.rejection_reason FROM generated_forms f LEFT JOIN uploaded_documents d ON d.document_id = f.document_id WHERE f.service_category = \'Wedding\' AND f.draft_id = ?');
 $forms->execute([$draftId]);
 $formRows = [];
 foreach ($forms->fetchAll() as $row) $formRows[$row['form_type']] = $row;

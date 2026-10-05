@@ -103,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $baptismFinalizationStage = 'transfer_documents';
         $pdo->prepare('UPDATE uploaded_documents SET appointment_id = ?, baptism_draft_id = NULL WHERE baptism_draft_id = ?')->execute([$appointmentId, $id]);
         $baptismFinalizationStage = 'transfer_generated_forms';
-        $pdo->prepare('UPDATE generated_baptism_forms SET appointment_id = ?, draft_id = NULL WHERE draft_id = ?')->execute([$appointmentId, $id]);
+        $pdo->prepare('UPDATE generated_forms SET appointment_id = ?, draft_id = NULL WHERE service_category = \'Baptism\' AND draft_id = ?')->execute([$appointmentId, $id]);
         $baptismFinalizationStage = 'finalize_draft';
         $pdo->prepare("UPDATE baptism_booking_drafts SET status = 'finalized', finalized_appointment_id = ?, updated_at = CURRENT_TIMESTAMP WHERE draft_id = ?")->execute([$appointmentId, $id]);
         $baptismFinalizationStage = 'commit';
@@ -138,7 +138,7 @@ $uploadedDocuments = [];
 foreach ($stmt->fetchAll() as $document) {
     if (!isset($uploadedDocuments[$document['requirement_label']])) $uploadedDocuments[$document['requirement_label']] = $document;
 }
-$stmt = $pdo->prepare('SELECT f.form_type, f.document_id, f.status, d.review_status, d.verified, d.rejection_reason FROM generated_baptism_forms f LEFT JOIN uploaded_documents d ON d.document_id = f.document_id WHERE f.draft_id = ?');
+$stmt = $pdo->prepare('SELECT f.form_type, f.document_id, f.status, d.review_status, d.verified, d.rejection_reason FROM generated_forms f LEFT JOIN uploaded_documents d ON d.document_id = f.document_id WHERE f.service_category = \'Baptism\' AND f.draft_id = ?');
 $stmt->execute([$id]);
 $forms = [];
 foreach ($stmt->fetchAll() as $row) $forms[$row['form_type']] = $row;

@@ -52,13 +52,13 @@ function processFuneralGeneratedForm(int $appointmentId, string $type, array $da
         }
 
         $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
-        $stmt = $pdo->prepare('SELECT generated_form_id FROM generated_funeral_forms WHERE appointment_id = ? AND form_type = ?');
+        $stmt = $pdo->prepare('SELECT generated_form_id FROM generated_forms WHERE service_category = \'Funeral\' AND appointment_id = ? AND form_type = ?');
         $stmt->execute([$appointmentId, $type]);
         if ($stmt->fetchColumn()) {
-            $pdo->prepare("UPDATE generated_funeral_forms SET form_data = ?, document_id = ?, status = 'generated', rejection_reason = NULL, updated_at = CURRENT_TIMESTAMP WHERE appointment_id = ? AND form_type = ?")
+            $pdo->prepare("UPDATE generated_forms SET form_data = ?, document_id = ?, status = 'generated', rejection_reason = NULL, updated_at = CURRENT_TIMESTAMP WHERE service_category = 'Funeral' AND appointment_id = ? AND form_type = ?")
                 ->execute([$json, $documentId, $appointmentId, $type]);
         } else {
-            $pdo->prepare("INSERT INTO generated_funeral_forms (appointment_id, form_type, form_data, document_id, status) VALUES (?, ?, ?, ?, 'generated')")
+            $pdo->prepare("INSERT INTO generated_forms (service_category, appointment_id, form_type, form_data, document_id, status) VALUES ('Funeral', ?, ?, ?, ?, 'generated')")
                 ->execute([$appointmentId, $type, $json, $documentId]);
         }
         if ($ownsTransaction) $pdo->commit();

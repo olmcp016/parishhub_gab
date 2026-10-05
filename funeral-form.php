@@ -87,7 +87,7 @@ if ($isDraft) {
         if (!$q->fetchColumn()) { http_response_code(403); exit('Not authorized.'); }
     } elseif (!$isGuest) { http_response_code(403); exit('Verify the guest appointment before accessing this form.'); }
 
-    $formQuery = $pdo->prepare('SELECT f.*, d.review_status FROM generated_funeral_forms f LEFT JOIN uploaded_documents d ON d.document_id = f.document_id WHERE f.appointment_id = ? AND f.form_type = ?');
+    $formQuery = $pdo->prepare('SELECT f.*, d.review_status FROM generated_forms f LEFT JOIN uploaded_documents d ON d.document_id = f.document_id WHERE f.service_category = \'Funeral\' AND f.appointment_id = ? AND f.form_type = ?');
     $formQuery->execute([$appointmentId, $type]);
     $form = $formQuery->fetch() ?: null;
     $data = $form ? funeralKatinAwanNormalizeData(json_decode($form['form_data'], true) ?: []) : funeralKatinAwanNormalizeData([
@@ -108,7 +108,7 @@ if ($isDraft) {
         } elseif ($action === 'save') {
             try {
                 $pdo->beginTransaction();
-                $lock = $pdo->prepare('SELECT * FROM generated_funeral_forms WHERE appointment_id = ? AND form_type = ? FOR UPDATE');
+                $lock = $pdo->prepare('SELECT * FROM generated_forms WHERE service_category = \'Funeral\' AND appointment_id = ? AND form_type = ? FOR UPDATE');
                 $lock->execute([$appointmentId, $type]);
                 $lockedForm = $lock->fetch() ?: null;
                 $encoded = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
@@ -120,10 +120,10 @@ if ($isDraft) {
                     $documentId = null;
                 }
                 if ($lockedForm) {
-                    $pdo->prepare("UPDATE generated_funeral_forms SET form_data = ?, document_id = ?, status = 'draft', updated_at = CURRENT_TIMESTAMP WHERE generated_form_id = ?")
+                    $pdo->prepare("UPDATE generated_forms SET form_data = ?, document_id = ?, status = 'draft', updated_at = CURRENT_TIMESTAMP WHERE generated_form_id = ?")
                         ->execute([$encoded, $documentId, $lockedForm['generated_form_id']]);
                 } else {
-                    $pdo->prepare("INSERT INTO generated_funeral_forms (appointment_id, form_type, form_data, document_id, status) VALUES (?, ?, ?, NULL, 'draft')")
+                    $pdo->prepare("INSERT INTO generated_forms (service_category, appointment_id, form_type, form_data, document_id, status) VALUES ('Funeral', ?, ?, ?, NULL, 'draft')")
                         ->execute([$appointmentId, $type, $encoded]);
                 }
                 $pdo->commit();

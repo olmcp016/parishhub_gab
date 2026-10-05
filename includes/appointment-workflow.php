@@ -80,21 +80,14 @@ function appointmentReviewRequirementLabels(array $appointment): array
 /** @return array<int, array<string, mixed>> */
 function appointmentGeneratedFormReviewRows(PDO $pdo, int $appointmentId, string $category): array
 {
-    $table = match ($category) {
-        'Wedding' => 'generated_wedding_forms',
-        'Baptism' => 'generated_baptism_forms',
-        'Funeral' => 'generated_funeral_forms',
-        default => null,
-    };
-    if ($table === null) return [];
+    if (!in_array($category, ['Wedding', 'Baptism', 'Funeral'], true)) return [];
 
-    // The table name comes only from the fixed category map above.
     $stmt = $pdo->prepare(
         "SELECT g.form_type, g.status AS generated_status, g.document_id,
                 d.document_id AS active_document_id, d.file_name,
                 d.review_status, d.verified, d.rejection_reason,
                 TRUE AS form_exists
-         FROM {$table} g
+         FROM generated_forms g
          LEFT JOIN uploaded_documents d
            ON d.document_id = g.document_id
           AND d.appointment_id = g.appointment_id
@@ -102,10 +95,10 @@ function appointmentGeneratedFormReviewRows(PDO $pdo, int $appointmentId, string
           AND d.document_source = 'generated'
           AND d.generated_form_type = g.form_type
           AND d.file_type = 'application/pdf'
-         WHERE g.appointment_id = ?
+         WHERE g.service_category = ? AND g.appointment_id = ?
          ORDER BY g.form_type"
     );
-    $stmt->execute([$appointmentId]);
+    $stmt->execute([$category, $appointmentId]);
     $rowsByType = [];
     foreach ($stmt->fetchAll() as $row) {
         // Only an active, correctly-owned generated document is reviewable.

@@ -49,9 +49,9 @@ function weddingDraftComplete(PDO $pdo, array $draft): array
     $q->execute([$draft['draft_id']]); $labels = array_unique($q->fetchAll(PDO::FETCH_COLUMN));
     $missing = array_values(array_diff($required, $labels));
     $q = $pdo->prepare("SELECT f.form_type
-        FROM generated_wedding_forms f
+        FROM generated_forms f
         INNER JOIN uploaded_documents d ON d.document_id = f.document_id
-        WHERE f.draft_id = ?
+        WHERE f.service_category = 'Wedding' AND f.draft_id = ?
           AND f.status IN ('generated', 'pending_review', 'approved')
           AND f.document_id IS NOT NULL
           AND d.superseded_by IS NULL
