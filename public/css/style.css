@@ -55,6 +55,7 @@ input[type="number"].numeric-no-spinner {
   height: 100%;
   object-fit: contain;
   display: block;
+  mix-blend-mode: multiply;
   /* no border-radius here — let the container's overflow:hidden clip it */
 }
 /* Remove the dark container background when showing a real logo image
@@ -481,7 +482,7 @@ tbody tr:hover { background: #faf8f0; }
 .public-nav .brand {
   display: flex; align-items: center; gap: 11px;
   color: var(--brown-dark); font-family: var(--font-heading);
-  font-size: 20px; font-weight: 700; letter-spacing: 0.3px;
+  font-size: 26px; font-weight: 700; letter-spacing: 0.3px;
   text-shadow: 0 1px 0 rgba(255,255,255,0.7), 0 2px 8px rgba(0,0,0,0.18);
 }
 .public-nav .brand .crest-mark {
