@@ -34,14 +34,7 @@ $logs = $stmt->fetchAll();
 
 $paginationUrl = url('admin/activity-logs.php') . '?' . http_build_query(array_filter(['date_from' => $dateFrom, 'date_to' => $dateTo]));
 
-// Group into date buckets (in the app's Asia/Manila timezone, consistent
-// with how the rest of the app computes "today") so the template can
-// render one date header per day instead of one flat table.
-$logsByDate = [];
-foreach ($logs as $l) {
-    $dateKey = date('Y-m-d', strtotime($l['created_at']));
-    $logsByDate[$dateKey][] = $l;
-}
+
 
 $active = 'logs';
 $pageTitle = 'Activity Logs';
@@ -51,33 +44,30 @@ include __DIR__ . '/../includes/dash-start.php';
 
 <div class="card">
   <div class="card-header"><h3>System Activity Log</h3></div>
-  <form method="GET" class="form-row mb-3">
-    <div class="form-group"><label>From Date</label><input type="date" name="date_from" value="<?= e($dateFrom) ?>"></div>
-    <div class="form-group"><label>To Date</label><input type="date" name="date_to" value="<?= e($dateTo) ?>"></div>
-    <div class="form-group" style="align-self:end;"><button type="submit" class="btn btn-primary">Filter</button></div>
+  <form method="GET" style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; margin-bottom:24px;">
+    <div class="form-group" style="flex: 1 1 200px; margin-bottom:0;"><label>From Date</label><input type="date" name="date_from" value="<?= e($dateFrom) ?>" style="width:100%; box-sizing:border-box;"></div>
+    <div class="form-group" style="flex: 1 1 200px; margin-bottom:0;"><label>To Date</label><input type="date" name="date_to" value="<?= e($dateTo) ?>" style="width:100%; box-sizing:border-box;"></div>
+    <div class="form-group" style="flex: 0 0 auto; margin-bottom:0;"><button type="submit" class="btn btn-primary" style="padding:10px 24px; height:42px;">Filter</button></div>
     <?php if ($dateFrom || $dateTo): ?>
-      <div class="form-group" style="align-self:end;"><a href="<?= url('admin/activity-logs.php') ?>" class="btn btn-outline">Clear</a></div>
+      <div class="form-group" style="flex: 0 0 auto; margin-bottom:0;"><a href="<?= url('admin/activity-logs.php') ?>" class="btn btn-outline" style="padding:10px 24px; height:42px; display:inline-flex; align-items:center;">Clear</a></div>
     <?php endif; ?>
   </form>
-  <?php foreach ($logsByDate as $dateKey => $dayLogs): ?>
-    <h4 class="activity-date-heading"><?= e(strtoupper(date('F j, Y', strtotime($dateKey)))) ?></h4>
-    <div class="table-wrap mb-3">
-      <table>
-        <thead><tr><th>User</th><th>Action</th><th>Module</th><th>IP Address</th><th>Time</th></tr></thead>
-        <tbody>
-          <?php foreach ($dayLogs as $l): ?>
-            <tr>
-              <td><?= e($l['firstname'] ? $l['firstname'] . ' ' . $l['lastname'] : 'System') ?></td>
-              <td><?= e($l['action']) ?></td>
-              <td><?= e($l['module'] ?? '—') ?></td>
-              <td><?= e($l['ip_address'] ?? '—') ?></td>
-              <td><?= date('g:i A', strtotime($l['created_at'])) ?></td>
-            </tr>
-          <?php endforeach; ?>
-        </tbody>
-      </table>
-    </div>
-  <?php endforeach; ?>
+
+  <div class="table-wrap mb-3">
+    <table>
+      <thead><tr><th>User</th><th>Action</th><th>Section</th><th>Date &amp; Time</th></tr></thead>
+      <tbody>
+        <?php foreach ($logs as $l): ?>
+          <tr>
+            <td><?= e($l['firstname'] ? $l['firstname'] . ' ' . $l['lastname'] : 'System') ?></td>
+            <td><?= e($l['action']) ?></td>
+            <td><?= e($l['module'] ?? '—') ?></td>
+            <td><?= date('M j, Y g:i A', strtotime($l['created_at'])) ?></td>
+          </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
   <?php if (empty($logs)): ?><p class="text-muted text-center mt-3">No activity recorded yet.</p><?php else: ?>
     <?= renderPagination($pagination, $paginationUrl) ?>
   <?php endif; ?>
