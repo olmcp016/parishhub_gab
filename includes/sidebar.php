@@ -138,8 +138,8 @@ function renderNavSection(string $slug, string $title, array $items, string $act
   <div class="sidebar-footer">
     <form method="POST" action="<?= url('auth/logout.php') ?>" id="logoutForm">
       <?= csrfField() ?>
-      <button type="button" class="link-btn" onclick="document.getElementById('logoutModal').showModal()" style="background:none; border:none; padding:0; cursor:pointer; color: var(--gold-light); font: inherit; display:inline-flex; align-items:center; gap:6px;">
-        <i data-lucide="log-out" style="width:16px; height:16px;"></i> Logout
+      <button type="button" onclick="document.getElementById('logoutModal').showModal()">
+        <i data-lucide="log-out" style="width:18px; height:18px;"></i> Logout
       </button>
     </form>
     <div style="margin-top:6px;">© <?= date('Y') ?> PARISHHUB</div>

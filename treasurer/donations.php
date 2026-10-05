@@ -163,7 +163,7 @@ include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/dash-start.php';
 ?>
 
-<div class="card" style="max-width:640px; margin-bottom:24px;">
+<div class="card">
   <div class="card-header" style="display:flex; align-items:center; justify-content:space-between; gap:16px;">
     <h3 style="margin:0;">Accept Online Donations</h3>
     <span class="badge <?= $donationEnabled ? 'badge-verified' : 'badge-cancelled' ?>" style="font-size:12px; padding:4px 10px;">

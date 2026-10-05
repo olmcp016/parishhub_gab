@@ -7,6 +7,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifyCsrf();
     $action = $_POST['action'] ?? 'update';
 
+    if ($action === 'toggle_donations') {
+        $enabled = !empty($_POST['donation_enabled']) ? '1' : '0';
+        db()->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('donation_enabled', ?) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value")->execute([$enabled]);
+        logActivity(currentUser()['user_id'], 'Updated donation feature setting (' . ($enabled === '1' ? 'enabled' : 'disabled') . ')', 'Settings');
+        flash('success', 'Donation settings updated.');
+        redirect(url('secretary/services.php'));
+    }
+
     if ($action === 'add') {
         $serviceName = trim($_POST['service_name'] ?? '');
         $category = $_POST['category'] ?? '';
@@ -38,12 +46,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $services = db()->query('SELECT * FROM services ORDER BY category, service_name')->fetchAll();
+$donationEnabled = db()->query("SELECT setting_value FROM settings WHERE setting_key = 'donation_enabled'")->fetchColumn() !== '0';
 
 $active = 'services';
 $pageTitle = 'Manage Services';
 include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/dash-start.php';
 ?>
+
+<div class="card">
+  <div class="card-header" style="display:flex; align-items:center; justify-content:space-between; gap:16px;">
+    <h3 style="margin:0;">Accept Online Donations</h3>
+    <span class="badge <?= $donationEnabled ? 'badge-verified' : 'badge-cancelled' ?>" style="font-size:12px; padding:4px 10px;">
+      <?= $donationEnabled ? 'ON' : 'OFF' ?>
+    </span>
+  </div>
+  <p class="helper-text" style="margin-top:0; margin-bottom:16px;">
+    Controls whether parishioners see the &ldquo;Donate Now&rdquo; button on their dashboard and can submit online donations.
+  </p>
+  <form method="POST" action="<?= url('secretary/services.php') ?>" style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+    <?= csrfField() ?>
+    <input type="hidden" name="action" value="toggle_donations">
+    <label style="display:flex; align-items:center; gap:8px; font-weight:500; font-size:14px; cursor:pointer; text-transform:none;">
+      <input type="checkbox" name="donation_enabled" value="1" <?= $donationEnabled ? 'checked' : '' ?> style="width:auto;">
+      Enable the Donate button for parishioners
+    </label>
+    <button type="submit" class="btn btn-primary btn-sm">Save</button>
+  </form>
+</div>
 
 <div class="card">
   <div class="card-header">
