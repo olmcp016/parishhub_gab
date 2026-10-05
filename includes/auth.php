@@ -5,6 +5,14 @@
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/logo.php';
 
+try {
+    db()->exec("SELECT must_change_password FROM users LIMIT 1");
+} catch (Exception $e) {
+    try {
+        db()->exec("ALTER TABLE users ADD COLUMN must_change_password TINYINT(1) DEFAULT 0");
+    } catch (Exception $e2) {}
+}
+
 function currentUser(): ?array
 {
     return $_SESSION['user'] ?? null;

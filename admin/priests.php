@@ -144,7 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         try {
             $stmt = $pdo->prepare(
-                "INSERT INTO users (role_id, firstname, lastname, email, password, phone, status) VALUES (?, ?, '', ?, ?, ?, 'active')"
+                "INSERT INTO users (role_id, firstname, lastname, email, password, phone, status, must_change_password) VALUES (?, ?, '', ?, ?, ?, 'active', 1)"
             );
             $stmt->execute([$priestRoleId, trim($priest['title'] . ' ' . $priest['full_name']), $email, $hash, $priest['contact_number']]);
             $newUserId = (int) $pdo->lastInsertId();
@@ -188,7 +188,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('success', $operation === 'activate' ? 'Priest portal access reactivated.' : 'Priest portal access deactivated.');
         } else {
             $tempPassword = bin2hex(random_bytes(5));
-            db()->prepare('UPDATE users SET password = ?, status = \'active\' WHERE user_id = ?')->execute([password_hash($tempPassword, PASSWORD_BCRYPT), (int) $account['user_id']]);
+            db()->prepare('UPDATE users SET password = ?, status = \'active\', must_change_password = 1 WHERE user_id = ?')->execute([password_hash($tempPassword, PASSWORD_BCRYPT), (int) $account['user_id']]);
             logActivity(currentUser()['user_id'], "Reset Priest portal access for {$account['title']} {$account['full_name']}", 'Priests');
             $_SESSION['temp_password_info'] = [
                 'name' => trim($account['title'] . ' ' . $account['full_name']),

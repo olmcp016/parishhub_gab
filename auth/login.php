@@ -32,6 +32,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(url('auth/login.php'));
     }
 
+    if (!empty($user['must_change_password'])) {
+        $_SESSION['force_change_password_user'] = [
+            'user_id' => $user['user_id'],
+            'email' => $user['email']
+        ];
+        redirect(url('auth/force_change_password.php'));
+    }
+
     session_regenerate_id(true);
 
     $_SESSION['user'] = [

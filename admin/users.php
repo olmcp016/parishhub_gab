@@ -11,9 +11,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'create') {
         try {
-            $hash = password_hash($_POST['password'], PASSWORD_BCRYPT);
+            $tempPassword = bin2hex(random_bytes(5));
+            $hash = password_hash($tempPassword, PASSWORD_BCRYPT);
             $stmt = db()->prepare(
-                "INSERT INTO users (role_id, firstname, lastname, email, password, phone, status) VALUES (?, ?, ?, ?, ?, ?, 'active')"
+                "INSERT INTO users (role_id, firstname, lastname, email, password, phone, status, must_change_password) VALUES (?, ?, ?, ?, ?, ?, 'active', 1)"
             );
             $stmt->execute([$_POST['role_id'], $_POST['firstname'], $_POST['lastname'], $_POST['email'], $hash, $_POST['phone'] ?: null]);
             $newId = db()->lastInsertId();
@@ -21,7 +22,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 db()->prepare('INSERT INTO parishioners (user_id) VALUES (?)')->execute([$newId]);
             }
             logActivity($adminId, "Created staff account: {$_POST['firstname']} {$_POST['lastname']}", 'User Management');
-            flash('success', 'User created successfully.');
+            
+            $_SESSION['temp_password_info'] = [
+                'name' => trim($_POST['firstname'] . ' ' . $_POST['lastname']),
+                'email' => $_POST['email'],
+                'password' => $tempPassword
+            ];
+            flash('success', 'Staff account created successfully.');
         } catch (Throwable $e) {
             flash('error', 'Failed to create user (email may already exist).');
         }
@@ -140,15 +147,15 @@ include __DIR__ . '/../includes/dash-start.php';
       <?= csrfField() ?>
       <input type="hidden" name="action" value="create">
       <div class="form-row">
-        <div class="form-group"><label>First Name</label><input type="text" name="firstname" required></div>
-        <div class="form-group"><label>Last Name</label><input type="text" name="lastname" required></div>
+        <div class="form-group"><label>First Name</label><input type="text" name="firstname" required style="text-transform: capitalize;"></div>
+        <div class="form-group"><label>Last Name</label><input type="text" name="lastname" required style="text-transform: capitalize;"></div>
       </div>
       <div class="form-group"><label>Email</label><input type="email" name="email" required></div>
-      <div class="form-group"><label>Phone (optional)</label><input type="tel" name="phone"></div>
-      <div class="form-group"><label>Password</label><input type="password" name="password" required minlength="8"></div>
+      <div class="form-group"><label>Phone (optional)</label><input type="tel" name="phone" pattern="^09\d{9}$" maxlength="11" placeholder="09xxxxxxxxx"></div>
       <div class="form-group">
         <label>Role</label>
         <select name="role_id" required>
+          <option value="" disabled selected>Select Role</option>
           <?php foreach ($staffRoles as $r): ?><option value="<?= $r['role_id'] ?>"><?= e(roleLabel($r['role_name'])) ?></option><?php endforeach; ?>
         </select>
       </div>
@@ -242,6 +249,51 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 });
 </script>
+
+<?php if (isset($_SESSION['temp_password_info'])): 
+    $tp = $_SESSION['temp_password_info'];
+    unset($_SESSION['temp_password_info']);
+?>
+<dialog class="modal" id="tempPasswordModal" style="max-width:450px; text-align:center;">
+  <div class="modal-body" style="padding: 30px 20px;">
+    <div style="background:var(--bg-success); color:var(--success); width:60px; height:60px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 20px;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+    </div>
+    <h3 style="margin-top:0;">Staff Account Created!</h3>
+    <p style="color:var(--text-muted); margin-bottom:20px;">
+      Portal login for <strong><?= e($tp['name']) ?></strong> has been generated. Please provide them with the following temporary password.
+    </p>
+    <div style="background:var(--bg-secondary); padding:15px; border-radius:8px; border:1px dashed #ccc; margin-bottom:20px;">
+      <div style="font-size:24px; font-weight:bold; letter-spacing:2px; font-family:monospace; color:var(--text-primary);" id="tempPwdText"><?= e($tp['password']) ?></div>
+    </div>
+    <button type="button" class="btn btn-primary btn-block" id="copyTempPwdBtn" style="margin-bottom:10px;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+      Copy Password
+    </button>
+    <button type="button" class="btn btn-outline btn-block" onclick="document.getElementById('tempPasswordModal').close()">I've copied it</button>
+  </div>
+</dialog>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var modal = document.getElementById('tempPasswordModal');
+    if (modal) {
+        modal.showModal();
+        document.getElementById('copyTempPwdBtn').addEventListener('click', function() {
+            var pwd = document.getElementById('tempPwdText').textContent;
+            navigator.clipboard.writeText(pwd).then(function() {
+                var btn = document.getElementById('copyTempPwdBtn');
+                btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><polyline points="20 6 9 17 4 12"></polyline></svg> Copied!';
+                btn.classList.replace('btn-primary', 'btn-success');
+                setTimeout(() => {
+                    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg> Copy Password';
+                    btn.classList.replace('btn-success', 'btn-primary');
+                }, 2000);
+            });
+        });
+    }
+});
+</script>
+<?php endif; ?>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
