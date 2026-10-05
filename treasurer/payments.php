@@ -115,33 +115,38 @@ include __DIR__ . '/../includes/dash-start.php';
 ?>
 
 <div class="card">
-  <div class="card-header"><h3>Record Manual Payment</h3></div>
-  <form method="POST" action="<?= url('treasurer/payments.php') ?>" class="form-row" style="align-items:end;">
-    <?= csrfField() ?>
-    <input type="hidden" name="action" value="manual">
-    <div class="form-group"><label>Appointment ID</label><input type="number" name="appointment_id" required></div>
-    <div class="form-group"><label>Amount</label><input type="number" name="amount" step="0.01" required></div>
-    <div class="form-group">
-      <label>Method</label>
-      <select name="method_id" required>
-        <option value="1">Cash</option>
-        <option value="2">GCash</option>
-        <option value="3">Maya</option>
-        <option value="4">Bank Transfer</option>
-        <option value="5">Credit/Debit Card</option>
-        <option value="6">PayPal</option>
-      </select>
-    </div>
-    <div class="form-group"><label>Reference # (optional)</label><input type="text" name="reference_number"></div>
-    <div class="form-group"><button type="submit" class="btn btn-primary">Record</button></div>
-  </form>
+  <div class="card-header" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;" onclick="var f = document.getElementById('recordPaymentForm'), i = document.getElementById('recordPaymentIcon'); if (f.style.display === 'none') { f.style.display = 'block'; i.setAttribute('data-lucide', 'chevron-up'); } else { f.style.display = 'none'; i.setAttribute('data-lucide', 'chevron-down'); } lucide.createIcons();">
+    <h3 style="margin: 0;">Record Manual Payment</h3>
+    <button type="button" class="btn btn-outline btn-sm" style="display:flex; align-items:center; gap:6px;"><i data-lucide="chevron-down" id="recordPaymentIcon" style="width:16px; height:16px;"></i> Toggle Form</button>
+  </div>
+  <div id="recordPaymentForm" style="display: none; padding-top: 16px;">
+    <form method="POST" action="<?= url('treasurer/payments.php') ?>" style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end;">
+      <?= csrfField() ?>
+      <input type="hidden" name="action" value="manual">
+      <div class="form-group" style="flex: 1 1 130px; margin-bottom:0;"><label>Appointment ID</label><input type="number" name="appointment_id" required></div>
+      <div class="form-group" style="flex: 1 1 150px; margin-bottom:0;"><label>Amount</label><input type="number" name="amount" step="0.01" required></div>
+      <div class="form-group" style="flex: 1 1 150px; margin-bottom:0;">
+        <label>Method</label>
+        <select name="method_id" required>
+          <option value="1">Cash</option>
+          <option value="2">GCash</option>
+          <option value="3">Maya</option>
+          <option value="4">Bank Transfer</option>
+          <option value="5">Credit/Debit Card</option>
+          <option value="6">PayPal</option>
+        </select>
+      </div>
+      <div class="form-group" style="flex: 1 1 180px; margin-bottom:0;"><label>Reference # (optional)</label><input type="text" name="reference_number"></div>
+      <div class="form-group" style="flex: 0 0 auto; margin-bottom:0;"><button type="submit" class="btn btn-primary" style="height:47.5px; padding: 0 24px;">Record</button></div>
+    </form>
+  </div>
 </div>
 
 <div class="card">
   <div class="card-header"><h3>All Payments</h3></div>
 
-  <form method="GET" class="form-row mb-3">
-    <div class="form-group">
+  <form method="GET" style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; margin-bottom: 24px;">
+    <div class="form-group" style="flex: 1 1 120px; margin-bottom:0;">
       <label>Status</label>
       <select name="status" onchange="this.form.submit()">
         <option value="">All</option>
@@ -152,7 +157,7 @@ include __DIR__ . '/../includes/dash-start.php';
         <option value="cancelled" <?= $statusFilter==='cancelled'?'selected':'' ?>>Cancelled</option>
       </select>
     </div>
-    <div class="form-group">
+    <div class="form-group" style="flex: 1 1 140px; margin-bottom:0;">
       <label>Payment Method</label>
       <select name="method_id" onchange="this.form.submit()">
         <option value="">All Methods</option>
@@ -161,19 +166,18 @@ include __DIR__ . '/../includes/dash-start.php';
         <?php endforeach; ?>
       </select>
     </div>
-    <div class="form-group"><label>From Date</label><input type="date" name="date_from" value="<?= e($dateFrom) ?>"></div>
-    <div class="form-group"><label>To Date</label><input type="date" name="date_to" value="<?= e($dateTo) ?>"></div>
-    <div class="form-group"><label>Search</label><input type="text" name="search" value="<?= e($search) ?>" placeholder="Name or reference #"></div>
-    <div class="form-group" style="align-self:end;"><button class="btn btn-primary">Search</button></div>
+    <div class="form-group" style="flex: 1 1 130px; margin-bottom:0;"><label>From Date</label><input type="date" name="date_from" value="<?= e($dateFrom) ?>"></div>
+    <div class="form-group" style="flex: 1 1 130px; margin-bottom:0;"><label>To Date</label><input type="date" name="date_to" value="<?= e($dateTo) ?>"></div>
+    <div class="form-group" style="flex: 2 1 200px; margin-bottom:0;"><label>Search</label><input type="text" name="search" value="<?= e($search) ?>" placeholder="Name or reference #"></div>
+    <div class="form-group" style="flex: 0 0 auto; margin-bottom:0;"><button class="btn btn-primary" style="height:47.5px; padding: 0 24px;">Search</button></div>
   </form>
 
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Ref #</th><th>Parishioner</th><th>Service</th><th>Amount</th><th>Method</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>Parishioner</th><th>Service</th><th>Amount</th><th>Payment Method</th><th>Status</th><th></th></tr></thead>
       <tbody>
         <?php foreach ($payments as $p): ?>
           <tr>
-            <td><?= e($p['reference_number']) ?></td>
             <td><?= $p['guest_name'] ? e($p['guest_name']) . ' <span class="text-muted">(guest)</span>' : e($p['firstname']) . ' ' . e($p['lastname']) ?></td>
             <td><?= e($p['service_name']) ?></td>
             <td><?= money($p['amount']) ?></td>
