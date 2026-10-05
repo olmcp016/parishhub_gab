@@ -13,19 +13,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $tempPassword = bin2hex(random_bytes(5));
             $hash = password_hash($tempPassword, PASSWORD_BCRYPT);
+            
+            $fname = ucwords(strtolower(trim($_POST['firstname'])));
+            $lname = ucwords(strtolower(trim($_POST['lastname'])));
+            
             $stmt = db()->prepare(
                 "INSERT INTO users (role_id, firstname, lastname, email, password, phone, status, must_change_password) VALUES (?, ?, ?, ?, ?, ?, 'active', 1)"
             );
-            $stmt->execute([$_POST['role_id'], $_POST['firstname'], $_POST['lastname'], $_POST['email'], $hash, $_POST['phone'] ?: null]);
+            $stmt->execute([$_POST['role_id'], $fname, $lname, trim($_POST['email']), $hash, trim($_POST['phone']) ?: null]);
             $newId = db()->lastInsertId();
             if ((int)$_POST['role_id'] === 1) {
                 db()->prepare('INSERT INTO parishioners (user_id) VALUES (?)')->execute([$newId]);
             }
-            logActivity($adminId, "Created staff account: {$_POST['firstname']} {$_POST['lastname']}", 'User Management');
+            logActivity($adminId, "Created staff account: {$fname} {$lname}", 'User Management');
             
             $_SESSION['temp_password_info'] = [
-                'name' => trim($_POST['firstname'] . ' ' . $_POST['lastname']),
-                'email' => $_POST['email'],
+                'name' => trim($fname . ' ' . $lname),
+                'email' => trim($_POST['email']),
                 'password' => $tempPassword
             ];
             flash('success', 'Staff account created successfully.');
