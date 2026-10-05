@@ -5,8 +5,25 @@ guestOnly();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifyCsrf();
-    $email = trim($_POST['email'] ?? '');
+
+    $isAjax = ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest';
+    if ($isAjax) {
+        header('Content-Type: application/json');
+    }
+
+    $email    = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
+
+    // Helper to send a response — JSON for AJAX, flash+redirect otherwise.
+    $fail = function (string $field, string $message) use ($isAjax, $email) {
+        if ($isAjax) {
+            echo json_encode(['ok' => false, 'field' => $field, 'message' => $message]);
+            exit;
+        }
+        keepOldInput(['email' => $email]);
+        flash('error', $message);
+        redirect(url('auth/login.php'));
+    };
 
     $stmt = db()->prepare(
         "SELECT u.*, r.role_name FROM users u JOIN roles r ON u.role_id = r.role_id WHERE u.email = ? LIMIT 1"
@@ -15,28 +32,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $user = $stmt->fetch();
 
     if (!$user) {
-        keepOldInput(['email' => $email]);
-        flash('error', 'Incorrect email or password. Please try again.');
-        redirect(url('auth/login.php'));
+        $fail('email', 'Email is invalid or not found.');
+        exit;
+    }
+
+    if ($user['email_verified_at'] === null) {
+        $fail('email', 'Please verify your email address before logging in. Check your inbox for the verification link.');
+        exit;
     }
 
     if ($user['status'] !== 'active') {
-        keepOldInput(['email' => $email]);
-        flash('error', 'Your account is not active. Please contact the parish office.');
-        redirect(url('auth/login.php'));
+        $fail('email', 'Your account is not active. Please contact the parish office.');
+        exit;
     }
 
     if (!password_verify($password, $user['password'])) {
-        keepOldInput(['email' => $email]);
-        flash('error', 'Incorrect email or password. Please try again.');
-        redirect(url('auth/login.php'));
+        $fail('password', 'Incorrect password. Please try again.');
+        exit;
     }
 
     if (!empty($user['must_change_password'])) {
         $_SESSION['force_change_password_user'] = [
             'user_id' => $user['user_id'],
-            'email' => $user['email']
+            'email'   => $user['email'],
         ];
+        if ($isAjax) {
+            echo json_encode(['ok' => true, 'redirect' => url('auth/force_change_password.php')]);
+            exit;
+        }
         redirect(url('auth/force_change_password.php'));
     }
 
@@ -53,8 +76,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     logActivity((int) $user['user_id'], "{$user['firstname']} {$user['lastname']} logged in", 'Auth');
 
+    $destination = redirectForRole($user['role_name']);
+    if ($isAjax) {
+        echo json_encode(['ok' => true, 'redirect' => $destination]);
+        exit;
+    }
+
     flash('success', 'Welcome back, ' . $user['firstname'] . '!');
-    redirect(redirectForRole($user['role_name']));
+    redirect($destination);
 }
 
 $pageTitle = 'Log In';
@@ -129,18 +158,50 @@ function parishToggle(id, btn) {
 }
 
 (function () {
-  var form = document.getElementById('loginForm');
-  var required = [
-    ['[name="email"]', 'your email address'],
-    ['[name="password"]', 'your password'],
-  ];
-  clearFieldErrorOnInput(form, required.map(function (f) { return f[0]; }));
+  var form    = document.getElementById('loginForm');
+  var emailEl = form.querySelector('[name="email"]');
+  var passEl  = form.querySelector('[name="password"]');
+  var btn     = form.querySelector('button[type="submit"]');
+
+  clearFieldErrorOnInput(form, ['[name="email"]', '[name="password"]']);
+
   form.addEventListener('submit', function (e) {
-    var firstInvalid = validateRequiredFields(form, required);
-    if (firstInvalid) {
-      e.preventDefault();
-      firstInvalid.focus();
-    }
+    e.preventDefault();
+
+    // Client-side empty checks first.
+    var firstInvalid = validateRequiredFields(form, [
+      ['[name="email"]',    'your email address'],
+      ['[name="password"]', 'your password'],
+    ]);
+    if (firstInvalid) { firstInvalid.focus(); return; }
+
+    btn.disabled = true;
+    btn.textContent = 'Logging in…';
+
+    var data = new URLSearchParams(new FormData(form));
+
+    fetch(form.action, {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      body: data,
+    })
+      .then(function (res) { return res.json(); })
+      .then(function (json) {
+        if (json.ok) {
+          window.location.href = json.redirect;
+          return;
+        }
+        btn.disabled = false;
+        btn.textContent = 'Login →';
+        var target = json.field === 'password' ? passEl : emailEl;
+        showFieldError(target, json.message || 'Login failed. Please try again.');
+        target.focus();
+      })
+      .catch(function () {
+        btn.disabled = false;
+        btn.textContent = 'Login →';
+        showFieldError(emailEl, 'Could not connect. Please check your internet and try again.');
+      });
   });
 })();
 </script>

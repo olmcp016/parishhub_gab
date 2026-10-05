@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/mailer.php';
 guestOnly();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -51,6 +52,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash('error', 'Password must be at least 8 characters.');
         redirect(url('auth/register.php'));
     }
+    if (!preg_match('/[A-Z]/', $password) || !preg_match('/[a-z]/', $password)) {
+        keepOldInput($oldInputToKeep);
+        flash('error', 'Password must contain at least one uppercase letter (A–Z) and one lowercase letter (a–z).');
+        redirect(url('auth/register.php'));
+    }
     if ($phone === '') {
         keepOldInput($oldInputToKeep);
         flash('error', 'Please enter your phone number.');
@@ -85,23 +91,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(url('auth/register.php'));
     }
 
-    $hash = password_hash($password, PASSWORD_BCRYPT);
+    $hash  = password_hash($password, PASSWORD_BCRYPT);
+    $token = bin2hex(random_bytes(32));
+    $expires = date('Y-m-d H:i:s', strtotime('+24 hours'));
 
     db()->beginTransaction();
     try {
         $stmt = db()->prepare(
-            "INSERT INTO users (role_id, firstname, lastname, middlename, email, password, phone, address, birthdate, gender, status)
-             VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')"
+            "INSERT INTO users
+               (role_id, firstname, lastname, middlename, email, password, phone, address, birthdate, gender,
+                status, verification_token, token_expires_at)
+             VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)"
         );
-        $stmt->execute([$firstname, $lastname, $middlename, $email, $hash, $phone, $address, $birthdate, $gender]);
+        $stmt->execute([$firstname, $lastname, $middlename, $email, $hash, $phone, $address, $birthdate, $gender, $token, $expires]);
         $userId = db()->lastInsertId();
 
         $stmt = db()->prepare('INSERT INTO parishioners (user_id) VALUES (?)');
         $stmt->execute([$userId]);
 
         db()->commit();
-        flash('success', 'Account created successfully! Please log in.');
-        redirect(url('auth/login.php'));
     } catch (Throwable $e) {
         db()->rollBack();
         error_log($e->getMessage());
@@ -109,6 +117,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash('error', 'Registration failed. Please try again.');
         redirect(url('auth/register.php'));
     }
+
+    // Send verification email via Brevo.
+    $verifyUrl = absoluteUrl('auth/verify-email.php') . '?token=' . urlencode($token);
+    $bodyHtml  = '<p>Hello <strong>' . htmlspecialchars($firstname) . '</strong>,</p>'
+               . '<p>Thank you for registering with the Parish Service Portal. '
+               . 'Please verify your email address by clicking the button below. '
+               . 'This link expires in <strong>24 hours</strong>.</p>';
+    $html = emailTemplate('Verify Your Email Address', $bodyHtml, $verifyUrl, 'Verify My Email');
+    $result = sendEmail($email, "$firstname $lastname", 'Verify your ParishHub email address', $html);
+
+    if (!$result['ok']) {
+        // Email failed but account was created — let them know so they can contact the office.
+        flash('success', 'Account created! However, we could not send a verification email right now. Please contact the parish office to manually activate your account.');
+    } else {
+        flash('success', 'Account created! A verification link has been sent to <strong>' . htmlspecialchars($email) . '</strong>. Please check your inbox (and spam folder) to activate your account.');
+    }
+    redirect(url('auth/login.php'));
 }
 
 $pageTitle = 'Create an Account';
@@ -195,6 +220,11 @@ include __DIR__ . '/../includes/header.php';
               <input type="password" name="password" id="pwField" required minlength="8" autocomplete="new-password">
               <button type="button" class="toggle-pw" onclick="parishToggle('pwField', this)"><i data-lucide="eye"></i></button>
             </div>
+            <div class="pw-rules" id="pwRules" aria-live="polite">
+              <span class="pw-rule" id="rule-len">At least 8 characters</span>
+              <span class="pw-rule" id="rule-upper">One uppercase letter (A–Z)</span>
+              <span class="pw-rule" id="rule-lower">One lowercase letter (a–z)</span>
+            </div>
           </div>
           <div class="form-group">
             <label>Confirm Password</label>
@@ -250,6 +280,13 @@ include __DIR__ . '/../includes/header.php';
     </div>
   </div>
 </div>
+<style>
+.pw-rules { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.pw-rule  { font-size: 12px; color: #9a8b6f; display: flex; align-items: center; gap: 6px; transition: color .15s; }
+.pw-rule::before { content: '○'; font-size: 10px; }
+.pw-rule.met { color: #2d8a4e; }
+.pw-rule.met::before { content: '✓'; }
+</style>
 <script src="<?= url('public/js/validation.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/validation.js') ?>"></script>
 <script>
 function parishToggle(id, btn) {
@@ -259,18 +296,37 @@ function parishToggle(id, btn) {
   if(window.lucide) { lucide.createIcons(); }
 }
 
+// ── Real-time password strength indicator ──────────────────
+(function () {
+  var pwField = document.getElementById('pwField');
+  if (!pwField) return;
+
+  function setRule(id, met) {
+    var el = document.getElementById(id);
+    if (el) el.className = 'pw-rule' + (met ? ' met' : '');
+  }
+
+  pwField.addEventListener('input', function () {
+    var v = this.value;
+    setRule('rule-len',   v.length >= 8);
+    setRule('rule-upper', /[A-Z]/.test(v));
+    setRule('rule-lower', /[a-z]/.test(v));
+  });
+})();
+
+// ── Form submit validation ─────────────────────────────────
 (function () {
   var form = document.getElementById('registerForm');
   var required = [
-    ['[name="lastname"]', 'your last name'],
-    ['[name="firstname"]', 'your first name'],
-    ['[name="email"]', 'your email address'],
-    ['[name="password"]', 'a password'],
-    ['[name="confirm_password"]', 'your password again'],
-    ['[name="phone"]', 'your phone number'],
-    ['[name="birthdate"]', 'your birthdate'],
-    ['[name="gender"]', 'your gender'],
-    ['[name="address"]', 'your address'],
+    ['[name="lastname"]',        'your last name'],
+    ['[name="firstname"]',       'your first name'],
+    ['[name="email"]',           'your email address'],
+    ['[name="password"]',        'a password'],
+    ['[name="confirm_password"]','your password again'],
+    ['[name="phone"]',           'your phone number'],
+    ['[name="birthdate"]',       'your birthdate'],
+    ['[name="gender"]',          'your gender'],
+    ['[name="address"]',         'your address'],
   ];
   clearFieldErrorOnInput(form, required.map(function (f) { return f[0]; }));
 
@@ -283,10 +339,14 @@ function parishToggle(id, btn) {
       firstInvalid = firstInvalid || email;
     }
 
-    var pw = form.querySelector('[name="password"]');
+    var pw  = form.querySelector('[name="password"]');
     var cpw = form.querySelector('[name="confirm_password"]');
     if (pw.value && pw.value.length < 8) {
       showFieldError(pw, 'Password must be at least 8 characters.');
+      firstInvalid = firstInvalid || pw;
+    }
+    if (pw.value && (!/[A-Z]/.test(pw.value) || !/[a-z]/.test(pw.value))) {
+      showFieldError(pw, 'Password must contain at least one uppercase and one lowercase letter.');
       firstInvalid = firstInvalid || pw;
     }
     if (pw.value && cpw.value && pw.value !== cpw.value) {

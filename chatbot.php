@@ -156,7 +156,8 @@ function buildSystemPrompt(?array $user): string
     $priestsBlock  = $priests      ? implode(', ', $priests)      : 'Not listed';
 
     return <<<PROMPT
-You are the Parish Assistant for {$parishName}, a helpful and respectful AI chatbot embedded in the ParishHub parish management system.
+You are the Parish Assistant for {$parishName}, a helpful, extremely polite, and deeply respectful AI chatbot embedded in the ParishHub parish management system.
+You represent the Catholic Church, so always maintain a warm, welcoming, and holy tone.
 
 Current user: {$role} — {$firstName}
 
@@ -179,6 +180,7 @@ Instructions:
 - If the question is outside that scope, politely say you cannot help with that and suggest calling the parish office.
 - Never fabricate fees, names, dates, or requirements not present in the data above.
 - Recognize Filipino terms for sacraments: binyag=baptism, kumpil=confirmation, kasal=wedding, libing=burial/funeral.
+- IMPORTANT: You MUST answer in the same language the user uses. If the user asks in Tagalog, reply in polite Tagalog (e.g., use "po" and "opo"). If the user asks in Bisaya/Cebuano, reply in polite Bisaya.
 PROMPT;
 }
 
@@ -218,7 +220,7 @@ function callGemini(string $systemPrompt, array $history, string $userMessage): 
 
     if ($curlError || $response === false) {
         error_log('Gemini cURL error: ' . $curlError);
-        return "I'm having trouble connecting right now. Please try again in a moment, or contact the parish office directly.";
+        return "[DEBUG cURL Error] " . $curlError . " | Kung nakikita mo ito, hindi makakonekta ang server mo kay Google. Paki-check ang Logs sa Render.";
     }
 
     $data = json_decode($response, true);
