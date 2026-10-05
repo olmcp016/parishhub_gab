@@ -634,7 +634,7 @@ tbody tr:hover { background: #faf8f0; }
 .stats-bar .stat-num { font-family: var(--font-heading); font-size: 34px; font-weight: 700; color: var(--gold-light); display: block; line-height: 1; }
 .stats-bar .stat-label { font-size: 11px; color: rgba(255, 255, 255, 0.5); text-transform: uppercase; letter-spacing: 1px; margin-top: 6px; }
 
-.section { padding: 88px 5%; max-width: 1150px; margin: 0 auto; }
+.section { padding: 48px 5%; max-width: 1150px; margin: 0 auto; }
 .section-eyebrow {
   font-size: 11px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase;
   color: var(--gold-dark); text-align: center; margin-bottom: 12px;
@@ -681,7 +681,7 @@ tbody tr:hover { background: #faf8f0; }
 /* ---------- "How It Works" — dark banded section ---------- */
 .how-section {
   background: var(--brown-dark);
-  padding: 88px 5%;
+  padding: 48px 5%;
   position: relative;
   overflow: hidden;
 }
@@ -709,7 +709,7 @@ tbody tr:hover { background: #faf8f0; }
 
 /* ---------- CTA band ---------- */
 .cta-section {
-  padding: 88px 5%;
+  padding: 48px 5%;
   text-align: center;
   background: linear-gradient(135deg, var(--cream-dark), var(--cream));
   position: relative;
