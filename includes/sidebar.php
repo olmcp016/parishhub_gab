@@ -163,3 +163,18 @@ function renderNavSection(string $slug, string $title, array $items, string $act
     </div>
   </div>
 </dialog>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const sidebarNav = document.getElementById('sidebarNav');
+  if (sidebarNav) {
+    const savedScroll = sessionStorage.getItem('sidebarScrollTop');
+    if (savedScroll !== null) {
+      sidebarNav.scrollTop = parseInt(savedScroll, 10);
+    }
+    window.addEventListener('beforeunload', () => {
+      sessionStorage.setItem('sidebarScrollTop', sidebarNav.scrollTop);
+    });
+  }
+});
+</script>
