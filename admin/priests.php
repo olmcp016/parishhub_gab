@@ -161,7 +161,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         logActivity(currentUser()['user_id'], "Created a Priest login for {$priest['title']} {$priest['full_name']} ($email)", 'Priests');
-        flash('success', "Login created for {$priest['title']} {$priest['full_name']}. Email: $email — Temporary password: $tempPassword (please relay this to the priest securely; it will not be shown again).");
+        $_SESSION['temp_password_info'] = [
+            'name' => trim($priest['title'] . ' ' . $priest['full_name']),
+            'email' => $email,
+            'password' => $tempPassword
+        ];
+        flash('success', "Login created successfully.");
     } elseif ($action === 'manage_login') {
         $priestId = (int) ($_POST['priest_id'] ?? 0);
         $operation = $_POST['login_operation'] ?? '';
@@ -185,7 +190,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $tempPassword = bin2hex(random_bytes(5));
             db()->prepare('UPDATE users SET password = ?, status = \'active\' WHERE user_id = ?')->execute([password_hash($tempPassword, PASSWORD_BCRYPT), (int) $account['user_id']]);
             logActivity(currentUser()['user_id'], "Reset Priest portal access for {$account['title']} {$account['full_name']}", 'Priests');
-            flash('success', "Portal access reset for {$account['title']} {$account['full_name']}. Temporary password: $tempPassword (please relay this securely; it will not be shown again).");
+            $_SESSION['temp_password_info'] = [
+                'name' => trim($account['title'] . ' ' . $account['full_name']),
+                'email' => $account['email'],
+                'password' => $tempPassword
+            ];
+            flash('success', "Portal access reset successfully.");
         }
     }
     redirect(url('admin/priests.php'));
@@ -505,5 +515,47 @@ document.getElementById('addPriestForm').addEventListener('submit', function (e)
 });
 </script>
 
-<?php include __DIR__ . '/../includes/dash-end.php'; ?>
+<?php if (isset($_SESSION['temp_password_info'])): 
+    $tp = $_SESSION['temp_password_info'];
+    unset($_SESSION['temp_password_info']);
+?>
+<dialog class="modal" id="tempPasswordModal" style="max-width:450px; text-align:center;">
+  <div class="modal-body" style="padding: 30px 20px;">
+    <div style="background:var(--bg-success); color:var(--success); width:60px; height:60px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 20px;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+    </div>
+    <h3 style="margin-top:0;">Access Configured!</h3>
+    <p style="color:var(--text-muted); margin-bottom:20px;">
+      Portal login for <strong><?= e($tp['name']) ?></strong> has been generated. Please provide them with the following temporary password.
+    </p>
+    <div style="background:var(--bg-secondary); padding:15px; border-radius:8px; border:1px dashed #ccc; margin-bottom:20px;">
+      <div style="font-size:24px; font-weight:bold; letter-spacing:2px; font-family:monospace; color:var(--text-primary);" id="tempPwdText"><?= e($tp['password']) ?></div>
+    </div>
+    <button type="button" class="btn btn-primary btn-block" id="copyTempPwdBtn" style="margin-bottom:10px;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+      Copy Password
+    </button>
+    <button type="button" class="btn btn-outline btn-block" onclick="document.getElementById('tempPasswordModal').close()">I've copied it</button>
+  </div>
+</dialog>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var modal = document.getElementById('tempPasswordModal');
+    if (modal) {
+        modal.showModal();
+        document.getElementById('copyTempPwdBtn').addEventListener('click', function() {
+            var pwd = document.getElementById('tempPwdText').textContent;
+            navigator.clipboard.writeText(pwd).then(function() {
+                var btn = document.getElementById('copyTempPwdBtn');
+                btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><polyline points="20 6 9 17 4 12"></polyline></svg> Copied!';
+                btn.classList.replace('btn-primary', 'btn-success');
+                setTimeout(() => {
+                    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg> Copy Password';
+                    btn.classList.replace('btn-success', 'btn-primary');
+                }, 2000);
+            });
+        });
+    }
+});
+</script><?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
