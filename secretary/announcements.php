@@ -113,14 +113,14 @@ include __DIR__ . '/../includes/dash-start.php';
     
     <div style="display:flex; flex-wrap:wrap; gap:32px;">
       <div style="flex: 1 1 350px;">
-        <div class="form-group"><label>Title</label><input type="text" name="title" required></div>
+        <div class="form-group"><label>Title</label><input type="text" name="title" id="annTitleInput" required></div>
         <div class="form-group">
           <label>Category</label>
-          <select name="category">
+          <select name="category" id="annCategoryInput">
             <?php foreach (ANNOUNCEMENT_CATEGORIES as $cat): ?><option value="<?= e($cat) ?>"><?= e($cat) ?></option><?php endforeach; ?>
           </select>
         </div>
-        <div class="form-group"><label>Content</label><textarea name="content" rows="4" required></textarea></div>
+        <div class="form-group"><label>Content</label><textarea name="content" id="annContentInput" rows="4" required></textarea></div>
         
         <div class="form-group">
           <label>Duration</label>
@@ -147,7 +147,7 @@ include __DIR__ . '/../includes/dash-start.php';
         </div>
 
         <div class="form-group">
-          <label><input type="checkbox" name="is_pinned" value="1" style="width:auto; display:inline-block; margin-right:6px;"> Pin to top</label>
+          <label><input type="checkbox" name="is_pinned" id="annPinnedInput" value="1" style="width:auto; display:inline-block; margin-right:6px;"> Pin to top</label>
         </div>
         <button type="submit" class="btn btn-primary">Publish</button>
       </div>
@@ -157,11 +157,32 @@ include __DIR__ . '/../includes/dash-start.php';
           <label>Poster / Image (optional)</label>
           <input type="file" name="image" id="announcementImage" accept=".jpg,.jpeg,.png,.pdf" onchange="previewAnnouncementImage(event)">
         </div>
-        <div id="imagePreviewContainer" style="display:none; flex: 1; min-height: 200px; border: 1.5px dashed var(--cream-dark); border-radius: 10px; padding: 12px; text-align: center; background: #faf8f0; align-items:center; justify-content:center; flex-direction:column;">
-          <span style="font-size: 12px; font-weight: 700; color: var(--brown-mid); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Preview</span>
-          <img id="imagePreview" src="" alt="Preview" style="max-width: 100%; max-height: 250px; border-radius: 6px; object-fit: contain; margin-bottom: 12px; display: none;">
-          <div id="pdfPreview" style="display:none; color: var(--brown-dark); font-weight:600; margin: 20px 0;">📄 PDF Document Selected</div>
-          <button type="button" class="btn btn-outline btn-sm" onclick="clearAnnouncementImage()">Remove File</button>
+        
+        <div class="form-group" style="margin-top:16px;">
+          <label>Live Preview</label>
+          <div style="background:var(--cream-dark,#f4ecdc); padding:16px; border-radius:10px; display:flex; justify-content:center;">
+            <article class="ann-card" style="margin:0; width:100%; pointer-events:none;">
+              <div class="ann-thumb" id="livePreviewThumb" style="display:none;">
+                 <img id="livePreviewImg" src="" alt="">
+              </div>
+              <div class="ann-thumb ann-thumb-pdf" id="livePreviewPdf" style="display:none;">
+                 <span>📄 Poster (PDF)</span>
+              </div>
+              <div class="ann-body">
+                <div class="ann-badges">
+                  <span class="ann-cat" id="livePreviewCat">Announcement</span>
+                  <span class="badge badge-pending" id="livePreviewPinned" style="display:none;">📌 Pinned</span>
+                </div>
+                <h3 class="ann-title" id="livePreviewTitle">Your Title Here</h3>
+                <span class="ann-date">Just Now</span>
+                <p class="ann-excerpt" id="livePreviewExcerpt">Your announcement content will appear here...</p>
+                <span class="ann-more">Read More →</span>
+              </div>
+            </article>
+          </div>
+          <div style="text-align:right; margin-top:8px;">
+             <button type="button" class="btn btn-outline btn-sm" id="removeImgBtn" style="display:none;" onclick="clearAnnouncementImage()">Remove File</button>
+          </div>
         </div>
       </div>
     </div>
@@ -260,26 +281,46 @@ include __DIR__ . '/../includes/dash-start.php';
 </dialog>
 
 <script>
+function updateLivePreview() {
+  document.getElementById('livePreviewTitle').textContent = document.getElementById('annTitleInput').value || 'Your Title Here';
+  document.getElementById('livePreviewCat').textContent = document.getElementById('annCategoryInput').value || 'Announcement';
+  
+  let content = document.getElementById('annContentInput').value || 'Your announcement content will appear here...';
+  if (content.length > 120) content = content.substring(0, 120) + '...';
+  document.getElementById('livePreviewExcerpt').textContent = content;
+  
+  document.getElementById('livePreviewPinned').style.display = document.getElementById('annPinnedInput').checked ? 'inline-flex' : 'none';
+}
+
+document.getElementById('annTitleInput').addEventListener('input', updateLivePreview);
+document.getElementById('annCategoryInput').addEventListener('change', updateLivePreview);
+document.getElementById('annContentInput').addEventListener('input', updateLivePreview);
+document.getElementById('annPinnedInput').addEventListener('change', updateLivePreview);
+
 function previewAnnouncementImage(event) {
   const file = event.target.files[0];
-  const container = document.getElementById('imagePreviewContainer');
-  const imgPreview = document.getElementById('imagePreview');
-  const pdfPreview = document.getElementById('pdfPreview');
+  const thumb = document.getElementById('livePreviewThumb');
+  const imgPreview = document.getElementById('livePreviewImg');
+  const pdfPreview = document.getElementById('livePreviewPdf');
+  const removeBtn = document.getElementById('removeImgBtn');
+  const excerpt = document.getElementById('livePreviewExcerpt');
 
   if (file && file.type.startsWith('image/')) {
     const reader = new FileReader();
     reader.onload = function(e) {
       imgPreview.src = e.target.result;
-      imgPreview.style.display = 'block';
+      thumb.style.display = 'block';
       pdfPreview.style.display = 'none';
-      container.style.display = 'flex';
+      removeBtn.style.display = 'inline-block';
+      excerpt.classList.remove('ann-excerpt-long');
     };
     reader.readAsDataURL(file);
   } else if (file && file.type === 'application/pdf') {
-    imgPreview.style.display = 'none';
+    thumb.style.display = 'none';
     imgPreview.src = '';
     pdfPreview.style.display = 'block';
-    container.style.display = 'flex';
+    removeBtn.style.display = 'inline-block';
+    excerpt.classList.remove('ann-excerpt-long');
   } else {
     clearAnnouncementImage();
   }
@@ -287,10 +328,11 @@ function previewAnnouncementImage(event) {
 
 function clearAnnouncementImage() {
   document.getElementById('announcementImage').value = '';
-  document.getElementById('imagePreviewContainer').style.display = 'none';
-  document.getElementById('imagePreview').src = '';
-  document.getElementById('imagePreview').style.display = 'none';
-  document.getElementById('pdfPreview').style.display = 'none';
+  document.getElementById('livePreviewThumb').style.display = 'none';
+  document.getElementById('livePreviewImg').src = '';
+  document.getElementById('livePreviewPdf').style.display = 'none';
+  document.getElementById('removeImgBtn').style.display = 'none';
+  document.getElementById('livePreviewExcerpt').classList.add('ann-excerpt-long');
 }
 
 function toggleDurationFields() {
