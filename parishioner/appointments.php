@@ -8,25 +8,16 @@ $stmt = db()->prepare('SELECT parishioner_id FROM parishioners WHERE user_id = ?
 $stmt->execute([$userId]);
 $parishionerId = $stmt->fetchColumn();
 
-/**
- * The main list only ever shows appointments whose date hasn't passed yet
- * (newest requested first) — once the date passes, it drops off here
- * automatically and only ever shows up in the History modal instead, same
- * pattern as secretary/appointments.php. History is its own AJAX-loaded
- * fragment (same page, ?history=1) with its own status filter and
- * pagination; a normal page load always shows the upcoming list.
- */
-$isHistoryFragment = isDetailModalRequest() && ($_GET['history'] ?? '') === '1';
 $statusFilter = $_GET['status'] ?? '';
 
-function fetchMyAppointmentsPage(int $parishionerId, bool $history, string $statusFilter): array
+function fetchMyAppointmentsPage(int $parishionerId, string $statusFilter): array
 {
     $sql = "SELECT a.*, s.service_name, s.fee, s.category, st.status_name, p.full_name AS priest_name
             FROM appointments a
             JOIN services s ON a.service_id = s.service_id
             JOIN appointment_status st ON a.status_id = st.status_id
             LEFT JOIN priests p ON a.priest_id = p.priest_id
-            WHERE a.parishioner_id = ? AND s.category != 'Donation' AND a.appointment_date " . ($history ? '<' : '>=') . ' CURRENT_DATE';
+            WHERE a.parishioner_id = ? AND s.category != 'Donation'";
     $params = [$parishionerId];
     if ($statusFilter) {
         $sql .= ' AND st.status_name = ?';
@@ -42,7 +33,7 @@ function fetchMyAppointmentsPage(int $parishionerId, bool $history, string $stat
     $countStmt->execute($params);
     $pagination = paginate((int) $countStmt->fetchColumn(), 10);
 
-    $sql .= ' ORDER BY ' . ($history ? 'a.appointment_date DESC' : 'a.created_at DESC') . ' LIMIT ? OFFSET ?';
+    $sql .= ' ORDER BY a.created_at DESC LIMIT ? OFFSET ?';
     $stmt = db()->prepare($sql);
     foreach ($params as $i => $val) {
         $stmt->bindValue($i + 1, $val);
@@ -106,32 +97,8 @@ function renderMyAppointmentsTable(array $appointments): void
     <?php
 }
 
-if ($isHistoryFragment) {
-    // ---- AJAX fragment for the History modal only — bare content, no page shell ----
-    [$historyAppointments, $historyPagination] = fetchMyAppointmentsPage($parishionerId, true, $statusFilter);
-    $historyPaginationUrl = url('parishioner/appointments.php') . '?' . http_build_query(array_filter(['status' => $statusFilter])) . '&history=1';
-    ?>
-    <form method="GET" action="<?= url('parishioner/appointments.php') ?>" class="form-row mb-3 js-history-filter">
-      <input type="hidden" name="history" value="1">
-      <div class="form-group">
-        <label>Filter by Status</label>
-        <select name="status">
-          <option value="">All</option>
-          <option value="Completed" <?= $statusFilter==='Completed'?'selected':'' ?>>Completed</option>
-          <option value="Cancelled" <?= $statusFilter==='Cancelled'?'selected':'' ?>>Cancelled</option>
-          <option value="Rejected" <?= $statusFilter==='Rejected'?'selected':'' ?>>Rejected</option>
-        </select>
-      </div>
-      <div class="form-group" style="align-self:end;"><button class="btn btn-primary">Filter</button></div>
-    </form>
-    <?php renderMyAppointmentsTable($historyAppointments); ?>
-    <?= renderPagination($historyPagination, $historyPaginationUrl) ?>
-    <?php
-    exit;
-}
-
-// ---- Normal page load — the upcoming (not-yet-past-due) list ----
-[$appointments, $pagination] = fetchMyAppointmentsPage($parishionerId, false, '');
+$paginationUrl = url('parishioner/appointments.php') . '?' . http_build_query(array_filter(['status' => $statusFilter]));
+[$appointments, $pagination] = fetchMyAppointmentsPage($parishionerId, $statusFilter);
 
 $active = 'appointments';
 $pageTitle = 'My Appointments';
@@ -140,12 +107,21 @@ include __DIR__ . '/../includes/dash-start.php';
 ?>
 
 <div class="card">
-  <div class="card-header">
+  <div class="card-header" style="flex-wrap:wrap; gap:16px;">
     <h3>My Appointments</h3>
-    <div class="flex gap-2">
-      <button type="button" class="btn btn-outline btn-sm" onclick="openHistoryModal()">🕒 History</button>
+    <form method="GET" action="<?= url('parishioner/appointments.php') ?>" style="display:flex; gap:8px; align-items:center;">
+      <select name="status" class="form-control form-control-sm" style="width:auto; height:34px;" onchange="this.form.submit()">
+        <option value="">All Statuses</option>
+        <option value="Pending" <?= $statusFilter==='Pending'?'selected':'' ?>>Pending</option>
+        <option value="Approved" <?= $statusFilter==='Approved'?'selected':'' ?>>Approved</option>
+        <option value="Payment Verified" <?= $statusFilter==='Payment Verified'?'selected':'' ?>>Payment Verified</option>
+        <option value="Confirmed" <?= $statusFilter==='Confirmed'?'selected':'' ?>>Confirmed</option>
+        <option value="Completed" <?= $statusFilter==='Completed'?'selected':'' ?>>Completed</option>
+        <option value="Cancelled" <?= $statusFilter==='Cancelled'?'selected':'' ?>>Cancelled</option>
+        <option value="Rejected" <?= $statusFilter==='Rejected'?'selected':'' ?>>Rejected</option>
+      </select>
       <a href="<?= url('parishioner/services.php') ?>" class="btn btn-primary btn-sm">+ New Booking</a>
-    </div>
+    </form>
   </div>
 
   <?php if (empty($appointments)): ?>
@@ -155,51 +131,10 @@ include __DIR__ . '/../includes/dash-start.php';
     </div>
   <?php else: ?>
     <?php renderMyAppointmentsTable($appointments); ?>
-    <?= renderPagination($pagination, url('parishioner/appointments.php')) ?>
+    <?= renderPagination($pagination, $paginationUrl) ?>
   <?php endif; ?>
 </div>
 
-<dialog class="modal modal-xl" id="historyModal">
-  <div class="modal-head">
-    <h3>Appointment History</h3>
-    <button type="button" class="modal-close" onclick="document.getElementById('historyModal').close()">✕</button>
-  </div>
-  <div class="modal-body" id="historyModalBody"></div>
-</dialog>
-
-<script>
-function loadHistoryFragment(url) {
-  var body = document.getElementById('historyModalBody');
-  body.innerHTML = '<p class="text-muted" style="padding:30px; text-align:center;">Loading…</p>';
-  fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-    .then(function (res) { return res.text(); })
-    .then(function (html) { body.innerHTML = html; })
-    .catch(function () {
-      body.innerHTML = '<p class="text-muted" style="padding:30px; text-align:center;">Could not load history. Please try again.</p>';
-    });
-}
-function openHistoryModal() {
-  document.getElementById('historyModal').showModal();
-  loadHistoryFragment('<?= url('parishioner/appointments.php') ?>?history=1');
-}
-document.addEventListener('DOMContentLoaded', function () {
-  var body = document.getElementById('historyModalBody');
-  body.addEventListener('click', function (e) {
-    var link = e.target.closest('a[href]');
-    if (link && body.contains(link)) {
-      e.preventDefault();
-      loadHistoryFragment(link.getAttribute('href'));
-    }
-  });
-  body.addEventListener('submit', function (e) {
-    var form = e.target.closest('.js-history-filter');
-    if (!form) return;
-    e.preventDefault();
-    var qs = new URLSearchParams(new FormData(form)).toString();
-    loadHistoryFragment(form.getAttribute('action') + '?' + qs);
-  });
-});
-</script>
 
 <?php include __DIR__ . '/../includes/detail-modal.php'; ?>
 
