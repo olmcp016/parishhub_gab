@@ -158,46 +158,51 @@ include __DIR__ . '/../includes/dash-start.php';
 </div>
 
 <div class="card">
-  <div class="card-header"><h3>Record a Donation</h3></div>
-  <p class="helper-text" style="margin-top:-6px; margin-bottom:16px;">For cash or in-person donations, or any offering received outside the website. This is recorded as already verified — no separate confirmation step needed.</p>
-  <form method="POST" action="<?= url('treasurer/donations.php') ?>" class="form-row" style="align-items:end;">
-    <?= csrfField() ?>
-    <input type="hidden" name="action" value="manual">
-    <div class="form-group">
-      <label>Registered Parishioner (optional)</label>
-      <input type="hidden" name="parishioner_id" id="donationParishionerIdInput" value="">
-      <div class="flex gap-2" style="align-items:center; flex-wrap:wrap;">
-        <span id="donationParishionerDisplay" class="text-muted" style="min-width:180px;">Walk-in / Not a member</span>
-        <button type="button" class="btn btn-outline btn-sm" onclick="openParishionerPicker()">Select</button>
-        <button type="button" class="btn btn-outline btn-sm" id="donationParishionerClearBtn" style="display:none;" onclick="clearParishionerPicker()">Clear</button>
+  <div class="card-header" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;" onclick="var f = document.getElementById('recordDonationForm'), i = document.getElementById('recordDonationIcon'); if (f.style.display === 'none') { f.style.display = 'block'; i.setAttribute('data-lucide', 'chevron-up'); } else { f.style.display = 'none'; i.setAttribute('data-lucide', 'chevron-down'); } lucide.createIcons();">
+    <h3 style="margin: 0;">Record a Donation</h3>
+    <button type="button" class="btn btn-outline btn-sm" style="display:flex; align-items:center; gap:6px;"><i data-lucide="chevron-down" id="recordDonationIcon" style="width:16px; height:16px;"></i> Toggle Form</button>
+  </div>
+  <div id="recordDonationForm" style="display: none; padding-top: 16px;">
+    <p class="helper-text" style="margin-top:0; margin-bottom:16px;">For cash or in-person donations, or any offering received outside the website. This is recorded as already verified — no separate confirmation step needed.</p>
+    <form method="POST" action="<?= url('treasurer/donations.php') ?>" style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end;">
+      <?= csrfField() ?>
+      <input type="hidden" name="action" value="manual">
+      <div class="form-group" style="flex: 1 1 250px; margin-bottom:0;">
+        <label>Registered Parishioner (optional)</label>
+        <input type="hidden" name="parishioner_id" id="donationParishionerIdInput" value="">
+        <div class="flex gap-2" style="align-items:center; flex-wrap:wrap; height:47.5px;">
+          <span id="donationParishionerDisplay" class="text-muted" style="min-width:160px;">Walk-in / Not a member</span>
+          <button type="button" class="btn btn-outline btn-sm" style="height:32px; padding: 0 12px;" onclick="openParishionerPicker()">Select</button>
+          <button type="button" class="btn btn-outline btn-sm" id="donationParishionerClearBtn" style="display:none; height:32px; padding: 0 12px;" onclick="clearParishionerPicker()">Clear</button>
+        </div>
       </div>
-    </div>
-    <div class="form-group"><label>Donor Name (optional)</label><input type="text" name="donor_name" placeholder="Leave blank for Anonymous"></div>
-    <div class="form-group"><label>Email (optional)</label><input type="email" name="donor_email"></div>
-    <div class="form-group"><label>Amount</label><input type="number" name="amount" min="0.01" step="0.01" required></div>
-    <div class="form-group">
-      <label>Purpose</label>
-      <select name="purpose">
-        <?php foreach ($purposes as $p): ?><option value="<?= e($p) ?>"><?= e($p) ?></option><?php endforeach; ?>
-      </select>
-    </div>
-    <div class="form-group">
-      <label>Payment Method</label>
-      <select name="method_id" required>
-        <option value="">-- Select --</option>
-        <?php foreach ($methods as $id => $label): ?><option value="<?= $id ?>"><?= e($label) ?></option><?php endforeach; ?>
-      </select>
-    </div>
-    <div class="form-group"><label>Reference # (optional)</label><input type="text" name="reference_number"></div>
-    <div class="form-group"><button type="submit" class="btn btn-primary">Record Donation</button></div>
-  </form>
+      <div class="form-group" style="flex: 1 1 180px; margin-bottom:0;"><label>Donor Name (optional)</label><input type="text" name="donor_name" placeholder="Leave blank for Anonymous"></div>
+      <div class="form-group" style="flex: 1 1 180px; margin-bottom:0;"><label>Email (optional)</label><input type="email" name="donor_email"></div>
+      <div class="form-group" style="flex: 1 1 120px; margin-bottom:0;"><label>Amount</label><input type="number" name="amount" min="0.01" step="0.01" required></div>
+      <div class="form-group" style="flex: 1 1 180px; margin-bottom:0;">
+        <label>Purpose</label>
+        <select name="purpose">
+          <?php foreach ($purposes as $p): ?><option value="<?= e($p) ?>"><?= e($p) ?></option><?php endforeach; ?>
+        </select>
+      </div>
+      <div class="form-group" style="flex: 1 1 150px; margin-bottom:0;">
+        <label>Payment Method</label>
+        <select name="method_id" required>
+          <option value="">-- Select --</option>
+          <?php foreach ($methods as $id => $label): ?><option value="<?= $id ?>"><?= e($label) ?></option><?php endforeach; ?>
+        </select>
+      </div>
+      <div class="form-group" style="flex: 1 1 180px; margin-bottom:0;"><label>Reference # (optional)</label><input type="text" name="reference_number"></div>
+      <div class="form-group" style="flex: 0 0 auto; margin-bottom:0;"><button type="submit" class="btn btn-primary" style="height:47.5px; padding: 0 24px;">Record</button></div>
+    </form>
+  </div>
 </div>
 
 <div class="card">
   <div class="card-header"><h3>Donations</h3></div>
 
-  <form method="GET" class="form-row mb-3">
-    <div class="form-group">
+  <form method="GET" style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; margin-bottom: 24px;">
+    <div class="form-group" style="flex: 1 1 150px; margin-bottom:0;">
       <label>Status</label>
       <select name="status" onchange="this.form.submit()">
         <option value="">All</option>
@@ -208,13 +213,13 @@ include __DIR__ . '/../includes/dash-start.php';
         <option value="cancelled" <?= $statusFilter==='cancelled'?'selected':'' ?>>Cancelled</option>
       </select>
     </div>
-    <div class="form-group"><label>Search</label><input type="text" name="search" value="<?= e($search) ?>" placeholder="Donor name, email, or purpose"></div>
-    <div class="form-group" style="align-self:end;"><button class="btn btn-primary">Search</button></div>
+    <div class="form-group" style="flex: 3 1 300px; margin-bottom:0;"><label>Search</label><input type="text" name="search" value="<?= e($search) ?>" placeholder="Donor name, email, or purpose"></div>
+    <div class="form-group" style="flex: 0 0 auto; margin-bottom:0;"><button class="btn btn-primary" style="height:47.5px; padding: 0 24px;">Search</button></div>
   </form>
 
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Date</th><th>Donor</th><th>Purpose</th><th>Amount</th><th>Method</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>Date</th><th>Donor</th><th>Purpose</th><th>Amount</th><th>Payment Method</th><th>Status</th><th></th></tr></thead>
       <tbody>
         <?php foreach ($donations as $d): ?>
           <tr>
