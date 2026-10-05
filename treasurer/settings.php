@@ -87,13 +87,35 @@ $pageTitle = 'Settings';
 include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/dash-start.php';
 ?>
-<div class="card" style="max-width:640px;"><div class="card-header"><h3>Profile &amp; Account Settings</h3></div>
-<form method="POST" enctype="multipart/form-data" id="cashierProfileForm"><?= csrfField() ?><input type="hidden" name="action" value="profile">
-<div class="profile-photo-editor"><?php if ($photoUrl): ?><img class="profile-photo-preview" src="<?= e($photoUrl) ?>" alt="Profile photo"><?php else: ?><div class="profile-photo-preview profile-initials-avatar"><?= e($initials ?: 'C') ?></div><?php endif; ?><div><label for="cashierProfilePhoto">Profile Photo</label><input type="file" name="profile_photo" id="cashierProfilePhoto" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"><p class="helper-text">JPG, PNG, or WEBP up to 2 MB.</p><?php if ($photoUrl): ?><button type="button" class="btn btn-outline btn-sm" id="removeCashierPhoto">Remove Photo</button><?php endif; ?></div></div>
-<div class="form-group"><label>Full Name</label><input type="text" name="full_name" required value="<?= e(trim(($profile['firstname'] ?? '') . ' ' . ($profile['lastname'] ?? ''))) ?>"></div>
-<div class="form-group"><label>Email Address</label><input type="email" name="email" required value="<?= e($profile['email'] ?? '') ?>"></div>
-<div class="form-group"><label>Contact Number</label><input type="tel" name="phone" inputmode="numeric" value="<?= e($profile['phone'] ?? '') ?>"></div><button class="btn btn-primary" type="submit">Save Profile Changes</button></form></div>
-<div class="card" style="max-width:640px;"><div class="card-header"><h3>Change Password</h3></div><form method="POST"><?= csrfField() ?><input type="hidden" name="action" value="password"><div class="form-group"><label>Current Password *</label><input type="password" name="current_password" required autocomplete="current-password"></div><div class="form-group"><label>New Password *</label><input type="password" name="new_password" required minlength="8" autocomplete="new-password"></div><div class="form-group"><label>Confirm New Password *</label><input type="password" name="confirm_password" required minlength="8" autocomplete="new-password"></div><button class="btn btn-primary" type="submit">Change Password</button></form></div>
+<div class="card">
+  <div class="card-header"><h3>Account Settings</h3></div>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 32px;">
+    
+    <div>
+      <h4 style="margin-top: 0; margin-bottom: 20px; color: var(--text-muted, #555);">Profile Information</h4>
+      <form method="POST" enctype="multipart/form-data" id="cashierProfileForm">
+        <?= csrfField() ?><input type="hidden" name="action" value="profile">
+        <div class="profile-photo-editor"><?php if ($photoUrl): ?><img class="profile-photo-preview" src="<?= e($photoUrl) ?>" alt="Profile photo"><?php else: ?><div class="profile-photo-preview profile-initials-avatar"><?= e($initials ?: 'C') ?></div><?php endif; ?><div><label for="cashierProfilePhoto">Profile Photo</label><input type="file" name="profile_photo" id="cashierProfilePhoto" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"><p class="helper-text">JPG, PNG, or WEBP up to 2 MB.</p><?php if ($photoUrl): ?><button type="button" class="btn btn-outline btn-sm" id="removeCashierPhoto">Remove Photo</button><?php endif; ?></div></div>
+        <div class="form-group"><label>Full Name</label><input type="text" name="full_name" required value="<?= e(trim(($profile['firstname'] ?? '') . ' ' . ($profile['lastname'] ?? ''))) ?>"></div>
+        <div class="form-group"><label>Email Address</label><input type="email" name="email" required value="<?= e($profile['email'] ?? '') ?>"></div>
+        <div class="form-group"><label>Contact Number</label><input type="tel" name="phone" inputmode="numeric" value="<?= e($profile['phone'] ?? '') ?>"></div>
+        <button class="btn btn-primary" type="submit">Save Profile Changes</button>
+      </form>
+    </div>
+
+    <div>
+      <h4 style="margin-top: 0; margin-bottom: 20px; color: var(--text-muted, #555);">Change Password</h4>
+      <form method="POST">
+        <?= csrfField() ?><input type="hidden" name="action" value="password">
+        <div class="form-group"><label>Current Password *</label><input type="password" name="current_password" required autocomplete="current-password"></div>
+        <div class="form-group"><label>New Password *</label><input type="password" name="new_password" required minlength="8" autocomplete="new-password"></div>
+        <div class="form-group"><label>Confirm New Password *</label><input type="password" name="confirm_password" required minlength="8" autocomplete="new-password"></div>
+        <button class="btn btn-primary" type="submit">Update Password</button>
+      </form>
+    </div>
+
+  </div>
+</div>
 <dialog class="modal" id="removeCashierPhotoModal"><div class="modal-head"><h3>Remove Profile Photo?</h3><button type="button" class="modal-close" id="closeCashierPhoto">✕</button></div><div class="modal-body"><p>Your current profile photo will be removed. Your initials will be shown instead.</p><form method="POST"><?= csrfField() ?><input type="hidden" name="action" value="remove_photo"><div class="flex gap-3" style="justify-content:flex-end;"><button type="button" class="btn btn-outline" id="cancelCashierPhoto">Cancel</button><button class="btn btn-danger" type="submit">Remove Photo</button></div></form></div></dialog>
 <script>(function(){var f=document.getElementById('cashierProfilePhoto'),p=document.querySelector('.profile-photo-preview');if(f)f.addEventListener('change',function(){var x=f.files&&f.files[0];if(!x)return;if(!/^image\/(jpeg|png|webp)$/.test(x.type)||x.size>2097152){f.value='';return;}var r=new FileReader();r.onload=function(){if(p.tagName.toLowerCase()==='img')p.src=r.result;else{var i=document.createElement('img');i.className=p.className;i.alt='Profile photo preview';i.src=r.result;p.replaceWith(i);p=i;}};r.readAsDataURL(x);});var m=document.getElementById('removeCashierPhotoModal'),b=document.getElementById('removeCashierPhoto');if(b)b.onclick=function(){m.showModal();};document.getElementById('closeCashierPhoto').onclick=function(){m.close();};document.getElementById('cancelCashierPhoto').onclick=function(){m.close();};})();</script>
 <?php include __DIR__ . '/../includes/dash-end.php'; include __DIR__ . '/../includes/footer.php'; ?>
