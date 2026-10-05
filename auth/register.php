@@ -118,21 +118,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(url('auth/register.php'));
     }
 
-    // Send verification email via Brevo.
+    // Attempt to send the verification email BEFORE declaring success.
+    // If delivery fails the account is useless — roll it back entirely so the
+    // user can correct their address and try again with a clean slate.
     $verifyUrl = absoluteUrl('auth/verify-email.php') . '?token=' . urlencode($token);
     $bodyHtml  = '<p>Hello <strong>' . htmlspecialchars($firstname) . '</strong>,</p>'
                . '<p>Thank you for registering with the Parish Service Portal. '
                . 'Please verify your email address by clicking the button below. '
                . 'This link expires in <strong>24 hours</strong>.</p>';
-    $html = emailTemplate('Verify Your Email Address', $bodyHtml, $verifyUrl, 'Verify My Email');
+    $html   = emailTemplate('Verify Your Email Address', $bodyHtml, $verifyUrl, 'Verify My Email');
     $result = sendEmail($email, "$firstname $lastname", 'Verify your ParishHub email address', $html);
 
     if (!$result['ok']) {
-        // Email failed but account was created — let them know so they can contact the office.
-        flash('success', 'Account created! However, we could not send a verification email right now. Please contact the parish office to manually activate your account.');
-    } else {
-        flash('success', 'Account created! A verification link has been sent to <strong>' . htmlspecialchars($email) . '</strong>. Please check your inbox (and spam folder) to activate your account.');
+        // Roll back: delete the user row — ON DELETE CASCADE removes the parishioner row too.
+        try {
+            db()->prepare('DELETE FROM users WHERE user_id = ?')->execute([$userId]);
+        } catch (Throwable $ex) {
+            error_log('Register rollback failed: ' . $ex->getMessage());
+        }
+        keepOldInput($oldInputToKeep);
+        flash('error', 'Failed to send verification email. Please make sure your email address is active and valid, then try again.');
+        redirect(url('auth/register.php'));
     }
+
+    flash('success', 'Account created! A verification link has been sent to <strong>' . htmlspecialchars($email) . '</strong>. Please check your inbox (and spam folder) to activate your account.');
     redirect(url('auth/login.php'));
 }
 
@@ -274,6 +283,20 @@ include __DIR__ . '/../includes/header.php';
         <button type="submit" class="btn btn-primary btn-block"><i data-lucide="user-plus" style="width:18px;height:18px;vertical-align:text-bottom;margin-right:6px;"></i> Create My Account</button>
       </form>
 
+      <dialog id="confirmEmailModal" style="max-width:420px;width:90%;padding:0;border:none;border-radius:14px;box-shadow:0 8px 40px rgba(0,0,0,0.18);">
+        <div style="padding:36px 28px 28px;text-align:center;">
+          <div style="font-size:42px;line-height:1;margin-bottom:16px;">✉️</div>
+          <h3 style="margin:0 0 10px;font-size:20px;color:var(--brown-dark,#3b2f1e);">Confirm Your Email Address</h3>
+          <p style="color:var(--text-muted,#6b5e4c);margin:0 0 14px;font-size:14px;">Are you sure this email address is correct?</p>
+          <p id="confirmEmailDisplay" style="font-size:16px;font-weight:700;color:var(--brown-dark,#3b2f1e);word-break:break-all;background:var(--bg-secondary,#f5f0e8);padding:12px 16px;border-radius:8px;margin:0 0 10px;"></p>
+          <p style="color:var(--text-muted,#6b5e4c);font-size:13px;margin:0 0 26px;line-height:1.5;">We will send a verification link to this address.<br>Make sure it's active and accessible.</p>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <button type="button" id="confirmEmailProceed" class="btn btn-primary btn-block">Yes, Proceed</button>
+            <button type="button" id="confirmEmailEdit" class="btn btn-outline btn-block">Edit Email Address</button>
+          </div>
+        </div>
+      </dialog>
+
       <div class="auth-footer">
         Already have an account? <a href="<?= url('auth/login.php') ?>">Log in here</a>
       </div>
@@ -314,9 +337,15 @@ function parishToggle(id, btn) {
   });
 })();
 
-// ── Form submit validation ─────────────────────────────────
+// ── Form submit validation + email confirmation modal ──────
 (function () {
-  var form = document.getElementById('registerForm');
+  var form      = document.getElementById('registerForm');
+  var modal     = document.getElementById('confirmEmailModal');
+  var display   = document.getElementById('confirmEmailDisplay');
+  var btnProceed = document.getElementById('confirmEmailProceed');
+  var btnEdit    = document.getElementById('confirmEmailEdit');
+  var confirmed  = false;
+
   var required = [
     ['[name="lastname"]',        'your last name'],
     ['[name="firstname"]',       'your first name'],
@@ -331,6 +360,11 @@ function parishToggle(id, btn) {
   clearFieldErrorOnInput(form, required.map(function (f) { return f[0]; }));
 
   form.addEventListener('submit', function (e) {
+    // If already confirmed by the modal, let the form submit naturally.
+    if (confirmed) return;
+
+    e.preventDefault();
+
     var firstInvalid = validateRequiredFields(form, required);
 
     var email = form.querySelector('[name="email"]');
@@ -361,10 +395,32 @@ function parishToggle(id, btn) {
     }
 
     if (firstInvalid) {
-      e.preventDefault();
       firstInvalid.focus();
       firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
     }
+
+    // All valid — show confirmation modal.
+    display.textContent = email.value.trim();
+    modal.showModal();
+  });
+
+  btnProceed.addEventListener('click', function () {
+    modal.close();
+    confirmed = true;
+    form.submit();
+  });
+
+  btnEdit.addEventListener('click', function () {
+    modal.close();
+    var emailField = form.querySelector('[name="email"]');
+    emailField.focus();
+    emailField.select();
+  });
+
+  // Close on backdrop click.
+  modal.addEventListener('click', function (e) {
+    if (e.target === modal) { modal.close(); }
   });
 })();
 </script>
