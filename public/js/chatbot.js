@@ -12,48 +12,7 @@
   const body = document.getElementById('chatBody');
   const form = document.getElementById('chatForm');
   const input = document.getElementById('chatInput');
-  const suggestedWrap = document.getElementById('chatSuggested');
-
   if (!fab || !panel || !form || !input || !body) return;
-
-  const SUGGESTIONS_BY_ROLE = {
-    Parishioner: [
-      'Requirements for baptism?',
-      'How much is confirmation?',
-      'What are your office hours?',
-      'Documents needed for burial?',
-      'How do I book an appointment?',
-    ],
-    Secretary: [
-      'What are the wedding requirements?',
-      'Documents needed for burial?',
-      'What are your office hours?',
-      'What services are available?',
-      'Who are the active priests?',
-    ],
-    Treasurer: [
-      'What are the current service fees?',
-      'What are your office hours?',
-      'Who are the active priests?',
-      'How much is a baptism?',
-      'What services require payment?',
-    ],
-    Priest: [
-      'What are the wedding requirements?',
-      'What is the Mass schedule?',
-      'What are your office hours?',
-      'Who are the other parish priests?',
-      'Requirements for baptism?',
-    ],
-    Admin: [
-      'What services are available?',
-      'What are the current fees?',
-      'What are your office hours?',
-      'Who are the active priests?',
-      'How do I book an appointment?',
-    ],
-  };
-  const suggestions = SUGGESTIONS_BY_ROLE[role] || SUGGESTIONS_BY_ROLE['Parishioner'];
 
   // Sacrament keyword map — recognizes both English and Tagalog terms and
   // maps them to the `category` values stored on the services table.
@@ -235,18 +194,6 @@
     }
   }
 
-  function renderSuggestions() {
-    suggestedWrap.innerHTML = '';
-    suggestions.forEach((q) => {
-      const chip = document.createElement('button');
-      chip.type = 'button';
-      chip.className = 'chip';
-      chip.textContent = q;
-      chip.addEventListener('click', () => respondTo(q));
-      suggestedWrap.appendChild(chip);
-    });
-  }
-
   let started = false;
   function openChat() {
     panel.classList.add('open');
@@ -254,8 +201,7 @@
     if (!started) {
       started = true;
       const p = data.parish || {};
-      addBubble(`Thank you for contacting ${p.name || 'our parish'}. How may we assist you today? Ask me about sacrament requirements, fees, schedules, or how to book an appointment.`, 'bot');
-      renderSuggestions();
+      addBubble(`Thank you for contacting ${p.name || 'our parish'}. How may we assist you today?`, 'bot');
     }
     input.focus();
   }

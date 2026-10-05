@@ -63,7 +63,6 @@ $__chatData = [
     </button>
   </div>
   <div class="chat-body" id="chatBody"></div>
-  <div class="suggested" id="chatSuggested"></div>
   <form class="chat-input" id="chatForm">
     <input type="text" id="chatInput" placeholder="Ask about requirements, fees, hours…" autocomplete="off">
     <button type="submit" aria-label="Send message">

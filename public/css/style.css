@@ -923,9 +923,6 @@ tbody tr:hover { background: #faf8f0; }
   30% { transform: translateY(-4px); opacity: 1; }
 }
 
-.suggested { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 16px 12px; }
-.chip { font-size: 12px; padding: 7px 12px; border-radius: var(--radius-pill); border: 1px solid var(--border); background: var(--ivory); color: var(--brown-light); cursor: pointer; transition: border-color 0.2s var(--ease), color 0.2s var(--ease); }
-.chip:hover { border-color: var(--gold); color: var(--brown-dark); }
 
 .chat-input { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--border); background: var(--ivory); }
 .chat-input input { flex: 1; border: 1px solid var(--border); border-radius: var(--radius-pill); padding: 10px 16px; font-size: 13px; font-family: inherit; background: var(--cream); }
