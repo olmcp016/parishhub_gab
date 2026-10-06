@@ -60,22 +60,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         logActivity($adminId, "Deleted user #{$_POST['user_id']}", 'User Management');
         flash('success', 'User deleted.');
     } elseif ($action === 'reset') {
-        $tempPassword = bin2hex(random_bytes(5));
+        // Generate a strong 10-char temporary password: uppercase, lowercase, digits
+        $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+        $tempPassword = '';
+        for ($i = 0; $i < 10; $i++) {
+            $tempPassword .= $chars[random_int(0, strlen($chars) - 1)];
+        }
         $hash = password_hash($tempPassword, PASSWORD_BCRYPT);
-        db()->prepare('UPDATE users SET password = ?, must_change_password = 1 WHERE user_id = ?')->execute([$hash, $_POST['user_id']]);
-        
+
+        $targetId = (int) ($_POST['user_id'] ?? 0);
         $stmt = db()->prepare('SELECT firstname, lastname, email FROM users WHERE user_id = ?');
-        $stmt->execute([$_POST['user_id']]);
+        $stmt->execute([$targetId]);
         $targetUser = $stmt->fetch();
-        
-        logActivity($adminId, "Reset password for user #{$_POST['user_id']}", 'User Management');
-        
+        if (!$targetUser) {
+            flash('error', 'User not found.');
+            redirect(url('admin/users.php'));
+        }
+
+        db()->prepare('UPDATE users SET password = ?, must_change_password = 1 WHERE user_id = ?')
+            ->execute([$hash, $targetId]);
+        logActivity($adminId, "Reset password for {$targetUser['firstname']} {$targetUser['lastname']} (#{$targetId})", 'User Management');
+
         $_SESSION['temp_password_info'] = [
-            'name' => trim($targetUser['firstname'] . ' ' . $targetUser['lastname']),
-            'email' => $targetUser['email'],
-            'password' => $tempPassword
+            'context'  => 'reset',
+            'name'     => trim($targetUser['firstname'] . ' ' . $targetUser['lastname']),
+            'email'    => $targetUser['email'],
+            'password' => $tempPassword,
         ];
-        flash('success', 'Staff password reset successfully.');
+        flash('success', 'Password reset. Hand the temporary password to the staff member securely.');
     }
     redirect(url('admin/users.php'));
 }
@@ -143,12 +155,14 @@ include __DIR__ . '/../includes/dash-start.php';
                 </select>
               </form>
             </td>
-            <td>
-              <form method="POST" action="<?= url('admin/users.php') ?>" style="display:inline-flex; gap:6px;">
+            <td style="display:flex;gap:6px;flex-wrap:wrap;">
+              <button type="button" class="btn btn-outline btn-sm js-reset-pw"
+                data-id="<?= $u['user_id'] ?>"
+                data-name="<?= e($u['firstname'] . ' ' . $u['lastname']) ?>">Reset Password</button>
+              <form method="POST" action="<?= url('admin/users.php') ?>" class="fp-reset-form" style="display:none;">
                 <?= csrfField() ?>
                 <input type="hidden" name="action" value="reset">
                 <input type="hidden" name="user_id" value="<?= $u['user_id'] ?>">
-                <button type="submit" class="btn btn-outline btn-sm js-confirm-reset" data-name="<?= e($u['firstname'] . ' ' . $u['lastname']) ?>">Reset</button>
               </form>
               <button type="button" class="btn btn-danger btn-sm js-delete-user" data-id="<?= $u['user_id'] ?>" data-name="<?= e($u['firstname'] . ' ' . $u['lastname']) ?>">Delete</button>
             </td>
@@ -216,6 +230,17 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
 </dialog>
 
+<!-- Reset Password Confirm Modal -->
+<dialog id="resetPwModal" style="max-width:440px;padding:24px;border-radius:8px;border:none;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
+  <h3 style="margin-top:0;">Reset Password?</h3>
+  <p id="resetPwMsg" style="color:var(--text-muted,#555);margin-bottom:8px;"></p>
+  <p style="font-size:13px;color:var(--text-muted,#777);margin-top:0;">A strong temporary password will be generated. The staff member <strong>must change it</strong> on their next login.</p>
+  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:22px;">
+    <button type="button" class="btn btn-outline" id="resetPwCancel">Cancel</button>
+    <button type="button" class="btn btn-primary" id="resetPwConfirm">Yes, Reset Password</button>
+  </div>
+</dialog>
+
 <!-- ===================== Role Change Confirmation ===================== -->
 <dialog class="modal" id="roleConfirmModal">
   <div class="modal-head">
@@ -263,12 +288,27 @@ document.addEventListener('DOMContentLoaded', function () {
     sel.dataset.originalValue = sel.value;
   });
 
-  document.querySelectorAll('.js-confirm-reset').forEach(function(btn) {
-    btn.addEventListener('click', function(e) {
-      if(!confirm('Are you sure you want to reset the password for ' + this.dataset.name + '? They will need to change it on their next login.')) {
-        e.preventDefault();
-      }
+  // Reset-password modal
+  var resetPwModal   = document.getElementById('resetPwModal');
+  var pendingResetForm = null;
+  document.querySelectorAll('.js-reset-pw').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      pendingResetForm = this.nextElementSibling; // the hidden <form> right after the button
+      document.getElementById('resetPwMsg').textContent =
+        'Reset the password for ' + this.dataset.name + '?';
+      resetPwModal.showModal();
     });
+  });
+  document.getElementById('resetPwCancel').addEventListener('click', function () {
+    pendingResetForm = null;
+    resetPwModal.close();
+  });
+  document.getElementById('resetPwConfirm').addEventListener('click', function () {
+    resetPwModal.close();
+    if (pendingResetForm) { pendingResetForm.submit(); }
+  });
+  resetPwModal.addEventListener('click', function (e) {
+    if (e.target === resetPwModal) { pendingResetForm = null; resetPwModal.close(); }
   });
 
   var deleteModal = document.getElementById('deleteUserModal');
@@ -285,18 +325,27 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 
-<?php if (isset($_SESSION['temp_password_info'])): 
+<?php if (isset($_SESSION['temp_password_info'])):
     $tp = $_SESSION['temp_password_info'];
     unset($_SESSION['temp_password_info']);
+    $isReset = ($tp['context'] ?? '') === 'reset';
 ?>
 <dialog class="modal" id="tempPasswordModal" style="max-width:450px; text-align:center;">
   <div class="modal-body" style="padding: 30px 20px;">
     <div style="background:var(--bg-success); color:var(--success); width:60px; height:60px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 20px;">
+      <?php if ($isReset): ?>
+      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+      <?php else: ?>
       <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+      <?php endif; ?>
     </div>
-    <h3 style="margin-top:0;">Staff Account Created!</h3>
+    <h3 style="margin-top:0;"><?= $isReset ? 'Password Reset' : 'Staff Account Created!' ?></h3>
     <p style="color:var(--text-muted); margin-bottom:20px;">
-      Portal login for <strong><?= e($tp['name']) ?></strong> has been generated. Please provide them with the following temporary password.
+      <?php if ($isReset): ?>
+        Temporary password for <strong><?= e($tp['name']) ?></strong> is shown below. Hand it over securely — they must change it on their next login.
+      <?php else: ?>
+        Portal login for <strong><?= e($tp['name']) ?></strong> has been generated. Please provide them with the following temporary password.
+      <?php endif; ?>
     </p>
     <div style="background:var(--bg-secondary); padding:15px; border-radius:8px; border:1px dashed #ccc; margin-bottom:20px;">
       <div style="font-size:24px; font-weight:bold; letter-spacing:2px; font-family:monospace; color:var(--text-primary);" id="tempPwdText"><?= e($tp['password']) ?></div>
