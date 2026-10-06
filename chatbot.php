@@ -204,7 +204,7 @@ function callGemini(string $systemPrompt, array $history, string $userMessage): 
         'generationConfig'   => ['temperature' => 0.7, 'maxOutputTokens' => 400],
     ]);
 
-    $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' . urlencode($apiKey);
+    $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=' . urlencode($apiKey);
     $ch  = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
@@ -220,13 +220,13 @@ function callGemini(string $systemPrompt, array $history, string $userMessage): 
 
     if ($curlError || $response === false) {
         error_log('Gemini cURL error: ' . $curlError);
-        return "[DEBUG cURL Error] " . $curlError . " | Kung nakikita mo ito, hindi makakonekta ang server mo kay Google. Paki-check ang Logs sa Render.";
+        return "I couldn't process that right now. Please check your internet connection.";
     }
 
     $data = json_decode($response, true);
     if ($httpCode !== 200 || empty($data['candidates'][0]['content']['parts'][0]['text'])) {
         error_log('Gemini API error (HTTP ' . $httpCode . '): ' . substr((string) $response, 0, 500));
-        return "I couldn't process that right now. [DEBUG] HTTP: $httpCode | Error: " . substr(strip_tags((string)$response), 0, 300);
+        return "I couldn't process that right now. For immediate assistance, please contact the parish office.";
     }
 
     return trim($data['candidates'][0]['content']['parts'][0]['text']);
