@@ -428,23 +428,19 @@ include __DIR__ . '/../includes/dash-start.php';
             </td>
             <td>
               <?php if (!empty($p['user_id'])): ?>
-                <div class="priest-login-summary">
-                  <span class="badge <?= ($p['login_status'] ?? '') === 'active' ? 'badge-verified' : 'badge-cancelled' ?>"><?= e(ucfirst($p['login_status'] ?? 'Unknown')) ?></span>
-                  <button type="button" class="btn btn-outline btn-sm js-manage-login"
-                    data-priest-id="<?= (int) $p['priest_id'] ?>"
-                    data-priest-name="<?= e(trim(($p['title'] ?? '') . ' ' . ($p['full_name'] ?? ''))) ?>"
-                    data-priest-contact="<?= e($p['contact_number'] ?? '') ?>"
-                    data-login-email="<?= e($p['login_email'] ?? '') ?>"
-                    data-login-status="<?= e($p['login_status'] ?? '') ?>">Manage Login</button>
-                </div>
+                <button type="button" class="btn btn-outline btn-sm js-manage-login"
+                  data-priest-id="<?= (int) $p['priest_id'] ?>"
+                  data-priest-name="<?= e(trim(($p['title'] ?? '') . ' ' . ($p['full_name'] ?? ''))) ?>"
+                  data-priest-contact="<?= e($p['contact_number'] ?? '') ?>"
+                  data-login-email="<?= e($p['login_email'] ?? '') ?>"
+                  data-login-status="<?= e($p['login_status'] ?? '') ?>">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2d7a46" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:4px;"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><polyline points="16 11 18 13 22 9"></polyline></svg>Manage Account
+                </button>
               <?php else: ?>
-                <div class="priest-login-summary">
-                  <span class="text-muted">Not Created</span>
-                  <button type="button" class="btn btn-outline btn-sm js-create-login"
-                    data-priest-id="<?= (int) $p['priest_id'] ?>"
-                    data-priest-name="<?= e(trim(($p['title'] ?? '') . ' ' . ($p['full_name'] ?? ''))) ?>"
-                    data-priest-email="<?= e($p['email'] ?? '') ?>">Create Login</button>
-                </div>
+                <button type="button" class="btn btn-outline btn-sm js-create-login"
+                  data-priest-id="<?= (int) $p['priest_id'] ?>"
+                  data-priest-name="<?= e(trim(($p['title'] ?? '') . ' ' . ($p['full_name'] ?? ''))) ?>"
+                  data-priest-email="<?= e($p['email'] ?? '') ?>">+ Create Login</button>
               <?php endif; ?>
             </td>
             <td>
