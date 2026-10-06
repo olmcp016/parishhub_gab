@@ -19,7 +19,7 @@ function showFieldError(input, message) {
     msg.className = 'field-error-msg';
     group.appendChild(msg);
   }
-  msg.textContent = message;
+  msg.innerHTML = message;
 }
 
 function clearFieldError(input) {
