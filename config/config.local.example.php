@@ -34,3 +34,7 @@ putenv('BREVO_SENDER_NAME=PARISHHUB');
 // includes/paymongo.php; never place it in HTML or JavaScript.
 putenv('PAYMONGO_SECRET_KEY=sk_test_replace_me');
 putenv('PAYMONGO_WEBHOOK_SECRET=whsk_test_replace_me');
+
+// Gemini AI (Parish Assistant chatbot fallback). Get a free key from
+// https://aistudio.google.com/app/apikey — the key starts with "AIza".
+putenv('GEMINI_API_KEY=AIzaSy-replace-with-your-key');

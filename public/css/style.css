@@ -917,7 +917,8 @@ tbody tr:hover { background: #faf8f0; }
   position: fixed; bottom: 94px; right: 24px; z-index: 200;
   width: 380px; max-width: calc(100vw - 40px); height: 520px;
   background: var(--cream); border-radius: 20px 20px 14px 14px;
-  border: 1px solid var(--border); box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border); border-top: 3px solid var(--gold);
+  box-shadow: var(--shadow-lg);
   display: flex; flex-direction: column; overflow: hidden;
   transform: translateY(16px) scale(0.98); opacity: 0; pointer-events: none;
   transition: transform 0.28s var(--ease), opacity 0.28s var(--ease);
