@@ -37,7 +37,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($user['email_verified_at'] === null) {
-        $fail('email', 'Please verify your email address before logging in. Check your inbox for the verification link.');
+        $resendUrl = url('auth/resend-verification.php?email=' . urlencode($email));
+        $fail('email', 'Please verify your email before logging in. <a href="'.$resendUrl.'" style="text-decoration:underline;font-weight:bold;color:inherit;">Click here to resend the verification link</a>.');
         exit;
     }
 

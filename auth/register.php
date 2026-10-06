@@ -83,12 +83,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(url('auth/register.php'));
     }
 
-    $stmt = db()->prepare('SELECT user_id FROM users WHERE email = ?');
+    $stmt = db()->prepare('SELECT user_id, email_verified_at FROM users WHERE email = ?');
     $stmt->execute([$email]);
-    if ($stmt->fetch()) {
-        keepOldInput($oldInputToKeep);
-        flash('error', 'An account with that email already exists.');
-        redirect(url('auth/register.php'));
+    if ($existing = $stmt->fetch()) {
+        if ($existing['email_verified_at'] !== null) {
+            keepOldInput($oldInputToKeep);
+            flash('error', 'An account with that email already exists and is active.');
+            redirect(url('auth/register.php'));
+        } else {
+            db()->prepare('DELETE FROM users WHERE user_id = ?')->execute([$existing['user_id']]);
+        }
     }
 
     $hash  = password_hash($password, PASSWORD_BCRYPT);
