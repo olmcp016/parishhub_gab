@@ -96,19 +96,11 @@ function emailTemplate(string $title, string $bodyHtml, ?string $ctaUrl = null, 
     <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
 
       <!-- Header -->
-      <tr><td align="center" style="background:#3b2f1e;border-radius:10px 10px 0 0;padding:28px 32px;">
-        <table width="100%" cellpadding="0" cellspacing="0">
-          <tr>
-            <td width="70" align="center" valign="middle">
-              <img src="https://parishhub-qqg2.onrender.com/public/img/logo.png" alt="Parish Logo" width="60" style="display:block; max-width:60px;">
-            </td>
-            <td align="left" valign="middle" style="padding-left:16px;">
-              <p style="margin:0 0 4px;font-size:11px;letter-spacing:3px;color:#c9a84c;text-transform:uppercase;font-family:Georgia,serif;">Official Correspondence</p>
-              <h1 style="margin:0;font-size:22px;color:#f5edda;font-family:Georgia,serif;letter-spacing:1px;">PARISHHUB</h1>
-              <p style="margin:6px 0 0;font-size:12px;color:#b8a07a;font-family:Georgia,serif;">Our Lady of Mt. Carmel Parish Service Portal</p>
-            </td>
-          </tr>
-        </table>
+      <tr><td align="center" style="background:#3b2f1e;border-radius:10px 10px 0 0;padding:32px 32px 28px;">
+        <img src="https://parishhub-qqg2.onrender.com/public/img/logo.png" alt="Parish Logo" width="60" style="display:block; max-width:60px; margin:0 auto 16px;">
+        <p style="margin:0 0 4px;font-size:11px;letter-spacing:3px;color:#c9a84c;text-transform:uppercase;font-family:Georgia,serif;">Official Correspondence</p>
+        <h1 style="margin:0;font-size:28px;color:#f5edda;font-family:Georgia,serif;letter-spacing:2px;">PARISHHUB</h1>
+        <p style="margin:6px 0 0;font-size:12px;color:#b8a07a;font-family:Georgia,serif;">Our Lady of Mt. Carmel Parish Service Portal</p>
       </td></tr>
 
       <!-- Divider -->
