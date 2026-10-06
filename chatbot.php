@@ -226,7 +226,7 @@ function callGemini(string $systemPrompt, array $history, string $userMessage): 
     $data = json_decode($response, true);
     if ($httpCode !== 200 || empty($data['candidates'][0]['content']['parts'][0]['text'])) {
         error_log('Gemini API error (HTTP ' . $httpCode . '): ' . substr((string) $response, 0, 500));
-        return "I couldn't process that right now. For immediate assistance, please contact the parish office.";
+        return "I couldn't process that right now. [DEBUG] HTTP: $httpCode | Error: " . substr(strip_tags((string)$response), 0, 300);
     }
 
     return trim($data['candidates'][0]['content']['parts'][0]['text']);
