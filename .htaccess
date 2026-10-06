@@ -23,3 +23,12 @@ Options -Indexes
         Deny from all
     </IfModule>
 </Files>
+
+# Security Headers to prevent Clickjacking, MIME-sniffing, and XSS
+<IfModule mod_headers.c>
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-XSS-Protection "1; mode=block"
+    Header set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>

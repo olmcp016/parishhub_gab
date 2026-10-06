@@ -25,6 +25,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(url('auth/login.php'));
     };
 
+    // Brute-force Protection
+    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    $lockoutKey = "lockout_{$ip}";
+    $attemptsKey = "attempts_{$ip}";
+
+    if (isset($_SESSION[$lockoutKey]) && time() < $_SESSION[$lockoutKey]) {
+        $timeLeft = ceil(($_SESSION[$lockoutKey] - time()) / 60);
+        $fail('email', "Too many failed attempts. Please try again in {$timeLeft} minute(s).");
+    } elseif (isset($_SESSION[$lockoutKey]) && time() >= $_SESSION[$lockoutKey]) {
+        unset($_SESSION[$lockoutKey]);
+        unset($_SESSION[$attemptsKey]);
+    }
+
     $stmt = db()->prepare(
         "SELECT u.*, r.role_name FROM users u JOIN roles r ON u.role_id = r.role_id WHERE u.email = ? LIMIT 1"
     );
@@ -33,24 +46,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$user) {
         $fail('email', 'Email is invalid or not found.');
-        exit;
     }
 
     if ($user['email_verified_at'] === null) {
         $resendUrl = url('auth/resend-verification.php?email=' . urlencode($email));
         $fail('email', 'Please verify your email before logging in. <a href="'.$resendUrl.'" style="text-decoration:underline;font-weight:bold;color:inherit;">Click here to resend the verification link</a>.');
-        exit;
     }
 
     if ($user['status'] !== 'active') {
         $fail('email', 'Your account is not active. Please contact the parish office.');
-        exit;
     }
 
     if (!password_verify($password, $user['password'])) {
-        $fail('password', 'Incorrect password. Please try again.');
-        exit;
+        $_SESSION[$attemptsKey] = ($_SESSION[$attemptsKey] ?? 0) + 1;
+        $attemptsLeft = 5 - $_SESSION[$attemptsKey];
+        if ($_SESSION[$attemptsKey] >= 5) {
+            $_SESSION[$lockoutKey] = time() + (5 * 60); // 5 minutes lockout
+            $fail('password', 'Too many failed attempts. You are locked out for 5 minutes.');
+        }
+        $fail('password', "Incorrect password. Please try again. ({$attemptsLeft} attempts left)");
     }
+
+    // Login success - reset attempts
+    unset($_SESSION[$attemptsKey]);
+    unset($_SESSION[$lockoutKey]);
 
     if (!empty($user['must_change_password'])) {
         $_SESSION['force_change_password_user'] = [
