@@ -58,7 +58,7 @@ if ($showPayment && $statusFilter !== '') {
 if ($dateFilter) { $sql .= ' AND a.appointment_date = ?'; $params[] = $dateFilter; }
 if ($search) {
     $sql .= ' AND (u.firstname LIKE ? OR u.lastname LIKE ? OR mi.offerer_name LIKE ? OR mi.intention_for LIKE ?)';
-    $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%";
+    $lk = likeSafe($search); $params[] = $lk; $params[] = $lk; $params[] = $lk; $params[] = $lk;
 }
 // The read-at-Mass print sheet needs EVERY approved intention for the
 // filtered date, never just one page of them — fetched separately, before

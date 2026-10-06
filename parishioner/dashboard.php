@@ -32,7 +32,7 @@ $stmt = db()->prepare(
      JOIN services s ON a.service_id = s.service_id
      JOIN appointment_status st ON a.status_id = st.status_id
      LEFT JOIN priests p ON a.priest_id = p.priest_id
-     WHERE a.parishioner_id = ? AND a.appointment_date >= CURDATE() AND s.category != 'Donation'
+     WHERE a.parishioner_id = ? AND a.appointment_date >= CURRENT_DATE AND s.category != 'Donation'
      ORDER BY a.appointment_date ASC LIMIT 5"
 );
 $stmt->execute([$parishionerId]);

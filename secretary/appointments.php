@@ -24,7 +24,7 @@ function buildAppointmentsQuery(string $statusFilter, string $search): array
     }
     if ($search) {
         $sql .= ' AND (u.firstname LIKE ? OR u.lastname LIKE ? OR a.guest_name LIKE ? OR s.service_name LIKE ?)';
-        $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%";
+        $lk = likeSafe($search); $params[] = $lk; $params[] = $lk; $params[] = $lk; $params[] = $lk;
     }
     return [$sql, $params];
 }

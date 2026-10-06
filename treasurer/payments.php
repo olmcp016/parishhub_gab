@@ -81,7 +81,7 @@ if ($dateFrom) { $sql .= ' AND p.created_at >= ?'; $params[] = $dateFrom . ' 00:
 if ($dateTo) { $sql .= ' AND p.created_at <= ?'; $params[] = $dateTo . ' 23:59:59'; }
 if ($search) {
     $sql .= ' AND (u.firstname LIKE ? OR u.lastname LIKE ? OR a.guest_name LIKE ? OR p.reference_number LIKE ?)';
-    $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%";
+    $lk = likeSafe($search); $params[] = $lk; $params[] = $lk; $params[] = $lk; $params[] = $lk;
 }
 $countSql = str_replace(
     'SELECT p.*, pm.method_name, u.firstname, u.lastname, a.guest_name, s.service_name, a.appointment_date',

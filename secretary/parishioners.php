@@ -10,7 +10,7 @@ $sql = "SELECT u.*, p.parishioner_id, p.marital_status, p.occupation
 $params = [];
 if ($search) {
     $sql .= ' AND (u.firstname LIKE ? OR u.lastname LIKE ? OR u.email LIKE ?)';
-    $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%";
+    $lk = likeSafe($search); $params[] = $lk; $params[] = $lk; $params[] = $lk;
 }
 if ($statusFilter) {
     $sql .= ' AND u.status = ?';

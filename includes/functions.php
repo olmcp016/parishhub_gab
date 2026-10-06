@@ -5,6 +5,19 @@ require_once __DIR__ . '/validation.php';
  */
 
 /**
+ * Wraps a search term for use in a PDO LIKE parameter, escaping the
+ * wildcard characters % and _ so user input cannot alter the match pattern.
+ * The leading/trailing % are added here; pass the result directly as a
+ * bound parameter — never interpolate it into the SQL string.
+ *
+ *   $stmt->execute([likeSafe($search), likeSafe($search)]);
+ */
+function likeSafe(string $term): string
+{
+    return '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term) . '%';
+}
+
+/**
  * True when the current request came from the detail-modal JS (see
  * public/js/detail-modal.js) rather than a normal browser navigation —
  * used by pages that support both a full standalone page and an

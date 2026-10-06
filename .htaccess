@@ -1,6 +1,17 @@
 # PARISHHUB — Apache configuration (root)
 Options -Indexes
 
+# Block direct web access to any log or debug files that may appear in this directory.
+<FilesMatch "\.(log|txt)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order deny,allow
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
 # Legacy MySQL installer. PostgreSQL/Supabase deployments must never expose
 # this reset-capable setup route, even if the file remains in the repository.
 <Files "install.php">

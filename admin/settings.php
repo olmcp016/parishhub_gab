@@ -5,15 +5,22 @@ requireRole('Admin');
 
 $adminId = currentUser()['user_id'];
 
+// Strict allowlist — only these keys may ever be written to the settings table.
+// Adding a key to the form without adding it here has no effect.
+const SETTINGS_ALLOWED_KEYS = [
+    'parish_name', 'parish_address', 'office_hours',
+    'contact_number', 'contact_email', 'mass_schedule',
+];
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifyCsrf();
-    foreach ($_POST as $key => $value) {
-        if ($key === 'csrf_token') continue;
-        $stmt = db()->prepare(
-            "INSERT INTO settings (setting_key, setting_value) VALUES (?, ?)
-             ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value"
-        );
-        $stmt->execute([$key, $value]);
+    $stmt = db()->prepare(
+        "INSERT INTO settings (setting_key, setting_value) VALUES (?, ?)
+         ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value"
+    );
+    foreach (SETTINGS_ALLOWED_KEYS as $key) {
+        if (!array_key_exists($key, $_POST)) continue;
+        $stmt->execute([$key, trim($_POST[$key])]);
     }
     logActivity($adminId, 'Updated system settings', 'Settings');
     flash('success', 'Settings updated.');

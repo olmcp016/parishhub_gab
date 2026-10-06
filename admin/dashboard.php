@@ -5,7 +5,7 @@ requireRole('Admin');
 
 $userCount = db()->query('SELECT COUNT(*) FROM users')->fetchColumn();
 $appointmentCount = db()->query("SELECT COUNT(*) FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE s.category != 'Donation'")->fetchColumn();
-$yearlyRevenue = db()->query("SELECT COALESCE(SUM(amount),0) FROM payments WHERE payment_status='verified' AND YEAR(payment_date)=YEAR(CURDATE())")->fetchColumn();
+$yearlyRevenue = db()->query("SELECT COALESCE(SUM(amount),0) FROM payments WHERE payment_status='verified' AND EXTRACT(YEAR FROM payment_date) = EXTRACT(YEAR FROM CURRENT_DATE)")->fetchColumn();
 $pendingCount = db()->query("SELECT COUNT(*) FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.status_id = 1 AND s.category != 'Donation'")->fetchColumn();
 
 $byRole = db()->query(

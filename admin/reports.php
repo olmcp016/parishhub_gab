@@ -4,7 +4,7 @@ require_once __DIR__ . '/../includes/functions.php';
 requireRole('Admin');
 
 $revenueByMonth = db()->query(
-    "SELECT DATE_FORMAT(payment_date, '%Y-%m') AS month, SUM(amount) AS total
+    "SELECT TO_CHAR(payment_date, 'YYYY-MM') AS month, SUM(amount) AS total
      FROM payments WHERE payment_status='verified' GROUP BY month ORDER BY month DESC LIMIT 12"
 )->fetchAll();
 

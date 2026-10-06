@@ -18,7 +18,7 @@ $sql = "SELECT p.parishioner_id, u.firstname, u.lastname, u.email
 $params = [];
 if ($q !== '') {
     $sql .= " AND (u.firstname LIKE ? OR u.lastname LIKE ? OR u.email LIKE ?)";
-    $params = ["%$q%", "%$q%", "%$q%"];
+    $lk = likeSafe($q); $params = [$lk, $lk, $lk];
 }
 $sql .= " ORDER BY u.lastname, u.firstname LIMIT 20";
 

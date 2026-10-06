@@ -9,9 +9,9 @@ if (!in_array($period, ['weekly', 'monthly', 'yearly'], true)) {
 }
 
 $periodSql = match ($period) {
-    'weekly' => 'YEARWEEK(appointment_date, 1)',
-    'yearly' => 'YEAR(appointment_date)',
-    default => "DATE_FORMAT(appointment_date, '%Y-%m')",
+    'weekly' => 'EXTRACT(ISOYEAR FROM appointment_date)::int * 100 + EXTRACT(WEEK FROM appointment_date)::int',
+    'yearly' => 'EXTRACT(YEAR FROM appointment_date)::int',
+    default  => "TO_CHAR(appointment_date, 'YYYY-MM')",
 };
 
 $trend = db()->query(

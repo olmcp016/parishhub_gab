@@ -9,10 +9,10 @@ if (!in_array($period, ['daily', 'weekly', 'monthly', 'yearly'], true)) {
 }
 
 $periodSql = match ($period) {
-    'daily' => 'DATE(payment_date)',
-    'weekly' => 'YEARWEEK(payment_date, 1)',
-    'yearly' => 'YEAR(payment_date)',
-    default => "DATE_FORMAT(payment_date, '%Y-%m')",
+    'daily'  => 'payment_date::date',
+    'weekly' => 'EXTRACT(ISOYEAR FROM payment_date)::int * 100 + EXTRACT(WEEK FROM payment_date)::int',
+    'yearly' => 'EXTRACT(YEAR FROM payment_date)::int',
+    default  => "TO_CHAR(payment_date, 'YYYY-MM')",
 };
 
 $incomeTrend = db()->query(

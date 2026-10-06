@@ -126,7 +126,7 @@ $params = [];
 if ($statusFilter) { $sql .= ' AND p.payment_status = ?'; $params[] = $statusFilter; }
 if ($search) {
     $sql .= ' AND (d.donor_name LIKE ? OR d.donor_email LIKE ? OR d.purpose LIKE ?)';
-    $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%";
+    $lk = likeSafe($search); $params[] = $lk; $params[] = $lk; $params[] = $lk;
 }
 $countSql = str_replace(
     'SELECT a.appointment_id, a.created_at, d.donor_name, d.donor_email, d.purpose, d.message,

@@ -3,10 +3,10 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 requireRole('Treasurer', 'Admin');
 
-$daily = db()->query("SELECT COALESCE(SUM(amount),0) FROM payments WHERE payment_status='verified' AND DATE(payment_date) = CURDATE()")->fetchColumn();
-$weekly = db()->query("SELECT COALESCE(SUM(amount),0) FROM payments WHERE payment_status='verified' AND YEARWEEK(payment_date,1) = YEARWEEK(CURDATE(),1)")->fetchColumn();
-$monthly = db()->query("SELECT COALESCE(SUM(amount),0) FROM payments WHERE payment_status='verified' AND MONTH(payment_date)=MONTH(CURDATE()) AND YEAR(payment_date)=YEAR(CURDATE())")->fetchColumn();
-$yearly = db()->query("SELECT COALESCE(SUM(amount),0) FROM payments WHERE payment_status='verified' AND YEAR(payment_date)=YEAR(CURDATE())")->fetchColumn();
+$daily = db()->query("SELECT COALESCE(SUM(amount),0) FROM payments WHERE payment_status='verified' AND payment_date::date = CURRENT_DATE")->fetchColumn();
+$weekly = db()->query("SELECT COALESCE(SUM(amount),0) FROM payments WHERE payment_status='verified' AND EXTRACT(ISOYEAR FROM payment_date)::int * 100 + EXTRACT(WEEK FROM payment_date)::int = EXTRACT(ISOYEAR FROM CURRENT_DATE)::int * 100 + EXTRACT(WEEK FROM CURRENT_DATE)::int")->fetchColumn();
+$monthly = db()->query("SELECT COALESCE(SUM(amount),0) FROM payments WHERE payment_status='verified' AND EXTRACT(MONTH FROM payment_date) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(YEAR FROM payment_date) = EXTRACT(YEAR FROM CURRENT_DATE)")->fetchColumn();
+$yearly = db()->query("SELECT COALESCE(SUM(amount),0) FROM payments WHERE payment_status='verified' AND EXTRACT(YEAR FROM payment_date) = EXTRACT(YEAR FROM CURRENT_DATE)")->fetchColumn();
 $pendingCount = db()->query("SELECT COUNT(*) FROM payments WHERE payment_status='pending'")->fetchColumn();
 
 $pendingPayments = db()->query(

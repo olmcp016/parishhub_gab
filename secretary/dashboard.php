@@ -4,8 +4,8 @@ require_once __DIR__ . '/../includes/functions.php';
 requireRole('Secretary', 'Admin');
 
 $pendingCount = db()->query("SELECT COUNT(*) FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.status_id = 1 AND s.category != 'Donation'")->fetchColumn();
-$todayCount = db()->query("SELECT COUNT(*) FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_date = CURDATE() AND s.category != 'Donation'")->fetchColumn();
-$weekCount = db()->query("SELECT COUNT(*) FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE YEARWEEK(a.appointment_date, 1) = YEARWEEK(CURDATE(), 1) AND s.category != 'Donation'")->fetchColumn();
+$todayCount = db()->query("SELECT COUNT(*) FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_date::date = CURRENT_DATE AND s.category != 'Donation'")->fetchColumn();
+$weekCount = db()->query("SELECT COUNT(*) FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE EXTRACT(ISOYEAR FROM a.appointment_date)::int * 100 + EXTRACT(WEEK FROM a.appointment_date)::int = EXTRACT(ISOYEAR FROM CURRENT_DATE)::int * 100 + EXTRACT(WEEK FROM CURRENT_DATE)::int AND s.category != 'Donation'")->fetchColumn();
 
 $recent = db()->query(
     "SELECT a.*, s.service_name, s.category, u.firstname, u.lastname, st.status_name
