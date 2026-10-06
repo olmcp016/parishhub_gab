@@ -75,6 +75,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         db()->prepare('UPDATE priests SET title = ?, full_name = ?, contact_number = ?, status = ? WHERE priest_id = ?')->execute([$title, $fullName, $contact, $status, $priestId]);
         flash('success', 'Priest details updated.');
     } elseif ($action === 'delete') {
+        $actorId  = (int) currentUser()['user_id'];
+        $adminPw  = $_POST['admin_password'] ?? '';
+        $row = db()->prepare('SELECT password FROM users WHERE user_id = ?');
+        $row->execute([$actorId]);
+        $actorHash = $row->fetchColumn();
+        if (!$actorHash || !password_verify($adminPw, $actorHash)) {
+            flash('error', 'Incorrect password. Archive cancelled.');
+            redirect(url('admin/priests.php'));
+        }
         $priestId = (int) ($_POST['priest_id'] ?? 0);
         // Block archive if the priest is assigned to active/pending appointments.
         $stmt = db()->prepare("SELECT COUNT(*) FROM appointments WHERE priest_id = ? AND status_id NOT IN (3, 6, 7)");
@@ -326,7 +335,11 @@ include __DIR__ . '/../includes/dash-start.php';
       <?= csrfField() ?>
       <input type="hidden" name="action" value="delete">
       <input type="hidden" name="priest_id" id="removePriestId" value="">
-      <div class="flex gap-3" style="justify-content:flex-end;">
+      <div class="form-group" style="margin-top:4px;">
+        <label for="removePriestAdminPw" style="font-weight:600;">Enter your password to confirm</label>
+        <input type="password" id="removePriestAdminPw" name="admin_password" autocomplete="current-password" required placeholder="Your password">
+      </div>
+      <div class="flex gap-3" style="justify-content:flex-end;margin-top:16px;">
         <button type="button" class="btn btn-outline" id="removePriestCancel">Cancel</button>
         <button type="submit" class="btn btn-danger" id="removePriestSubmit">Archive Priest</button>
       </div>
@@ -372,6 +385,8 @@ var removePriestTrigger = null;
 
 function closeRemovePriestModal() {
   if (removePriestModal && removePriestModal.open) removePriestModal.close();
+  var pw = document.getElementById('removePriestAdminPw');
+  if (pw) pw.value = '';
   if (removePriestTrigger) {
     removePriestTrigger.focus();
     removePriestTrigger = null;
@@ -384,10 +399,11 @@ document.addEventListener('click', function (event) {
   removePriestTrigger = trigger;
   document.getElementById('removePriestId').value = trigger.dataset.priestId || '';
   document.getElementById('removePriestName').textContent = trigger.dataset.priestName || 'this priest';
+  document.getElementById('removePriestAdminPw').value = '';
   document.getElementById('removePriestSubmit').disabled = false;
   document.getElementById('removePriestSubmit').textContent = 'Archive Priest';
   removePriestModal.showModal();
-  document.getElementById('removePriestCancel').focus();
+  setTimeout(function () { document.getElementById('removePriestAdminPw').focus(); }, 50);
 });
 
 document.getElementById('removePriestClose').addEventListener('click', closeRemovePriestModal);

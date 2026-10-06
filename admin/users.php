@@ -56,6 +56,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         logActivity($adminId, "Changed role of $targetLabel to " . roleLabel($newRoleName ?: ''), 'User Management');
         flash('success', 'User role updated.');
     } elseif ($action === 'delete') {
+        $adminPw = $_POST['admin_password'] ?? '';
+        $row = db()->prepare('SELECT password FROM users WHERE user_id = ?');
+        $row->execute([$adminId]);
+        $adminHash = $row->fetchColumn();
+        if (!$adminHash || !password_verify($adminPw, $adminHash)) {
+            flash('error', 'Incorrect password. Deletion cancelled.');
+            redirect(url('admin/users.php'));
+        }
         db()->prepare('DELETE FROM users WHERE user_id = ?')->execute([$_POST['user_id']]);
         logActivity($adminId, "Deleted user #{$_POST['user_id']}", 'User Management');
         flash('success', 'User deleted.');
@@ -216,18 +224,22 @@ include __DIR__ . '/../includes/dash-start.php';
 </dialog>
 
 <!-- Delete-confirm modal -->
-<dialog id="deleteUserModal" style="max-width:420px;padding:24px;border-radius:8px;border:none;">
+<dialog id="deleteUserModal" style="max-width:440px;padding:28px;border-radius:8px;border:none;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
   <h3 style="margin-top:0;">Delete User?</h3>
   <p id="deleteUserMsg" style="color:var(--text-muted,#555);"></p>
-  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
-    <button type="button" class="btn btn-outline" id="deleteUserCancel">Cancel</button>
-    <form method="POST" action="<?= url('admin/users.php') ?>" id="deleteUserForm">
-      <?= csrfField() ?>
-      <input type="hidden" name="action" value="delete">
-      <input type="hidden" name="user_id" id="deleteUserId">
-      <button type="submit" class="btn btn-danger">Yes, Delete</button>
-    </form>
-  </div>
+  <form method="POST" action="<?= url('admin/users.php') ?>" id="deleteUserForm">
+    <?= csrfField() ?>
+    <input type="hidden" name="action" value="delete">
+    <input type="hidden" name="user_id" id="deleteUserId">
+    <div class="form-group" style="margin-top:4px;">
+      <label for="deleteAdminPw" style="font-weight:600;">Enter your password to confirm</label>
+      <input type="password" id="deleteAdminPw" name="admin_password" autocomplete="current-password" required placeholder="Your admin password">
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+      <button type="button" class="btn btn-outline" id="deleteUserCancel">Cancel</button>
+      <button type="submit" class="btn btn-danger">Delete Account</button>
+    </div>
+  </form>
 </dialog>
 
 <!-- Reset Password Confirm Modal -->
@@ -312,16 +324,23 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   var deleteModal = document.getElementById('deleteUserModal');
+  function closeDeleteUserModal() {
+    document.getElementById('deleteAdminPw').value = '';
+    deleteModal.close();
+  }
   document.querySelectorAll('.js-delete-user').forEach(function (btn) {
     btn.addEventListener('click', function () {
       document.getElementById('deleteUserId').value = this.dataset.id;
       document.getElementById('deleteUserMsg').textContent = 'Permanently delete "' + this.dataset.name + '"? This cannot be undone.';
+      document.getElementById('deleteAdminPw').value = '';
       deleteModal.showModal();
+      setTimeout(function () { document.getElementById('deleteAdminPw').focus(); }, 50);
     });
   });
   if (document.getElementById('deleteUserCancel')) {
-    document.getElementById('deleteUserCancel').addEventListener('click', function () { deleteModal.close(); });
+    document.getElementById('deleteUserCancel').addEventListener('click', closeDeleteUserModal);
   }
+  deleteModal.addEventListener('click', function (e) { if (e.target === deleteModal) closeDeleteUserModal(); });
 });
 </script>
 
