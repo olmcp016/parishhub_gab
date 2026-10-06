@@ -116,8 +116,7 @@ function renderNavSection(string $slug, string $title, array $items, string $act
         [url('admin/dashboard.php'), 'dashboard', 'layout-dashboard', 'Dashboard'],
       ], $__active); ?>
       <?php renderNavSection('accounts-people', 'Accounts & People', [
-        [url('admin/users.php'), 'users', 'users', 'Staff & Roles'],
-        [url('admin/priests.php'), 'priests', 'contact', 'Priests'],
+        [url('admin/users.php'), 'personnel', 'users-round', 'Parish Personnel'],
         [url('secretary/parishioners.php'), 'parishioners', 'user-cog', 'Parishioners'],
       ], $__active); ?>
       <?php renderNavSection('parish-services', 'Parish Services & Schedule', [
