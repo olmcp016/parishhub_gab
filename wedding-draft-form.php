@@ -137,7 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $pdo->commit();
             if ($action === 'generate') {
-                redirect(url('wedding-draft.php?draft_id=' . $draftId));
+                redirect(url('wedding-draft-form.php?draft_id=' . $draftId . '&form_type=' . urlencode($type) . '&generated_document_id=' . $newDocumentId));
             }
             redirect(url('wedding-draft.php?draft_id=' . $draftId));
         } catch (Throwable $e) {

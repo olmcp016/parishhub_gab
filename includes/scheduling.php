@@ -81,9 +81,9 @@ function isStaffDayOff(string $dateStr, ?string $timeStr = null): bool
 function massTimesFor(string $dateStr): array
 {
     $dow = dowOf($dateStr);
-    if ($dow === 0) return ['06:30', '09:30', '16:30']; // Sunday: 1st, 2nd, 3rd Mass
+    if ($dow === 0) return ['06:30', '09:00', '16:30']; // Sunday: 1st, 2nd, 3rd Mass
     if ($dow === 3) return ['17:15'];                    // Wednesday: afternoon only
-    return ['06:00'];                                    // Every other day: 6:00 AM
+    return ['06:00'];                                    // Mon/Tue/Thu/Fri/Sat: 6:00 AM
 }
 
 /**
@@ -93,9 +93,9 @@ function massTimesFor(string $dateStr): array
  * "occupied by a scheduled Mass" conflict rule.
  */
 const MASS_INTENTION_TIMES = [
-    '06:00' => '1st Mass',
+    '06:30' => '1st Mass',
     '09:00' => '2nd Mass',
-    '16:00' => '3rd Mass',
+    '16:30' => '3rd Mass',
 ];
 
 /**
@@ -107,10 +107,11 @@ const MASS_INTENTION_TIMES = [
 function massIntentionTimesForDate(string $date): array
 {
     $ts = strtotime($date);
-    if ($ts !== false && (int) date('w', $ts) === 0) {
-        return MASS_INTENTION_TIMES;
-    }
-    return ['06:00' => 'Daily Mass'];
+    if ($ts === false) return ['06:00' => 'Daily Mass'];
+    $dow = (int) date('w', $ts);
+    if ($dow === 0) return MASS_INTENTION_TIMES; // Sunday: three Masses
+    if ($dow === 3) return ['17:15' => 'Evening Mass']; // Wednesday: 5:15 PM only
+    return ['06:00' => 'Daily Mass']; // Mon/Tue/Thu/Fri/Sat: 6:00 AM
 }
 
 /**
@@ -128,18 +129,20 @@ function massIntentionSlotAvailability(string $date, string $time): array
         return ['available' => false, 'reason' => 'Please choose a valid date.'];
     }
     if (!isset(massIntentionTimesForDate($date)[$time5])) {
-        $isSunday = (int) date('w', strtotime($date)) === 0;
-        return ['available' => false, 'reason' => $isSunday
-            ? 'On Sundays, Mass Intentions can only be offered at the 6:00 AM, 9:00 AM, or 4:00 PM Mass.'
-            : 'From Monday to Saturday, Mass Intentions can only be offered at the 6:00 AM Daily Mass.'];
+        $dow = (int) date('w', strtotime($date));
+        if ($dow === 0) {
+            $reason = 'On Sundays, Mass Intentions can only be offered at the 6:30 AM, 9:00 AM, or 4:30 PM Mass.';
+        } elseif ($dow === 3) {
+            $reason = 'On Wednesdays, Mass Intentions can only be offered at the 5:15 PM Evening Mass.';
+        } else {
+            $reason = 'From Monday to Saturday (except Wednesday), Mass Intentions can only be offered at the 6:00 AM Daily Mass.';
+        }
+        return ['available' => false, 'reason' => $reason];
     }
 
     $today = date('Y-m-d');
     if ($date < $today || ($date === $today && $time5 <= date('H:i'))) {
         return ['available' => false, 'reason' => 'That Mass has already passed.'];
-    }
-    if (isStaffDayOff($date, $time5)) {
-        return ['available' => false, 'reason' => 'The parish office is closed (Monday afternoons and all day Tuesday).'];
     }
 
     $stmt = db()->prepare('SELECT 1 FROM calendar WHERE calendar_date = ? AND is_blocked = 1');
@@ -528,8 +531,9 @@ function validateBooking(
     
     $time5 = substr($time, 0, 5); // normalize to H:i for comparisons
 
-    // Staff day-off applies to every category — the office is simply closed.
-    if (isStaffDayOff($date, $time5)) {
+    // Staff day-off applies to all categories except Mass Intention — the
+    // office is closed but Tuesday masses still happen and intentions are accepted.
+    if ($category !== 'Mass Intention' && isStaffDayOff($date, $time5)) {
         return [
             'valid' => false,
             'message' => 'The parish office is closed every Monday afternoon and all day Tuesday (staff day off). Please choose another date.',
@@ -638,7 +642,7 @@ function schedulingPolicyText(string $category, ?int $serviceId = null): string
         case 'Funeral':
             return 'Funeral Masses are held after the 9-day mourning period from the date of death, fixed at 1:00 PM.';
         case 'Mass Intention':
-            return 'Mass Intentions are offered on Sundays at the 1st Mass (6:00 AM), 2nd Mass (9:00 AM), or 3rd Mass (4:00 PM), and Monday to Saturday at the 6:00 AM Daily Mass — the available times appear after you pick your date. There is no fixed fee, but an offering greater than ₱0 must be paid to submit your intention. Once our Cashier confirms your payment, it is approved.';
+            return 'Mass Intentions are offered on Sundays at the 1st Mass (6:30 AM), 2nd Mass (9:00 AM), or 3rd Mass (4:30 PM), on Wednesdays at the 5:15 PM Evening Mass, and all other days at the 6:00 AM Daily Mass — the available times appear after you pick your date. There is no fixed fee, but an offering greater than ₱0 must be paid to submit your intention. Once our Cashier confirms your payment, it is approved.';
         case 'Anointing':
             return 'Propose a preferred date and time for the Anointing. This sacrament is free of charge — no payment is required.';
         case 'First Communion':

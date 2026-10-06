@@ -36,26 +36,34 @@
       xhr.upload.addEventListener('progress', function (event) {
         if (!event.lengthComputable) return;
         progressBar.value = Math.round((event.loaded / event.total) * 100);
-        progressLabel.textContent = 'Uploading ' + file.name + '… ' + progressBar.value + '%';
+        progressLabel.textContent = progressBar.value >= 100
+          ? 'Processing…'
+          : 'Uploading ' + file.name + '… ' + progressBar.value + '%';
       });
+      xhr.timeout = 60000;
       xhr.onload = function () {
         var result = xhr.response || {};
-        if (xhr.status >= 200 && xhr.status < 300 && result.success) {
-          status.innerHTML = '<span class="supporting-document-success">Pending Review</span>'
-            + '<span class="supporting-document-filename" data-upload-filename></span>'
-            + (result.view_url ? ' <a class="btn btn-outline btn-sm" data-upload-view target="_blank" rel="noopener">View</a>' : '');
-          status.querySelector('[data-upload-filename]').textContent = result.file_name || file.name;
-          if (result.view_url) status.querySelector('[data-upload-view]').href = result.view_url;
-          if (result.document_id) card.dataset.documentId = String(result.document_id);
-          if (pickerLabel) pickerLabel.textContent = 'Choose Replacement';
-          setHidden(progress, true);
-          progressBar.value = 0;
-        } else {
+        try {
+          if (xhr.status >= 200 && xhr.status < 300 && result.success) {
+            status.innerHTML = '<span class="supporting-document-success">Pending Review</span>'
+              + '<span class="supporting-document-filename" data-upload-filename></span>'
+              + (result.view_url ? ' <a class="btn btn-outline btn-sm" data-upload-view target="_blank" rel="noopener">View</a>' : '');
+            status.querySelector('[data-upload-filename]').textContent = result.file_name || file.name;
+            if (result.view_url) status.querySelector('[data-upload-view]').href = result.view_url;
+            if (result.document_id) card.dataset.documentId = String(result.document_id);
+            if (pickerLabel) pickerLabel.textContent = 'Choose Replacement';
+          } else {
+            status.innerHTML = oldStatus;
+            error.textContent = '✕ Upload failed. ' + (result.message || 'Please try again.');
+            setHidden(error, false);
+          }
+        } catch (e) {
           status.innerHTML = oldStatus;
-          error.textContent = '✕ Upload failed. ' + (result.message || 'Please try again.');
+          error.textContent = '✕ Upload failed. Please try again.';
           setHidden(error, false);
-          setHidden(progress, true);
         }
+        setHidden(progress, true);
+        progressBar.value = 0;
         input.disabled = false;
         input.value = '';
       };
@@ -64,6 +72,16 @@
         error.textContent = '✕ Upload failed. Please check your connection and try again.';
         setHidden(error, false);
         setHidden(progress, true);
+        progressBar.value = 0;
+        input.disabled = false;
+        input.value = '';
+      };
+      xhr.ontimeout = function () {
+        status.innerHTML = oldStatus;
+        error.textContent = '✕ Upload timed out. Please check your connection and try again.';
+        setHidden(error, false);
+        setHidden(progress, true);
+        progressBar.value = 0;
         input.disabled = false;
         input.value = '';
       };

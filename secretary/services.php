@@ -37,6 +37,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(url('secretary/services.php'));
     }
 
+    if ($action === 'delete') {
+        $id = (int) $_POST['service_id'];
+        $stmt = db()->prepare('SELECT COUNT(*) FROM appointments a WHERE a.service_id = ? AND a.status_id NOT IN (3,7)');
+        $stmt->execute([$id]);
+        if ((int) $stmt->fetchColumn() > 0) {
+            flash('error', 'This service has active appointments and cannot be deleted. Deactivate it instead.');
+            redirect(url('secretary/services.php'));
+        }
+        db()->prepare('DELETE FROM services WHERE service_id = ?')->execute([$id]);
+        logActivity(currentUser()['user_id'], "Deleted service #$id", 'Services');
+        flash('success', 'Service deleted.');
+        redirect(url('secretary/services.php'));
+    }
+
     // action === 'update' (existing edit-in-place form)
     $id = (int) $_POST['service_id'];
     db()->prepare("UPDATE services SET service_name=?, fee=?, description=?, requirements=?, is_active=? WHERE service_id=?")
@@ -90,7 +104,10 @@ include __DIR__ . '/../includes/dash-start.php';
             <td><?= e($s['category']) ?></td>
             <td><?= money($s['fee']) ?></td>
             <td><?= $s['is_active'] ? 'Yes' : 'No' ?></td>
-            <td><button class="btn btn-outline btn-sm js-edit-service" data-id="<?= $s['service_id'] ?>">Edit</button></td>
+            <td style="display:flex;gap:6px;flex-wrap:wrap;">
+              <button class="btn btn-outline btn-sm js-edit-service" data-id="<?= $s['service_id'] ?>">Edit</button>
+              <button class="btn btn-danger btn-sm js-delete-service" data-id="<?= $s['service_id'] ?>" data-name="<?= e($s['service_name']) ?>">Delete</button>
+            </td>
           </tr>
           <tr id="edit-<?= $s['service_id'] ?>" class="service-edit-row" style="display:none; background: var(--cream);">
             <td colspan="5">
@@ -152,6 +169,26 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
 </dialog>
 
+<dialog class="modal" id="deleteServiceModal">
+  <div class="modal-head">
+    <h3>Delete Service</h3>
+    <button type="button" class="modal-close" onclick="document.getElementById('deleteServiceModal').close()">✕</button>
+  </div>
+  <div class="modal-body">
+    <p style="margin-top:0;">Are you sure you want to delete <strong id="deleteServiceName"></strong>? This cannot be undone.</p>
+    <p class="text-muted" style="font-size:13px;">Services with active appointments cannot be deleted — deactivate them instead.</p>
+    <form method="POST" action="<?= url('secretary/services.php') ?>" id="deleteServiceForm">
+      <?= csrfField() ?>
+      <input type="hidden" name="action" value="delete">
+      <input type="hidden" name="service_id" id="deleteServiceId">
+      <div class="flex gap-3" style="justify-content:flex-end; margin-top:16px;">
+        <button type="button" class="btn btn-outline" onclick="document.getElementById('deleteServiceModal').close()">Cancel</button>
+        <button type="submit" class="btn btn-danger">Delete</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
 <script src="<?= url('public/js/validation.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/validation.js') ?>"></script>
 <script>
 (function () {
@@ -186,6 +223,14 @@ include __DIR__ . '/../includes/dash-start.php';
   document.querySelectorAll('.js-cancel-edit').forEach(function (btn) {
     btn.addEventListener('click', function () {
       document.getElementById('edit-' + this.dataset.id).style.display = 'none';
+    });
+  });
+
+  document.querySelectorAll('.js-delete-service').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.getElementById('deleteServiceId').value = this.dataset.id;
+      document.getElementById('deleteServiceName').textContent = this.dataset.name;
+      document.getElementById('deleteServiceModal').showModal();
     });
   });
 })();

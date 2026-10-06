@@ -153,11 +153,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->commit();
             flash('success', 'Baptism form generated and submitted for review.');
             if ($isAppointmentForm) {
-                redirect($isGuest
-                    ? url('status.php?ref=' . urlencode((string) ($appointment['guest_reference'] ?? '')))
-                    : url('parishioner/appointment-detail.php?id=' . $appointmentId));
+                redirect(url('baptism-draft-form.php?appointment_id=' . $appointmentId . '&form_type=' . urlencode($type) . '&generated_document_id=' . $newId));
             }
-            redirect(url('baptism-draft.php?draft_id=' . $id));
+            redirect(url('baptism-draft-form.php?draft_id=' . $id . '&form_type=' . urlencode($type) . '&generated_document_id=' . $newId));
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) { $pdo->rollBack(); }
             if ($stored) { try { documentStorageDelete($stored['key']); } catch (Throwable $cleanupError) { error_log('Baptism generated-document cleanup failed.'); } }

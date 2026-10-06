@@ -141,9 +141,7 @@ if ($isDraft) {
                 $updatedForm = $formQuery->fetch();
                 $newDocumentId = (int) ($updatedForm['document_id'] ?? 0);
                 flash('success', 'Katin-awan sa Paglubong has been generated and submitted for review.');
-                redirect($isGuest
-                    ? url('status.php?ref=' . urlencode((string) ($appointment['guest_reference'] ?? '')))
-                    : url('parishioner/appointment-detail.php?id=' . $appointmentId));
+                redirect(url('funeral-form.php?appointment_id=' . $appointmentId . '&generated_document_id=' . $newDocumentId));
             } catch (Throwable $e) {
                 error_log('Funeral form generation failed: ' . $e->getMessage());
                 $error = $e->getMessage() === 'Approved forms require Secretary review before they can be changed.'
@@ -191,7 +189,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
       <h3>Deceased Information</h3>
       <div class="form-group"><label for="ngalan_sa_ilubong">NGALAN SA ILUBONG *<span class="field-translation">Name of the deceased</span></label><input id="ngalan_sa_ilubong" name="ngalan_sa_ilubong" type="text" maxlength="150" value="<?= e($data['ngalan_sa_ilubong']) ?>" placeholder="e.g., Juan Dela Cruz" required></div>
       <div class="form-row">
-        <div class="form-group"><label for="edad">EDAD *<span class="field-translation">Age</span></label><input id="edad" name="edad" type="number" min="0" max="120" step="1" value="<?= e($data['edad']) ?>" placeholder="e.g., 75" required></div>
+        <div class="form-group"><label for="edad">EDAD *<span class="field-translation">Age</span></label><input id="edad" name="edad" type="number" min="0" max="120" step="1" value="<?= e($data['edad']) ?>" placeholder="e.g., 75" autocomplete="off" required></div>
         <div class="form-group"><label for="relihiyon">RELIHIYON<span class="field-translation">Religion</span></label><input id="relihiyon" name="relihiyon" type="text" maxlength="80" value="<?= e($data['relihiyon']) ?>" placeholder="e.g., Roman Catholic"></div>
       </div>
       <div class="form-group"><label for="pinuy_anan">PINUY-ANAN *<span class="field-translation">Home address / Residence</span></label><input id="pinuy_anan" name="pinuy_anan" type="text" maxlength="255" value="<?= e($data['pinuy_anan']) ?>" placeholder="e.g., Poblacion, Balilihan, Bohol" required></div>

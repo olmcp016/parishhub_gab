@@ -97,7 +97,7 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
       } elseif ($s['category'] === 'Funeral' || $s['category'] === 'Wake') {
           $scheduleDisplay = 'Schedule arranged with the Parish Office';
       } elseif ($s['category'] === 'Mass Intention') {
-          $scheduleDisplay = 'Daily Mass at 6:00 AM / Sundays at 6:00 AM, 9:00 AM, 4:00 PM';
+          $scheduleDisplay = 'Daily 6:00 AM / Wed 5:15 PM / Sun 6:30 AM, 9:00 AM, 4:30 PM';
       } else {
           $scheduleDisplay = 'Schedule arranged with the Parish Office';
       }
@@ -115,7 +115,7 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
         <p class="text-muted" style="font-size:13px; margin-bottom:4px;">Regular and Special fees available by PSS classification.</p>
         <button type="button" class="btn btn-secondary btn-sm" style="align-self:flex-start; margin-bottom:12px;" onclick="document.getElementById('fees-<?= strtolower($s['category']) ?>').showModal()">View Fees</button>
       <?php endif; ?>
-      <?php if ($s['requirements']): ?>
+      <?php if ($s['requirements'] && !in_array($s['category'], ['Blessing', 'Anointing', 'Wake'], true)): ?>
         <details class="requirements-toggle" style="margin-bottom:12px;">
           <summary>Requirements</summary>
           <p><?= e($s['requirements']) ?></p>
@@ -579,17 +579,19 @@ function toggleServiceUI() {
   priestSelect.disabled = isMassIntention;
   if (isMassIntention) priestSelect.value = '';
 
-  // No documents are required for Mass Intentions — they're approved instantly.
+  // No documents for Mass Intentions, drafts (Baptism/Wedding/Funeral), or
+  // services that handle documents separately (Anointing, Blessing, Wake).
   var uploadGroup = document.getElementById('uploadGroup');
   var draftService = category === 'Baptism' || category === 'Wedding' || category === 'Funeral';
-  document.getElementById('documentRequirementsNote').style.display = isMassIntention || draftService ? 'none' : 'block';
-  uploadGroup.style.display = isMassIntention || draftService ? 'none' : 'block';
-  document.getElementById('extraDocumentsInput').disabled = isMassIntention || draftService;
+  var noDocsService = isMassIntention || draftService || category === 'Anointing' || category === 'Blessing' || category === 'Wake';
+  document.getElementById('documentRequirementsNote').style.display = noDocsService ? 'none' : 'block';
+  uploadGroup.style.display = noDocsService ? 'none' : 'block';
+  document.getElementById('extraDocumentsInput').disabled = noDocsService;
   // ALWAYS clear old requirement rows first — prevents stale required inputs
   // from a previous service (e.g. Funeral's "Death Certificate") from
   // blocking a different service (e.g. Wedding) via hidden required fields.
   document.getElementById('requirementRows').innerHTML = '';
-  if (!isMassIntention && !draftService) rebuildRequirementRows(serviceId);
+  if (!noDocsService) rebuildRequirementRows(serviceId);
 
   var policyBox = document.getElementById('policyBox');
   if (POLICIES[category]) {
@@ -1115,13 +1117,15 @@ function checkRequirementFile(input) {
   });
 }
 
-/** The parish's three official Mass Intention times (mirrors MASS_INTENTION_TIMES in includes/scheduling.php). */
-var MASS_INTENTION_TIMES = [['06:00', '1st Mass'], ['09:00', '2nd Mass'], ['16:00', '3rd Mass']];
+/** The parish's three official Sunday Mass Intention times (mirrors MASS_INTENTION_TIMES in includes/scheduling.php). */
+var MASS_INTENTION_TIMES = [['06:30', '1st Mass'], ['09:00', '2nd Mass'], ['16:30', '3rd Mass']];
 
-/** Sundays have the three Masses; Monday–Saturday there is only the 6:00 AM Daily Mass (mirrors massIntentionTimesForDate()). */
+/** Returns the available Mass Intention times for a given date (mirrors massIntentionTimesForDate()). */
 function massTimesForDate(dateStr) {
-  var d = new Date(dateStr + 'T00:00:00');
-  return d.getDay() === 0 ? MASS_INTENTION_TIMES : [['06:00', 'Daily Mass']];
+  var dow = new Date(dateStr + 'T00:00:00').getDay();
+  if (dow === 0) return MASS_INTENTION_TIMES; // Sunday: three Masses
+  if (dow === 3) return [['17:15', 'Evening Mass']]; // Wednesday: 5:15 PM
+  return [['06:00', 'Daily Mass']]; // all other days: 6:00 AM
 }
 
 /**

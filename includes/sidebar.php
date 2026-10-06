@@ -15,8 +15,11 @@ function renderNavSection(string $slug, string $title, array $items, string $act
     <div class="nav-section" data-section="<?= e($slug) ?>">
       <div class="nav-section-title"><?= e($title) ?></div>
       <ul>
-        <?php foreach ($items as [$href, $key, $icon, $label]): ?>
-          <li><a href="<?= $href ?>" class="<?= $activeKey === $key ? 'active' : '' ?>"><span class="nav-icon"><i data-lucide="<?= e($icon) ?>"></i></span> <?= e($label) ?></a></li>
+        <?php foreach ($items as $item):
+          [$href, $key, $icon, $label] = $item;
+          $badge = $item[4] ?? null;
+        ?>
+          <li><a href="<?= $href ?>" class="<?= $activeKey === $key ? 'active' : '' ?>"><span class="nav-icon"><i data-lucide="<?= e($icon) ?>"></i></span> <?= e($label) ?><?php if ($badge): ?><span class="nav-badge" style="margin-left:6px;background:var(--danger,#c62828);color:#fff;border-radius:10px;padding:1px 6px;font-size:11px;font-weight:700;line-height:1.4;"><?= (int) $badge ?></span><?php endif; ?></a></li>
         <?php endforeach; ?>
       </ul>
     </div>
@@ -35,6 +38,14 @@ function renderNavSection(string $slug, string $title, array $items, string $act
 
   <nav class="sidebar-nav" id="sidebarNav">
     <?php if ($__user['role_name'] === 'Parishioner'): ?>
+      <?php
+        $__unreadNotifications = 0;
+        try {
+            $__notifStmt = db()->prepare('SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = FALSE');
+            $__notifStmt->execute([$__user['user_id']]);
+            $__unreadNotifications = (int) $__notifStmt->fetchColumn();
+        } catch (Throwable $__notifErr) { /* table may not exist on older installs */ }
+      ?>
       <?php renderNavSection('overview', 'Overview', [
         [url('parishioner/dashboard.php'), 'dashboard', 'layout-dashboard', 'Dashboard'],
       ], $__active); ?>
@@ -51,7 +62,7 @@ function renderNavSection(string $slug, string $title, array $items, string $act
         [url('parishioner/announcements.php'), 'announcements', 'megaphone', 'Announcements'],
       ], $__active); ?>
       <?php renderNavSection('notifications', 'Notifications', [
-        [url('parishioner/notifications.php'), 'notifications', 'bell', 'Notifications'],
+        [url('parishioner/notifications.php'), 'notifications', 'bell', 'Notifications', $__unreadNotifications ?: null],
       ], $__active); ?>
       <?php renderNavSection('account', 'Account', [
         [url('parishioner/profile.php'), 'profile', 'user-circle', 'My Profile'],

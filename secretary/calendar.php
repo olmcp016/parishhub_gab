@@ -58,6 +58,26 @@ $eventPagination = paginate((int) $stmt->fetchColumn(), 10);
 $calendarEvents = array_map(fn($e) => ['date' => $e['event_date'], 'title' => $e['title']], $allEvents);
 $calendarBlocked = array_map(fn($b) => ['date' => $b['calendar_date'], 'notes' => $b['notes']], $blocks);
 
+// Generate regular mass schedule for the next 90 days as virtual calendar events.
+// These are display-only markers derived from the parish's fixed mass schedule;
+// the secretary assigns priests by creating a real event (Add Event) on that date.
+$massScheduleEvents = [];
+$massStart = new DateTime('today');
+$massEnd = (clone $massStart)->modify('+90 days');
+for ($massDay = clone $massStart; $massDay <= $massEnd; $massDay->modify('+1 day')) {
+    $massDateStr = $massDay->format('Y-m-d');
+    $massDow = (int) $massDay->format('w');
+    if ($massDow === 0) { // Sunday: three Masses
+        $massScheduleEvents[] = ['date' => $massDateStr, 'title' => '1st Mass (6:30 AM)'];
+        $massScheduleEvents[] = ['date' => $massDateStr, 'title' => '2nd Mass (9:00 AM)'];
+        $massScheduleEvents[] = ['date' => $massDateStr, 'title' => '3rd Mass (4:30 PM)'];
+    } elseif ($massDow === 3) { // Wednesday: Evening Mass
+        $massScheduleEvents[] = ['date' => $massDateStr, 'title' => 'Evening Mass (5:15 PM)'];
+    } else { // Mon/Tue/Thu/Fri/Sat: Daily Mass
+        $massScheduleEvents[] = ['date' => $massDateStr, 'title' => 'Daily Mass (6:00 AM)'];
+    }
+}
+
 $locations = db()->query('SELECT * FROM locations WHERE is_active = TRUE ORDER BY name')->fetchAll();
 $priests = db()->query("SELECT * FROM priests WHERE status = 'active' ORDER BY full_name")->fetchAll();
 
@@ -105,12 +125,13 @@ include __DIR__ . '/../includes/dash-start.php';
 <div style="margin-top: 22px; margin-bottom: 32px; padding: 16px; background-color: var(--cream); border-radius: var(--radius); border: 1px solid var(--border);">
   <div class="pcal-legend" style="margin-bottom: 8px;">
     <span><i class="pcal-dot pcal-dot-today"></i> Today</span>
+    <span><i class="pcal-dot" style="background:#2d7a46;border-radius:50%;display:inline-block;width:10px;height:10px;vertical-align:middle;"></i> Mass Schedule</span>
     <span><i class="pcal-dot pcal-dot-event"></i> Event</span>
     <span><i class="pcal-dot pcal-dot-blocked"></i> Unavailable</span>
     <span><i class="pcal-dot pcal-dot-dayoff"></i> Staff day off</span>
   </div>
   <p class="helper-text" style="margin: 0; font-size: 13.5px;">
-    <strong>💡 Tip:</strong> Click any date on the calendar to pre-select it before opening the Add Event or Block Date modals.<br>
+    <strong>💡 Tip:</strong> Click any date on the calendar to pre-select it before opening the Add Event or Block Date modals. Green entries show the regular mass schedule — to assign a priest to a specific mass, add an event on that date.<br>
     <em style="display: inline-block; margin-top: 6px;">Note: Tuesdays (shaded) are a full staff day off; Monday afternoons (12:00 PM onward) are also off.</em>
   </p>
 </div>
@@ -305,6 +326,8 @@ document.addEventListener('DOMContentLoaded', function () {
   renderParishCalendar('parishCalendar', {
     events: <?= json_encode($calendarEvents, JSON_UNESCAPED_UNICODE) ?>,
     blocked: <?= json_encode($calendarBlocked, JSON_UNESCAPED_UNICODE) ?>,
+    massSchedule: <?= json_encode($massScheduleEvents, JSON_UNESCAPED_UNICODE) ?>,
+    dayMaxEvents: 4,
     extraDayClassNames: function (dateStr) {
       // Tuesday is a full day off. Monday afternoon is also off, but that
       // can't be represented at day-level shading without implying the

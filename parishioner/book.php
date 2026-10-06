@@ -20,7 +20,7 @@ $userId = $identity['user_id'];
 $parishionerId = $identity['parishioner_id'];
 $isGuest = $identity['is_guest'];
 
-const SCHEDULE_TOGGLE_CATEGORIES = ['Baptism', 'Wedding', 'Blessing', 'Confirmation'];
+const SCHEDULE_TOGGLE_CATEGORIES = ['Baptism', 'Wedding'];
 
 /**
  * The booking form now lives in a modal on the Services page, submitted

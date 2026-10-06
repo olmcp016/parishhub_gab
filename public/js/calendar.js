@@ -41,6 +41,18 @@ function renderParishCalendar(elId, options) {
     };
   });
 
+  var massItems = (options.massSchedule || []).map(function (m) {
+    return {
+      title: m.title,
+      start: m.date,
+      allDay: true,
+      backgroundColor: '#2d7a46',
+      borderColor: '#1a5c33',
+      textColor: '#ffffff',
+      extendedProps: { kind: 'mass' }
+    };
+  });
+
   var blockedItems = (options.blocked || []).map(function (b) {
     return {
       title: 'Unavailable' + (b.notes ? ': ' + b.notes : ''),
@@ -65,8 +77,8 @@ function renderParishCalendar(elId, options) {
     height: 'auto',
     firstDay: 0,
     headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
-    events: eventItems.concat(blockedItems),
-    dayMaxEvents: 2,
+    events: massItems.concat(eventItems).concat(blockedItems),
+    dayMaxEvents: options.dayMaxEvents !== undefined ? options.dayMaxEvents : 2,
 
     // Fires after initial render and after every prev/next/today navigation
     // (the month can be 4-6 weeks tall) — lets a page keep something else
