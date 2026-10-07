@@ -34,7 +34,7 @@ $calendarBlocked = array_map(fn($b) => ['date' => $b['calendar_date'], 'notes' =
 // Lookup of real (assigned) events by date+title to suppress duplicate virtual green blocks.
 $existingRealMasses = [];
 foreach ($allEvents as $ev) {
-    $existingRealMasses[$ev['event_date'] . '_' . $ev['title']] = true;
+    $existingRealMasses[$ev['event_date'] . '_' . strtolower(trim($ev['title']))] = true;
 }
 
 // Regular mass schedule for the next 90 days (display-only, same as secretary view)
@@ -50,16 +50,16 @@ for ($massDay = clone $massStart; $massDay <= $massEnd; $massDay->modify('+1 day
             ['title' => '2nd Mass (9:00 AM)', 'clean_title' => '2nd Mass', 'time' => '09:00'],
             ['title' => '3rd Mass (4:30 PM)', 'clean_title' => '3rd Mass', 'time' => '16:30'],
         ] as $mass) {
-            if (!isset($existingRealMasses[$massDateStr . '_' . $mass['clean_title']])) {
+            if (!isset($existingRealMasses[$massDateStr . '_' . strtolower(trim($mass['clean_title']))])) {
                 $massScheduleEvents[] = array_merge(['date' => $massDateStr], $mass);
             }
         }
     } elseif ($massDow === 3) {
-        if (!isset($existingRealMasses[$massDateStr . '_Daily Mass'])) {
+        if (!isset($existingRealMasses[$massDateStr . '_daily mass'])) {
             $massScheduleEvents[] = ['date' => $massDateStr, 'title' => 'Daily Mass (5:15 PM)', 'clean_title' => 'Daily Mass', 'time' => '17:15'];
         }
     } else {
-        if (!isset($existingRealMasses[$massDateStr . '_Daily Mass'])) {
+        if (!isset($existingRealMasses[$massDateStr . '_daily mass'])) {
             $massScheduleEvents[] = ['date' => $massDateStr, 'title' => 'Daily Mass (6:00 AM)', 'clean_title' => 'Daily Mass', 'time' => '06:00'];
         }
     }

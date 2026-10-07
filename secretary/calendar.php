@@ -18,6 +18,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 redirect(url('secretary/calendar.php'));
             }
         }
+        $dupCheck = db()->prepare("SELECT COUNT(*) FROM events WHERE event_date = ? AND LOWER(TRIM(title)) = LOWER(TRIM(?))");
+        $dupCheck->execute([$_POST['event_date'], $_POST['title']]);
+        if ($dupCheck->fetchColumn() > 0) {
+            flash('error', "An event titled \"{$_POST['title']}\" already exists on this date. Edit the existing event instead of adding a new one.");
+            redirect(url('secretary/calendar.php'));
+        }
         db()->prepare(
             "INSERT INTO events (title, description, event_date, event_time, location_id, priest_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)"
         )->execute([
@@ -65,7 +71,7 @@ $calendarBlocked = array_map(fn($b) => ['date' => $b['calendar_date'], 'notes' =
 // Lookup of real (assigned) events by date+title to suppress duplicate virtual green blocks.
 $existingRealMasses = [];
 foreach ($allEvents as $ev) {
-    $existingRealMasses[$ev['event_date'] . '_' . $ev['title']] = true;
+    $existingRealMasses[$ev['event_date'] . '_' . strtolower(trim($ev['title']))] = true;
 }
 
 // Generate regular mass schedule for the next 90 days as virtual calendar events.
@@ -83,16 +89,16 @@ for ($massDay = clone $massStart; $massDay <= $massEnd; $massDay->modify('+1 day
             ['title' => '2nd Mass (9:00 AM)', 'clean_title' => '2nd Mass', 'time' => '09:00'],
             ['title' => '3rd Mass (4:30 PM)', 'clean_title' => '3rd Mass', 'time' => '16:30'],
         ] as $mass) {
-            if (!isset($existingRealMasses[$massDateStr . '_' . $mass['clean_title']])) {
+            if (!isset($existingRealMasses[$massDateStr . '_' . strtolower(trim($mass['clean_title']))])) {
                 $massScheduleEvents[] = array_merge(['date' => $massDateStr], $mass);
             }
         }
     } elseif ($massDow === 3) { // Wednesday: Daily Mass (evening)
-        if (!isset($existingRealMasses[$massDateStr . '_Daily Mass'])) {
+        if (!isset($existingRealMasses[$massDateStr . '_daily mass'])) {
             $massScheduleEvents[] = ['date' => $massDateStr, 'title' => 'Daily Mass (5:15 PM)', 'clean_title' => 'Daily Mass', 'time' => '17:15'];
         }
     } else { // Mon/Tue/Thu/Fri/Sat: Daily Mass
-        if (!isset($existingRealMasses[$massDateStr . '_Daily Mass'])) {
+        if (!isset($existingRealMasses[$massDateStr . '_daily mass'])) {
             $massScheduleEvents[] = ['date' => $massDateStr, 'title' => 'Daily Mass (6:00 AM)', 'clean_title' => 'Daily Mass', 'time' => '06:00'];
         }
     }
