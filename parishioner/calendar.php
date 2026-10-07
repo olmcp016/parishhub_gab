@@ -37,7 +37,7 @@ include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/' . (usesParishionerShell() ? 'dash-start.php' : 'public-shell-start.php');
 ?>
 
-<div style="display:grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 24px; align-items:start;" class="calendar-layout">
+<div style="display:grid; grid-template-columns: 1fr 400px; gap: 30px; align-items:start;" class="calendar-layout">
   <div id="calendarColumn">
     <div id="parishCalendar"></div>
     <div class="pcal-legend">
@@ -147,19 +147,15 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 
 <style>
-@media (max-width: 1024px) {
+@media (max-width: 900px) {
   .calendar-layout { grid-template-columns: 1fr !important; }
 }
 
-/* Give the public calendar more room to breathe */
-#parishCalendar .fc { font-size: 13px; }
-
-/* Upcoming events table: smaller font, no aggressive wrapping */
-#upcomingEventsCard .table-wrap table { font-size: 13px; min-width: 480px; }
+/* Upcoming events table: compact font, all text wraps naturally */
+#upcomingEventsCard .table-wrap { overflow-x: visible; }
+#upcomingEventsCard .table-wrap table { font-size: 13px; width: 100%; }
 #upcomingEventsCard .table-wrap td,
-#upcomingEventsCard .table-wrap th { padding: 9px 10px; white-space: nowrap; }
-/* Only the Event title column should wrap if needed */
-#upcomingEventsCard .table-wrap td:first-child { white-space: normal; min-width: 120px; }
+#upcomingEventsCard .table-wrap th { padding: 9px 10px; white-space: normal; word-break: break-word; }
 </style>
 
 <?php include __DIR__ . '/../includes/' . (usesParishionerShell() ? 'dash-end.php' : 'public-shell-end.php'); ?>
