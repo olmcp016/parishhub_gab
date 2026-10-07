@@ -41,9 +41,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $imagePath = null;
         $imageProvided = !empty($_FILES['image']['name']);
         if ($imageProvided) {
-            $result = validateUploadedFile($_FILES['image']);
+            $result = validateAnnouncementImage($_FILES['image']);
             if (!$result['valid']) {
-                flash('error', DOCUMENT_VALIDATION_ERROR);
+                $imgMsg = match ($result['reason']) {
+                    'invalid_type' => 'Unsupported image format. Please upload a JPG, PNG, GIF, or WEBP file.',
+                    'corrupted'    => 'The image could not be read — it may be corrupted. Please try a different file.',
+                    'too_large'    => 'Image exceeds the file-size limit. Please choose a smaller file.',
+                    default        => 'Image upload failed. Please try again.',
+                };
+                flash('error', $imgMsg);
                 redirect(url('secretary/announcements.php'));
             }
             $safeName = time() . '-' . preg_replace('/[^A-Za-z0-9._-]/', '_', $_FILES['image']['name']);

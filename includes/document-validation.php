@@ -109,3 +109,41 @@ function documentValidationMessage(?string $reason): string
 
 /** Back-compat generic message, kept for any caller not yet passing a reason. */
 const DOCUMENT_VALIDATION_ERROR = 'Document validation failed. Please upload the correct required document.';
+
+/**
+ * Lightweight validation for announcement images — accepts any standard image
+ * format and shape (no portrait-orientation requirement). Only checks that the
+ * file actually arrived, is a supported MIME type (JPEG, PNG, GIF, WEBP), is
+ * not corrupted, and does not exceed the size limit.
+ */
+function validateAnnouncementImage(array $file): array
+{
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        return ['valid' => false, 'mime' => null, 'reason' => 'missing'];
+    }
+    if (empty($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+        return ['valid' => false, 'mime' => null, 'reason' => 'unreadable'];
+    }
+    if (($file['size'] ?? 0) <= 0) {
+        return ['valid' => false, 'mime' => null, 'reason' => 'unreadable'];
+    }
+    if ((int) $file['size'] > (defined('MAX_DOCUMENT_UPLOAD_MB') ? MAX_DOCUMENT_UPLOAD_MB : 2) * 1024 * 1024) {
+        return ['valid' => false, 'mime' => null, 'reason' => 'too_large'];
+    }
+
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime  = finfo_file($finfo, $file['tmp_name']);
+    finfo_close($finfo);
+
+    $allowedImageMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!in_array($mime, $allowedImageMimes, true)) {
+        return ['valid' => false, 'mime' => $mime, 'reason' => 'invalid_type'];
+    }
+
+    // Confirm the file actually decodes as an image.
+    if (@getimagesize($file['tmp_name']) === false) {
+        return ['valid' => false, 'mime' => $mime, 'reason' => 'corrupted'];
+    }
+
+    return ['valid' => true, 'mime' => $mime, 'reason' => null];
+}

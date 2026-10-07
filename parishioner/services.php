@@ -94,8 +94,10 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
           } else {
               $scheduleDisplay = $scheduleDesc;
           }
-      } elseif ($s['category'] === 'Funeral' || $s['category'] === 'Wake') {
+      } elseif ($s['category'] === 'Funeral') {
           $scheduleDisplay = 'Schedule arranged with the Parish Office';
+      } elseif ($s['category'] === 'Wake') {
+          $scheduleDisplay = 'Propose a preferred date &amp; time — parish office confirms';
       } elseif ($s['category'] === 'Mass Intention') {
           $scheduleDisplay = 'Daily 6:00 AM / Wed 5:15 PM / Sun 6:30 AM, 9:00 AM, 4:30 PM';
       } else {
@@ -229,16 +231,16 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
         </div>
 
         <div id="anointingFields" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px; margin-bottom: 16px;">
-          <h4 style="margin-top:0;">Anointing of the Sick Details</h4>
+          <h4 id="anointingFieldsTitle" style="margin-top:0;">Anointing of the Sick Details</h4>
           <div class="form-group">
             <label>Requester's Name <span style="color:var(--danger);">*</span></label>
             <input type="text" name="requester_name" id="requesterNameInput" placeholder="Full name of the person requesting">
           </div>
           <div class="form-group">
-            <label>Sick Person's Name <span style="color:var(--danger);">*</span></label>
+            <label id="patientNameLabel">Sick Person's Name <span style="color:var(--danger);">*</span></label>
             <input type="text" name="patient_name" id="patientNameInput" placeholder="Full name of the person to be anointed">
           </div>
-          <p class="helper-text">This sacrament is provided <strong>free of charge</strong>. No payment is required.</p>
+          <p class="helper-text" id="anointingFieldsNote">This sacrament is provided <strong>free of charge</strong>. No payment is required.</p>
         </div>
 
         <div id="blessingFields" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px; margin-bottom: 16px;">
@@ -460,16 +462,18 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
     </div>
 
     <div id="bookConfirmView" style="display:none; text-align:center; padding: 20px 10px;">
-      <div style="font-size:48px; margin-bottom:12px;">✔</div>
-      <h3 style="margin:0 0 10px;">Request Submitted!</h3>
+      <div style="font-size:48px; margin-bottom:8px;">🙏</div>
+      <h3 style="margin:0 0 6px; color: var(--brown-dark);">Thank You for Your Booking!</h3>
+      <p style="color: var(--brown-mid); font-size:14px; margin: 0 0 12px;">Your request has been submitted and is pending review by our parish office.</p>
       <p id="bookConfirmScheduleType" style="display:none; margin: -4px 0 10px;"></p>
-      <p id="bookConfirmMessage" style="color: var(--brown-mid); margin-bottom:20px;"></p>
-      <div id="bookConfirmReferenceBox" style="display:none; background: var(--cream); border: 1px solid var(--cream-dark); border-radius: 10px; padding: 14px; margin-bottom:20px;">
-        <p class="helper-text" style="margin:0 0 6px;">Your reference code — save this to check your request's status anytime:</p>
-        <p style="font-size:22px; font-weight:700; letter-spacing:1px; color: var(--brown-dark); margin:0;" id="bookConfirmReferenceCode"></p>
+      <p id="bookConfirmMessage" style="color: var(--brown-mid); margin-bottom:16px; font-size:14px;"></p>
+      <div id="bookConfirmReferenceBox" style="background: var(--cream); border: 1px solid var(--cream-dark); border-radius: 10px; padding: 16px; margin-bottom:20px;">
+        <p class="helper-text" style="margin:0 0 4px; font-size:13px;">Your booking reference code — save this to track your request anytime:</p>
+        <p style="font-size:24px; font-weight:700; letter-spacing:2px; color: var(--brown-dark); margin:6px 0 8px;" id="bookConfirmReferenceCode"></p>
+        <p style="font-size:12px; color: var(--text-muted, #888); margin:0;">Screenshot or note this code. You can use it on the <a href="<?= url('status.php') ?>">status page</a> anytime.</p>
       </div>
       <div class="flex gap-3" style="justify-content:center; flex-wrap:wrap;">
-        <a href="#" id="bookConfirmDetailLink" class="btn btn-outline">View Appointment</a>
+        <a href="#" id="bookConfirmDetailLink" class="btn btn-outline" style="display:none;">View Appointment</a>
         <button type="button" class="btn btn-primary" onclick="closeBookModal()">Done</button>
       </div>
     </div>
@@ -562,9 +566,22 @@ function toggleServiceUI() {
   document.getElementById('dateOfDeathInput').required = (category === 'Funeral');
 
   var isAnointing = category === 'Anointing';
-  document.getElementById('anointingFields').style.display = isAnointing ? 'block' : 'none';
-  document.getElementById('requesterNameInput').required = isAnointing;
-  document.getElementById('patientNameInput').required = isAnointing;
+  var isWakeMass  = category === 'Wake';
+  var showAnointingBlock = isAnointing || isWakeMass;
+  document.getElementById('anointingFields').style.display = showAnointingBlock ? 'block' : 'none';
+  document.getElementById('requesterNameInput').required = showAnointingBlock;
+  document.getElementById('patientNameInput').required   = showAnointingBlock;
+  if (isWakeMass) {
+    document.getElementById('anointingFieldsTitle').textContent = 'Wake Mass / Death Anniversary Details';
+    document.getElementById('patientNameLabel').innerHTML = "Deceased Person's Name <span style=\"color:var(--danger);\">*</span>";
+    document.getElementById('patientNameInput').placeholder = 'Full name of the deceased';
+    document.getElementById('anointingFieldsNote').innerHTML = 'Fixed fee: <strong>₱1,500</strong>. Propose a preferred date and time — our parish office will confirm.';
+  } else {
+    document.getElementById('anointingFieldsTitle').textContent = 'Anointing of the Sick Details';
+    document.getElementById('patientNameLabel').innerHTML = "Sick Person's Name <span style=\"color:var(--danger);\">*</span>";
+    document.getElementById('patientNameInput').placeholder = 'Full name of the person to be anointed';
+    document.getElementById('anointingFieldsNote').innerHTML = 'This sacrament is provided <strong>free of charge</strong>. No payment is required.';
+  }
 
   var isBlessing = category === 'Blessing';
   document.getElementById('blessingFields').style.display = isBlessing ? 'block' : 'none';
@@ -633,17 +650,17 @@ function toggleServiceUI() {
   var specialMsgBox = document.getElementById('specialSchedulingMessage');
   specialMsgBox.style.display = 'none';
 
-  if (category === 'Confirmation' || category === 'First Communion' || category === 'Funeral' || category === 'Wake') {
+  if (category === 'Confirmation' || category === 'First Communion' || category === 'Funeral') {
     dateTimeRow.style.display = 'none';
     dateInput.disabled = true;
     dateInput.required = false;
-    
+
     // Hide Priest selector
     var priestGroup = document.getElementById('priestFieldGroup');
     var priestSelect = document.getElementById('priestSelect');
     priestGroup.style.display = 'none';
     priestSelect.disabled = true;
-    
+
     specialMsgBox.style.display = 'block';
     if (category === 'Confirmation') {
       specialMsgBox.textContent = "Schedule will be arranged by the parish office based on the Bishop's availability.";
@@ -651,8 +668,6 @@ function toggleServiceUI() {
       specialMsgBox.textContent = "First Communion is scheduled during February. The parish office will assign the final date and time.";
     } else if (category === 'Funeral') {
       specialMsgBox.textContent = "Funeral schedule will be arranged by the parish office after reviewing your documents.";
-    } else if (category === 'Wake') {
-      specialMsgBox.textContent = "Wake and Death Anniversary schedules are arranged at the parish office.";
     }
   } else if (isMassIntention) {
     massGroup.style.display = 'block';
@@ -923,7 +938,7 @@ function refreshAvailability() {
   var payload = {
     service_id: serviceId,
     category: category,
-    schedule_type: usesToggle ? getScheduleType() : null,
+    schedule_type: category === 'Blessing' ? 'Special' : (usesToggle ? getScheduleType() : null),
     appointment_date: effective.date,
     appointment_time: effective.time,
     priest_id: document.getElementById('priestSelect').value || null,
@@ -1376,17 +1391,15 @@ document.addEventListener('DOMContentLoaded', function () {
           }
           document.getElementById('bookFormView').style.display = 'none';
           document.getElementById('bookConfirmView').style.display = 'block';
-          document.getElementById('bookConfirmMessage').textContent = data.message + (data.documents_reminder ? ' ' + data.documents_reminder : '');
+          document.getElementById('bookConfirmMessage').textContent = data.documents_reminder || '';
           var detailLink = document.getElementById('bookConfirmDetailLink');
-          var referenceBox = document.getElementById('bookConfirmReferenceBox');
-          if (data.guest_reference) {
-            detailLink.style.display = 'none';
-            document.getElementById('bookConfirmReferenceCode').textContent = data.guest_reference;
-            referenceBox.style.display = 'block';
-          } else {
+          var refCode = data.tracking_number || data.guest_reference || '';
+          document.getElementById('bookConfirmReferenceCode').textContent = refCode;
+          if (!data.is_guest && data.detail_url) {
             detailLink.style.display = '';
             detailLink.href = data.detail_url;
-            referenceBox.style.display = 'none';
+          } else {
+            detailLink.style.display = 'none';
           }
           var typeLine = document.getElementById('bookConfirmScheduleType');
           if (data.schedule_type) {

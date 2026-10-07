@@ -109,8 +109,9 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
 
     $isMassIntention = ($category === 'Mass Intention');
     
-    // Confirmation, First Communion, Funeral, and Wake have no parishioner-selected date/time
-    $isNoScheduleCategory = in_array($category, ['Confirmation', 'First Communion', 'Funeral', 'Wake'], true);
+    // Confirmation, First Communion, and Funeral have no parishioner-selected date/time.
+    // Wake (Wake Mass / Death Anniversary) now accepts a proposed date/time like Anointing.
+    $isNoScheduleCategory = in_array($category, ['Confirmation', 'First Communion', 'Funeral'], true);
     
     if (!$category || (!$isNoScheduleCategory && (!$date || !$time))) {
         bookRespondError($isAjax, $isMassIntention
@@ -126,6 +127,11 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
 
     $usesScheduleToggle = in_array($category, SCHEDULE_TOGGLE_CATEGORIES, true);
     $scheduleTypeToSave = $usesScheduleToggle ? $scheduleType : null;
+    // Blessing (House Blessing) always uses free-form time (Special) regardless
+    // of the default-checked Regular radio button the hidden toggle group submits.
+    if ($category === 'Blessing') {
+        $scheduleTypeToSave = 'Special';
+    }
     if ($category === 'Wedding' && $scheduleTypeToSave === 'Special' && !preg_match('/^\d{2}:(00|30)$/', $time)) {
         bookRespondError($isAjax, 'Special Wedding times must use 30-minute intervals.', url('parishioner/services.php'));
     }
@@ -184,15 +190,18 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         }
     }
 
-    // Anointing of the Sick needs the requester's name and the sick person's name.
+    // Anointing of the Sick and Wake Mass / Death Anniversary both collect a
+    // requester name and the name of the person the sacrament/Mass is for.
     $requesterName = null;
     $patientName   = null;
-    if ($category === 'Anointing') {
-
+    if ($category === 'Anointing' || $category === 'Wake') {
         $requesterName = trim($_POST['requester_name'] ?? '');
         $patientName   = trim($_POST['patient_name'] ?? '');
         if ($requesterName === '' || $patientName === '') {
-            bookRespondError($isAjax, 'Please provide both the requester\'s name and the sick person\'s name.', url('parishioner/services.php'));
+            $missingMsg = $category === 'Wake'
+                ? 'Please provide both the requester\'s name and the name of the deceased.'
+                : 'Please provide both the requester\'s name and the sick person\'s name.';
+            bookRespondError($isAjax, $missingMsg, url('parishioner/services.php'));
         }
     }
 
@@ -578,7 +587,9 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
                 'skipped_files' => $skippedFiles,
                 'documents_reminder' => $documentsReminder,
                 'schedule_type' => $scheduleTypeToSave,
+                'tracking_number' => $guestReference,
                 'guest_reference' => $guestReference,
+                'is_guest' => $isGuest,
                 'detail_url' => $detailUrl,
             ]);
             exit;

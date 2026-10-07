@@ -376,8 +376,9 @@ document.addEventListener('DOMContentLoaded', function () {
       document.getElementById('eventDateInput').value = dateStr;
       document.getElementById('blockDateInput').value = dateStr;
       if (info.isBlocked) {
-        var msg = 'This date is already blocked' + (info.blockedInfo.notes ? ':\n' + info.blockedInfo.notes : '.') + '\n\nUse the "Unblock" button below to make it available again.';
-        alert(msg);
+        var notes = info.blockedInfo && info.blockedInfo.notes ? info.blockedInfo.notes : '';
+        document.getElementById('blockedDateNotesText').textContent = notes ? 'Note: ' + notes : '';
+        document.getElementById('blockedDateModal').showModal();
       }
     },
     onEventClick: function (fcEvent) {
@@ -426,6 +427,19 @@ document.addEventListener('DOMContentLoaded', function () {
       <input type="hidden" name="calendar_id" id="unblockDateId">
       <button type="submit" class="btn btn-primary">Yes, Unblock</button>
     </form>
+  </div>
+</dialog>
+
+<dialog id="blockedDateModal" style="max-width:420px;padding:24px;border-radius:10px;border:none;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+    <span style="font-size:24px;">🚫</span>
+    <h3 style="margin:0;color:var(--brown-dark);">Date Already Blocked</h3>
+  </div>
+  <p style="color:var(--brown-mid);margin:0 0 8px;">This date is already marked as unavailable for bookings.</p>
+  <p id="blockedDateNotesText" style="color:var(--brown-mid);font-size:13.5px;background:var(--cream);border-radius:6px;padding:8px 10px;margin:0 0 16px;display:block;"></p>
+  <p style="font-size:13px;color:var(--text-muted,#888);margin:0 0 20px;">Use the "Unblock" button in the Blocked Dates list below to make it available again.</p>
+  <div style="display:flex;justify-content:flex-end;">
+    <button type="button" class="btn btn-primary" onclick="document.getElementById('blockedDateModal').close()">Got it</button>
   </div>
 </dialog>
 

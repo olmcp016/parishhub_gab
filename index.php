@@ -148,8 +148,10 @@ include __DIR__ . '/includes/header.php';
             } else {
                 $scheduleDisplay = $scheduleDesc;
             }
-        } elseif ($s['category'] === 'Funeral' || $s['category'] === 'Wake') {
+        } elseif ($s['category'] === 'Funeral') {
             $scheduleDisplay = 'Schedule arranged with the Parish Office';
+        } elseif ($s['category'] === 'Wake') {
+            $scheduleDisplay = 'Propose a preferred date &amp; time — parish office confirms';
         } elseif ($s['category'] === 'Mass Intention') {
             $scheduleDisplay = 'Daily Mass at 6:00 AM / Sundays at 6:00 AM, 9:00 AM, 4:00 PM';
         } else {

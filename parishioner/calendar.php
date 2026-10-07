@@ -165,7 +165,10 @@ document.addEventListener('DOMContentLoaded', function () {
     minDate: todayStr,
     onDateClick: function (dateStr, info) {
       if (info.isBlocked) {
-        alert('This date is not available for booking' + (info.blockedInfo.notes ? ':\n' + info.blockedInfo.notes : '.'));
+        var notes = info.blockedInfo && info.blockedInfo.notes ? info.blockedInfo.notes : '';
+        document.getElementById('unavailDateNotesText').textContent = notes ? 'Reason: ' + notes : '';
+        document.getElementById('unavailDateNotesText').style.display = notes ? 'block' : 'none';
+        document.getElementById('unavailDateModal').showModal();
         return;
       }
       window.location.href = '<?= url('parishioner/services.php') ?>?date=' + dateStr;
@@ -194,6 +197,19 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 });
 </script>
+
+<dialog id="unavailDateModal" style="max-width:400px;padding:24px;border-radius:10px;border:none;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+    <span style="font-size:24px;">📅</span>
+    <h3 style="margin:0;color:var(--brown-dark);">Date Unavailable</h3>
+  </div>
+  <p style="color:var(--brown-mid);margin:0 0 8px;">This date is not available for booking.</p>
+  <p id="unavailDateNotesText" style="color:var(--brown-mid);font-size:13.5px;background:var(--cream);border-radius:6px;padding:8px 10px;margin:0 0 16px;display:none;"></p>
+  <p style="font-size:13px;color:var(--text-muted,#888);margin:0 0 20px;">Please select a different date. If you have questions, contact the parish office.</p>
+  <div style="display:flex;justify-content:flex-end;">
+    <button type="button" class="btn btn-primary" onclick="document.getElementById('unavailDateModal').close()">OK</button>
+  </div>
+</dialog>
 
 <style>
 @media (max-width: 900px) {
