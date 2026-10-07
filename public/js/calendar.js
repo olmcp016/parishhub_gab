@@ -49,7 +49,7 @@ function renderParishCalendar(elId, options) {
       backgroundColor: '#2d7a46',
       borderColor: '#1a5c33',
       textColor: '#ffffff',
-      extendedProps: { kind: 'mass' }
+      extendedProps: { kind: 'mass', cleanTitle: m.clean_title || m.title, time: m.time || '' }
     };
   });
 
@@ -89,9 +89,11 @@ function renderParishCalendar(elId, options) {
 
     eventClick: function (info) {
       var kind = info.event.extendedProps.kind;
+      info.jsEvent.preventDefault();
       if (kind === 'event' && typeof options.onEventClick === 'function') {
-        info.jsEvent.preventDefault();
         options.onEventClick(info.event);
+      } else if (kind === 'mass' && typeof options.onMassClick === 'function') {
+        options.onMassClick(info.event);
       }
     },
 

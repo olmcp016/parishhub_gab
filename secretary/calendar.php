@@ -68,13 +68,13 @@ for ($massDay = clone $massStart; $massDay <= $massEnd; $massDay->modify('+1 day
     $massDateStr = $massDay->format('Y-m-d');
     $massDow = (int) $massDay->format('w');
     if ($massDow === 0) { // Sunday: three Masses
-        $massScheduleEvents[] = ['date' => $massDateStr, 'title' => '1st Mass (6:30 AM)'];
-        $massScheduleEvents[] = ['date' => $massDateStr, 'title' => '2nd Mass (9:00 AM)'];
-        $massScheduleEvents[] = ['date' => $massDateStr, 'title' => '3rd Mass (4:30 PM)'];
+        $massScheduleEvents[] = ['date' => $massDateStr, 'title' => '1st Mass (6:30 AM)',  'clean_title' => '1st Mass',     'time' => '06:30'];
+        $massScheduleEvents[] = ['date' => $massDateStr, 'title' => '2nd Mass (9:00 AM)',  'clean_title' => '2nd Mass',     'time' => '09:00'];
+        $massScheduleEvents[] = ['date' => $massDateStr, 'title' => '3rd Mass (4:30 PM)',  'clean_title' => '3rd Mass',     'time' => '16:30'];
     } elseif ($massDow === 3) { // Wednesday: Evening Mass
-        $massScheduleEvents[] = ['date' => $massDateStr, 'title' => 'Evening Mass (5:15 PM)'];
+        $massScheduleEvents[] = ['date' => $massDateStr, 'title' => 'Evening Mass (5:15 PM)', 'clean_title' => 'Evening Mass', 'time' => '17:15'];
     } else { // Mon/Tue/Thu/Fri/Sat: Daily Mass
-        $massScheduleEvents[] = ['date' => $massDateStr, 'title' => 'Daily Mass (6:00 AM)'];
+        $massScheduleEvents[] = ['date' => $massDateStr, 'title' => 'Daily Mass (6:00 AM)',   'clean_title' => 'Daily Mass',   'time' => '06:00'];
     }
 }
 
@@ -145,11 +145,11 @@ include __DIR__ . '/../includes/dash-start.php';
     <form method="POST" action="<?= url('secretary/calendar.php') ?>">
       <?= csrfField() ?>
       <input type="hidden" name="action" value="add_event">
-      <div class="form-group"><label>Title</label><input type="text" name="title" required></div>
+      <div class="form-group"><label>Title</label><input type="text" name="title" id="eventTitleInput" required></div>
       <div class="form-group"><label>Description</label><textarea name="description" rows="2"></textarea></div>
       <div class="form-row">
         <div class="form-group"><label>Date</label><input type="date" name="event_date" id="eventDateInput" required></div>
-        <div class="form-group"><label>Time</label><input type="time" name="event_time"></div>
+        <div class="form-group"><label>Time</label><input type="time" name="event_time" id="eventTimeInput"></div>
       </div>
       <div class="form-group">
         <label for="selectedLocationName">Location</label>
@@ -348,6 +348,12 @@ document.addEventListener('DOMContentLoaded', function () {
       var eventId = fcEvent.extendedProps.eventId;
       if (!eventId) return;
       openEventPanel(eventId);
+    },
+    onMassClick: function (fcEvent) {
+      document.getElementById('eventDateInput').value = fcEvent.startStr;
+      document.getElementById('eventTimeInput').value = fcEvent.extendedProps.time || '';
+      document.getElementById('eventTitleInput').value = fcEvent.extendedProps.cleanTitle || '';
+      document.getElementById('addEventModal').showModal();
     }
   });
 });
