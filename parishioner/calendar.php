@@ -92,12 +92,14 @@ include __DIR__ . '/../includes/' . (usesParishionerShell() ? 'dash-start.php' :
       <?php else: ?>
         <div class="table-wrap" id="upcomingEventsTableWrap">
           <table>
-            <thead><tr><th>Event</th><th>Date</th><th>Time</th><th>Location</th><th>Priest</th></tr></thead>
+            <thead><tr><th>Event</th><th>Time</th><th>Location</th><th>Priest</th></tr></thead>
             <tbody>
-              <?php foreach ($events as $ev): ?>
+              <?php $currentDate = null; foreach ($events as $ev): ?>
+                <?php if ($ev['event_date'] !== $currentDate): $currentDate = $ev['event_date']; ?>
+                  <tr><td colspan="4" style="background:var(--cream-dark);font-weight:700;border-bottom:2px solid var(--gold);padding:8px 14px;font-size:13px;"><?= date('l, F j, Y', strtotime($ev['event_date'])) ?></td></tr>
+                <?php endif; ?>
                 <tr>
-                  <td><?= e($ev['title']) ?></td>
-                  <td><?= formatDate($ev['event_date']) ?></td>
+                  <td style="padding-left:20px;"><?= e($ev['title']) ?></td>
                   <td><?= $ev['event_time'] ? date('g:i A', strtotime($ev['event_time'])) : '—' ?></td>
                   <td><?= e($ev['location_name'] ?? $ev['location'] ?? 'Main Parish Church') ?></td>
                   <td><?= $ev['priest_name'] ? e($ev['priest_title'] . ' ' . $ev['priest_name']) : '—' ?></td>
