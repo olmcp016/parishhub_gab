@@ -27,8 +27,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         logActivity($userId, "Created event: {$_POST['title']}", 'Calendar');
         flash('success', 'Event added to calendar.');
     } elseif ($action === 'block_date') {
+        if ($_POST['calendar_date'] < date('Y-m-d')) {
+            flash('error', 'You cannot block a past date.');
+            redirect(url('secretary/calendar.php'));
+        }
         db()->prepare(
-            "INSERT INTO calendar (title, calendar_date, is_blocked, notes, created_by) VALUES ('Blocked', ?, 1, ?, ?)"
+            "INSERT INTO calendar (title, calendar_date, is_blocked, notes, created_by) VALUES ('Blocked', ?, TRUE, ?, ?)"
         )->execute([$_POST['calendar_date'], $_POST['notes'] ?: null, $userId]);
         flash('success', 'Date blocked for booking.');
     } elseif ($action === 'unblock_date') {
@@ -183,7 +187,7 @@ include __DIR__ . '/../includes/dash-start.php';
     <form method="POST" action="<?= url('secretary/calendar.php') ?>">
       <?= csrfField() ?>
       <input type="hidden" name="action" value="block_date">
-      <div class="form-group"><label>Date to Block</label><input type="date" name="calendar_date" id="blockDateInput" required></div>
+      <div class="form-group"><label>Date to Block</label><input type="date" name="calendar_date" id="blockDateInput" required min="<?= date('Y-m-d') ?>"></div>
       <div class="form-group"><label>Reason</label><input type="text" name="notes" placeholder="e.g. Diocesan holiday"></div>
       <button type="submit" class="btn btn-dark btn-block">Block Date</button>
     </form>
