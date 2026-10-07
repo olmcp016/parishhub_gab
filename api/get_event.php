@@ -1,7 +1,8 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
-requireRole('Secretary', 'Admin', 'Treasurer');
+// Event details (title, date, time, location, priest) are public information
+// displayed on the parish calendar — no role check needed.
 
 header('Content-Type: application/json');
 
