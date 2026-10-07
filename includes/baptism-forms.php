@@ -130,10 +130,11 @@ function baptismPdfHeader(FPDF $pdf, string $title): void
     $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('Times', 'B', 15); $pdf->SetXY(15, 47); $pdf->Cell(180, 8, baptismPdfText($title), 0, 1, 'C');
 }
 
-function baptismPdfField(FPDF $pdf, string $label, string $value, float $x, float $y, float $width, float $labelWidth, float $size = 9): void
+function baptismPdfField(FPDF $pdf, string $label, string $value, float $x, float $y, float $width, float $labelWidth, float $size = 9, float $valueSize = 0): void
 {
+    if ($valueSize <= 0) $valueSize = $size + 2; // answers render slightly larger than labels
     $pdf->SetFont('Times', 'B', $size); $pdf->SetXY($x, $y); $pdf->Cell($labelWidth, 6, baptismPdfText($label), 0, 0);
-    $pdf->SetFont('Times', '', $size); $pdf->Cell($width - $labelWidth, 6, baptismPdfFit($pdf, $value, $width - $labelWidth - 2, $size), 'B', 0);
+    $pdf->SetFont('Times', '', $valueSize); $pdf->Cell($width - $labelWidth, 6, baptismPdfFit($pdf, $value, $width - $labelWidth - 2, $valueSize), 'B', 0);
 }
 
 function baptismPdfChoice(FPDF $pdf, string $label, bool $selected, float $x, float $y): void
