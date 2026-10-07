@@ -195,13 +195,4 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
   </ul>
 <?php endif; ?>
 <form method="POST"><?= csrfField() ?><input type="hidden" name="action" value="submit_appointment"><button class="btn btn-primary" type="submit" <?= $canSubmit ? '' : 'disabled' ?>>Submit Appointment Request</button></form></div>
-<?php
-$autoOpenDocId = (int) ($_GET['auto_open_pdf'] ?? 0);
-if ($autoOpenDocId > 0): ?>
-<script>
-window.addEventListener('load', function () {
-  window.open(<?= json_encode(url('document.php?id=' . $autoOpenDocId)) ?>, '_blank', 'noopener');
-});
-</script>
-<?php endif; ?>
 <?php include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-end.php' : 'dash-end.php'); include __DIR__ . '/includes/footer.php';

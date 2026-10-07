@@ -50,19 +50,17 @@ for ($massDay = clone $massStart; $massDay <= $massEnd; $massDay->modify('+1 day
             ['title' => '2nd Mass (9:00 AM)', 'clean_title' => '2nd Mass', 'time' => '09:00'],
             ['title' => '3rd Mass (4:30 PM)', 'clean_title' => '3rd Mass', 'time' => '16:30'],
         ] as $mass) {
-            if (!isset($existingRealMasses[$massDateStr . '_' . $mass['title']])) {
+            if (!isset($existingRealMasses[$massDateStr . '_' . $mass['clean_title']])) {
                 $massScheduleEvents[] = array_merge(['date' => $massDateStr], $mass);
             }
         }
     } elseif ($massDow === 3) {
-        $title = 'Daily Mass (5:15 PM)';
-        if (!isset($existingRealMasses[$massDateStr . '_' . $title])) {
-            $massScheduleEvents[] = ['date' => $massDateStr, 'title' => $title, 'clean_title' => 'Daily Mass', 'time' => '17:15'];
+        if (!isset($existingRealMasses[$massDateStr . '_Daily Mass'])) {
+            $massScheduleEvents[] = ['date' => $massDateStr, 'title' => 'Daily Mass (5:15 PM)', 'clean_title' => 'Daily Mass', 'time' => '17:15'];
         }
     } else {
-        $title = 'Daily Mass (6:00 AM)';
-        if (!isset($existingRealMasses[$massDateStr . '_' . $title])) {
-            $massScheduleEvents[] = ['date' => $massDateStr, 'title' => $title, 'clean_title' => 'Daily Mass', 'time' => '06:00'];
+        if (!isset($existingRealMasses[$massDateStr . '_Daily Mass'])) {
+            $massScheduleEvents[] = ['date' => $massDateStr, 'title' => 'Daily Mass (6:00 AM)', 'clean_title' => 'Daily Mass', 'time' => '06:00'];
         }
     }
 }

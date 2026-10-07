@@ -79,9 +79,11 @@ if ($type === 'katin_awan_bunyag' && !$form) {
     $data['service_date'] = (string) ($draft['appointment_date'] ?? '');
 }
 
+$isAjaxGenerate = false;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifyCsrf();
     $action = ($_POST['action'] ?? 'save') === 'generate' ? 'generate' : 'save';
+    $isAjaxGenerate = $action === 'generate' && !empty($_POST['ajax_generate']);
     foreach (baptismFormDefinition($type)['fields'] as $key => $label) {
         $data[$key] = trim((string) ($_POST[$key] ?? ''));
     }
@@ -151,6 +153,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ->execute([$isAppointmentForm ? $appointmentId : null, $isAppointmentForm ? null : $id, $type, $json, $newId]);
             }
             $pdo->commit();
+            if ($isAjaxGenerate) {
+                $redirectAfterGenerate = $isAppointmentForm
+                    ? url('baptism-draft-form.php?appointment_id=' . $appointmentId . '&form_type=' . urlencode($type))
+                    : url('baptism-draft.php?draft_id=' . $id);
+                header('Content-Type: application/json');
+                echo json_encode(['success' => true, 'doc_id' => $newId, 'redirect' => $redirectAfterGenerate]);
+                exit;
+            }
             flash('success', 'Baptism form generated and submitted for review.');
             if ($isAppointmentForm) {
                 redirect(url('baptism-draft-form.php?appointment_id=' . $appointmentId . '&form_type=' . urlencode($type) . '&generated_document_id=' . $newId));
@@ -160,11 +170,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($pdo->inTransaction()) { $pdo->rollBack(); }
             if ($stored) { try { documentStorageDelete($stored['key']); } catch (Throwable $cleanupError) { error_log('Baptism generated-document cleanup failed.'); } }
             error_log('Baptism form save/generate failed: ' . $e->getMessage());
-            $error = $e->getMessage() === 'Approved forms require Secretary review before they can be changed.'
+            $errorMsg = $e->getMessage() === 'Approved forms require Secretary review before they can be changed.'
                 ? $e->getMessage()
                 : ($action === 'generate' ? 'The Baptism form could not be generated.' : 'The Baptism form draft could not be saved.');
+            if ($isAjaxGenerate) {
+                http_response_code(500);
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => $errorMsg]);
+                exit;
+            }
+            $error = $errorMsg;
         }
     }
+}
+
+// Validation failed on an AJAX generate request — return JSON instead of rendering HTML.
+if ($isAjaxGenerate && $error) {
+    http_response_code(400);
+    header('Content-Type: application/json');
+    echo json_encode(['success' => false, 'error' => $error]);
+    exit;
 }
 
 $def = baptismFormDefinition($type);
@@ -322,7 +347,60 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
   syncMarriagePlace();
   form.addEventListener('submit', function (event) {
     if (!event.submitter || event.submitter.value !== 'generate' || !form.checkValidity()) return;
-    window.open('about:blank', 'parishhubBaptismPdf');
+
+    // Intercept generate — use AJAX so we can control the blank tab outcome.
+    event.preventDefault();
+
+    // Open the blank tab synchronously (same user-gesture tick) to bypass popup blockers.
+    var newWin = window.open('about:blank', 'parishhubBaptismPdf');
+
+    var btn = event.submitter;
+    btn.disabled = true;
+    var origLabel = btn.textContent;
+    btn.textContent = 'Generating…';
+
+    var formData = new FormData(form);
+    formData.set('action', 'generate');
+    formData.append('ajax_generate', '1');
+
+    function showInlineError(msg) {
+      var el = document.getElementById('ajaxGenerateError');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'ajaxGenerateError';
+        el.className = 'alert';
+        el.style.cssText = 'background:var(--danger-bg,#fdeaea);color:var(--danger,#b74040);padding:12px 16px;border-radius:8px;margin-bottom:12px;';
+        form.parentNode.insertBefore(el, form);
+      }
+      el.textContent = msg;
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    fetch(window.location.href, {
+      method: 'POST',
+      credentials: 'same-origin',
+      body: formData
+    })
+    .then(function (response) {
+      return response.json().then(function (data) {
+        if (!response.ok || !data.success) throw new Error(data.error || 'PDF generation failed.');
+        return data;
+      });
+    })
+    .then(function (data) {
+      // Navigate the pre-opened tab to the PDF.
+      if (newWin && !newWin.closed) {
+        newWin.location.href = <?= json_encode(url('document.php?id=')) ?> + data.doc_id;
+      }
+      // Redirect the main window back to the requirements page.
+      window.location.href = data.redirect;
+    })
+    .catch(function (err) {
+      if (newWin && !newWin.closed) newWin.close();
+      btn.disabled = false;
+      btn.textContent = origLabel;
+      showInlineError(err.message || 'An unexpected error occurred. Please try again.');
+    });
   });
   <?php if ($previewDocumentId): ?>window.open(<?= json_encode(url('document.php?id=' . $previewDocumentId)) ?>, 'parishhubBaptismPdf');<?php endif; ?>
 }());
