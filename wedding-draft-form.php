@@ -88,10 +88,12 @@ if ($type === 'matrimony_application') {
     }
 }
 $error = null;
+$isAjaxGenerate = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifyCsrf();
     $action = ($_POST['action'] ?? '') === 'generate' ? 'generate' : 'save';
+    $isAjaxGenerate = $action === 'generate' && !empty($_POST['ajax_generate']);
     foreach (weddingFormDefinition($type)['fields'] as $key => $label) {
         $data[$key] = trim((string) ($_POST[$key] ?? ''));
     }
@@ -137,6 +139,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $pdo->commit();
             if ($action === 'generate') {
+                if ($isAjaxGenerate) {
+                    $redirectAfterGenerate = url('wedding-draft.php?draft_id=' . $draftId);
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => true, 'doc_id' => $newDocumentId, 'redirect' => $redirectAfterGenerate]);
+                    exit;
+                }
                 redirect(url('wedding-draft-form.php?draft_id=' . $draftId . '&form_type=' . urlencode($type) . '&generated_document_id=' . $newDocumentId));
             }
             redirect(url('wedding-draft.php?draft_id=' . $draftId));
@@ -145,9 +153,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($stored && !empty($stored['key'])) {
                 try { documentStorageDelete($stored['key']); } catch (Throwable $ignored) { error_log('Generated document cleanup failed.'); }
             }
-            $error = 'The form could not be saved.';
+            $errorMsg = 'The form could not be saved.';
+            if ($isAjaxGenerate) {
+                http_response_code(500);
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => $errorMsg]);
+                exit;
+            }
+            $error = $errorMsg;
         }
     }
+}
+
+if ($isAjaxGenerate && $error) {
+    http_response_code(400);
+    header('Content-Type: application/json');
+    echo json_encode(['success' => false, 'error' => $error]);
+    exit;
 }
 
 $definition = weddingFormDefinition($type);
@@ -395,10 +417,59 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
   form.addEventListener('submit', function (event) {
     var submitter = event.submitter;
     if (!submitter || submitter.value !== 'generate' || !form.checkValidity()) return;
-    window.open('about:blank', 'parishhubMarriagePdf');
+
+    event.preventDefault();
+
+    var newWin = window.open('about:blank', 'parishhubWeddingPdf');
+
+    var btn = submitter;
+    btn.disabled = true;
+    var origLabel = btn.textContent;
+    btn.textContent = 'Generating…';
+
+    var formData = new FormData(form);
+    formData.set('action', 'generate');
+    formData.append('ajax_generate', '1');
+
+    function showInlineError(msg) {
+      var el = document.getElementById('ajaxGenerateError');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'ajaxGenerateError';
+        el.className = 'alert';
+        el.style.cssText = 'background:var(--danger-bg,#fdeaea);color:var(--danger,#b74040);padding:12px 16px;border-radius:8px;margin-bottom:12px;';
+        form.parentNode.insertBefore(el, form);
+      }
+      el.textContent = msg;
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    fetch(window.location.href, {
+      method: 'POST',
+      credentials: 'same-origin',
+      body: formData
+    })
+    .then(function (response) {
+      return response.json().then(function (data) {
+        if (!response.ok || !data.success) throw new Error(data.error || 'PDF generation failed.');
+        return data;
+      });
+    })
+    .then(function (data) {
+      if (newWin && !newWin.closed) {
+        newWin.location.href = <?= json_encode(url('document.php?id=')) ?> + data.doc_id;
+      }
+      window.location.href = data.redirect;
+    })
+    .catch(function (err) {
+      if (newWin && !newWin.closed) newWin.close();
+      btn.disabled = false;
+      btn.textContent = origLabel;
+      showInlineError(err.message || 'An unexpected error occurred. Please try again.');
+    });
   });
   <?php if ($previewDocumentId): ?>
-  window.open(<?= json_encode(url('document.php?id=' . $previewDocumentId)) ?>, 'parishhubMarriagePdf');
+  window.open(<?= json_encode(url('document.php?id=' . $previewDocumentId)) ?>, 'parishhubWeddingPdf');
   <?php endif; ?>
 }());
 </script>
