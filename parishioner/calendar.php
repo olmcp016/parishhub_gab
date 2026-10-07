@@ -132,6 +132,11 @@ document.addEventListener('DOMContentLoaded', function () {
       }
       window.location.href = '<?= url('parishioner/services.php') ?>?date=' + dateStr;
     },
+    onEventClick: function (fcEvent) {
+      var d = fcEvent.start;
+      var dateStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      window.location.href = '<?= url('parishioner/services.php') ?>?date=' + dateStr;
+    },
     datesSet: function () {
       // The calendar has already re-rendered synchronously by this point,
       // but give layout a tick to settle before measuring.
@@ -151,6 +156,9 @@ document.addEventListener('DOMContentLoaded', function () {
 @media (max-width: 900px) {
   .calendar-layout { grid-template-columns: 1fr !important; }
 }
+
+/* Event blocks: clear hover affordance */
+.fc-event:hover { filter: brightness(0.85); cursor: pointer; }
 
 /* Upcoming events table: compact font, all text wraps naturally */
 #upcomingEventsCard .table-wrap { overflow-x: visible; }
