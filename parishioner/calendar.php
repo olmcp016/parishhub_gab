@@ -158,7 +158,14 @@ document.addEventListener('DOMContentLoaded', function () {
 }
 
 /* Event blocks: clear hover affordance */
-.fc-event:hover { filter: brightness(0.85); cursor: pointer; }
+.fc-event { transition: all 0.2s ease; }
+.fc-event:hover {
+  filter: brightness(1.15);
+  transform: scale(1.02);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  cursor: pointer;
+  z-index: 5;
+}
 
 /* Upcoming events table: compact font, all text wraps naturally */
 #upcomingEventsCard .table-wrap { overflow-x: visible; }
