@@ -83,7 +83,7 @@ include __DIR__ . '/../includes/' . (usesParishionerShell() ? 'dash-start.php' :
                   <td><?= e($ev['title']) ?></td>
                   <td><?= formatDate($ev['event_date']) ?></td>
                   <td><?= $ev['event_time'] ? date('g:i A', strtotime($ev['event_time'])) : '—' ?></td>
-                  <td><?= e($ev['location_name'] ?? $ev['location'] ?? '—') ?></td>
+                  <td><?= e($ev['location_name'] ?? $ev['location'] ?? 'Main Parish Church') ?></td>
                   <td><?= $ev['priest_name'] ? e($ev['priest_title'] . ' ' . $ev['priest_name']) : '—' ?></td>
                 </tr>
               <?php endforeach; ?>
@@ -333,7 +333,7 @@ document.addEventListener('DOMContentLoaded', function () {
       ? new Date(dateStr + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
       : '—';
     document.getElementById('epView_time').textContent = formatTime12h(data.event_time || '');
-    document.getElementById('epView_location').textContent = data.location_name || '—';
+    document.getElementById('epView_location').textContent = data.location_name || 'Main Parish Church';
     var priest = data.priest_name ? ((data.priest_title ? data.priest_title + ' ' : '') + data.priest_name) : '—';
     document.getElementById('epView_priest').textContent = priest;
     var dl = document.getElementById('epView_desc_label');

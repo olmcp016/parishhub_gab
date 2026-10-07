@@ -154,9 +154,10 @@ include __DIR__ . '/../includes/dash-start.php';
       <div class="form-group">
         <label for="selectedLocationName">Location</label>
         <button type="button" class="location-picker-trigger" id="selectedLocationName" aria-haspopup="dialog" aria-controls="locationPickerModal" <?= empty($locations) ? 'disabled' : '' ?>>
-          <span id="selectedLocationLabel">Select a location</span><span aria-hidden="true">›</span>
+          <span id="selectedLocationLabel">Main Parish Church (Default)</span><span aria-hidden="true">›</span>
         </button>
         <input type="hidden" name="location_id" id="selectedLocationId" value="">
+        <button type="button" id="clearLocationBtn" class="helper-text" style="display:none; background:none; border:none; padding:0; cursor:pointer; color:var(--gold-dark); text-decoration:underline; font-size:13px; margin-top:4px;">✕ Reset to Main Parish Church</button>
         <?php if (empty($locations)): ?><p class="helper-text">No locations yet — <a href="<?= url('secretary/locations.php') ?>">add one first</a>.</p><?php endif; ?>
       </div>
       <div class="form-group">
@@ -215,7 +216,7 @@ include __DIR__ . '/../includes/dash-start.php';
             <td><?= e($ev['title']) ?></td>
             <td><?= formatDate($ev['event_date']) ?></td>
             <td><?= e($ev['event_time'] ?? '—') ?></td>
-            <td><?= e($ev['location_name'] ?? $ev['location'] ?? '—') ?></td>
+            <td><?= e($ev['location_name'] ?? $ev['location'] ?? 'Main Parish Church') ?></td>
             <td><?= $ev['priest_name'] ? e($ev['priest_title'] . ' ' . $ev['priest_name']) : '—' ?></td>
             <td>
               <button type="button" class="btn btn-danger btn-sm js-delete-event" data-id="<?= $ev['event_id'] ?>">Remove</button>
@@ -300,6 +301,7 @@ function renderLocationResults() {
     button.addEventListener('click', function () {
       selectedLocationId.value = location.id;
       selectedLocationLabel.textContent = location.name;
+      document.getElementById('clearLocationBtn').style.display = 'block';
       locationPicker.close();
     });
     locationResults.appendChild(button);
@@ -321,6 +323,12 @@ document.querySelectorAll('.location-filter').forEach(function (button) {
 });
 document.getElementById('locationPickerClose').addEventListener('click', function () { locationPicker.close(); });
 locationPicker.addEventListener('close', function () { locationSearch.value = ''; });
+
+document.getElementById('clearLocationBtn').addEventListener('click', function () {
+  selectedLocationId.value = '';
+  selectedLocationLabel.textContent = 'Main Parish Church (Default)';
+  this.style.display = 'none';
+});
 
 document.addEventListener('DOMContentLoaded', function () {
   renderParishCalendar('parishCalendar', {
@@ -647,7 +655,7 @@ document.querySelectorAll('.js-unblock-date').forEach(function(btn) {
       ? formatTime12h(event.event_time)
       : '—';
 
-    document.getElementById('epView_location').textContent = event.location_name || '—';
+    document.getElementById('epView_location').textContent = event.location_name || 'Main Parish Church';
 
     var priestLabel = event.priest_name
       ? ((event.priest_title ? event.priest_title + ' ' : '') + event.priest_name)
