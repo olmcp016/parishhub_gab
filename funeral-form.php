@@ -12,6 +12,7 @@ $user = currentUser();
 
 $isDraft = !empty($draftId);
 $error = null;
+$isAjaxGenerate = false;
 
 if ($isDraft) {
     $draftId = (int) $draftId;
@@ -31,6 +32,7 @@ if ($isDraft) {
         verifyCsrf();
         $data = funeralKatinAwanNormalizeData($_POST);
         $action = ($_POST['action'] ?? '') === 'save' ? 'save' : 'generate';
+        $isAjaxGenerate = $action === 'generate' && !empty($_POST['ajax_generate']);
         $errors = funeralKatinAwanValidationErrors($data, $action === 'generate');
         if ($errors) {
             $error = implode(' ', $errors);
@@ -59,6 +61,11 @@ if ($isDraft) {
                 if (is_array($oldDocument) && !empty($oldDocument['key']) && $oldDocument['key'] !== $stored['key']) {
                     try { documentStorageDelete((string) $oldDocument['key']); } catch (Throwable $cleanupError) { error_log('Old Funeral draft PDF cleanup failed.'); }
                 }
+                if ($isAjaxGenerate) {
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => true, 'doc_id' => 0, 'redirect' => url('funeral-draft.php?draft_id=' . $draftId)]);
+                    exit;
+                }
                 flash('success', 'Katin-awan sa Paglubong PDF generated successfully.');
                 redirect(url('funeral-draft.php?draft_id=' . $draftId));
             } catch (Throwable $e) {
@@ -66,7 +73,9 @@ if ($isDraft) {
                     try { documentStorageDelete((string) $stored['key']); } catch (Throwable $cleanupError) { error_log('Funeral draft PDF cleanup failed.'); }
                 }
                 error_log('Funeral draft PDF generation failed: ' . $e->getMessage());
-                $error = 'The Funeral form PDF could not be generated. Please try again.';
+                $errorMsg = 'The Funeral form PDF could not be generated. Please try again.';
+                if ($isAjaxGenerate) { http_response_code(500); header('Content-Type: application/json'); echo json_encode(['success' => false, 'error' => $errorMsg]); exit; }
+                $error = $errorMsg;
             }
         }
     }
@@ -100,6 +109,7 @@ if ($isDraft) {
         verifyCsrf();
         $data = funeralKatinAwanNormalizeData($_POST);
         $action = ($_POST['action'] ?? '') === 'save' ? 'save' : 'generate';
+        $isAjaxGenerate = $action === 'generate' && !empty($_POST['ajax_generate']);
         $errors = ($form && ($form['review_status'] ?? '') === 'approved')
             ? ['Approved forms require Secretary review before they can be changed.']
             : funeralKatinAwanValidationErrors($data, $action === 'generate');
@@ -140,13 +150,23 @@ if ($isDraft) {
                 $formQuery->execute([$appointmentId, $type]);
                 $updatedForm = $formQuery->fetch();
                 $newDocumentId = (int) ($updatedForm['document_id'] ?? 0);
+                if ($isAjaxGenerate) {
+                    $redirectAfterGenerate = $isGuest
+                        ? url('status.php?ref=' . urlencode((string) ($appointment['guest_reference'] ?? '')))
+                        : url('parishioner/appointment-detail.php?id=' . $appointmentId);
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => true, 'doc_id' => $newDocumentId, 'redirect' => $redirectAfterGenerate]);
+                    exit;
+                }
                 flash('success', 'Katin-awan sa Paglubong has been generated and submitted for review.');
                 redirect(url('funeral-form.php?appointment_id=' . $appointmentId . '&generated_document_id=' . $newDocumentId));
             } catch (Throwable $e) {
                 error_log('Funeral form generation failed: ' . $e->getMessage());
-                $error = $e->getMessage() === 'Approved forms require Secretary review before they can be changed.'
+                $errorMsg = $e->getMessage() === 'Approved forms require Secretary review before they can be changed.'
                     ? $e->getMessage()
                     : 'The Funeral form could not be generated. Please try again.';
+                if ($isAjaxGenerate) { http_response_code(500); header('Content-Type: application/json'); echo json_encode(['success' => false, 'error' => $errorMsg]); exit; }
+                $error = $errorMsg;
             }
         }
     }
@@ -156,6 +176,12 @@ if ($isDraft) {
         $requestedPreviewId = (int) ($_GET['generated_document_id'] ?? 0);
         $previewDocumentId = $requestedPreviewId === (int) $form['document_id'] ? $requestedPreviewId : 0;
     }
+}
+if ($isAjaxGenerate && $error) {
+    http_response_code(400);
+    header('Content-Type: application/json');
+    echo json_encode(['success' => false, 'error' => $error]);
+    exit;
 }
 $definition = funeralFormDefinition($type);
 
@@ -283,9 +309,66 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
   form.addEventListener('submit', function (event) {
     if (!event.submitter || event.submitter.value !== 'generate') return;
     if (!form.checkValidity()) return;
-    if (!hilog.checked && !kumpisal.checked && !wala.checked) { event.preventDefault(); alert('Select the sacrament received, or select Wala.'); return; }
-    <?php if (!$isDraft): ?>window.open('about:blank', 'parishhubFuneralPdf');<?php endif; ?>
+    if (!hilog.checked && !kumpisal.checked && !wala.checked) {
+      event.preventDefault();
+      showInlineError('Select the sacrament received, or select Wala.');
+      return;
+    }
+
+    event.preventDefault();
+
+    var isDraftJs = <?= json_encode($isDraft) ?>;
+    var newWin = isDraftJs ? null : window.open('about:blank', 'parishhubFuneralPdf');
+
+    var btn = event.submitter;
+    btn.disabled = true;
+    var origLabel = btn.textContent;
+    btn.textContent = 'Generating…';
+
+    var formData = new FormData(form);
+    formData.set('action', 'generate');
+    formData.append('ajax_generate', '1');
+
+    fetch(window.location.href, {
+      method: 'POST',
+      credentials: 'same-origin',
+      body: formData
+    })
+    .then(function (response) {
+      return response.json().then(function (data) {
+        if (!response.ok || !data.success) throw new Error(data.error || 'PDF generation failed.');
+        return data;
+      });
+    })
+    .then(function (data) {
+      if (newWin && !newWin.closed) {
+        if (data.doc_id) {
+          newWin.location.href = <?= json_encode(url('document.php?id=')) ?> + data.doc_id;
+        } else {
+          newWin.close();
+        }
+      }
+      window.location.href = data.redirect;
+    })
+    .catch(function (err) {
+      if (newWin && !newWin.closed) newWin.close();
+      btn.disabled = false;
+      btn.textContent = origLabel;
+      showInlineError(err.message || 'An unexpected error occurred. Please try again.');
+    });
   });
+  function showInlineError(msg) {
+    var el = document.getElementById('ajaxGenerateError');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'ajaxGenerateError';
+      el.className = 'alert';
+      el.style.cssText = 'background:var(--danger-bg,#fdeaea);color:var(--danger,#b74040);padding:12px 16px;border-radius:8px;margin-bottom:12px;';
+      form.parentNode.insertBefore(el, form);
+    }
+    el.textContent = msg;
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
   <?php if ($previewDocumentId): ?>window.open(<?= json_encode(url('document.php?id=' . $previewDocumentId)) ?>, 'parishhubFuneralPdf');<?php endif; ?>
 }());
 </script>
