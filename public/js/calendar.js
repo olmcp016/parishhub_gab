@@ -37,7 +37,7 @@ function renderParishCalendar(elId, options) {
       backgroundColor: '#c99b2f',
       borderColor: '#a5791f',
       textColor: '#241611',
-      extendedProps: { kind: 'event' }
+      extendedProps: { kind: 'event', eventId: ev.id || null }
     };
   });
 
@@ -85,6 +85,14 @@ function renderParishCalendar(elId, options) {
     // in sync with the calendar's actual rendered height.
     datesSet: function (info) {
       if (typeof options.datesSet === 'function') options.datesSet(info);
+    },
+
+    eventClick: function (info) {
+      var kind = info.event.extendedProps.kind;
+      if (kind === 'event' && typeof options.onEventClick === 'function') {
+        info.jsEvent.preventDefault();
+        options.onEventClick(info.event);
+      }
     },
 
     dateClick: function (info) {
