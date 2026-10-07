@@ -37,7 +37,7 @@ include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/' . (usesParishionerShell() ? 'dash-start.php' : 'public-shell-start.php');
 ?>
 
-<div style="display:grid; grid-template-columns: auto 1fr; gap: 22px; align-items:start;" class="calendar-layout">
+<div style="display:grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 24px; align-items:start;" class="calendar-layout">
   <div id="calendarColumn">
     <div id="parishCalendar"></div>
     <div class="pcal-legend">
@@ -62,7 +62,7 @@ include __DIR__ . '/../includes/' . (usesParishionerShell() ? 'dash-start.php' :
                 <tr>
                   <td><?= e($ev['title']) ?></td>
                   <td><?= formatDate($ev['event_date']) ?></td>
-                  <td><?= e($ev['event_time'] ?? '—') ?></td>
+                  <td><?= $ev['event_time'] ? date('g:i A', strtotime($ev['event_time'])) : '—' ?></td>
                   <td><?= e($ev['location_name'] ?? $ev['location'] ?? '—') ?></td>
                   <td><?= $ev['priest_name'] ? e($ev['priest_title'] . ' ' . $ev['priest_name']) : '—' ?></td>
                 </tr>
@@ -147,9 +147,19 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 
 <style>
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   .calendar-layout { grid-template-columns: 1fr !important; }
 }
+
+/* Give the public calendar more room to breathe */
+#parishCalendar .fc { font-size: 13px; }
+
+/* Upcoming events table: smaller font, no aggressive wrapping */
+#upcomingEventsCard .table-wrap table { font-size: 13px; min-width: 480px; }
+#upcomingEventsCard .table-wrap td,
+#upcomingEventsCard .table-wrap th { padding: 9px 10px; white-space: nowrap; }
+/* Only the Event title column should wrap if needed */
+#upcomingEventsCard .table-wrap td:first-child { white-space: normal; min-width: 120px; }
 </style>
 
 <?php include __DIR__ . '/../includes/' . (usesParishionerShell() ? 'dash-end.php' : 'public-shell-end.php'); ?>

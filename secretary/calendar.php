@@ -510,6 +510,8 @@ document.querySelectorAll('.js-unblock-date').forEach(function(btn) {
   display: flex; align-items: center; gap: 10px;
   color: var(--brown-muted); font-size: 14px; padding: 20px 0;
 }
+/* Prevent display:flex from overriding the native `hidden` attribute */
+#eventPanel [hidden] { display: none !important; }
 .epanel-spinner {
   display: inline-block; width: 18px; height: 18px; border-radius: 50%;
   border: 2.5px solid var(--gold-light); border-top-color: var(--gold);
