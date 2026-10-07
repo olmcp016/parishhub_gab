@@ -33,11 +33,12 @@ $calendarBlocked = array_map(fn($b) => ['date' => $b['calendar_date'], 'notes' =
 
 $active = 'calendar';
 $pageTitle = 'Parish Calendar';
+$shellMaxWidth = '1400px';
 include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/' . (usesParishionerShell() ? 'dash-start.php' : 'public-shell-start.php');
 ?>
 
-<div style="display:grid; grid-template-columns: 1fr 400px; gap: 30px; align-items:start;" class="calendar-layout">
+<div style="display:grid; grid-template-columns: 1fr 350px; gap: 30px; align-items:start;" class="calendar-layout">
   <div id="calendarColumn">
     <div id="parishCalendar"></div>
     <div class="pcal-legend">
@@ -155,7 +156,7 @@ document.addEventListener('DOMContentLoaded', function () {
 #upcomingEventsCard .table-wrap { overflow-x: visible; }
 #upcomingEventsCard .table-wrap table { font-size: 13px; width: 100%; }
 #upcomingEventsCard .table-wrap td,
-#upcomingEventsCard .table-wrap th { padding: 9px 10px; white-space: normal; word-break: break-word; }
+#upcomingEventsCard .table-wrap th { padding: 9px 10px; white-space: normal; word-break: normal; hyphens: auto; overflow-wrap: break-word; }
 </style>
 
 <?php include __DIR__ . '/../includes/' . (usesParishionerShell() ? 'dash-end.php' : 'public-shell-end.php'); ?>
