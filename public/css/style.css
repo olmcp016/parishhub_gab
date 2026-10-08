@@ -1350,7 +1350,7 @@ dialog.modal::backdrop { background: rgba(36, 22, 17, 0.55); }
 }
 
 /* Today's Mass Intentions (public) — visually distinct from announcements */
-.mi-today { background: linear-gradient(135deg, #fbf5e6, #f4e9cd); border: 1px solid var(--gold); border-radius: 16px; padding: 22px 24px; max-width: 760px; }
+.mi-today { background: linear-gradient(135deg, #fbf5e6, #f4e9cd); border: 1px solid var(--gold); border-radius: 16px; padding: 22px 24px; max-width: 1150px; }
 .mi-today-title { margin: 0 0 2px; font-size: 20px; letter-spacing: .06em; text-transform: uppercase; color: var(--brown-dark, #4a2e22); }
 .mi-today-date { color: var(--brown-mid); font-size: 14px; margin-bottom: 14px; }
 .mi-table-wrap { background: #fffdf7; border: 1px solid var(--gold-light); border-radius: 12px; }
