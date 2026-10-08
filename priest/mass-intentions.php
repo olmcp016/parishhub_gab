@@ -24,14 +24,16 @@ $sql = "SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.statu
         JOIN parishioners par ON a.parishioner_id = par.parishioner_id
         JOIN users u ON par.user_id = u.user_id
         JOIN appointment_status st ON a.status_id = st.status_id
-        WHERE s.category = 'Mass Intention' AND a.status_id IN (5, 6) AND a.priest_id = ?";
+        WHERE s.category = 'Mass Intention' AND a.status_id IN (5, 6)";
 
+// Mass Intentions are not assigned to a specific priest, so every priest sees the
+// same approved list (matching the Secretary/Admin view).
 if ($view === 'current') {
     $sql .= " AND a.appointment_date >= ?";
-    $params = [$priestId, $today];
+    $params = [$today];
 } else {
     $sql .= " AND a.appointment_date < ?";
-    $params = [$priestId, $today];
+    $params = [$today];
 }
 $sql .= " ORDER BY a.appointment_date " . ($view === 'current' ? 'ASC' : 'DESC') . ", a.appointment_time ASC";
 

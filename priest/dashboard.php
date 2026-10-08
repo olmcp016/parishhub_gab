@@ -5,6 +5,7 @@ requireRole('Priest');
 
 $priestId = currentPriestId();
 $today = date('Y-m-d');
+$todaysMassIntentions = getTodaysConfirmedMassIntentions();
 
 $todayCount = 0;
 $weekCount = 0;
@@ -78,8 +79,26 @@ include __DIR__ . '/../includes/dash-start.php';
 </div>
 
 <div class="card">
-  <div class="card-header"><h3>Today's Mass Intentions</h3></div>
-  <p class="helper-text" style="margin-top:-6px;">See the full list, including upcoming ones, under <a href="<?= url('priest/mass-intentions.php') ?>">Mass Intentions</a>.</p>
+  <?php if (!empty($todaysMassIntentions)): ?>
+    <div class="mi-today">
+      <h2 class="mi-today-title">🕊️ Today's Mass Intentions</h2>
+      <div class="mi-today-date"><?= e(date('l, F j, Y')) ?></div>
+      <ul style="margin:0; padding-left:20px; display:flex; flex-direction:column; gap:10px;">
+        <?php foreach ($todaysMassIntentions as $mi): ?>
+          <?php $parts = publicMassIntentionParts($mi['intention_type'], $mi['offerer_name'], $mi['intention_for'], $mi['message']); ?>
+          <li style="font-size: 14.5px; line-height:1.5;">
+            <span class="badge badge-regular" style="margin-right:6px;"><?= e($parts['type']) ?></span>
+            <?= e($parts['body']) ?>
+            <span class="text-muted">— <?= e($parts['name']) ?></span>
+          </li>
+        <?php endforeach; ?>
+      </ul>
+    </div>
+  <?php else: ?>
+    <div class="card-header"><h3>Today's Mass Intentions</h3></div>
+    <p class="text-muted text-center mt-3">No confirmed Mass Intentions for today.</p>
+  <?php endif; ?>
+  <p class="helper-text" style="margin-top:12px;">See the full list, including upcoming ones, under <a href="<?= url('priest/mass-intentions.php') ?>">Mass Intentions</a>.</p>
 </div>
 
 <?php endif; ?>
