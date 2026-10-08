@@ -416,7 +416,8 @@ function regularNextAvailableMonth(int $serviceId, string $fromYearMonth, int $m
 /**
  * Priests do not have a recurring schedule table — availability is derived
  * from (a) their global status, (b) ad-hoc priest_unavailability rows staff
- * add directly, and (c) existing non-cancelled/non-rejected appointments.
+ * add directly, (c) Masses/events assigned to them in the events table, and
+ * (d) existing non-cancelled/non-rejected appointments.
  * This is the single source of truth, replacing the duplicated conflict
  * queries that used to live in book.php and secretary/appointment-detail.php.
  */
@@ -451,6 +452,22 @@ function priestIsAvailable(int $priestId, string $date, string $time, ?int $excl
             'available' => false,
             'reason' => $priest['title'] . ' ' . $priest['full_name'] . ' is unavailable ' . $window . ($blocked['reason'] ? " ({$blocked['reason']})" : '') . '.',
             'note' => $blocked['reason'] ?: 'Not available',
+        ];
+    }
+
+    // Masses and other parish events assigned to this priest block the same slot.
+    // Events with no priest_id (or no event_time) never block anyone.
+    $stmt = db()->prepare(
+        "SELECT title FROM events
+         WHERE priest_id = ? AND event_date = ? AND event_time = ?
+         LIMIT 1"
+    );
+    $stmt->execute([$priestId, $date, $time5 . ':00']);
+    $event = $stmt->fetch();
+    if ($event) {
+        return [
+            'available' => false,
+            'reason' => $priest['title'] . ' ' . $priest['full_name'] . " is already scheduled for \"{$event['title']}\" (Parish Event/Mass) at that exact date and time.",
         ];
     }
 
