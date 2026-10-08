@@ -1353,6 +1353,16 @@ dialog.modal::backdrop { background: rgba(36, 22, 17, 0.55); }
 .mi-today { background: linear-gradient(135deg, #fbf5e6, #f4e9cd); border: 1px solid var(--gold); border-radius: 16px; padding: 22px 24px; max-width: 760px; }
 .mi-today-title { margin: 0 0 2px; font-size: 20px; letter-spacing: .06em; text-transform: uppercase; color: var(--brown-dark, #4a2e22); }
 .mi-today-date { color: var(--brown-mid); font-size: 14px; margin-bottom: 14px; }
+.mi-table-wrap { background: #fffdf7; border: 1px solid var(--gold-light); border-radius: 12px; }
+.mi-table thead th { background: var(--gold-light); color: var(--brown-darkest, #1e1a0a); border-radius: 0; padding: 12px 16px; font-size: 12px; }
+.mi-table tbody td { padding: 12px 16px; border-bottom: 1px solid #efe6c8; font-size: 14px; color: var(--brown-dark, #3e3418); }
+.mi-table tbody tr:nth-child(even) { background: #fbf6e8; }
+.mi-table tbody tr:hover { background: #f6eccd; }
+.mi-table tbody tr:last-child td { border-bottom: none; }
+@media (max-width: 600px) {
+  .mi-today { padding: 18px 16px; }
+  .mi-table thead th, .mi-table tbody td { padding: 10px 12px; font-size: 13px; }
+}
 
 /* ---------- Shared pagination bar (see renderPagination() in functions.php) ---------- */
 .pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; }

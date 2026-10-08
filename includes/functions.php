@@ -91,34 +91,32 @@ function massIntentionReadingLine(string $type, string $offerer, string $for): s
 }
 
 /**
- * Public-safe breakdown of a Mass Intention for the website's "Today's Mass
- * Intentions" display — no contact info, no internal status. Returns the
- * three pieces that must always be shown: the Intention Type, the message
- * body (the parishioner's own Prayer Message when they gave one, else a
- * short generated line from the intention type and who it's for), and the
- * name it's offered by.
+ * Public-safe table for the website's "Today's Mass Intentions" display — the
+ * Type, Intention For and Offerer only. No amount, status or contact info.
+ * Styled by .mi-table in style.css.
+ *
+ * @param array $intentions Rows from getTodaysConfirmedMassIntentions()
  */
-function publicMassIntentionParts(string $type, string $offerer, string $for, ?string $message): array
+function renderMassIntentionsTable(array $intentions): void
 {
-    $message = trim((string) $message);
-    if ($message !== '') {
-        $body = $message;
-    } else {
-        $for = trim($for) ?: 'the intention submitted';
-        $body = match ($type) {
-            'Living' => "For the health and well-being of {$for}.",
-            'Dead' => "For the eternal repose of the soul of {$for}.",
-            'Thanksgiving' => "In thanksgiving for the blessings received by {$for}.",
-            'Healing' => "For the healing and recovery of {$for}.",
-            'Birthday' => "For the birthday blessing of {$for}.",
-            default => "For the intention of {$for}.",
-        };
-    }
-    return [
-        'type' => $type,
-        'body' => $body,
-        'name' => trim($offerer) ?: 'the parish community',
-    ];
+    ?>
+    <div class="table-wrap mi-table-wrap">
+      <table class="mi-table">
+        <thead>
+          <tr><th>Type</th><th>Intention For</th><th>Offerer</th></tr>
+        </thead>
+        <tbody>
+          <?php foreach ($intentions as $mi): ?>
+            <tr>
+              <td><span class="badge badge-regular"><?= e($mi['intention_type']) ?></span></td>
+              <td><?= e(trim((string) $mi['intention_for']) ?: '—') ?></td>
+              <td><?= e(trim((string) $mi['offerer_name']) ?: 'the parish community') ?></td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <?php
 }
 
 /**

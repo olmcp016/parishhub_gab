@@ -83,16 +83,7 @@ include __DIR__ . '/../includes/dash-start.php';
     <div class="mi-today">
       <h2 class="mi-today-title">🕊️ Today's Mass Intentions</h2>
       <div class="mi-today-date"><?= e(date('l, F j, Y')) ?></div>
-      <ul style="margin:0; padding-left:20px; display:flex; flex-direction:column; gap:10px;">
-        <?php foreach ($todaysMassIntentions as $mi): ?>
-          <?php $parts = publicMassIntentionParts($mi['intention_type'], $mi['offerer_name'], $mi['intention_for'], $mi['message']); ?>
-          <li style="font-size: 14.5px; line-height:1.5;">
-            <span class="badge badge-regular" style="margin-right:6px;"><?= e($parts['type']) ?></span>
-            <?= e($parts['body']) ?>
-            <span class="text-muted">— <?= e($parts['name']) ?></span>
-          </li>
-        <?php endforeach; ?>
-      </ul>
+      <?php renderMassIntentionsTable($todaysMassIntentions); ?>
     </div>
   <?php else: ?>
     <div class="card-header"><h3>Today's Mass Intentions</h3></div>
