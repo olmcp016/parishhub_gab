@@ -110,7 +110,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     $isMassIntention = ($category === 'Mass Intention');
     
     // Confirmation, First Communion, and Funeral have no parishioner-selected date/time.
-    // Wake (Wake Mass / Death Anniversary) now accepts a proposed date/time like Anointing.
+    // Wake services (Wake Mass, Death Anniversary) now accept a proposed date/time like Anointing.
     $isNoScheduleCategory = in_array($category, ['Confirmation', 'First Communion', 'Funeral'], true);
     
     if (!$category || (!$isNoScheduleCategory && (!$date || !$time))) {
@@ -190,7 +190,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         }
     }
 
-    // Anointing of the Sick and Wake Mass / Death Anniversary both collect a
+    // Anointing of the Sick and the Wake services (Wake Mass, Death Anniversary) both collect a
     // requester name and the name of the person the sacrament/Mass is for.
     $requesterName = null;
     $patientName   = null;

@@ -572,7 +572,8 @@ function toggleServiceUI() {
   document.getElementById('requesterNameInput').required = showAnointingBlock;
   document.getElementById('patientNameInput').required   = showAnointingBlock;
   if (isWakeMass) {
-    document.getElementById('anointingFieldsTitle').textContent = 'Wake Mass / Death Anniversary Details';
+    // Title follows the chosen service ("Wake Mass" or "Death Anniversary").
+    document.getElementById('anointingFieldsTitle').textContent = selectedOption.textContent.trim() + ' Details';
     document.getElementById('patientNameLabel').innerHTML = "Deceased Person's Name <span style=\"color:var(--danger);\">*</span>";
     document.getElementById('patientNameInput').placeholder = 'Full name of the deceased';
     document.getElementById('anointingFieldsNote').innerHTML = 'Fixed fee: <strong>₱1,500</strong>. Propose a preferred date and time — our parish office will confirm.';
