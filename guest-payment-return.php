@@ -17,20 +17,32 @@ $reference = strtoupper(trim($_GET['ref'] ?? ''));
 $cancelledReturn = isset($_GET['cancelled']);
 $statusUrl = url('status.php') . '?ref=' . urlencode($reference);
 
-$stmt = db()->prepare(
-    "SELECT a.appointment_id, p.payment_id, p.payment_status, t.gateway_transaction_id
-     FROM appointments a
-     JOIN payments p ON p.appointment_id = a.appointment_id
-     JOIN transactions t ON t.payment_id = p.payment_id AND t.gateway = 'paymongo'
-     WHERE a.appointment_id = ? AND a.guest_reference = ?
-     ORDER BY p.payment_id DESC LIMIT 1"
-);
-$stmt->execute([$appointmentId, $reference]);
-$row = $stmt->fetch();
+// Proof that this browser started the checkout (set in guest-pay.php). The
+// reference in this URL alone is not enough to read or change a payment
+// (audit H-02). Without the marker, PayMongo's webhook still reconciles it.
+$hasCheckoutProof = !empty($_SESSION['guest_pay_checkout'][$appointmentId]);
+
+$row = null;
+if ($hasCheckoutProof) {
+    $stmt = db()->prepare(
+        "SELECT a.appointment_id, p.payment_id, p.payment_status, t.gateway_transaction_id
+         FROM appointments a
+         JOIN payments p ON p.appointment_id = a.appointment_id
+         JOIN transactions t ON t.payment_id = p.payment_id AND t.gateway = 'paymongo'
+         WHERE a.appointment_id = ? AND a.guest_reference = ?
+         ORDER BY p.payment_id DESC LIMIT 1"
+    );
+    $stmt->execute([$appointmentId, $reference]);
+    $row = $stmt->fetch();
+}
 
 $outcome = 'unknown'; // paid | pending | failed | unknown
 $message = 'We could not find that payment.';
 $failMessage = 'The payment was not completed. No charge was made — you can try again from your status page.';
+if (!$hasCheckoutProof) {
+    $outcome = 'pending';
+    $message = "We're confirming your payment with PayMongo. Check your status page in a moment.";
+}
 
 if ($row) {
     $paymentId = (int) $row['payment_id'];

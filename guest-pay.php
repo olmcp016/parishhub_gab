@@ -7,10 +7,9 @@ require_once __DIR__ . '/includes/service-fees.php';
 /**
  * Guest equivalent of parishioner/pay.php — for a guest booking's regular
  * (non-Mass-Intention, non-Donation) service, once it's Approved. A guest
- * has no login, so "ownership" is proven by knowing the random guest_reference
- * code (shown on their confirmation screen / needed to look themselves up on
- * status.php) rather than a session — same trust boundary status.php itself
- * already uses. The fee is always derived server-side from the service
+ * has no login, so "ownership" is proven by the guest_reference code together
+ * with the email or phone used for the booking (the same pair status.php
+ * requires). Failed attempts are throttled. The fee is always derived server-side from the service
  * record, never trusted from the client.
  */
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -20,11 +19,25 @@ verifyCsrf();
 
 $appointmentId = (int) ($_POST['appointment_id'] ?? 0);
 $reference = strtoupper(trim($_POST['ref'] ?? ''));
-$statusUrl = url('status.php') . '?ref=' . urlencode($reference);
+$contact = trim($_POST['contact'] ?? '');
+$statusUrl = url('status.php') . '?ref=' . urlencode($reference) . '&contact=' . urlencode($contact);
 
 if ($reference === '') {
     flash('error', 'Missing reference code.');
     redirect(url('status.php'));
+}
+// The reference alone is not proof of ownership (audit H-02). The email or
+// phone used for the booking must match too. Failed attempts share the
+// status lookup throttle, so this cannot be used to guess references.
+$ipKey = 'status_ip:' . hash('sha256', $_SERVER['REMOTE_ADDR'] ?? 'unknown');
+if ($contact === '') {
+    flash('error', 'Enter the email or phone number you gave when booking, to pay for this appointment.');
+    redirect(url('status.php') . '?ref=' . urlencode($reference));
+}
+$lockedFor = throttleSecondsLeft($ipKey);
+if ($lockedFor > 0) {
+    flash('error', 'Too many attempts from this connection. Please try again in ' . ceil($lockedFor / 60) . ' minute(s).');
+    redirect($statusUrl);
 }
 
 $stmt = db()->prepare(
@@ -33,13 +46,14 @@ $stmt = db()->prepare(
      FROM appointments a
      JOIN services s ON a.service_id = s.service_id
      JOIN appointment_status st ON a.status_id = st.status_id
-     WHERE a.appointment_id = ? AND a.guest_reference = ? AND st.status_name = 'Approved'
-       AND s.category NOT IN ('Mass Intention', 'Donation')"
+     WHERE a.appointment_id = ? AND a.guest_reference = ? AND (a.guest_email = ? OR a.guest_phone = ?)
+       AND st.status_name = 'Approved' AND s.category NOT IN ('Mass Intention', 'Donation')"
 );
-$stmt->execute([$appointmentId, $reference]);
+$stmt->execute([$appointmentId, $reference, $contact, $contact]);
 $appointment = $stmt->fetch();
 
 if (!$appointment) {
+    throttleRecordFailure($ipKey, 10, 15 * 60);
     flash('error', 'Appointment not found or not eligible for payment.');
     redirect($statusUrl);
 }

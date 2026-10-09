@@ -84,8 +84,8 @@ if ($searched) {
 }
 
 // A guest can pay for their own Approved regular-service appointment right
-// here — no login needed, since the reference code they already had to know
-// to reach this page IS the credential (see guest-pay.php). Mass Intentions
+// here, with no login. The reference code and the booking's email or phone
+// together are the credential (see guest-pay.php). Mass Intentions
 // and Donations are excluded: those are paid at submission time, not here.
 $onlineUnfinished = $payment && (int) $payment['method_id'] === 7 && $payment['payment_status'] === 'pending';
 $appointmentSnapshot = $appointment && !empty($appointment['fee_snapshot']) ? (json_decode($appointment['fee_snapshot'], true) ?: []) : [];
@@ -292,6 +292,7 @@ include __DIR__ . '/includes/header.php';
           <?= csrfField() ?>
           <input type="hidden" name="appointment_id" value="<?= $appointment['appointment_id'] ?>">
           <input type="hidden" name="ref" value="<?= e($appointment['guest_reference']) ?>">
+          <input type="hidden" name="contact" value="<?= e($contact) ?>">
           <div class="form-group">
             <label>Amount</label>
             <input type="number" value="<?= e((string) $displayFee) ?>" step="0.01" readonly disabled>

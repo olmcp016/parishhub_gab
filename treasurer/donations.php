@@ -35,6 +35,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'manua
         flash('error', 'Please choose a payment method.');
         redirect(url('treasurer/donations.php'));
     }
+    // Non-cash donations need the reference number of the transfer or card
+    // payment. Cash gets a generated one. Same rule as verifyPaymentAndIssueReceipt()
+    // for staff verification (audit H-06).
+    if ($methodId !== 1 && $reference === null) {
+        flash('error', 'Enter the reference number of this payment before recording the donation.');
+        redirect(url('treasurer/donations.php'));
+    }
 
     if ($selectedParishionerId) {
         $parishionerId = $selectedParishionerId;
@@ -54,6 +61,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'manua
     $pdo = db();
     $pdo->beginTransaction();
     try {
+        // Lock the reference so two recordings cannot share it (audit H-06).
+        if ($reference === null) {
+            $reference = 'CASH-' . strtoupper(bin2hex(random_bytes(6)));
+        }
+        $pdo->prepare('SELECT pg_advisory_xact_lock(hashtext(?))')->execute(['payref:' . $reference]);
+        $dupRef = $pdo->prepare('SELECT 1 FROM payments WHERE reference_number = ? LIMIT 1');
+        $dupRef->execute([$reference]);
+        if ($dupRef->fetchColumn()) {
+            $pdo->rollBack();
+            flash('error', 'This reference number is already used by another payment. Check the reference and try again.');
+            redirect(url('treasurer/donations.php'));
+        }
+
         // Staff recorded this in person — it's already confirmed, so it's
         // inserted straight to Payment Verified with a real receipt, no
         // separate verification step needed.
