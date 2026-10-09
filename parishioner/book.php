@@ -101,16 +101,19 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     // see it alongside the appointment detail and confirmation.
     if (!$guestReference) $guestReference = generateGuestReference();
 
-    $stmt = db()->prepare('SELECT category, requirements FROM services WHERE service_id = ?');
+    $stmt = db()->prepare('SELECT category, service_name, requirements FROM services WHERE service_id = ?');
     $massIntentionStage = 'load_service';
     $stmt->execute([$serviceId]);
     $service = $stmt->fetch();
     $category = $service['category'] ?? null;
 
     $isMassIntention = ($category === 'Mass Intention');
+    // Special Mass Request is a Wake-category service for any special intention
+    // (birthday, thanksgiving, etc.), so it is identified by name within Wake.
+    $isSpecialMass = ($category === 'Wake' && ($service['service_name'] ?? '') === 'Special Mass Request');
     
     // Confirmation, First Communion, and Funeral have no parishioner-selected date/time.
-    // Wake services (Wake Mass, Death Anniversary) now accept a proposed date/time like Anointing.
+    // Wake services (Wake Mass, Special Mass Request) now accept a proposed date/time like Anointing.
     $isNoScheduleCategory = in_array($category, ['Confirmation', 'First Communion', 'Funeral'], true);
     
     if (!$category || (!$isNoScheduleCategory && (!$date || !$time))) {
@@ -190,11 +193,11 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         }
     }
 
-    // Anointing of the Sick and the Wake services (Wake Mass, Death Anniversary) both collect a
-    // requester name and the name of the person the sacrament/Mass is for.
+    // Anointing of the Sick and Wake Mass both collect a requester name and the
+    // name of the person the sacrament/Mass is for.
     $requesterName = null;
     $patientName   = null;
-    if ($category === 'Anointing' || $category === 'Wake') {
+    if ($category === 'Anointing' || ($category === 'Wake' && !$isSpecialMass)) {
         $requesterName = trim($_POST['requester_name'] ?? '');
         $patientName   = trim($_POST['patient_name'] ?? '');
         if ($requesterName === '' || $patientName === '') {
@@ -203,6 +206,25 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
                 : 'Please provide both the requester\'s name and the sick person\'s name.';
             bookRespondError($isAjax, $missingMsg, url('parishioner/services.php'));
         }
+    }
+
+    // Special Mass Request: a requester name plus an occasion. The occasion and
+    // any additional requests are saved into the appointment's remarks (the
+    // free-text notes the Secretary and Admin already read), e.g.
+    // "Occasion: Birthday | Additional Requests: ...". There is no deceased-name
+    // requirement here, so patient_name stays empty.
+    if ($isSpecialMass) {
+        $occasionOptions = ['Death Anniversary', 'Birthday', 'Wedding Anniversary', 'Thanksgiving', 'Healing and Recovery', 'Special Intention', 'Others'];
+        $requesterName = trim($_POST['special_requester_name'] ?? '');
+        $occasion = trim($_POST['occasion'] ?? '');
+        $additionalRequests = trim($_POST['special_requests'] ?? '');
+        if ($requesterName === '' || !in_array($occasion, $occasionOptions, true)) {
+            bookRespondError($isAjax, 'Please provide the requester\'s name and select an occasion.', url('parishioner/services.php'));
+        }
+        if ($occasion === 'Others' && $additionalRequests === '') {
+            bookRespondError($isAjax, 'Please type the specific occasion in the Additional Requests box.', url('parishioner/services.php'));
+        }
+        $remarks = 'Occasion: ' . $occasion . ' | Additional Requests: ' . ($additionalRequests !== '' ? $additionalRequests : 'None');
     }
 
     // House Blessing (category "Blessing") needs a contact number and the

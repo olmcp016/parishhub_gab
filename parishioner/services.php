@@ -223,7 +223,7 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
           <select name="service_id" id="serviceSelect" required>
             <option value="">-- Choose a service --</option>
             <?php foreach ($services as $s): ?>
-              <option value="<?= $s['service_id'] ?>" data-category="<?= e($s['category']) ?>">
+              <option value="<?= $s['service_id'] ?>" data-category="<?= e($s['category']) ?>" data-service-name="<?= e($s['service_name']) ?>">
                 <?= e($s['service_name']) ?>
               </option>
             <?php endforeach; ?>
@@ -241,6 +241,33 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
             <input type="text" name="patient_name" id="patientNameInput" placeholder="Full name of the person to be anointed">
           </div>
           <p class="helper-text" id="anointingFieldsNote">This sacrament is provided <strong>free of charge</strong>. No payment is required.</p>
+        </div>
+
+        <div id="specialMassFields" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px; margin-bottom: 16px;">
+          <h4 style="margin-top:0;">Special Mass Request Details</h4>
+          <div class="form-group">
+            <label>Requester's Name <span style="color:var(--danger);">*</span></label>
+            <input type="text" name="special_requester_name" id="specialRequesterInput" placeholder="Full name of the person requesting">
+          </div>
+          <div class="form-group">
+            <label>Occasion <span style="color:var(--danger);">*</span></label>
+            <select name="occasion" id="occasionSelect" onchange="updateOccasionUI()">
+              <option value="">-- Select an occasion --</option>
+              <option value="Death Anniversary">Death Anniversary</option>
+              <option value="Birthday">Birthday</option>
+              <option value="Wedding Anniversary">Wedding Anniversary</option>
+              <option value="Thanksgiving">Thanksgiving</option>
+              <option value="Healing and Recovery">Healing and Recovery</option>
+              <option value="Special Intention">Special Intention</option>
+              <option value="Others">Others</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Additional Requests <span id="specialRequestsRequiredMark" style="color:var(--danger); display:none;">*</span></label>
+            <textarea name="special_requests" id="specialRequestsInput" rows="3" placeholder="Enter any other important intentions or requests..."></textarea>
+            <p class="helper-text" id="specialRequestsHint" style="display:none;">Since you selected "Others", please type the specific occasion here.</p>
+          </div>
+          <p class="helper-text" style="margin-bottom:0;">Fixed fee: <strong>₱1,500</strong>. Propose a preferred date and time — our parish office will confirm.</p>
         </div>
 
         <div id="blessingFields" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px; margin-bottom: 16px;">
@@ -407,9 +434,9 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
           </div>
         </div>
 
-        <div class="form-group">
+        <div class="form-group" id="remarksGroup">
           <label>Additional Remarks</label>
-          <textarea name="remarks" rows="2" placeholder="Any special requests..."></textarea>
+          <textarea name="remarks" id="remarksInput" rows="2" placeholder="Any special requests..."></textarea>
         </div>
 
         <div class="form-group" id="documentRequirementsNote" style="display:none;">
@@ -518,6 +545,23 @@ function closeBookModal() {
   document.getElementById('bookModal').close();
 }
 
+/**
+ * Special Mass Request: "Others" makes the Additional Requests box mandatory,
+ * since the typed text is the occasion itself. Only active while the Special
+ * Mass Request block is visible, so it never affects other services.
+ */
+function updateOccasionUI() {
+  var specialVisible = document.getElementById('specialMassFields').style.display !== 'none';
+  var isOthers = specialVisible && document.getElementById('occasionSelect').value === 'Others';
+  var requestsInput = document.getElementById('specialRequestsInput');
+  requestsInput.required = isOthers;
+  requestsInput.placeholder = isOthers
+    ? 'Type the occasion and any other intentions or requests...'
+    : 'Enter any other important intentions or requests...';
+  document.getElementById('specialRequestsRequiredMark').style.display = isOthers ? 'inline' : 'none';
+  document.getElementById('specialRequestsHint').style.display = isOthers ? 'block' : 'none';
+}
+
 function getScheduleType() {
   return document.getElementById('scheduleTypeSpecial').checked ? 'Special' : 'Regular';
 }
@@ -565,14 +609,30 @@ function toggleServiceUI() {
   document.getElementById('dateOfDeathGroup').style.display = category === 'Funeral' ? 'block' : 'none';
   document.getElementById('dateOfDeathInput').required = (category === 'Funeral');
 
+  // "Special Mass Request" shares the Wake category but has its own block
+  // (occasion + additional requests). Only plain Wake Mass uses the
+  // deceased-name block, so the two never show or require each other's fields.
+  var serviceName = selectedOption ? selectedOption.dataset.serviceName || '' : '';
+  var isSpecialMass = category === 'Wake' && serviceName === 'Special Mass Request';
+
   var isAnointing = category === 'Anointing';
-  var isWakeMass  = category === 'Wake';
+  var isWakeMass  = category === 'Wake' && !isSpecialMass;
   var showAnointingBlock = isAnointing || isWakeMass;
   document.getElementById('anointingFields').style.display = showAnointingBlock ? 'block' : 'none';
   document.getElementById('requesterNameInput').required = showAnointingBlock;
   document.getElementById('patientNameInput').required   = showAnointingBlock;
+
+  document.getElementById('specialMassFields').style.display = isSpecialMass ? 'block' : 'none';
+  document.getElementById('specialRequesterInput').required = isSpecialMass;
+  document.getElementById('occasionSelect').required = isSpecialMass;
+  // Remarks are folded into the Special Mass Request's own text box, so the
+  // generic remarks field is hidden and disabled (not submitted) for it.
+  document.getElementById('remarksGroup').style.display = isSpecialMass ? 'none' : 'block';
+  document.getElementById('remarksInput').disabled = isSpecialMass;
+  updateOccasionUI();
+
   if (isWakeMass) {
-    // Title follows the chosen service ("Wake Mass" or "Death Anniversary").
+    // Wake Mass is the only service left in this block with a deceased name.
     document.getElementById('anointingFieldsTitle').textContent = selectedOption.textContent.trim() + ' Details';
     document.getElementById('patientNameLabel').innerHTML = "Deceased Person's Name <span style=\"color:var(--danger);\">*</span>";
     document.getElementById('patientNameInput').placeholder = 'Full name of the deceased';
