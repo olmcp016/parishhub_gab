@@ -153,7 +153,7 @@ $pageTitle = 'Create an Account';
 include __DIR__ . '/../includes/header.php';
 ?>
 <div class="auth-split">
-  <div class="auth-split-panel panel--register" style="background-image: url('<?= url('public/img/register_bg.jpg') ?>');">
+  <div class="auth-split-panel panel--register" style="background-image: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('<?= url('public/img/register_bg.jpg') ?>');">
     <a href="<?= url('index.php') ?>" style="display:contents; text-decoration:none; color:inherit;" title="Back to Home">
       <div class="panel-brand">
         <span class="crest"><?= crestMarkup() ?></span>
