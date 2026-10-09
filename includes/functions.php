@@ -245,6 +245,22 @@ function documentUrl(string $filePath): string
     return url($filePath);
 }
 
+/**
+ * An announcement can carry up to ANNOUNCEMENT_MAX_IMAGES posters, stored in
+ * the image / image2 / image3 columns (slot 1 / 2 / 3).
+ * Returns the non-empty slots keyed by slot number, in order.
+ */
+function announcementImageSlots(array $row): array
+{
+    $slots = [];
+    foreach (['image' => 1, 'image2' => 2, 'image3' => 3] as $column => $slot) {
+        if (!empty($row[$column])) {
+            $slots[$slot] = $row[$column];
+        }
+    }
+    return $slots;
+}
+
 function documentViewUrl(int $documentId): string
 {
     return url('document.php?id=' . $documentId);
@@ -420,6 +436,7 @@ function renderPagination(array $pagination, string $baseUrl): string
 
 /** Public announcement badge choices (announcements.category; NULL is shown as "Announcement"). */
 const ANNOUNCEMENT_CATEGORIES = ['Announcement', 'Parish News', 'Event', 'Project', 'Donation', 'Mass', 'Community', 'Important'];
+const ANNOUNCEMENT_MAX_IMAGES = 3;
 
 /** A category from a form post, or NULL when blank/unknown (never trust the raw value). */
 function normalizeAnnouncementCategory(?string $value): ?string

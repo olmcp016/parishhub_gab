@@ -1326,7 +1326,7 @@ dialog.modal::backdrop { background: rgba(36, 22, 17, 0.55); }
 }
 .ann-card:hover, .ann-card:focus-visible { transform: translateY(-2px); border-color: var(--gold); box-shadow: var(--shadow-lg); outline: none; }
 .ann-card.is-pinned { border-color: var(--gold); }
-.ann-thumb { aspect-ratio: 16 / 9; width: 100%; overflow: hidden; background: var(--cream-dark, #f3ead8); flex-shrink: 0; }
+.ann-thumb { aspect-ratio: 16 / 9; width: 100%; overflow: hidden; background: var(--cream-dark, #f3ead8); flex-shrink: 0; position: relative; }
 .ann-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ann-thumb-pdf { display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--brown-mid); }
 .ann-body { display: flex; flex-direction: column; flex: 1; padding: 16px 18px; min-width: 0; }
@@ -1343,6 +1343,36 @@ dialog.modal::backdrop { background: rgba(36, 22, 17, 0.55); }
 .ann-modal-image img { max-width: 100%; height: auto; border-radius: 10px; }
 .ann-modal-content { white-space: pre-line; line-height: 1.6; overflow-wrap: anywhere; }
 .ann-modal-actions { margin-top: 18px; text-align: right; }
+/* Multi-image posters: count badge on the card thumb, gallery in the modal, lightbox viewer */
+.ann-count { position: absolute; right: 10px; bottom: 10px; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: rgba(36, 22, 17, .72); color: #fff; pointer-events: none; }
+.ann-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+.ann-gallery.is-single { grid-template-columns: 1fr; }
+.ann-gallery-item { padding: 0; border: 1px solid var(--line, rgba(0,0,0,.1)); border-radius: 10px; overflow: hidden; background: var(--cream-dark, #f3ead8); cursor: zoom-in; aspect-ratio: 4 / 3; }
+.ann-gallery.is-single .ann-gallery-item { aspect-ratio: auto; max-height: 420px; }
+.ann-gallery-item img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .2s var(--ease); }
+.ann-gallery.is-single .ann-gallery-item img { object-fit: contain; max-height: 420px; }
+.ann-gallery-item:hover img, .ann-gallery-item:focus-visible img { transform: scale(1.03); }
+.ann-gallery-item:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.ann-modal-image .btn { margin: 4px 6px 4px 0; }
+dialog.ann-lightbox { position: fixed; inset: 0; width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0; border: none; background: transparent; display: none; align-items: center; justify-content: center; }
+dialog.ann-lightbox[open] { display: flex; }
+dialog.ann-lightbox::backdrop { background: rgba(12, 8, 6, .9); }
+dialog.ann-lightbox img { max-width: 92vw; max-height: 88dvh; object-fit: contain; border-radius: 6px; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+.ann-lb-close, .ann-lb-nav { position: absolute; background: rgba(255,255,255,.12); color: #fff; border: none; border-radius: 999px; cursor: pointer; line-height: 1; font-size: 22px; }
+.ann-lb-close:hover, .ann-lb-nav:hover { background: rgba(255,255,255,.25); }
+.ann-lb-close { top: 16px; right: 16px; width: 40px; height: 40px; }
+.ann-lb-nav { top: 50%; transform: translateY(-50%); width: 44px; height: 44px; font-size: 30px; }
+.ann-lb-prev { left: 14px; }
+.ann-lb-next { right: 14px; }
+.ann-lb-count { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); color: #fff; font-size: 13px; background: rgba(0,0,0,.4); padding: 4px 12px; border-radius: 999px; }
+/* Admin: image editor in the announcement form and edit modal */
+.ann-edit-images { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+.ann-edit-img { width: 110px; border: 1px solid var(--line, rgba(0,0,0,.1)); border-radius: 8px; overflow: hidden; background: #fff; }
+.ann-edit-img img { width: 100%; height: 72px; object-fit: cover; display: block; }
+.ann-edit-pdf { display: flex; align-items: center; justify-content: center; height: 72px; font-size: 13px; color: var(--brown-mid); background: var(--cream-dark, #f3ead8); }
+.ann-edit-remove { display: flex; align-items: center; gap: 4px; padding: 5px 6px; font-size: 12px; margin: 0; cursor: pointer; }
+.ann-edit-remove input { width: auto; margin: 0; }
+.ann-image-error { display: block; margin-top: 4px; color: var(--danger); font-size: 12.5px; }
 @media (max-width: 600px) {
   .ann-grid { grid-template-columns: 1fr; gap: 16px; }
   .ann-card { min-height: 0; }

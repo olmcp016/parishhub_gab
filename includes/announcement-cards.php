@@ -6,7 +6,8 @@
  * Every card has the same structure and (via the grid + line clamping) the
  * same height: thumbnail (when there is one), category + pinned badges,
  * title, date, a short excerpt, and a "Read More" footer. The complete text
- * and poster only appear in the modal — the page never navigates away.
+ * and posters only appear in the modal — the page never navigates away.
+ * Each poster in the modal opens full-size in a lightbox.
  *
  * Expects $announcements (rows from `announcements`). Optional
  * $donorModalId: the id of a donor-list dialog on the page; the current
@@ -17,8 +18,16 @@ $donorModalId = $donorModalId ?? null;
 $annCards = [];
 $annPayload = [];
 foreach ($announcements as $a) {
-    $image = $a['image'] ?: null;
-    $isPdf = $image && strtolower(pathinfo($image, PATHINFO_EXTENSION)) === 'pdf';
+    // Up to ANNOUNCEMENT_MAX_IMAGES posters; older rows may hold a PDF poster.
+    $photos = [];
+    $pdfs = [];
+    foreach (announcementImageSlots($a) as $path) {
+        if (strtolower(pathinfo($path, PATHINFO_EXTENSION)) === 'pdf') {
+            $pdfs[] = documentUrl($path);
+        } else {
+            $photos[] = documentUrl($path);
+        }
+    }
     $status = announcementStatus($a['start_date'] ?? null, $a['end_date'] ?? null);
 
     $period = '';
@@ -41,8 +50,8 @@ foreach ($announcements as $a) {
         'posted' => formatDate($a['created_at']),
         'period' => $period,
         'excerpt' => announcementExcerpt($a['content']),
-        'image' => ($image && !$isPdf) ? documentUrl($image) : null,
-        'pdf' => $isPdf ? documentUrl($image) : null,
+        'images' => $photos,
+        'pdfs' => $pdfs,
         'donor' => $donorModalId && isCurrentWeeklyDonorAnnouncement($a['title']),
     ];
     $annCards[] = $card;
@@ -51,10 +60,14 @@ foreach ($announcements as $a) {
 ?>
 <div class="ann-grid">
   <?php foreach ($annCards as $c): ?>
+    <?php $hasMedia = $c['images'] || $c['pdfs']; ?>
     <article class="ann-card<?= $c['pinned'] ? ' is-pinned' : '' ?>" data-ann-id="<?= $c['id'] ?>" role="button" tabindex="0" aria-label="Read announcement: <?= e($c['title']) ?>">
-      <?php if ($c['image']): ?>
-        <div class="ann-thumb"><img src="<?= e($c['image']) ?>" alt="" loading="lazy" onerror="this.parentNode.remove()"></div>
-      <?php elseif ($c['pdf']): ?>
+      <?php if ($c['images']): ?>
+        <div class="ann-thumb">
+          <img src="<?= e($c['images'][0]) ?>" alt="" loading="lazy" onerror="this.parentNode.remove()">
+          <?php if (count($c['images']) > 1): ?><span class="ann-count">🖼 <?= count($c['images']) ?></span><?php endif; ?>
+        </div>
+      <?php elseif ($c['pdfs']): ?>
         <div class="ann-thumb ann-thumb-pdf"><span>📄 Poster (PDF)</span></div>
       <?php endif; ?>
       <div class="ann-body">
@@ -65,7 +78,7 @@ foreach ($announcements as $a) {
         </div>
         <h3 class="ann-title"><?= e($c['title']) ?></h3>
         <span class="ann-date"><?= e($c['posted']) ?></span>
-        <p class="ann-excerpt<?= ($c['image'] || $c['pdf']) ? '' : ' ann-excerpt-long' ?>"><?= e($c['excerpt']) ?></p>
+        <p class="ann-excerpt<?= $hasMedia ? '' : ' ann-excerpt-long' ?>"><?= e($c['excerpt']) ?></p>
         <span class="ann-more">Read More →</span>
       </div>
     </article>
@@ -88,6 +101,14 @@ foreach ($announcements as $a) {
   </div>
 </dialog>
 
+<dialog class="ann-lightbox" id="annLightbox" aria-label="Poster viewer">
+  <button type="button" class="ann-lb-close" id="annLbClose" aria-label="Close viewer">✕</button>
+  <button type="button" class="ann-lb-nav ann-lb-prev" id="annLbPrev" aria-label="Previous image">‹</button>
+  <img id="annLbImg" src="" alt="">
+  <button type="button" class="ann-lb-nav ann-lb-next" id="annLbNext" aria-label="Next image">›</button>
+  <div class="ann-lb-count" id="annLbCount"></div>
+</dialog>
+
 <script type="application/json" id="annData"><?= json_encode($annPayload, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?></script>
 <script>
 (function () {
@@ -104,6 +125,48 @@ foreach ($announcements as $a) {
     return n;
   }
 
+  /* ---------- Lightbox: full-size view of one poster, with prev/next ---------- */
+  var lightbox = document.getElementById('annLightbox');
+  var lbImg = document.getElementById('annLbImg');
+  var lbCount = document.getElementById('annLbCount');
+  var lbPrev = document.getElementById('annLbPrev');
+  var lbNext = document.getElementById('annLbNext');
+  var lbList = [];
+  var lbIndex = 0;
+
+  function showLightboxImage() {
+    lbImg.src = lbList[lbIndex];
+    var multi = lbList.length > 1;
+    lbCount.textContent = (lbIndex + 1) + ' / ' + lbList.length;
+    lbCount.style.display = multi ? '' : 'none';
+    lbPrev.style.display = multi ? '' : 'none';
+    lbNext.style.display = multi ? '' : 'none';
+  }
+
+  function openLightbox(list, index) {
+    lbList = list;
+    lbIndex = index;
+    showLightboxImage();
+    lightbox.showModal();
+  }
+
+  function stepLightbox(step) {
+    lbIndex = (lbIndex + step + lbList.length) % lbList.length;
+    showLightboxImage();
+  }
+
+  document.getElementById('annLbClose').addEventListener('click', function () { lightbox.close(); });
+  lbPrev.addEventListener('click', function () { stepLightbox(-1); });
+  lbNext.addEventListener('click', function () { stepLightbox(1); });
+  // Clicking outside the picture (the dimmed area) closes the viewer.
+  lightbox.addEventListener('click', function (e) { if (e.target === lightbox) lightbox.close(); });
+  document.addEventListener('keydown', function (e) {
+    if (!lightbox.open) return;
+    if (e.key === 'ArrowLeft') stepLightbox(-1);
+    if (e.key === 'ArrowRight') stepLightbox(1);
+  });
+
+  /* ---------- Announcement details modal ---------- */
   function open(id) {
     var a = data[id];
     if (!a) return;
@@ -118,16 +181,29 @@ foreach ($announcements as $a) {
 
     var imgBox = document.getElementById('annModalImage');
     imgBox.innerHTML = '';
-    if (a.image) {
-      var img = el('img');
-      img.src = a.image;
-      img.alt = a.title;
-      imgBox.appendChild(img);
-    } else if (a.pdf) {
-      var link = el('a', 'btn btn-outline btn-sm', '📄 Open the poster (PDF)');
-      link.href = a.pdf; link.target = '_blank'; link.rel = 'noopener';
-      imgBox.appendChild(link);
+    var photos = a.images || [];
+    if (photos.length) {
+      var gallery = el('div', 'ann-gallery' + (photos.length === 1 ? ' is-single' : ''));
+      photos.forEach(function (src, i) {
+        var btn = el('button', 'ann-gallery-item');
+        btn.type = 'button';
+        btn.setAttribute('aria-label', 'View image ' + (i + 1) + ' of ' + photos.length + ' full size');
+        var img = el('img');
+        img.src = src;
+        img.alt = a.title + ' (' + (i + 1) + ' of ' + photos.length + ')';
+        img.loading = 'lazy';
+        btn.appendChild(img);
+        btn.addEventListener('click', function () { openLightbox(photos, i); });
+        gallery.appendChild(btn);
+      });
+      imgBox.appendChild(gallery);
     }
+    (a.pdfs || []).forEach(function (href, i) {
+      var label = '📄 Open the poster (PDF)' + (a.pdfs.length > 1 ? ' ' + (i + 1) : '');
+      var link = el('a', 'btn btn-outline btn-sm', label);
+      link.href = href; link.target = '_blank'; link.rel = 'noopener';
+      imgBox.appendChild(link);
+    });
 
     document.getElementById('annModalContent').textContent = a.content;
 

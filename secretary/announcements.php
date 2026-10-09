@@ -30,6 +30,28 @@ function resolveAnnouncementDuration(string $durationType, array $post): array
     }
 }
 
+/**
+ * Turns the multi-file input ($_FILES['images']) into a list of single-file
+ * arrays, skipping empty slots.
+ */
+function collectUploadedAnnouncementImages(): array
+{
+    $files = $_FILES['images'] ?? null;
+    if (!$files || !is_array($files['name'])) return [];
+
+    $uploads = [];
+    foreach ($files['name'] as $i => $name) {
+        if (($files['error'][$i] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) continue;
+        $uploads[] = [
+            'name'     => $name,
+            'tmp_name' => $files['tmp_name'][$i],
+            'error'    => $files['error'][$i],
+            'size'     => $files['size'][$i],
+        ];
+    }
+    return $uploads;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifyCsrf();
     $action = $_POST['action'] ?? '';
@@ -38,56 +60,78 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $durationType = $_POST['duration_type'] ?: null;
         [$startDate, $endDate] = $durationType ? resolveAnnouncementDuration($durationType, $_POST) : [null, null];
 
-        $imagePath = null;
-        $imageProvided = !empty($_FILES['image']['name']);
-        if ($imageProvided) {
-            $result = validateAnnouncementImage($_FILES['image']);
-            if (!$result['valid']) {
-                $imgMsg = match ($result['reason']) {
-                    'invalid_type' => 'Unsupported image format. Please upload a JPG, PNG, GIF, or WEBP file.',
-                    'corrupted'    => 'The image could not be read — it may be corrupted. Please try a different file.',
-                    'too_large'    => 'Image exceeds the file-size limit. Please choose a smaller file.',
-                    default        => 'Image upload failed. Please try again.',
-                };
-                flash('error', $imgMsg);
-                redirect(url('secretary/announcements.php'));
-            }
-            $safeName = time() . '-' . preg_replace('/[^A-Za-z0-9._-]/', '_', $_FILES['image']['name']);
-            $dest = __DIR__ . '/../public/uploads/' . $safeName;
-            if (move_uploaded_file($_FILES['image']['tmp_name'], $dest)) {
-                $imagePath = 'public/uploads/' . $safeName;
-            }
-        }
-
-        if ($action === 'create') {
-            $stmt = db()->prepare(
-                "INSERT INTO announcements (title, content, posted_by, is_pinned, status, start_date, end_date, duration_type, image, category)
-                 VALUES (?, ?, ?, ?, 'published', ?, ?, ?, ?, ?)"
-            );
-            $stmt->execute([
-                $_POST['title'], $_POST['content'], $userId, !empty($_POST['is_pinned']) ? 1 : 0,
-                $startDate, $endDate, $durationType, $imagePath, normalizeAnnouncementCategory($_POST['category'] ?? null),
-            ]);
-            logActivity($userId, "Created announcement: {$_POST['title']}", 'Announcements');
-            flash('success', 'Announcement published.');
-        } else {
-            $id = (int) $_POST['announcement_id'];
-            $stmt = db()->prepare('SELECT start_date, end_date, image FROM announcements WHERE announcement_id = ?');
+        $id = (int) ($_POST['announcement_id'] ?? 0);
+        $existing = null;
+        if ($action === 'update') {
+            $stmt = db()->prepare('SELECT start_date, end_date, image, image2, image3 FROM announcements WHERE announcement_id = ?');
             $stmt->execute([$id]);
             $existing = $stmt->fetch();
             if ($existing && announcementStatus($existing['start_date'], $existing['end_date']) === 'Expired') {
                 flash('error', 'This announcement has expired and can no longer be edited.');
                 redirect(url('secretary/announcements.php'));
             }
+        }
 
-            $finalImage = $imagePath ?: ($existing['image'] ?? null);
+        // Keep the images the secretary did not tick for removal, then append
+        // the new uploads. Everything is checked before any file is moved, so a
+        // rejected batch never leaves orphaned files behind.
+        $keptImages = [];
+        if ($existing) {
+            $removedSlots = array_map('intval', $_POST['remove_images'] ?? []);
+            foreach (announcementImageSlots($existing) as $slot => $path) {
+                if (!in_array($slot, $removedSlots, true)) $keptImages[] = $path;
+            }
+        }
+
+        $uploads = collectUploadedAnnouncementImages();
+        if (count($keptImages) + count($uploads) > ANNOUNCEMENT_MAX_IMAGES) {
+            flash('error', 'An announcement can have at most ' . ANNOUNCEMENT_MAX_IMAGES . ' images. Remove one or choose fewer files.');
+            redirect(url('secretary/announcements.php'));
+        }
+        foreach ($uploads as $file) {
+            $result = validateAnnouncementImage($file);
+            if (!$result['valid']) {
+                $imgMsg = match ($result['reason']) {
+                    'invalid_type' => 'Unsupported image format. Please upload JPG, PNG, GIF, or WEBP files.',
+                    'corrupted'    => 'An image could not be read — it may be corrupted. Please try a different file.',
+                    'too_large'    => 'An image exceeds the file-size limit. Please choose smaller files.',
+                    default        => 'Image upload failed. Please try again.',
+                };
+                flash('error', $imgMsg);
+                redirect(url('secretary/announcements.php'));
+            }
+        }
+
+        $newImages = [];
+        foreach ($uploads as $file) {
+            $safeName = time() . '-' . bin2hex(random_bytes(3)) . '-' . preg_replace('/[^A-Za-z0-9._-]/', '_', $file['name']);
+            if (move_uploaded_file($file['tmp_name'], __DIR__ . '/../public/uploads/' . $safeName)) {
+                $newImages[] = 'public/uploads/' . $safeName;
+            }
+        }
+
+        [$image1, $image2, $image3] = array_pad(array_merge($keptImages, $newImages), ANNOUNCEMENT_MAX_IMAGES, null);
+
+        if ($action === 'create') {
             $stmt = db()->prepare(
-                "UPDATE announcements SET title = ?, content = ?, is_pinned = ?, start_date = ?, end_date = ?, duration_type = ?, image = ?, category = ?
+                "INSERT INTO announcements (title, content, posted_by, is_pinned, status, start_date, end_date, duration_type, image, image2, image3, category)
+                 VALUES (?, ?, ?, ?, 'published', ?, ?, ?, ?, ?, ?, ?)"
+            );
+            $stmt->execute([
+                $_POST['title'], $_POST['content'], $userId, !empty($_POST['is_pinned']) ? 1 : 0,
+                $startDate, $endDate, $durationType, $image1, $image2, $image3, normalizeAnnouncementCategory($_POST['category'] ?? null),
+            ]);
+            logActivity($userId, "Created announcement: {$_POST['title']}", 'Announcements');
+            flash('success', 'Announcement published.');
+        } else {
+            $stmt = db()->prepare(
+                "UPDATE announcements SET title = ?, content = ?, is_pinned = ?, start_date = ?, end_date = ?, duration_type = ?,
+                        image = ?, image2 = ?, image3 = ?, category = ?
                  WHERE announcement_id = ?"
             );
             $stmt->execute([
                 $_POST['title'], $_POST['content'], !empty($_POST['is_pinned']) ? 1 : 0,
-                $startDate, $endDate, $durationType, $finalImage, normalizeAnnouncementCategory($_POST['category'] ?? null), $id,
+                $startDate, $endDate, $durationType, $image1, $image2, $image3, normalizeAnnouncementCategory($_POST['category'] ?? null), $id,
             ]);
             logActivity($userId, "Updated announcement #$id", 'Announcements');
             flash('success', 'Announcement updated.');
@@ -129,8 +173,10 @@ include __DIR__ . '/../includes/dash-start.php';
         <div class="form-group"><label>Content</label><textarea name="content" id="annContentInput" rows="4" required></textarea></div>
         
         <div class="form-group">
-          <label>Poster / Image (optional)</label>
-          <input type="file" name="image" id="announcementImage" accept=".jpg,.jpeg,.png,.pdf" onchange="previewAnnouncementImage(event)">
+          <label>Posters / Images (optional, up to <?= ANNOUNCEMENT_MAX_IMAGES ?>)</label>
+          <input type="file" name="images[]" id="announcementImages" accept="image/jpeg,image/png,image/gif,image/webp" multiple onchange="previewAnnouncementImages(event)">
+          <small class="text-muted">JPG, PNG, GIF or WEBP, up to 2 MB each. The first image is the cover.</small>
+          <small class="ann-image-error" id="announcementImagesError" style="display:none;"></small>
         </div>
         
         <div class="form-group">
@@ -170,9 +216,7 @@ include __DIR__ . '/../includes/dash-start.php';
             <article class="ann-card" style="margin:0; width:100%; pointer-events:none; background:#fff;">
               <div class="ann-thumb" id="livePreviewThumb" style="display:none;">
                  <img id="livePreviewImg" src="" alt="">
-              </div>
-              <div class="ann-thumb ann-thumb-pdf" id="livePreviewPdf" style="display:none;">
-                 <span>📄 Poster (PDF)</span>
+                 <span class="ann-count" id="livePreviewCount"></span>
               </div>
               <div class="ann-body">
                 <div class="ann-badges">
@@ -187,7 +231,7 @@ include __DIR__ . '/../includes/dash-start.php';
             </article>
           </div>
           <div style="text-align:right; margin-top:8px;">
-             <button type="button" class="btn btn-outline btn-sm" id="removeImgBtn" style="display:none;" onclick="clearAnnouncementImage()">Remove File</button>
+             <button type="button" class="btn btn-outline btn-sm" id="removeImgBtn" style="display:none;" onclick="clearAnnouncementImages()">Remove Files</button>
           </div>
         </div>
       </div>
@@ -240,10 +284,29 @@ include __DIR__ . '/../includes/dash-start.php';
                   </select>
                 </div>
                 <div class="form-group"><label>Content</label><textarea name="content" rows="4" required><?= e($a['content']) ?></textarea></div>
+                <?php $currentImages = announcementImageSlots($a); ?>
                 <div class="form-group">
-                  <label>Poster / Image (optional — leave blank to keep current)</label>
-                  <?php if ($a['image']): ?><p><img src="<?= documentUrl($a['image']) ?>" style="max-width:120px; border-radius:8px;"></p><?php endif; ?>
-                  <input type="file" name="image" accept=".jpg,.jpeg,.png,.pdf">
+                  <label>Posters / Images (up to <?= ANNOUNCEMENT_MAX_IMAGES ?>)</label>
+                  <?php if ($currentImages): ?>
+                    <div class="ann-edit-images">
+                      <?php foreach ($currentImages as $slot => $path): ?>
+                        <div class="ann-edit-img">
+                          <?php if (strtolower(pathinfo($path, PATHINFO_EXTENSION)) === 'pdf'): ?>
+                            <span class="ann-edit-pdf">📄 PDF</span>
+                          <?php else: ?>
+                            <img src="<?= documentUrl($path) ?>" alt="">
+                          <?php endif; ?>
+                          <label class="ann-edit-remove">
+                            <input type="checkbox" name="remove_images[]" value="<?= $slot ?>" onchange="checkEditImageCount(<?= $a['announcement_id'] ?>)"> Remove
+                          </label>
+                        </div>
+                      <?php endforeach; ?>
+                    </div>
+                  <?php endif; ?>
+                  <input type="file" name="images[]" id="editImages-<?= $a['announcement_id'] ?>" data-current="<?= count($currentImages) ?>"
+                         accept="image/jpeg,image/png,image/gif,image/webp" multiple onchange="checkEditImageCount(<?= $a['announcement_id'] ?>)">
+                  <small class="text-muted">Tick “Remove” to drop an image. New uploads fill the remaining slots.</small>
+                  <small class="ann-image-error" id="editImagesError-<?= $a['announcement_id'] ?>" style="display:none;"></small>
                 </div>
                 <div class="form-group">
                   <label>Duration</label>
@@ -303,42 +366,72 @@ document.getElementById('annCategoryInput').addEventListener('change', updateLiv
 document.getElementById('annContentInput').addEventListener('input', updateLivePreview);
 document.getElementById('annPinnedInput').addEventListener('change', updateLivePreview);
 
-function previewAnnouncementImage(event) {
-  const file = event.target.files[0];
+const ANN_MAX_IMAGES = <?= ANNOUNCEMENT_MAX_IMAGES ?>;
+const ANN_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+
+function showAnnouncementImageError(errorEl, message) {
+  if (!errorEl) return;
+  errorEl.textContent = message || '';
+  errorEl.style.display = message ? 'block' : 'none';
+}
+
+/** Rejects a selection that would exceed the cap (kept images + new files). */
+function announcementSelectionFits(input, keptCount, errorEl) {
+  const total = keptCount + input.files.length;
+  if (total > ANN_MAX_IMAGES) {
+    showAnnouncementImageError(errorEl, 'An announcement can have at most ' + ANN_MAX_IMAGES + ' images. Please choose fewer files.');
+    input.value = '';
+    return false;
+  }
+  showAnnouncementImageError(errorEl, '');
+  return true;
+}
+
+function previewAnnouncementImages(event) {
+  const input = event.target;
+  const errorEl = document.getElementById('announcementImagesError');
   const thumb = document.getElementById('livePreviewThumb');
   const imgPreview = document.getElementById('livePreviewImg');
-  const pdfPreview = document.getElementById('livePreviewPdf');
+  const countEl = document.getElementById('livePreviewCount');
   const removeBtn = document.getElementById('removeImgBtn');
   const excerpt = document.getElementById('livePreviewExcerpt');
 
-  if (file && file.type.startsWith('image/')) {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      imgPreview.src = e.target.result;
-      thumb.style.display = 'block';
-      pdfPreview.style.display = 'none';
-      removeBtn.style.display = 'inline-block';
-      excerpt.classList.remove('ann-excerpt-long');
-    };
-    reader.readAsDataURL(file);
-  } else if (file && file.type === 'application/pdf') {
-    thumb.style.display = 'none';
-    imgPreview.src = '';
-    pdfPreview.style.display = 'block';
-    removeBtn.style.display = 'inline-block';
-    excerpt.classList.remove('ann-excerpt-long');
-  } else {
-    clearAnnouncementImage();
+  if (!announcementSelectionFits(input, 0, errorEl)) {
+    clearAnnouncementImages();
+    return;
   }
+
+  const images = Array.from(input.files).filter(f => ANN_IMAGE_TYPES.includes(f.type));
+  if (!images.length) {
+    clearAnnouncementImages();
+    return;
+  }
+
+  imgPreview.src = URL.createObjectURL(images[0]);
+  countEl.textContent = images.length > 1 ? '🖼 ' + images.length : '';
+  countEl.style.display = images.length > 1 ? 'inline-block' : 'none';
+  thumb.style.display = 'block';
+  removeBtn.style.display = 'inline-block';
+  excerpt.classList.remove('ann-excerpt-long');
 }
 
-function clearAnnouncementImage() {
-  document.getElementById('announcementImage').value = '';
+function clearAnnouncementImages() {
+  document.getElementById('announcementImages').value = '';
+  showAnnouncementImageError(document.getElementById('announcementImagesError'), '');
   document.getElementById('livePreviewThumb').style.display = 'none';
   document.getElementById('livePreviewImg').src = '';
-  document.getElementById('livePreviewPdf').style.display = 'none';
+  document.getElementById('livePreviewCount').style.display = 'none';
   document.getElementById('removeImgBtn').style.display = 'none';
   document.getElementById('livePreviewExcerpt').classList.add('ann-excerpt-long');
+}
+
+/** Edit modal: keep count = current images not ticked for removal. */
+function checkEditImageCount(announcementId) {
+  const input = document.getElementById('editImages-' + announcementId);
+  const form = input.closest('form');
+  const removed = form.querySelectorAll('input[name="remove_images[]"]:checked').length;
+  const kept = parseInt(input.dataset.current, 10) - removed;
+  announcementSelectionFits(input, kept, document.getElementById('editImagesError-' + announcementId));
 }
 
 function toggleDurationFields() {
