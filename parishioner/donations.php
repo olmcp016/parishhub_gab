@@ -66,7 +66,7 @@ if (isset($_GET['paymongo_return']) || isset($_GET['paymongo_cancelled'])) {
                 if ($result['ok']) {
                     $paymongoResultStatus = 'verified';
                     $paymongoResultMessage = 'Thank you! Your donation has been received and verified — a receipt has been issued.';
-                    if ($paymentRow['guest_reference']) {
+                    if ($paymentRow['guest_reference'] && canViewGuestReference($returnAppointmentId)) {
                         $paymongoResultMessage .= ' Your reference code is ' . $paymentRow['guest_reference'] . ' — save it to check your donation\'s status anytime.';
                     }
                 } else {

@@ -25,18 +25,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(url('auth/login.php'));
     };
 
-    // Brute-force Protection
+    // Brute-force protection. Counters live in the database, keyed by a hash of
+    // the email and by the IP, so clearing the cookie does not reset them
+    // (audit H-03). The IP limit is higher so a shared office IP is not locked
+    // out by one person's typos.
     $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-    $lockoutKey = "lockout_{$ip}";
-    $attemptsKey = "attempts_{$ip}";
+    $emailKey = 'login_email:' . hash('sha256', strtolower($email));
+    $ipKey = 'login_ip:' . hash('sha256', $ip);
 
-    if (isset($_SESSION[$lockoutKey]) && time() < $_SESSION[$lockoutKey]) {
-        $timeLeft = ceil(($_SESSION[$lockoutKey] - time()) / 60);
-        $fail('email', "Too many failed attempts. Please try again in {$timeLeft} minute(s).");
-    } elseif (isset($_SESSION[$lockoutKey]) && time() >= $_SESSION[$lockoutKey]) {
-        unset($_SESSION[$lockoutKey]);
-        unset($_SESSION[$attemptsKey]);
+    $lockedFor = max(throttleSecondsLeft($emailKey), throttleSecondsLeft($ipKey));
+    if ($lockedFor > 0) {
+        $fail('email', 'Too many failed attempts. Please try again in ' . ceil($lockedFor / 60) . ' minute(s).');
     }
+    // Records a failed attempt against both keys. Returns the email's count.
+    $recordFailure = function () use ($emailKey, $ipKey): int {
+        $emailFailures = throttleRecordFailure($emailKey, 5, 15 * 60);
+        throttleRecordFailure($ipKey, 20, 15 * 60);
+        return $emailFailures;
+    };
 
     $stmt = db()->prepare(
         "SELECT u.*, r.role_name FROM users u JOIN roles r ON u.role_id = r.role_id WHERE u.email = ? LIMIT 1"
@@ -45,6 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $user = $stmt->fetch();
 
     if (!$user) {
+        $recordFailure();
         $fail('email', 'Email is invalid or not found.');
     }
 
@@ -58,18 +65,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (!password_verify($password, $user['password'])) {
-        $_SESSION[$attemptsKey] = ($_SESSION[$attemptsKey] ?? 0) + 1;
-        $attemptsLeft = 5 - $_SESSION[$attemptsKey];
-        if ($_SESSION[$attemptsKey] >= 5) {
-            $_SESSION[$lockoutKey] = time() + (5 * 60); // 5 minutes lockout
-            $fail('password', 'Too many failed attempts. You are locked out for 5 minutes.');
+        $emailFailures = $recordFailure();
+        if ($emailFailures >= 5) {
+            $fail('password', 'Too many failed attempts. You are locked out for 15 minutes.');
         }
-        $fail('password', "Incorrect password. Please try again. ({$attemptsLeft} attempts left)");
+        $fail('password', 'Incorrect password. Please try again. (' . (5 - $emailFailures) . ' attempts left)');
     }
 
-    // Login success - reset attempts
-    unset($_SESSION[$attemptsKey]);
-    unset($_SESSION[$lockoutKey]);
+    // Login success: clear this account's counter. The IP counter expires on its own.
+    throttleClear($emailKey);
 
     if (!empty($user['must_change_password'])) {
         $_SESSION['force_change_password_user'] = [

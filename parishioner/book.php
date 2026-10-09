@@ -128,6 +128,19 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         $time = null;
     }
 
+    // Funeral has no schedule, but its date of death must be a real date that
+    // has already passed (audit M-04). A future date would skip the mourning
+    // period check entirely.
+    if ($category === 'Funeral') {
+        $deathOk = $dateOfDeath !== null
+            && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateOfDeath)
+            && checkdate((int) substr($dateOfDeath, 5, 2), (int) substr($dateOfDeath, 8, 2), (int) substr($dateOfDeath, 0, 4))
+            && $dateOfDeath <= date('Y-m-d');
+        if (!$deathOk) {
+            bookRespondError($isAjax, 'Please enter a valid date of death that is not in the future.', url('parishioner/services.php'));
+        }
+    }
+
     $usesScheduleToggle = in_array($category, SCHEDULE_TOGGLE_CATEGORIES, true);
     $scheduleTypeToSave = $usesScheduleToggle ? $scheduleType : null;
     // Blessing (House Blessing) always uses free-form time (Special) regardless
@@ -465,6 +478,30 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     $pdo->beginTransaction();
     $createdStorageKeys = [];
     try {
+        // Race guard (audit H-04). The availability checks above run before this
+        // transaction, so two simultaneous requests could both pass them. Take
+        // transaction-scoped advisory locks on the slot and on the priest's day,
+        // then check again while holding them. Keys must match api/update_event.php.
+        if (!$isMassIntention && !$isNoScheduleCategory && $date) {
+            $pdo->prepare('SELECT pg_advisory_xact_lock(hashtext(?))')
+                ->execute(['slot:' . $serviceId . ':' . $date . ':' . $finalTime]);
+        }
+        if ($priestId) {
+            $pdo->prepare('SELECT pg_advisory_xact_lock(hashtext(?))')
+                ->execute(['priest:' . (int) $priestId . ':' . $date]);
+        }
+        if (!$isMassIntention && !$isNoScheduleCategory && serviceSlotIsBooked($serviceId, $date, $finalTime)) {
+            $pdo->rollBack();
+            bookRespondError($isAjax, 'That exact date and time was just booked by someone else for this service. Please choose another slot.', url('parishioner/services.php'));
+        }
+        if ($priestId) {
+            $lockedAvailability = priestIsAvailable((int) $priestId, $date, $finalTime);
+            if (!$lockedAvailability['available']) {
+                $pdo->rollBack();
+                bookRespondError($isAjax, $lockedAvailability['reason'], url('parishioner/services.php'));
+            }
+        }
+
         // Manually blocked dates (holidays, etc.) still apply on top of the fixed rules
         if ($date) {
             $stmt = $pdo->prepare('SELECT * FROM calendar WHERE calendar_date = ? AND is_blocked = 1');

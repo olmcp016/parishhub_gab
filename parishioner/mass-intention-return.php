@@ -89,7 +89,10 @@ if ($row) {
 
     if ($outcome === 'paid') {
         $message = 'Thank you! Your offering was received and your Mass Intention has been submitted. Our Cashier will confirm it — once approved, it is confirmed for the Mass.';
-        if ($row['guest_reference']) {
+        // The reference is the guest's only credential, so it is shown only to
+        // the browser that started this checkout or to the owning parishioner
+        // (audit H-01). Anyone else who knows the appointment ID gets no code.
+        if ($row['guest_reference'] && canViewGuestReference((int) $row['appointment_id'])) {
             $message .= ' Your reference code is ' . $row['guest_reference'] . ' — save it to check its status anytime.';
         }
     }
@@ -108,7 +111,7 @@ include __DIR__ . '/../includes/' . ($isGuestView ? 'public-shell-start.php' : '
   <p style="color: var(--brown-mid);"><?= e($message) ?></p>
   <div class="flex gap-3" style="justify-content:center; flex-wrap:wrap; margin-top:18px;">
     <?php if ($row && $outcome !== 'failed'): ?>
-      <?php if ($row['guest_reference']): ?>
+      <?php if ($isGuestView && $row['guest_reference'] && canViewGuestReference((int) $row['appointment_id'])): ?>
         <a href="<?= url('status.php?ref=' . urlencode($row['guest_reference'])) ?>" class="btn btn-outline">Check Status</a>
       <?php elseif (!$isGuestView): ?>
         <a href="<?= url('parishioner/appointment-detail.php?id=' . (int) $row['appointment_id']) ?>" class="btn btn-outline">View Mass Intention</a>

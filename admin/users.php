@@ -3,7 +3,38 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 requireRole('Admin');
 
-$adminId = currentUser()['user_id'];
+$adminId = (int) currentUser()['user_id'];
+
+/**
+ * True when removing this user's active Admin status (suspending, demoting or
+ * deleting) would leave the system with no active Admin (audit M-08).
+ */
+function adminChangeWouldLeaveNoAdmin(int $userId): bool
+{
+    $stmt = db()->prepare(
+        "SELECT 1 FROM users u JOIN roles r ON r.role_id = u.role_id
+         WHERE u.user_id = ? AND r.role_name = 'Admin' AND u.status = 'active'"
+    );
+    $stmt->execute([$userId]);
+    if (!$stmt->fetchColumn()) {
+        return false; // not an active admin, so nothing is removed
+    }
+    $others = db()->prepare(
+        "SELECT COUNT(*) FROM users u JOIN roles r ON r.role_id = u.role_id
+         WHERE r.role_name = 'Admin' AND u.status = 'active' AND u.user_id <> ?"
+    );
+    $others->execute([$userId]);
+    return (int) $others->fetchColumn() === 0;
+}
+
+/** True when the signed-in admin's password matches. Used before role changes and deletes. */
+function adminPasswordMatches(int $adminId, string $password): bool
+{
+    $row = db()->prepare('SELECT password FROM users WHERE user_id = ?');
+    $row->execute([$adminId]);
+    $hash = $row->fetchColumn();
+    return $hash && $password !== '' && password_verify($password, $hash);
+}
 $isAjax  = ($_POST['ajax'] ?? '') === '1';
 
 // Helper for priest AJAX error responses
@@ -24,6 +55,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // ── STAFF ACTIONS ─────────────────────────────────────────────────────────
     if ($action === 'create') {
+        // Only staff roles can be created here. Parishioner and Priest accounts
+        // have their own flows, which also create the linked rows (M-08).
+        $createRole = db()->prepare("SELECT 1 FROM roles WHERE role_id = ? AND role_name NOT IN ('Parishioner', 'Priest')");
+        $createRole->execute([(int) ($_POST['role_id'] ?? 0)]);
+        if (!$createRole->fetchColumn()) {
+            flash('error', 'Please choose a valid staff role.');
+            redirect(url('admin/users.php'));
+        }
+        if (!filter_var(trim($_POST['email'] ?? ''), FILTER_VALIDATE_EMAIL)) {
+            flash('error', 'Please enter a valid email address.');
+            redirect(url('admin/users.php'));
+        }
+        if (trim($_POST['firstname'] ?? '') === '' || trim($_POST['lastname'] ?? '') === '') {
+            flash('error', 'Please enter both first and last name.');
+            redirect(url('admin/users.php'));
+        }
         try {
             $tempPassword = bin2hex(random_bytes(5));
             $hash  = password_hash($tempPassword, PASSWORD_BCRYPT);
@@ -51,25 +98,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(url('admin/users.php'));
 
     } elseif ($action === 'status') {
-        db()->prepare('UPDATE users SET status = ? WHERE user_id = ?')->execute([$_POST['status'], $_POST['user_id']]);
-        logActivity($adminId, "Updated status of user #{$_POST['user_id']} to {$_POST['status']}", 'User Management');
+        $targetId  = (int) ($_POST['user_id'] ?? 0);
+        $newStatus = $_POST['status'] ?? '';
+        if (!in_array($newStatus, ['active', 'inactive', 'suspended'], true)) {
+            flash('error', 'Invalid status.');
+            redirect(url('admin/users.php'));
+        }
+        if ($targetId === $adminId) {
+            flash('error', 'You cannot change the status of your own account.');
+            redirect(url('admin/users.php'));
+        }
+        if ($newStatus !== 'active' && adminChangeWouldLeaveNoAdmin($targetId)) {
+            flash('error', 'This is the only active Admin. Make another Admin active first.');
+            redirect(url('admin/users.php'));
+        }
+        db()->prepare('UPDATE users SET status = ? WHERE user_id = ?')->execute([$newStatus, $targetId]);
+        logActivity($adminId, "Updated status of user #{$targetId} to {$newStatus}", 'User Management');
         flash('success', 'User status updated.');
         redirect(url('admin/users.php'));
 
     } elseif ($action === 'role') {
+        $targetId  = (int) ($_POST['user_id'] ?? 0);
+        $newRoleId = (int) ($_POST['role_id'] ?? 0);
+        if (!adminPasswordMatches($adminId, $_POST['admin_password'] ?? '')) {
+            flash('error', 'Incorrect password. Role change cancelled.');
+            redirect(url('admin/users.php'));
+        }
+        if ($targetId === $adminId) {
+            flash('error', 'You cannot change your own role.');
+            redirect(url('admin/users.php'));
+        }
+        $stmt = db()->prepare("SELECT 1 FROM roles WHERE role_id = ? AND role_name NOT IN ('Parishioner', 'Priest')");
+        $stmt->execute([$newRoleId]);
+        if (!$stmt->fetchColumn()) {
+            flash('error', 'Please choose a valid staff role.');
+            redirect(url('admin/users.php'));
+        }
         $stmt = db()->prepare('SELECT firstname, lastname FROM users WHERE user_id = ?');
-        $stmt->execute([$_POST['user_id']]);
+        $stmt->execute([$targetId]);
         $targetUser = $stmt->fetch();
         $stmt = db()->prepare('SELECT role_name FROM roles WHERE role_id = ?');
-        $stmt->execute([$_POST['role_id']]);
+        $stmt->execute([$newRoleId]);
         $newRoleName = $stmt->fetchColumn();
-        db()->prepare('UPDATE users SET role_id = ? WHERE user_id = ?')->execute([$_POST['role_id'], $_POST['user_id']]);
+        if ($newRoleName !== 'Admin' && adminChangeWouldLeaveNoAdmin($targetId)) {
+            flash('error', 'This is the only active Admin. Make another Admin active before changing this role.');
+            redirect(url('admin/users.php'));
+        }
+        db()->prepare('UPDATE users SET role_id = ? WHERE user_id = ?')->execute([$newRoleId, $targetId]);
         $targetLabel = $targetUser ? ($targetUser['firstname'] . ' ' . $targetUser['lastname']) : ('#' . $_POST['user_id']);
         logActivity($adminId, "Changed role of $targetLabel to " . roleLabel($newRoleName ?: ''), 'User Management');
         flash('success', 'User role updated.');
         redirect(url('admin/users.php'));
 
     } elseif ($action === 'delete') {
+        $targetId = (int) ($_POST['user_id'] ?? 0);
+        if ($targetId === $adminId) {
+            flash('error', 'You cannot delete your own account.');
+            redirect(url('admin/users.php'));
+        }
+        if (adminChangeWouldLeaveNoAdmin($targetId)) {
+            flash('error', 'This is the only active Admin, so it cannot be deleted.');
+            redirect(url('admin/users.php'));
+        }
         $adminPw   = $_POST['admin_password'] ?? '';
         $row       = db()->prepare('SELECT password FROM users WHERE user_id = ?');
         $row->execute([$adminId]);
@@ -542,6 +632,10 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
   <div class="modal-body">
     <p style="margin-top:0;" id="roleConfirmMessage"></p>
+    <div class="form-group">
+      <label for="roleAdminPw">Enter your password to confirm</label>
+      <input type="password" id="roleAdminPw" autocomplete="current-password" placeholder="Your admin password" required>
+    </div>
     <div class="flex gap-3" style="justify-content:flex-end;">
       <button type="button" class="btn btn-outline" onclick="cancelRoleChange()">Cancel</button>
       <button type="button" class="btn btn-primary" onclick="applyRoleChange()">Confirm</button>
@@ -690,11 +784,23 @@ function confirmRoleChange(selectEl) {
 }
 function cancelRoleChange() {
   if (pendingRoleSelect) { pendingRoleSelect.value = pendingRoleSelect.dataset.originalValue; pendingRoleSelect = null; }
+  document.getElementById('roleAdminPw').value = '';
   document.getElementById('roleConfirmModal').close();
 }
 function applyRoleChange() {
-  if (pendingRoleSelect) { pendingRoleSelect.form.submit(); }
+  // Role changes need the admin's password (audit M-08). The server checks it.
+  var pwInput = document.getElementById('roleAdminPw');
+  if (!pendingRoleSelect) { document.getElementById('roleConfirmModal').close(); return; }
+  if (!pwInput.value) { pwInput.reportValidity(); return; }
+  var form = pendingRoleSelect.form;
+  var hidden = document.createElement('input');
+  hidden.type = 'hidden';
+  hidden.name = 'admin_password';
+  hidden.value = pwInput.value;
+  form.appendChild(hidden);
+  pwInput.value = '';
   document.getElementById('roleConfirmModal').close();
+  form.submit();
 }
 
 document.addEventListener('DOMContentLoaded', function () {

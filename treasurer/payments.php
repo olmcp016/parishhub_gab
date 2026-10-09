@@ -8,7 +8,9 @@ $userId = currentUser()['user_id'];
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'manual') {
     verifyCsrf();
     $appointmentId = (int) $_POST['appointment_id'];
-    $ref = trim($_POST['reference_number'] ?? '') ?: ('CASH-' . time());
+    // Generated references must be unique, since staff verification now rejects
+    // reused references (audit H-06). A timestamp alone can collide.
+    $ref = trim($_POST['reference_number'] ?? '') ?: ('CASH-' . strtoupper(bin2hex(random_bytes(6))));
     $manualAmount = is_numeric($_POST['amount'] ?? '') ? (float) $_POST['amount'] : 0.0;
 
     // A manual payment can only be recorded against a real appointment that is

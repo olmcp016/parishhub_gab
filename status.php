@@ -10,19 +10,28 @@ require_once __DIR__ . '/includes/generated-form-workflow.php';
  * Public, no-account status lookup for a guest booking/Mass Intention/
  * donation — the guest equivalent of parishioner/appointment-detail.php,
  * read-only, keyed by the reference code shown on their confirmation
- * screen (see includes/auth.php's generateGuestReference()). The email/
- * phone field is an optional extra check when the guest supplied one;
- * the reference code alone is already a random, unguessable token.
+ * screen (see includes/auth.php's generateGuestReference()). The email or
+ * phone used for the booking is required too, and failed lookups are
+ * throttled per connection, so a reference code alone is not enough (H-02).
  */
 $reference = trim($_GET['ref'] ?? '');
 $contact = trim($_GET['contact'] ?? '');
 $searched = $reference !== '';
 $appointment = null;
 $notFound = false;
+$lookupError = null;
 
 if ($searched) {
     $code = strtoupper($reference);
-    if ($contact !== '') {
+    // The reference alone is no longer enough (audit H-02): the email or phone
+    // used for the booking must match too, and failed lookups are throttled.
+    $ipKey = 'status_ip:' . hash('sha256', $_SERVER['REMOTE_ADDR'] ?? 'unknown');
+    $lockedFor = throttleSecondsLeft($ipKey);
+    if ($contact === '') {
+        $lookupError = 'Enter the email or phone number you gave when booking, together with your reference code.';
+    } elseif ($lockedFor > 0) {
+        $lookupError = 'Too many lookups from this connection. Please try again in ' . ceil($lockedFor / 60) . ' minute(s).';
+    } else {
         $stmt = db()->prepare(
             "SELECT a.*, s.service_name, s.fee, s.category, s.requirements, st.status_name, p.full_name AS priest_name
              FROM appointments a
@@ -32,20 +41,12 @@ if ($searched) {
              WHERE a.guest_reference = ? AND (a.guest_email = ? OR a.guest_phone = ?)"
         );
         $stmt->execute([$code, $contact, $contact]);
-    } else {
-        $stmt = db()->prepare(
-            "SELECT a.*, s.service_name, s.fee, s.category, s.requirements, st.status_name, p.full_name AS priest_name
-             FROM appointments a
-             JOIN services s ON a.service_id = s.service_id
-             JOIN appointment_status st ON a.status_id = st.status_id
-             LEFT JOIN priests p ON a.priest_id = p.priest_id
-             WHERE a.guest_reference = ?"
-        );
-        $stmt->execute([$code]);
+        $appointment = $stmt->fetch() ?: null;
+        if (!$appointment) {
+            throttleRecordFailure($ipKey, 10, 15 * 60);
+        }
     }
-    $appointment = $stmt->fetch() ?: null;
-    $notFound = !$appointment;
-
+    $notFound = $lookupError === null && !$appointment;
     if ($appointment) {
         $_SESSION['guest_status_verification'] = [
             'appointment_id' => (int) $appointment['appointment_id'],
@@ -112,19 +113,23 @@ include __DIR__ . '/includes/header.php';
     <form method="GET" action="<?= url('status.php') ?>">
       <div class="form-group">
         <label>Reference Code</label>
-        <input type="text" name="ref" value="<?= e($reference) ?>" placeholder="PH-XXXXXX" required style="text-transform:uppercase;">
+        <input type="text" name="ref" value="<?= e($reference) ?>" placeholder="PH-XXXXXXXX" required style="text-transform:uppercase;">
       </div>
       <div class="form-group">
-        <label>Email or Phone Number (if you provided one)</label>
-        <input type="text" name="contact" value="<?= e($contact) ?>" placeholder="Leave blank if you didn't provide one">
+        <label>Email or Phone Number used for the booking</label>
+        <input type="text" name="contact" value="<?= e($contact) ?>" placeholder="Email or 09XXXXXXXXX" required>
       </div>
       <button type="submit" class="btn btn-primary btn-block">Check Status</button>
     </form>
   </div>
 
-  <?php if ($notFound): ?>
+  <?php if ($lookupError !== null): ?>
     <div class="alert" style="background: var(--danger-bg); color: var(--danger); border: 1px solid #f5c2c2; margin-top:20px;">
-      No matching record found. Double-check your reference code and, if you entered one, your email/phone.
+      <?= e($lookupError) ?>
+    </div>
+  <?php elseif ($notFound): ?>
+    <div class="alert" style="background: var(--danger-bg); color: var(--danger); border: 1px solid #f5c2c2; margin-top:20px;">
+      No matching record found. Double-check your reference code and the email or phone you gave when booking.
     </div>
   <?php elseif ($appointment): ?>
     <div class="card" style="margin-top:20px;">

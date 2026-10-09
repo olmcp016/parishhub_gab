@@ -520,6 +520,25 @@ function verifyPaymentAndIssueReceipt(int $paymentId, ?int $verifiedByUserId, st
             ];
         }
 
+        // Staff verification (a Treasurer, not PayMongo or the webhook) must
+        // cite a reference, and that reference may be used by only one payment
+        // (audit H-06). A blank or reused reference would issue an official
+        // receipt with no evidence behind it. The advisory lock makes the
+        // uniqueness check safe against two verifications at once.
+        if ($verifiedByUserId !== null) {
+            if ($referenceNumber === '') {
+                $pdo->rollBack();
+                return ['ok' => false, 'message' => 'Enter the reference or OR number before verifying this payment.', 'receipt_number' => null];
+            }
+            $pdo->prepare('SELECT pg_advisory_xact_lock(hashtext(?))')->execute(['payref:' . $referenceNumber]);
+            $dupStmt = $pdo->prepare('SELECT 1 FROM payments WHERE reference_number = ? AND payment_id <> ? LIMIT 1');
+            $dupStmt->execute([$referenceNumber, $paymentId]);
+            if ($dupStmt->fetchColumn()) {
+                $pdo->rollBack();
+                return ['ok' => false, 'message' => 'This reference number is already used by another payment. Check the reference and try again.', 'receipt_number' => null];
+            }
+        }
+
         $updateStmt = $pdo->prepare(
             "UPDATE payments SET payment_status='verified', reference_number=?, verified_by=?, verified_at=NOW()
              WHERE payment_id=? AND payment_status='pending'"

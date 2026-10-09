@@ -98,12 +98,91 @@ function guestParishionerId(): int
  */
 function generateGuestReference(): string
 {
+    // 8 hex characters (about 4.3 billion values). The earlier 6-character
+    // form was small enough to guess by brute force (audit H-02).
     do {
-        $code = 'PH-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 6));
+        $code = 'PH-' . strtoupper(bin2hex(random_bytes(4)));
         $stmt = db()->prepare('SELECT 1 FROM appointments WHERE guest_reference = ?');
         $stmt->execute([$code]);
     } while ($stmt->fetchColumn());
     return $code;
+}
+
+/**
+ * Failure counter for a throttle key (an email, an IP, or a feature name).
+ * Stored in auth_throttle so it survives cookie resets; see
+ * database/migration_auth_throttle.sql.
+ *
+ * Returns the seconds left on an active lockout, or 0 when the key is free.
+ */
+function throttleSecondsLeft(string $key): int
+{
+    $stmt = db()->prepare(
+        'SELECT CEIL(EXTRACT(EPOCH FROM (locked_until - NOW())))::int FROM auth_throttle
+         WHERE throttle_key = ? AND locked_until > NOW()'
+    );
+    $stmt->execute([$key]);
+    return (int) ($stmt->fetchColumn() ?: 0);
+}
+
+/** Failures older than this no longer count, so a shared office IP does not stay half-locked. */
+const THROTTLE_WINDOW_SECONDS = 900;
+
+/**
+ * Records one failed attempt and returns the failures now counted in the
+ * window. Reaching $maxFailures locks the key for $lockSeconds. Further
+ * failures during a lockout do not extend it. One atomic upsert.
+ */
+function throttleRecordFailure(string $key, int $maxFailures, int $lockSeconds): int
+{
+    $counted = "CASE WHEN (auth_throttle.locked_until IS NOT NULL AND auth_throttle.locked_until <= NOW())
+                      OR auth_throttle.updated_at < NOW() - make_interval(secs => ?)
+                 THEN 1 ELSE auth_throttle.failures + 1 END";
+    $stmt = db()->prepare(
+        "INSERT INTO auth_throttle (throttle_key, failures, locked_until, updated_at)
+         VALUES (?, 1, NULL, NOW())
+         ON CONFLICT (throttle_key) DO UPDATE SET
+           failures = {$counted},
+           locked_until = CASE WHEN ({$counted}) >= ?
+                               THEN CASE WHEN auth_throttle.locked_until > NOW() THEN auth_throttle.locked_until
+                                         ELSE NOW() + make_interval(secs => ?) END
+                               ELSE NULL END,
+           updated_at = NOW()
+         RETURNING failures"
+    );
+    $stmt->execute([$key, THROTTLE_WINDOW_SECONDS, THROTTLE_WINDOW_SECONDS, $maxFailures, $lockSeconds]);
+    return (int) $stmt->fetchColumn();
+}
+
+/** Clears a key after a successful action (e.g. a correct password). */
+function throttleClear(string $key): void
+{
+    db()->prepare('DELETE FROM auth_throttle WHERE throttle_key = ?')->execute([$key]);
+}
+
+/**
+ * True when this browser may see an appointment's guest reference code. The
+ * code is the only credential for the guest status page (status.php), so it
+ * must never be printed to someone who merely knows an appointment ID.
+ *
+ * Granted when the browser started that checkout (session marker set in
+ * book.php / donate.php), or when the logged-in parishioner owns it.
+ */
+function canViewGuestReference(int $appointmentId): bool
+{
+    if (!empty($_SESSION['mi_checkout'][$appointmentId]) || !empty($_SESSION['donation_checkout'][$appointmentId])) {
+        return true;
+    }
+    $user = currentUser();
+    if (!$user || $user['role_name'] !== 'Parishioner') {
+        return false;
+    }
+    $stmt = db()->prepare(
+        'SELECT 1 FROM appointments a JOIN parishioners p ON p.parishioner_id = a.parishioner_id
+         WHERE a.appointment_id = ? AND p.user_id = ?'
+    );
+    $stmt->execute([$appointmentId, $user['user_id']]);
+    return (bool) $stmt->fetchColumn();
 }
 
 /**

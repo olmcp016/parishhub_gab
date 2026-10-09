@@ -545,7 +545,22 @@ function validateBooking(
     if (empty($date) || empty($time)) {
         return ['valid' => true, 'message' => '', 'forcedTime' => null];
     }
-    
+
+    // Malformed input never reaches the database, and past dates or times are
+    // refused for every category (audit M-03, M-04). The HTML min attribute
+    // is only a hint; the request can be edited.
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)
+        || !checkdate((int) substr($date, 5, 2), (int) substr($date, 8, 2), (int) substr($date, 0, 4))) {
+        return ['valid' => false, 'message' => 'Please choose a valid date.', 'forcedTime' => null];
+    }
+    if (!preg_match('/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/', $time)) {
+        return ['valid' => false, 'message' => 'Please choose a valid time.', 'forcedTime' => null];
+    }
+    $today = date('Y-m-d');
+    if ($date < $today || ($date === $today && substr($time, 0, 5) <= date('H:i'))) {
+        return ['valid' => false, 'message' => 'Please choose a date and time that is still ahead. Past dates and times cannot be booked.', 'forcedTime' => null];
+    }
+
     $time5 = substr($time, 0, 5); // normalize to H:i for comparisons
 
     // Staff day-off applies to all categories except Mass Intention — the
