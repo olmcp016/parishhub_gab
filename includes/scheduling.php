@@ -616,19 +616,9 @@ function validateBooking(
             break;
     }
 
-    // Every other service must not land on a time already occupied by a
-    // scheduled Mass — the priest and church are already committed then.
-    if ($result['valid']) {
-        $effectiveTime = substr($result['forcedTime'] ?? $time, 0, 5);
-        if (in_array($effectiveTime, massTimesFor($date), true)) {
-            return [
-                'valid' => false,
-                'message' => 'That time is occupied by a scheduled Mass. Please choose another time outside Mass hours.',
-                'forcedTime' => null,
-            ];
-        }
-    }
-
+    // A scheduled Mass at this time does not block other services. Whether the
+    // booking can go ahead is decided by the chosen priest's availability
+    // (priestIsAvailable), which hides a priest who is saying that Mass.
     return $result;
 }
 
@@ -655,7 +645,7 @@ function schedulingPolicyText(string $category, ?int $serviceId = null): string
                 $serviceId = (int) $stmt->fetchColumn() ?: null;
             }
             $regularText = $serviceId ? describeRegularSchedule($serviceId) : 'No Regular schedule has been configured yet.';
-            return "Choose Regular for the parish's fixed schedule ($regularText) or Special to request a custom date and time — just not during a scheduled Mass. Either way, availability is checked automatically.";
+            return "Choose Regular for the parish's fixed schedule ($regularText) or Special to request a custom date and time. Either way, availability is checked automatically, and a priest who is saying a Mass at that time is shown as unavailable.";
         case 'Funeral':
             return 'Funeral Masses are held after the 9-day mourning period from the date of death, fixed at 1:00 PM.';
         case 'Mass Intention':
@@ -663,7 +653,7 @@ function schedulingPolicyText(string $category, ?int $serviceId = null): string
         case 'Anointing':
             return 'Propose a preferred date and time for the Anointing. This sacrament is free of charge — no payment is required.';
         case 'First Communion':
-            return 'Propose a preferred date and time below — just not during a scheduled Mass.';
+            return 'Propose a preferred date and time below. A priest who is saying a Mass at that time is shown as unavailable.';
         default:
             return '';
     }

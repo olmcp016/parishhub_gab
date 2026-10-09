@@ -1224,7 +1224,7 @@ function updateOccupiedTimesHint() {
     hint.textContent = '';
   } else {
     var times = massTimesForJS(dateInput.value).map(formatTimeLabel);
-    hint.textContent = 'Occupied by Mass on this date: ' + times.join(', ') + '. Please choose a different time.';
+    hint.textContent = 'Mass is scheduled on this date at: ' + times.join(', ') + '. You can still book these times; priests saying Mass then are shown as unavailable, so choose a different priest.';
   }
   refreshAvailability();
 }
