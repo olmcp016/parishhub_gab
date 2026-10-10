@@ -533,6 +533,8 @@ function openBookModal(serviceId) {
   document.getElementById('bookFormView').style.display = 'block';
   document.getElementById('bookConfirmView').style.display = 'none';
   document.getElementById('bookFormError').style.display = 'none';
+  // A deliberate fresh open starts blank, so any saved Back-navigation snapshot is stale.
+  writeBookingSnapshot(null);
   document.getElementById('bookForm').reset();
 
   var select = document.getElementById('serviceSelect');
@@ -554,6 +556,104 @@ function openBookModal(serviceId) {
 function closeBookModal() {
   document.getElementById('bookModal').close();
 }
+
+/**
+ * Keeps the Step 1 booking values when the user goes Back from a draft's
+ * Supporting Documents page. Draft services (Baptism, Wedding, Funeral) leave
+ * this page on submit, and the browser re-renders it on Back with an empty
+ * form. The snapshot lives in sessionStorage (this tab only) and is restored
+ * only on a back/forward navigation, so a fresh visit still starts blank.
+ * File inputs are not restored: draft uploads are already saved server-side.
+ */
+var BOOKING_SNAPSHOT_KEY = 'parishhubBookingSnapshot';
+
+function readBookingSnapshot() {
+  try { return JSON.parse(sessionStorage.getItem(BOOKING_SNAPSHOT_KEY) || 'null'); } catch (e) { return null; }
+}
+
+function writeBookingSnapshot(snapshot) {
+  try {
+    if (snapshot) sessionStorage.setItem(BOOKING_SNAPSHOT_KEY, JSON.stringify(snapshot));
+    else sessionStorage.removeItem(BOOKING_SNAPSHOT_KEY);
+  } catch (e) { /* storage blocked: the form just will not survive Back */ }
+}
+
+function captureBookingForm() {
+  var values = {};
+  var radios = {};
+  document.querySelectorAll('#bookForm input, #bookForm select, #bookForm textarea').forEach(function (el) {
+    if (el.type === 'radio') {
+      if (el.checked) radios[el.name] = el.value;
+      return;
+    }
+    if (!el.id || el.type === 'file' || el.type === 'password') return;
+    // Hidden fields are derived from other inputs, except the Mass time, which must survive the date reload.
+    if (el.type === 'hidden' && el.id !== 'massTimeInput') return;
+    values[el.id] = el.value;
+  });
+  return { serviceId: document.getElementById('serviceSelect').value, values: values, radios: radios };
+}
+
+function saveBookingSnapshotFromForm() {
+  writeBookingSnapshot(captureBookingForm());
+}
+
+function restoreBookingForm(snapshot) {
+  var serviceSelect = document.getElementById('serviceSelect');
+  serviceSelect.value = snapshot.serviceId;
+  if (serviceSelect.value !== snapshot.serviceId) return false; // service no longer offered
+
+  Object.keys(snapshot.radios).forEach(function (name) {
+    var radio = document.querySelector('#bookForm input[type="radio"][name="' + name + '"][value="' + snapshot.radios[name] + '"]');
+    if (radio) radio.checked = true;
+  });
+  toggleServiceUI();
+
+  Object.keys(snapshot.values).forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el && el.type !== 'file') el.value = snapshot.values[id];
+  });
+
+  // Re-run the same side effects a user's own input would trigger.
+  var dateInput = document.getElementById('appointmentDateInput');
+  if (dateInput.value) dateInput.dispatchEvent(new Event('change'));
+  var firstName = document.getElementById('guestFirstNameInput');
+  if (firstName) firstName.dispatchEvent(new Event('input'));
+  updateEarliestFuneralHint();
+  refreshAvailability();
+  return true;
+}
+
+function resumeBookingAfterBack() {
+  var snapshot = readBookingSnapshot();
+  if (!snapshot) return;
+
+  var nav = performance.getEntriesByType ? performance.getEntriesByType('navigation')[0] : null;
+  var cameBack = nav ? nav.type === 'back_forward' : false;
+  if (!cameBack) {
+    writeBookingSnapshot(null); // a fresh visit starts blank
+    return;
+  }
+
+  document.getElementById('bookFormView').style.display = 'block';
+  document.getElementById('bookConfirmView').style.display = 'none';
+  document.getElementById('bookFormError').style.display = 'none';
+  if (restoreBookingForm(snapshot)) {
+    document.getElementById('bookModal').showModal();
+  } else {
+    writeBookingSnapshot(null);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  var form = document.getElementById('bookForm');
+  form.addEventListener('input', saveBookingSnapshotFromForm);
+  form.addEventListener('change', saveBookingSnapshotFromForm);
+  form.addEventListener('submit', saveBookingSnapshotFromForm);
+});
+
+// pageshow runs after DOMContentLoaded, so the form's change listeners are attached before a restore fires them.
+window.addEventListener('pageshow', resumeBookingAfterBack);
 
 /**
  * Special Mass Request: "Others" makes the Additional Requests box mandatory,
@@ -1460,6 +1560,7 @@ document.addEventListener('DOMContentLoaded', function () {
             window.location.href = data.redirect;
             return;
           }
+          writeBookingSnapshot(null); // submitted: nothing left to restore on Back
           document.getElementById('bookFormView').style.display = 'none';
           document.getElementById('bookConfirmView').style.display = 'block';
           document.getElementById('bookConfirmMessage').textContent = data.documents_reminder || '';
