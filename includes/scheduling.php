@@ -652,7 +652,6 @@ function schedulingPolicyText(string $category, ?int $serviceId = null): string
     switch ($category) {
         case 'Baptism':
         case 'Wedding':
-        case 'Blessing':
         case 'Confirmation':
             if ($serviceId === null) {
                 $stmt = db()->prepare('SELECT service_id FROM services WHERE category = ? AND is_active = TRUE LIMIT 1');
@@ -661,6 +660,8 @@ function schedulingPolicyText(string $category, ?int $serviceId = null): string
             }
             $regularText = $serviceId ? describeRegularSchedule($serviceId) : 'No Regular schedule has been configured yet.';
             return "Choose Regular for the parish's fixed schedule ($regularText) or Special to request a custom date and time. Either way, availability is checked automatically, and a priest who is saying a Mass at that time is shown as unavailable.";
+        case 'Blessing':
+            return 'Propose a custom date and time for the blessing. Availability is checked automatically, and a priest who is saying a Mass at that time is shown as unavailable.';
         case 'Funeral':
             return 'Funeral Masses are held after the 9-day mourning period from the date of death, fixed at 1:00 PM.';
         case 'Mass Intention':
