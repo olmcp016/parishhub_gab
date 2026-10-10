@@ -1409,10 +1409,10 @@ dialog.ann-lightbox img { max-width: 92vw; max-height: 88dvh; object-fit: contai
 }
 
 /* ---------- Inline field validation (see public/js/validation.js) ---------- */
-.form-group.has-error input,
-.form-group.has-error select,
-.form-group.has-error textarea { border-color: var(--danger); background: var(--danger-bg); }
-.field-error-msg { display: block; color: var(--danger); font-size: 12px; margin-top: 4px; }
+input.field-invalid,
+select.field-invalid,
+textarea.field-invalid { border-color: var(--danger); background: var(--danger-bg); }
+.field-error-msg { display: block; color: var(--danger); font-size: 12px; font-weight: 600; margin-top: 6px; line-height: 1.4; }
 
 /* ---------- Compact "native-style" date picker (Regular-schedule booking) ---------- */
 .mini-dp { position: relative; width: 100%; }

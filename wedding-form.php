@@ -255,6 +255,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
   </form>
 </div>
 <?php if (in_array($type, WEDDING_FORM_TYPES, true)): ?>
+<script src="<?= url('public/js/validation.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/public/js/validation.js') ?>"></script>
 <script>
 (function () {
   var form = document.getElementById('weddingGeneratedForm');
@@ -281,6 +282,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
   }
   marriageChoices.forEach(function (choice) { choice.addEventListener('change', syncMarriageFields); });
   syncMarriageFields();
+  attachInlineValidation(form);
   form.addEventListener('submit', function (event) {
     if (!event.submitter || event.submitter.value !== 'generate' || !form.checkValidity()) return;
 

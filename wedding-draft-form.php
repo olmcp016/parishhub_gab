@@ -233,11 +233,11 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
                     <div class="form-row">
                         <div class="form-group">
                             <label for="<?= $prefix ?>_birth_date">Date of Birth *</label>
-                            <input id="<?= $prefix ?>_birth_date" name="<?= $prefix ?>_birth_date" type="date" value="<?= e($data[$prefix.'_birth_date'] ?? '') ?>" required>
+                            <input id="<?= $prefix ?>_birth_date" name="<?= $prefix ?>_birth_date" type="date" value="<?= e($data[$prefix.'_birth_date'] ?? '') ?>" required data-label="<?= e(ucfirst($prefix)) ?> Date of Birth" data-past data-min-age="18" data-age-on="<?= e((string) ($draft['appointment_date'] ?? '')) ?>" data-age-label="the wedding date">
                         </div>
                         <div class="form-group">
                             <label for="<?= $prefix ?>_cell">Cell Number *</label>
-                            <input id="<?= $prefix ?>_cell" name="<?= $prefix ?>_cell" type="tel" value="<?= e($data[$prefix.'_cell'] ?? '') ?>" maxlength="11" pattern="^09\d{9}$" title="Must be a valid 11-digit mobile number starting with 09" inputmode="numeric" required>
+                            <input id="<?= $prefix ?>_cell" name="<?= $prefix ?>_cell" data-label="<?= e(ucfirst($prefix)) ?> Cell Number" type="tel" value="<?= e($data[$prefix.'_cell'] ?? '') ?>" maxlength="11" pattern="^09\d{9}$" title="Must be a valid 11-digit mobile number starting with 09" inputmode="numeric" required>
                         </div>
                     </div>
                     <div class="form-row">
@@ -272,7 +272,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
                 <legend style="font-weight:700; padding:0 8px;">APPLICANT / KASLONON INFORMATION</legend>
                 <div class="form-group"><label for="kaslonon_name">Ngalan sa Kaslonon *</label><input id="kaslonon_name" name="kaslonon_name" type="text" value="<?= e($data['kaslonon_name'] ?? '') ?>" maxlength="150" required></div>
                 <div class="form-row">
-                    <div class="form-group"><label for="kaslonon_birth_date">Petsa Natawo *</label><input id="kaslonon_birth_date" name="kaslonon_birth_date" type="date" value="<?= e($data['kaslonon_birth_date'] ?? '') ?>" required></div>
+                    <div class="form-group"><label for="kaslonon_birth_date">Petsa Natawo *</label><input id="kaslonon_birth_date" name="kaslonon_birth_date" type="date" value="<?= e($data['kaslonon_birth_date'] ?? '') ?>" required data-label="Kaslonon Date of Birth" data-past data-min-age="18" data-age-on="<?= e((string) ($draft['appointment_date'] ?? '')) ?>" data-age-label="the wedding date"></div>
                     <div class="form-group"><label for="kaslonon_status">Estado *</label><input id="kaslonon_status" name="kaslonon_status" type="text" value="<?= e($data['kaslonon_status'] ?? '') ?>" maxlength="50" required></div>
                     <div class="form-group"><label for="kaslonon_religion">Relihiyon *</label><input id="kaslonon_religion" name="kaslonon_religion" type="text" value="<?= e($data['kaslonon_religion'] ?? '') ?>" maxlength="50" required></div>
                 </div>
@@ -282,7 +282,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
                 <legend style="font-weight:700; padding:0 8px;">SPOUSE INFORMATION</legend>
                 <div class="form-group"><label for="spouse_name">Ngalan sa Pamanhunon/Pangasaw-onon *</label><input id="spouse_name" name="spouse_name" type="text" value="<?= e($data['spouse_name'] ?? '') ?>" maxlength="150" required></div>
                 <div class="form-row">
-                    <div class="form-group"><label for="spouse_birth_date">Petsa Natawo (Spouse) *</label><input id="spouse_birth_date" name="spouse_birth_date" type="date" value="<?= e($data['spouse_birth_date'] ?? '') ?>" required></div>
+                    <div class="form-group"><label for="spouse_birth_date">Petsa Natawo (Spouse) *</label><input id="spouse_birth_date" name="spouse_birth_date" type="date" value="<?= e($data['spouse_birth_date'] ?? '') ?>" required data-label="Spouse Date of Birth" data-past data-min-age="18" data-age-on="<?= e((string) ($draft['appointment_date'] ?? '')) ?>" data-age-label="the wedding date"></div>
                     <div class="form-group"><label for="spouse_status">Estado *</label><input id="spouse_status" name="spouse_status" type="text" value="<?= e($data['spouse_status'] ?? '') ?>" maxlength="50" required></div>
                     <div class="form-group"><label for="spouse_religion">Relihiyon *</label><input id="spouse_religion" name="spouse_religion" type="text" value="<?= e($data['spouse_religion'] ?? '') ?>" maxlength="50" required></div>
                 </div>
@@ -382,6 +382,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
     </form>
 </div>
 <?php if (in_array($type, WEDDING_FORM_TYPES, true)): ?>
+<script src="<?= url('public/js/validation.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/public/js/validation.js') ?>"></script>
 <script>
 (function () {
   var form = document.getElementById('weddingGeneratedForm');
@@ -415,68 +416,11 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
   marriageChoices.forEach(function (choice) { choice.addEventListener('change', syncMarriageFields); });
   syncMarriageFields();
 
-  // Birth dates: must be in the past, and each person must be at least 18 on the
-  // wedding date (mirrors weddingBirthAgeError() in includes/wedding-forms.php).
-  var WEDDING_DATE = <?= json_encode((string) ($draft['appointment_date'] ?? '')) ?>;
-  var BIRTH_FIELD_IDS = ['groom_birth_date', 'bride_birth_date', 'kaslonon_birth_date', 'spouse_birth_date'];
-  function isoDate(d) {
-    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-  }
-  function ageOn(birth, ref) {
-    var b = new Date(birth + 'T00:00:00');
-    var r = new Date(ref + 'T00:00:00');
-    var years = r.getFullYear() - b.getFullYear();
-    var beforeBirthday = r.getMonth() < b.getMonth() || (r.getMonth() === b.getMonth() && r.getDate() < b.getDate());
-    return beforeBirthday ? years - 1 : years;
-  }
-  function birthDateProblem(input) {
-    var birth = input.value;
-    if (!birth) return '';
-    var label = input.labels && input.labels[0] ? input.labels[0].textContent.replace('*', '').trim() : 'Date of Birth';
-    if (birth >= isoDate(new Date())) return label + ' must be a date in the past.';
-    if (WEDDING_DATE && ageOn(birth, WEDDING_DATE) < 18) return label + ' must be at least 18 years old on the wedding date.';
-    return '';
-  }
-  // Native max keeps the date picker from offering ineligible dates.
-  function setBirthDateMax(input) {
-    var cap = new Date();
-    cap.setDate(cap.getDate() - 1);
-    if (WEDDING_DATE) {
-      var eighteenBefore = new Date(WEDDING_DATE + 'T00:00:00');
-      eighteenBefore.setFullYear(eighteenBefore.getFullYear() - 18);
-      if (isoDate(eighteenBefore) < isoDate(cap)) cap = eighteenBefore;
-    }
-    input.max = isoDate(cap);
-  }
-  // Sets the native validity message on each field; returns the first problem, if any.
-  function validateBirthDates() {
-    var first = null;
-    BIRTH_FIELD_IDS.forEach(function (id) {
-      var input = document.getElementById(id);
-      if (!input) return;
-      setBirthDateMax(input);
-      var message = birthDateProblem(input);
-      input.setCustomValidity(message);
-      if (message && !first) first = input;
-    });
-    return first;
-  }
-  BIRTH_FIELD_IDS.forEach(function (id) {
-    var input = document.getElementById(id);
-    if (!input) return;
-    input.addEventListener('input', validateBirthDates);
-    input.addEventListener('change', validateBirthDates);
-  });
-  validateBirthDates();
+  // Inline errors under each field. Birth-date rules (past, 18+ on the wedding
+  // date) and phone formats are declared on the inputs themselves.
+  attachInlineValidation(form);
 
   form.addEventListener('submit', function (event) {
-    var invalidBirthDate = validateBirthDates();
-    if (invalidBirthDate) {
-      event.preventDefault();
-      invalidBirthDate.reportValidity();
-      return;
-    }
-
     var submitter = event.submitter;
     if (!submitter || submitter.value !== 'generate' || !form.checkValidity()) return;
 

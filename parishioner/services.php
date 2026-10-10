@@ -393,7 +393,7 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
         <div id="dateOfDeathGroup" class="form-group"
           style="display:none; background: var(--cream); padding: 14px; border-radius: 8px;">
           <label>Date of Death</label>
-          <input type="date" name="date_of_death" id="dateOfDeathInput" max="<?= date('Y-m-d') ?>">
+          <input type="date" name="date_of_death" id="dateOfDeathInput" data-past max="<?= date('Y-m-d') ?>">
           <p class="helper-text" id="earliestFuneralHint"></p>
         </div>
 
@@ -799,6 +799,7 @@ document.addEventListener('DOMContentLoaded', function () {
   payOnlineRadio.addEventListener('change', toggleMethodUI);
   payLaterRadio.addEventListener('change', toggleMethodUI);
   toggleMethodUI();
+  attachInlineValidation(document.getElementById('donateForm'));
 
   document.getElementById('donateForm').addEventListener('submit', function (e) {
     e.preventDefault();
@@ -854,6 +855,7 @@ document.addEventListener('DOMContentLoaded', function () {
 <script
   src="<?= url('public/js/calendar.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/calendar.js') ?>"></script>
 <script src="<?= url('public/js/scheduling.js') ?>"></script>
+<script src="<?= url('public/js/validation.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/validation.js') ?>"></script>
 <script>
   var POLICIES = <?= json_encode($policies, JSON_UNESCAPED_UNICODE) ?>;
   var CALENDAR_BLOCKED = <?= json_encode($calendarBlocked, JSON_UNESCAPED_UNICODE) ?>;
@@ -888,6 +890,22 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function closeBookModal() {
     document.getElementById('bookModal').close();
+  }
+
+  /**
+   * Booking rules the shared validator cannot read from attributes: a Mass
+   * Intention needs an available Mass time and an offering above ₱0. Hidden
+   * fields are skipped by the validator, so this is safe for other services.
+   */
+  function bookingBeforeCheck() {
+    var serviceSelect = document.getElementById('serviceSelect');
+    var category = serviceSelect.options[serviceSelect.selectedIndex]?.dataset.category || '';
+    var isMass = category === 'Mass Intention';
+    var amount = document.getElementById('offeringAmount');
+    document.getElementById('massTimeSelect').setCustomValidity(
+      isMass && !document.getElementById('massTimeInput').value ? 'Please choose an available Mass time.' : ''
+    );
+    amount.setCustomValidity(isMass && !(parseFloat(amount.value) > 0) ? 'Offering amount must be greater than ₱0.' : '');
   }
 
   /**
@@ -1788,28 +1806,8 @@ document.addEventListener('DOMContentLoaded', function () {
       refreshAvailability();
     });
 
-    document.getElementById('bookForm').addEventListener('invalid', function (e) {
-      e.preventDefault();
-      var errorBox = document.getElementById('bookFormError');
-      var label = 'a required field';
-      if (e.target.labels && e.target.labels.length > 0) {
-        label = e.target.labels[0].textContent.replace(' (optional)', '').replace('*', '').trim();
-      } else if (e.target.previousElementSibling && e.target.previousElementSibling.tagName === 'LABEL') {
-        label = e.target.previousElementSibling.textContent.replace(' (optional)', '').replace('*', '').trim();
-      } else if (e.target.name) {
-        label = e.target.name.replace(/_/g, ' ');
-      }
-
-      errorBox.textContent = 'Please fill out ' + label + '.';
-      errorBox.style.display = 'block';
-
-      if (!this.dataset.isInvalidated) {
-        this.dataset.isInvalidated = 'true';
-        setTimeout(function () { document.getElementById('bookForm').dataset.isInvalidated = ''; }, 100);
-        e.target.focus();
-        e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }, true);
+    // Inline errors under each field (required, phone, date and age rules, Mass slot/offering).
+    attachInlineValidation(document.getElementById('bookForm'), { beforeCheck: bookingBeforeCheck });
 
     document.getElementById('bookForm').addEventListener('submit', function (e) {
       e.preventDefault();
@@ -1820,57 +1818,8 @@ document.addEventListener('DOMContentLoaded', function () {
       // Compose guest full name before submission
       if (guestCombined && typeof syncGuestName === 'function') syncGuestName();
 
-      // Guest phone validation
-      var guestPhoneEl = document.getElementById('guestPhoneInput');
-      if (guestPhoneEl && guestPhoneEl.value.trim()) {
-        if (!/^09[0-9]{9}$/.test(guestPhoneEl.value.trim())) {
-          errorBox.textContent = 'Phone number must be exactly 11 digits starting with 09 (e.g. 09XXXXXXXXX).';
-          errorBox.style.display = 'block';
-          errorBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          guestPhoneEl.focus();
-          return;
-        }
-      }
-
-      // Enforce required document uploads
-      var missingDocs = [];
-      document.querySelectorAll('#requirementRows input[type="file"][required]').forEach(function (inp) {
-        if (!inp.files || inp.files.length === 0) {
-          missingDocs.push(inp.dataset.label || 'Required document');
-        }
-      });
-      if (missingDocs.length > 0) {
-        errorBox.textContent = 'Please upload all required documents before submitting: ' + missingDocs.join(', ') + '.';
-        errorBox.style.display = 'block';
-        errorBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        return;
-      }
-
       var serviceSelect = document.getElementById('serviceSelect');
       var category = serviceSelect.options[serviceSelect.selectedIndex]?.dataset.category || '';
-
-      var isMassIntention = (serviceSelect.options[serviceSelect.selectedIndex]?.dataset.category || '') === 'Mass Intention';
-      if (isMassIntention) {
-        var massDate = document.getElementById('appointmentDateInput').value;
-        var massTime = document.getElementById('massTimeInput').value;
-        if (!massDate || !massTime) {
-          errorBox.textContent = !massDate
-            ? 'Please choose the date of the Mass.'
-            : 'Please choose an available Mass time.';
-          errorBox.style.display = 'block';
-          errorBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          document.getElementById(!massDate ? 'appointmentDateInput' : 'massTimeSelect').focus();
-          return;
-        }
-        var amount = parseFloat(document.getElementById('offeringAmount').value);
-        if (!(amount > 0)) {
-          errorBox.textContent = 'Offering amount must be greater than ₱0.';
-          errorBox.style.display = 'block';
-          errorBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          document.getElementById('offeringAmount').focus();
-          return;
-        }
-      }
 
       submitBtn.disabled = true;
       submitBtn.textContent = 'Submitting...';

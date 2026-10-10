@@ -228,7 +228,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
         <legend style="font-weight:700; padding:0 8px;">CHILD INFORMATION</legend>
         <div class="form-group"><label for="child_name">Ngalan sa Bunyagan *</label><input id="child_name" name="child_name" type="text" value="<?= e($data['child_name'] ?? '') ?>" maxlength="150" required></div>
         <div class="form-row">
-            <div class="form-group"><label for="birth_date">Petsa Natawo *</label><input id="birth_date" name="birth_date" type="date" value="<?= e($data['birth_date'] ?? '') ?>" required></div>
+            <div class="form-group"><label for="birth_date">Petsa Natawo *</label><input id="birth_date" name="birth_date" type="date" data-past value="<?= e($data['birth_date'] ?? '') ?>" required></div>
             <div class="form-group"><label for="birth_place">Diin Natawo *</label><input id="birth_place" name="birth_place" type="text" value="<?= e($data['birth_place'] ?? '') ?>" maxlength="150" required></div>
         </div>
       </fieldset>
@@ -329,6 +329,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
     </div>
   </form>
 </div>
+<script src="<?= url('public/js/validation.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/public/js/validation.js') ?>"></script>
 <script>
 (function () {
   var form = document.getElementById('baptismGeneratedForm');
@@ -345,6 +346,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
   }
   choices.forEach(function (choice) { choice.addEventListener('change', syncMarriagePlace); });
   syncMarriagePlace();
+  attachInlineValidation(form);
   form.addEventListener('submit', function (event) {
     if (!event.submitter || event.submitter.value !== 'generate' || !form.checkValidity()) return;
 
