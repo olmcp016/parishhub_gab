@@ -155,6 +155,22 @@ function weddingMarriageAge(string $birthDate, string $referenceDate): ?int
     return $birth->diff($reference)->y;
 }
 
+/**
+ * Birth-date rules shared by the Marriage Application and the Katin-awan sa
+ * Kasal: the date must be in the past, and the person must be at least 18
+ * years old on the wedding date. Returns null when the date is fine. Format
+ * and "before the wedding date" are reported by the callers.
+ */
+function weddingBirthAgeError(string $label, string $birthDate, string $weddingDate): ?string
+{
+    if ($birthDate === '' || validateCalendarDate($birthDate) === false) return null;
+    if ($birthDate >= date('Y-m-d')) return $label . ' must be a date in the past.';
+    if (validateCalendarDate($weddingDate) === false) return null;
+    $age = weddingMarriageAge($birthDate, $weddingDate);
+    if ($age !== null && $age < 18) return $label . ' must be at least 18 years old on the wedding date.';
+    return null;
+}
+
 function weddingMarriagePdfDate(string $date): string
 {
     $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
@@ -219,6 +235,8 @@ function weddingMarriageValidationErrors(array $data, bool $requireComplete = tr
         if ($birthDate !== '' && $weddingDate !== '' && ($age === null || $age > 120)) {
             $errors[] = $fieldLabels[$key] . ' must be before the wedding date.';
         }
+        $ageError = weddingBirthAgeError($fieldLabels[$key], $birthDate, $weddingDate);
+        if ($ageError !== null) $errors[] = $ageError;
     }
     if (($data['wedding_time'] ?? '') !== '' && !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', (string) $data['wedding_time'])) {
         $errors[] = 'Time of Wedding must be a valid time.';
@@ -294,6 +312,8 @@ function weddingFormValidationErrors(string $type, array $data, bool $requireCom
                 $age = weddingMarriageAge($value, $reference);
                 if ($age === null || $age > 120) $errors[] = $label . ' must be before the wedding date.';
             }
+            $ageError = weddingBirthAgeError($label, $value, $reference);
+            if ($ageError !== null) $errors[] = $ageError;
         }
         $marriageDate = trim((string) ($data['marriage_date'] ?? ''));
         if ($marriageDate !== '' && validateCalendarDate($marriageDate) === false) $errors[] = 'Kanus-a must be a valid marriage date.';
@@ -508,10 +528,14 @@ function weddingKatinPdf(array $data): string
     $pdf->SetTitle($metaTitle, true);
     weddingPdfHeader($pdf, 'KATIN-AWAN SA KASAL');
 
-    // Compute ages if birth dates are provided and wedding date is available
+    // Ages are computed on the wedding date from each birth date. The old
+    // stored kaslonon_age/spouse_age values are no longer read, so legacy saved
+    // values there cannot print in place of the computed age.
     $referenceDate = $v('wedding_date') ?: date('Y-m-d');
-    $kaslononAge = $v('kaslonon_birth_date') ? (string) weddingMarriageAge($v('kaslonon_birth_date'), $referenceDate) : $v('kaslonon_age');
-    $spouseAge = $v('spouse_birth_date') ? (string) weddingMarriageAge($v('spouse_birth_date'), $referenceDate) : $v('spouse_age');
+    $kaslononAgeYears = weddingMarriageAge($v('kaslonon_birth_date'), $referenceDate);
+    $spouseAgeYears = weddingMarriageAge($v('spouse_birth_date'), $referenceDate);
+    $kaslononAge = $kaslononAgeYears === null ? '' : (string) $kaslononAgeYears;
+    $spouseAge = $spouseAgeYears === null ? '' : (string) $spouseAgeYears;
 
     // Keep the EDAD column protected: the name underline ends at x=138,
     // leaving a fixed gap before the EDAD field begins at x=143.

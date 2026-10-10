@@ -414,7 +414,69 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
   }
   marriageChoices.forEach(function (choice) { choice.addEventListener('change', syncMarriageFields); });
   syncMarriageFields();
+
+  // Birth dates: must be in the past, and each person must be at least 18 on the
+  // wedding date (mirrors weddingBirthAgeError() in includes/wedding-forms.php).
+  var WEDDING_DATE = <?= json_encode((string) ($draft['appointment_date'] ?? '')) ?>;
+  var BIRTH_FIELD_IDS = ['groom_birth_date', 'bride_birth_date', 'kaslonon_birth_date', 'spouse_birth_date'];
+  function isoDate(d) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  function ageOn(birth, ref) {
+    var b = new Date(birth + 'T00:00:00');
+    var r = new Date(ref + 'T00:00:00');
+    var years = r.getFullYear() - b.getFullYear();
+    var beforeBirthday = r.getMonth() < b.getMonth() || (r.getMonth() === b.getMonth() && r.getDate() < b.getDate());
+    return beforeBirthday ? years - 1 : years;
+  }
+  function birthDateProblem(input) {
+    var birth = input.value;
+    if (!birth) return '';
+    var label = input.labels && input.labels[0] ? input.labels[0].textContent.replace('*', '').trim() : 'Date of Birth';
+    if (birth >= isoDate(new Date())) return label + ' must be a date in the past.';
+    if (WEDDING_DATE && ageOn(birth, WEDDING_DATE) < 18) return label + ' must be at least 18 years old on the wedding date.';
+    return '';
+  }
+  // Native max keeps the date picker from offering ineligible dates.
+  function setBirthDateMax(input) {
+    var cap = new Date();
+    cap.setDate(cap.getDate() - 1);
+    if (WEDDING_DATE) {
+      var eighteenBefore = new Date(WEDDING_DATE + 'T00:00:00');
+      eighteenBefore.setFullYear(eighteenBefore.getFullYear() - 18);
+      if (isoDate(eighteenBefore) < isoDate(cap)) cap = eighteenBefore;
+    }
+    input.max = isoDate(cap);
+  }
+  // Sets the native validity message on each field; returns the first problem, if any.
+  function validateBirthDates() {
+    var first = null;
+    BIRTH_FIELD_IDS.forEach(function (id) {
+      var input = document.getElementById(id);
+      if (!input) return;
+      setBirthDateMax(input);
+      var message = birthDateProblem(input);
+      input.setCustomValidity(message);
+      if (message && !first) first = input;
+    });
+    return first;
+  }
+  BIRTH_FIELD_IDS.forEach(function (id) {
+    var input = document.getElementById(id);
+    if (!input) return;
+    input.addEventListener('input', validateBirthDates);
+    input.addEventListener('change', validateBirthDates);
+  });
+  validateBirthDates();
+
   form.addEventListener('submit', function (event) {
+    var invalidBirthDate = validateBirthDates();
+    if (invalidBirthDate) {
+      event.preventDefault();
+      invalidBirthDate.reportValidity();
+      return;
+    }
+
     var submitter = event.submitter;
     if (!submitter || submitter.value !== 'generate' || !form.checkValidity()) return;
 
