@@ -110,7 +110,7 @@ function massIntentionTimesForDate(string $date): array
     if ($ts === false) return ['06:00' => 'Daily Mass'];
     $dow = (int) date('w', $ts);
     if ($dow === 0) return MASS_INTENTION_TIMES; // Sunday: three Masses
-    if ($dow === 3) return ['17:15' => 'Evening Mass']; // Wednesday: 5:15 PM only
+    if ($dow === 3) return ['17:15' => 'Afternoon Mass']; // Wednesday: 5:15 PM only
     return ['06:00' => 'Daily Mass']; // Mon/Tue/Thu/Fri/Sat: 6:00 AM
 }
 
@@ -133,7 +133,7 @@ function massIntentionSlotAvailability(string $date, string $time): array
         if ($dow === 0) {
             $reason = 'On Sundays, Mass Intentions can only be offered at the 6:30 AM, 9:00 AM, or 4:30 PM Mass.';
         } elseif ($dow === 3) {
-            $reason = 'On Wednesdays, Mass Intentions can only be offered at the 5:15 PM Evening Mass.';
+            $reason = 'On Wednesdays, Mass Intentions can only be offered at the 5:15 PM Afternoon Mass.';
         } else {
             $reason = 'From Monday to Saturday (except Wednesday), Mass Intentions can only be offered at the 6:00 AM Daily Mass.';
         }

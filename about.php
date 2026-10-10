@@ -68,7 +68,7 @@ include __DIR__ . '/includes/header.php';
         <tr><td><strong>Confirmation</strong></td><td><?= e(schedulingPolicyText('Confirmation')) ?></td></tr>
         <tr><td><strong>Funeral Mass</strong></td><td><?= e(schedulingPolicyText('Funeral')) ?></td></tr>
         <tr><td><strong>House Blessing</strong></td><td><?= e(schedulingPolicyText('Blessing')) ?></td></tr>
-        <tr><td><strong>Mass Intention</strong></td><td><?= e(schedulingPolicyText('Mass Intention')) ?></td></tr>
+        <tr><td><strong>Mass Intention</strong></td><td><?= schedulingPolicyText('Mass Intention') ?></td></tr>
       </tbody>
     </table>
   </div>

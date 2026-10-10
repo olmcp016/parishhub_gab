@@ -1200,7 +1200,7 @@ var MASS_INTENTION_TIMES = [['06:30', '1st Mass'], ['09:00', '2nd Mass'], ['16:3
 function massTimesForDate(dateStr) {
   var dow = new Date(dateStr + 'T00:00:00').getDay();
   if (dow === 0) return MASS_INTENTION_TIMES; // Sunday: three Masses
-  if (dow === 3) return [['17:15', 'Evening Mass']]; // Wednesday: 5:15 PM
+  if (dow === 3) return [['17:15', 'Afternoon Mass']]; // Wednesday: 5:15 PM
   return [['06:00', 'Daily Mass']]; // all other days: 6:00 AM
 }
 
