@@ -9,10 +9,11 @@ $services = db()->query("SELECT * FROM services WHERE is_active = 1 AND category
 $variableFeeCategories = ['Baptism', 'Wedding'];
 $feeRulesByCategory = [];
 try {
-    $feeRuleRows = db()->query("SELECT * FROM service_fee_rules ORDER BY service_category, schedule_type, pss_classification")->fetchAll();
-    foreach ($feeRuleRows as $feeRule) $feeRulesByCategory[$feeRule['service_category']][] = $feeRule;
+  $feeRuleRows = db()->query("SELECT * FROM service_fee_rules ORDER BY service_category, schedule_type, pss_classification")->fetchAll();
+  foreach ($feeRuleRows as $feeRule)
+    $feeRulesByCategory[$feeRule['service_category']][] = $feeRule;
 } catch (Throwable $e) {
-    // The pricing migration is deployed separately; legacy services remain usable until then.
+  // The pricing migration is deployed separately; legacy services remain usable until then.
 }
 $donationEnabled = db()->query("SELECT setting_value FROM settings WHERE setting_key = 'donation_enabled'")->fetchColumn() !== '0';
 $priests = db()->query("SELECT * FROM priests WHERE status = 'active'")->fetchAll();
@@ -27,25 +28,25 @@ $preselectedDate = $_GET['date'] ?? '';
 $profilePhone = '';
 $profileAddress = '';
 if (!$identity['is_guest']) {
-    $stmt = db()->prepare('SELECT phone, address FROM users WHERE user_id = ?');
-    $stmt->execute([$identity['user_id']]);
-    $profileRow = $stmt->fetch() ?: [];
-    $profilePhone = $profileRow['phone'] ?? '';
-    $profileAddress = $profileRow['address'] ?? '';
+  $stmt = db()->prepare('SELECT phone, address FROM users WHERE user_id = ?');
+  $stmt->execute([$identity['user_id']]);
+  $profileRow = $stmt->fetch() ?: [];
+  $profilePhone = $profileRow['phone'] ?? '';
+  $profileAddress = $profileRow['address'] ?? '';
 }
 
 $policies = [];
 $requirementsByService = [];
 foreach ($services as $s) {
-    $policies[$s['category']] = schedulingPolicyText($s['category'], (int) $s['service_id']);
-    $requirementsByService[$s['service_id']] = $s['category'] === 'Wedding'
-        ? weddingRequiredDocumentsFromCatalog($s['requirements'])
-        : parseRequirementsList($s['requirements']);
+  $policies[$s['category']] = schedulingPolicyText($s['category'], (int) $s['service_id']);
+  $requirementsByService[$s['service_id']] = $s['category'] === 'Wedding'
+    ? weddingRequiredDocumentsFromCatalog($s['requirements'])
+    : parseRequirementsList($s['requirements']);
 }
 foreach (['Mass Intention', 'Funeral', 'First Communion'] as $cat) {
-    if (!isset($policies[$cat])) {
-        $policies[$cat] = schedulingPolicyText($cat);
-    }
+  if (!isset($policies[$cat])) {
+    $policies[$cat] = schedulingPolicyText($cat);
+  }
 }
 
 // These 2 categories offer a Regular (parish-fixed slot) vs Special
@@ -59,16 +60,20 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
 ?>
 
 <?php if ($identity['is_guest']): ?>
-  <div class="alert" style="background: var(--cream); color: var(--brown-mid); border: 1px solid var(--cream-dark); margin-bottom:18px;">
-    You're browsing as a guest — no account needed to book. <a href="<?= url('auth/register.php') ?>">Create a free account</a> to track your requests in one place, or continue below and save your confirmation reference code.
+  <div class="alert"
+    style="background: var(--cream); color: var(--brown-mid); border: 1px solid var(--cream-dark); margin-bottom:18px;">
+    You're browsing as a guest — no account needed to book. <a href="<?= url('auth/register.php') ?>">Create a free
+      account</a> to track your requests in one place, or continue below and save your confirmation reference code.
   </div>
 <?php endif; ?>
 
 <?php if ($donationEnabled): ?>
-  <div class="card" style="background: linear-gradient(135deg, var(--cream-dark), #faf0d0); padding: 22px 24px; margin-bottom: 24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+  <div class="card"
+    style="background: linear-gradient(135deg, var(--cream-dark), #faf0d0); padding: 22px 24px; margin-bottom: 24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
     <div style="flex: 1 1 280px;">
       <h3 style="font-size: 20px; margin: 0 0 6px 0;">🤲 Donate to Our Parish</h3>
-      <p style="font-size: 14.5px; color: var(--brown-dark); margin: 0; line-height: 1.5;">Support our ministries and services with a voluntary offering — any amount is welcome.</p>
+      <p style="font-size: 14.5px; color: var(--brown-dark); margin: 0; line-height: 1.5;">Support our ministries and
+        services with a voluntary offering — any amount is welcome.</p>
     </div>
     <div style="flex: 0 0 auto;">
       <a href="<?= url('parishioner/donations.php?donate=1') ?>" class="btn btn-primary">Donate Now</a>
@@ -81,41 +86,47 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
     <?php $isMassIntention = $s['category'] === 'Mass Intention'; ?>
     <div class="card" style="display:flex; flex-direction:column;">
       <h3><?= e($s['service_name']) ?></h3>
-      <p class="text-muted" style="font-size:12.5px; text-transform:uppercase; letter-spacing:.4px;"><?= e($s['category']) ?></p>
+      <p class="text-muted" style="font-size:12.5px; text-transform:uppercase; letter-spacing:.4px;">
+        <?= e($s['category']) ?></p>
       <p style="font-size:14px;"><?= e($s['description']) ?></p>
       <?php
       $scheduleDisplay = null;
       if ($s['category'] === 'Anointing' || $s['category'] === 'Blessing') {
-          $scheduleDisplay = 'Schedule arranged with the Parish Office';
+        $scheduleDisplay = 'Schedule arranged with the Parish Office';
       } elseif (in_array($s['category'], ['Baptism', 'Wedding', 'Confirmation'])) {
-          $scheduleDesc = describeRegularSchedule((int)$s['service_id']);
-          if (str_starts_with($scheduleDesc, 'No Regular schedule')) {
-              $scheduleDisplay = 'Schedule arranged with the Parish Office';
-          } else {
-              $scheduleDisplay = $scheduleDesc;
-          }
+        $scheduleDesc = describeRegularSchedule((int) $s['service_id']);
+        if (str_starts_with($scheduleDesc, 'No Regular schedule')) {
+          $scheduleDisplay = 'Schedule arranged with the Parish Office';
+        } else {
+          $scheduleDisplay = $scheduleDesc;
+        }
       } elseif ($s['category'] === 'Funeral') {
-          $scheduleDisplay = 'Schedule arranged with the Parish Office';
+        $scheduleDisplay = 'Schedule arranged with the Parish Office';
       } elseif ($s['category'] === 'Wake') {
-          $scheduleDisplay = 'Propose a preferred date &amp; time — parish office confirms';
+        $scheduleDisplay = 'Propose a preferred date &amp; time — parish office confirms';
       } elseif ($s['category'] === 'Mass Intention') {
-          $scheduleDisplay = 'Daily 6:00 AM / Wed 5:15 PM / Sun 6:30 AM, 9:00 AM, 4:30 PM';
+        $scheduleDisplay = 'Daily 6:00 AM / Wed 5:15 PM / Sun 6:30 AM, 9:00 AM, 4:30 PM';
       } else {
-          $scheduleDisplay = 'Schedule arranged with the Parish Office';
+        $scheduleDisplay = 'Schedule arranged with the Parish Office';
       }
       ?>
       <?php if ($scheduleDisplay): ?>
-          <p class="svc-schedule" style="font-size: 13px; font-weight: 500; color: var(--brown-dark); margin-bottom: 12px; margin-top: -6px; display: flex; align-items: center; gap: 4px;">
-              <i data-lucide="calendar" style="width:14px; height:14px;"></i>
-              <?= e($scheduleDisplay) ?>
-          </p>
+        <p class="svc-schedule"
+          style="font-size: 13px; font-weight: 500; color: var(--brown-dark); margin-bottom: 12px; margin-top: -6px; display: flex; align-items: center; gap: 4px;">
+          <i data-lucide="calendar" style="width:14px; height:14px;"></i>
+          <?= e($scheduleDisplay) ?>
+        </p>
       <?php endif; ?>
       <?php if ($s['category'] === 'Anointing'): ?>
-          <p class="svc-fee" style="font-size: 13px; color: var(--success, #2d7a46); font-weight: 600; margin-bottom: 12px; margin-top: -6px;">Free — No payment required</p>
+        <p class="svc-fee"
+          style="font-size: 13px; color: var(--success, #2d7a46); font-weight: 600; margin-bottom: 12px; margin-top: -6px;">
+          Free — No payment required</p>
       <?php endif; ?>
       <?php if (in_array($s['category'], ['Baptism', 'Wedding'], true) && !empty($feeRulesByCategory[$s['category']])): ?>
-        <p class="text-muted" style="font-size:13px; margin-bottom:4px;">Regular and Special fees available by PSS classification.</p>
-        <button type="button" class="btn btn-secondary btn-sm" style="align-self:flex-start; margin-bottom:12px;" onclick="document.getElementById('fees-<?= strtolower($s['category']) ?>').showModal()">View Fees</button>
+        <p class="text-muted" style="font-size:13px; margin-bottom:4px;">Regular and Special fees available by PSS
+          classification.</p>
+        <button type="button" class="btn btn-secondary btn-sm" style="align-self:flex-start; margin-bottom:12px;"
+          onclick="document.getElementById('fees-<?= strtolower($s['category']) ?>').showModal()">View Fees</button>
       <?php endif; ?>
       <?php if ($s['requirements'] && !in_array($s['category'], ['Blessing', 'Anointing', 'Wake'], true)): ?>
         <details class="requirements-toggle" style="margin-bottom:12px;">
@@ -129,7 +140,8 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
             <?= in_array($s['category'], $variableFeeCategories, true) ? 'Fee varies by schedule and PSS status' : feeLabel((float) $s['fee']) ?>
           </span>
         </div>
-        <button type="button" class="btn btn-primary btn-block" style="width:100%;" onclick="openBookModal(<?= $s['service_id'] ?>)"><?= $isMassIntention ? 'Enter Intentions' : 'Book Now' ?></button>
+        <button type="button" class="btn btn-primary btn-block" style="width:100%;"
+          onclick="openBookModal(<?= $s['service_id'] ?>)"><?= $isMassIntention ? 'Enter Intentions' : 'Book Now' ?></button>
       </div>
     </div>
   <?php endforeach; ?>
@@ -139,25 +151,56 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
 <?php foreach (['Baptism', 'Wedding'] as $feeCategory): ?>
   <?php if (!empty($feeRulesByCategory[$feeCategory])): ?>
     <?php $feeService = array_values(array_filter($services, fn($x) => $x['category'] === $feeCategory))[0] ?? null; ?>
-    <?php if ($feeService): ?><dialog class="modal" id="fees-<?= strtolower($feeCategory) ?>">
-      <div class="modal-head"><h3><?= e($feeCategory) ?> Service Fees</h3><button type="button" class="modal-close" onclick="this.closest('dialog').close()">×</button></div>
-      <div class="modal-body">
-        <?php foreach (['Regular', 'Special'] as $feeSchedule): ?>
-          <h4><?= e($feeSchedule) ?> Schedule</h4>
-          <div class="table-wrap"><table><thead><tr><th></th><th>PSS Giver</th><th>Non-PSS Giver</th></tr></thead><tbody>
-          <?php $pssRule = array_values(array_filter($feeRulesByCategory[$feeCategory], fn($r) => $r['schedule_type'] === $feeSchedule && $r['pss_classification'] === 'pss'))[0] ?? null; $nonRule = array_values(array_filter($feeRulesByCategory[$feeCategory], fn($r) => $r['schedule_type'] === $feeSchedule && $r['pss_classification'] === 'non_pss'))[0] ?? null; ?>
-          <?php if ($pssRule && $nonRule): ?>
-            <tr><td>Base Fee</td><td><?= feeLabel((float) $pssRule['base_fee']) ?></td><td><?= feeLabel((float) $nonRule['base_fee']) ?></td></tr>
-            <tr><td>Priest Stipend</td><td><?= feeLabel((float) $pssRule['priest_stipend']) ?></td><td><?= feeLabel((float) $nonRule['priest_stipend']) ?></td></tr>
-            <tr><td>Additional Sponsor</td>
-                <td><span style="font-size:0.85em;color:var(--gray-dark);">(No fees up to <?= $feeCategory === 'Wedding' ? 2 : (int) $pssRule['included_sponsors'] ?> sponsors)</span><br><?= feeLabel((float) $pssRule['additional_sponsor_fee']) ?> per additional sponsor</td>
-                <td><span style="font-size:0.85em;color:var(--gray-dark);">(No fees up to <?= $feeCategory === 'Wedding' ? 2 : (int) $nonRule['included_sponsors'] ?> sponsors)</span><br><?= feeLabel((float) $nonRule['additional_sponsor_fee']) ?> per additional sponsor</td>
-            </tr>
-          <?php endif; ?>
-          </tbody></table></div>
-        <?php endforeach; ?>
-      </div>
-    </dialog><?php endif; ?>
+    <?php if ($feeService): ?>
+      <dialog class="modal" id="fees-<?= strtolower($feeCategory) ?>">
+        <div class="modal-head">
+          <h3><?= e($feeCategory) ?> Service Fees</h3><button type="button" class="modal-close"
+            onclick="this.closest('dialog').close()">×</button>
+        </div>
+        <div class="modal-body">
+          <?php foreach (['Regular', 'Special'] as $feeSchedule): ?>
+            <h4><?= e($feeSchedule) ?> Schedule</h4>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th>PSS Giver</th>
+                    <th>Non-PSS Giver</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php $pssRule = array_values(array_filter($feeRulesByCategory[$feeCategory], fn($r) => $r['schedule_type'] === $feeSchedule && $r['pss_classification'] === 'pss'))[0] ?? null;
+                  $nonRule = array_values(array_filter($feeRulesByCategory[$feeCategory], fn($r) => $r['schedule_type'] === $feeSchedule && $r['pss_classification'] === 'non_pss'))[0] ?? null; ?>
+                  <?php if ($pssRule && $nonRule): ?>
+                    <tr>
+                      <td>Base Fee</td>
+                      <td><?= feeLabel((float) $pssRule['base_fee']) ?></td>
+                      <td><?= feeLabel((float) $nonRule['base_fee']) ?></td>
+                    </tr>
+                    <tr>
+                      <td>Priest Stipend</td>
+                      <td><?= feeLabel((float) $pssRule['priest_stipend']) ?></td>
+                      <td><?= feeLabel((float) $nonRule['priest_stipend']) ?></td>
+                    </tr>
+                    <tr>
+                      <td>Additional Sponsor</td>
+                      <td><span style="font-size:0.85em;color:var(--gray-dark);">(No fees up to
+                          <?= $feeCategory === 'Wedding' ? 2 : (int) $pssRule['included_sponsors'] ?>
+                          sponsors)</span><br><?= feeLabel((float) $pssRule['additional_sponsor_fee']) ?> per additional sponsor
+                      </td>
+                      <td><span style="font-size:0.85em;color:var(--gray-dark);">(No fees up to
+                          <?= $feeCategory === 'Wedding' ? 2 : (int) $nonRule['included_sponsors'] ?>
+                          sponsors)</span><br><?= feeLabel((float) $nonRule['additional_sponsor_fee']) ?> per additional sponsor
+                      </td>
+                    </tr>
+                  <?php endif; ?>
+                </tbody>
+              </table>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      </dialog><?php endif; ?>
   <?php endif; ?>
 <?php endforeach; ?>
 
@@ -170,7 +213,9 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
   <div class="modal-body">
 
     <div id="bookFormView">
-      <div id="policyBox" class="alert" style="display:none; background: var(--cream); color: var(--brown-mid); border: 1px solid var(--cream-dark);"></div>
+      <div id="policyBox" class="alert"
+        style="display:none; background: var(--cream); color: var(--brown-mid); border: 1px solid var(--cream-dark);">
+      </div>
 
       <form method="POST" action="<?= url('parishioner/book.php') ?>" enctype="multipart/form-data" id="bookForm">
         <?= csrfField() ?>
@@ -179,53 +224,75 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
         <style>
           /* JS sets #dateTimeRow to display:flex (overriding .form-row's grid),
              so split the two halves evenly with flex-basis 0 */
-          #dateTimeRow { display: flex; gap: 16px; align-items: flex-start; }
-          #dateTimeRow > .form-group { flex: 1 1 0; min-width: 0; margin-bottom: 0; }
+          #dateTimeRow {
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+          }
+
+          #dateTimeRow>.form-group {
+            flex: 1 1 0;
+            min-width: 0;
+            margin-bottom: 0;
+          }
+
           #dateTimeRow input[type="date"],
           #dateTimeRow input[type="time"],
           #dateTimeRow select,
-          #priestSelect { width: 100%; box-sizing: border-box; }
+          #priestSelect {
+            width: 100%;
+            box-sizing: border-box;
+          }
         </style>
 
         <?php if ($identity['is_guest']): ?>
-        <style>
-          .guest-info-fields {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-          }
-          .guest-info-fields .form-group {
-            width: 100%;
-            margin-bottom: 0;
-          }
-        </style>
-        <div style="background: var(--cream); padding: 14px; border-radius: 8px; margin-bottom: 16px; border: 1px solid var(--cream-dark);">
-          <h4 style="margin-top:0; margin-bottom:12px;">Guest Information</h4>
-          <div class="guest-info-fields">
-            <div class="form-group">
-              <label>First Name</label>
-              <input type="text" name="guest_firstname" id="guestFirstNameInput" required placeholder="Juan" style="width:100%;">
+          <style>
+            .guest-info-fields {
+              display: flex;
+              flex-direction: column;
+              gap: 16px;
+            }
+
+            .guest-info-fields .form-group {
+              width: 100%;
+              margin-bottom: 0;
+            }
+          </style>
+          <div
+            style="background: var(--cream); padding: 14px; border-radius: 8px; margin-bottom: 16px; border: 1px solid var(--cream-dark);">
+            <h4 style="margin-top:0; margin-bottom:12px;">Guest Information</h4>
+            <div class="guest-info-fields">
+              <div class="form-group">
+                <label>First Name</label>
+                <input type="text" name="guest_firstname" id="guestFirstNameInput" required placeholder="Juan"
+                  style="width:100%;">
+              </div>
+              <div class="form-group">
+                <label>Middle Name <span class="text-muted" style="font-weight:400;">(optional)</span></label>
+                <input type="text" name="guest_middlename" id="guestMiddleNameInput" placeholder="Santos"
+                  style="width:100%;">
+              </div>
+              <div class="form-group">
+                <label>Last Name</label>
+                <input type="text" name="guest_lastname" id="guestLastNameInput" required placeholder="Dela Cruz"
+                  style="width:100%;">
+              </div>
+              <div class="form-group">
+                <label>Phone Number</label>
+                <input type="tel" name="guest_phone" id="guestPhoneInput" required pattern="09[0-9]{9}" maxlength="11"
+                  minlength="11" placeholder="09XXXXXXXXX" title="Must be exactly 11 digits starting with 09"
+                  style="width:100%;">
+              </div>
+              <div class="form-group">
+                <label>Email Address <span class="text-muted" style="font-weight:400;">(optional)</span></label>
+                <input type="email" name="guest_email" id="guestEmailInput" placeholder="you@example.com"
+                  style="width:100%;">
+              </div>
             </div>
-            <div class="form-group">
-              <label>Middle Name <span class="text-muted" style="font-weight:400;">(optional)</span></label>
-              <input type="text" name="guest_middlename" id="guestMiddleNameInput" placeholder="Santos" style="width:100%;">
-            </div>
-            <div class="form-group">
-              <label>Last Name</label>
-              <input type="text" name="guest_lastname" id="guestLastNameInput" required placeholder="Dela Cruz" style="width:100%;">
-            </div>
-            <div class="form-group">
-              <label>Phone Number</label>
-              <input type="tel" name="guest_phone" id="guestPhoneInput" required pattern="09[0-9]{9}" maxlength="11" minlength="11" placeholder="09XXXXXXXXX" title="Must be exactly 11 digits starting with 09" style="width:100%;">
-            </div>
-            <div class="form-group">
-              <label>Email Address <span class="text-muted" style="font-weight:400;">(optional)</span></label>
-              <input type="email" name="guest_email" id="guestEmailInput" placeholder="you@example.com" style="width:100%;">
-            </div>
+            <input type="hidden" name="guest_name" id="guestCombinedName">
+            <p class="helper-text" style="margin-top:12px; margin-bottom:0;">We'll use your name and phone number to
+              identify your request — you'll get a reference code to check its status anytime.</p>
           </div>
-          <input type="hidden" name="guest_name" id="guestCombinedName">
-          <p class="helper-text" style="margin-top:12px; margin-bottom:0;">We'll use your name and phone number to identify your request — you'll get a reference code to check its status anytime.</p>
-        </div>
         <?php endif; ?>
 
         <div class="form-group">
@@ -233,31 +300,38 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
           <select name="service_id" id="serviceSelect" required>
             <option value="">-- Choose a service --</option>
             <?php foreach ($services as $s): ?>
-              <option value="<?= $s['service_id'] ?>" data-category="<?= e($s['category']) ?>" data-service-name="<?= e($s['service_name']) ?>">
+              <option value="<?= $s['service_id'] ?>" data-category="<?= e($s['category']) ?>"
+                data-service-name="<?= e($s['service_name']) ?>">
                 <?= e($s['service_name']) ?>
               </option>
             <?php endforeach; ?>
           </select>
         </div>
 
-        <div id="anointingFields" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px; margin-bottom: 16px;">
+        <div id="anointingFields"
+          style="display:none; background: var(--cream); padding: 14px; border-radius: 8px; margin-bottom: 16px;">
           <h4 id="anointingFieldsTitle" style="margin-top:0;">Anointing of the Sick Details</h4>
           <div class="form-group">
             <label>Requester's Name <span style="color:var(--danger);">*</span></label>
-            <input type="text" name="requester_name" id="requesterNameInput" placeholder="Full name of the person requesting">
+            <input type="text" name="requester_name" id="requesterNameInput"
+              placeholder="Full name of the person requesting">
           </div>
           <div class="form-group">
             <label id="patientNameLabel">Sick Person's Name <span style="color:var(--danger);">*</span></label>
-            <input type="text" name="patient_name" id="patientNameInput" placeholder="Full name of the person to be anointed">
+            <input type="text" name="patient_name" id="patientNameInput"
+              placeholder="Full name of the person to be anointed">
           </div>
-          <p class="helper-text" id="anointingFieldsNote">This sacrament is provided <strong>free of charge</strong>. No payment is required.</p>
+          <p class="helper-text" id="anointingFieldsNote">This sacrament is provided <strong>free of charge</strong>. No
+            payment is required.</p>
         </div>
 
-        <div id="specialMassFields" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px; margin-bottom: 16px;">
+        <div id="specialMassFields"
+          style="display:none; background: var(--cream); padding: 14px; border-radius: 8px; margin-bottom: 16px;">
           <h4 style="margin-top:0;">Special Mass Request Details</h4>
           <div class="form-group">
             <label>Requester's Name <span style="color:var(--danger);">*</span></label>
-            <input type="text" name="special_requester_name" id="specialRequesterInput" placeholder="Full name of the person requesting">
+            <input type="text" name="special_requester_name" id="specialRequesterInput"
+              placeholder="Full name of the person requesting">
           </div>
           <div class="form-group">
             <label>Occasion <span style="color:var(--danger);">*</span></label>
@@ -273,35 +347,44 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
             </select>
           </div>
           <div class="form-group">
-            <label>Additional Requests <span id="specialRequestsRequiredMark" style="color:var(--danger); display:none;">*</span></label>
-            <textarea name="special_requests" id="specialRequestsInput" rows="3" placeholder="Enter any other important intentions or requests..."></textarea>
-            <p class="helper-text" id="specialRequestsHint" style="display:none;">Since you selected "Others", please type the specific occasion here.</p>
+            <label>Additional Requests <span id="specialRequestsRequiredMark"
+                style="color:var(--danger); display:none;">*</span></label>
+            <textarea name="special_requests" id="specialRequestsInput" rows="3"
+              placeholder="Enter any other important intentions or requests..."></textarea>
+            <p class="helper-text" id="specialRequestsHint" style="display:none;">Since you selected "Others", please
+              type the specific occasion here.</p>
           </div>
-          <p class="helper-text" style="margin-bottom:0;">Fixed fee: <strong>₱1,500</strong>. Propose a preferred date and time — our parish office will confirm.</p>
+          <p class="helper-text" style="margin-bottom:0;">Fixed fee: <strong>₱1,500</strong>. Propose a preferred date
+            and time — our parish office will confirm.</p>
         </div>
 
-        <div id="blessingFields" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px; margin-bottom: 16px;">
+        <div id="blessingFields"
+          style="display:none; background: var(--cream); padding: 14px; border-radius: 8px; margin-bottom: 16px;">
           <h4 style="margin-top:0;">House Blessing Details</h4>
           <?php if (!$identity['is_guest']): ?>
             <div class="form-group">
               <label>Contact Phone Number</label>
-              <input type="tel" name="contact_phone" id="blessingPhoneInput" value="<?= e($profilePhone) ?>" placeholder="09XX XXX XXXX">
+              <input type="tel" name="contact_phone" id="blessingPhoneInput" value="<?= e($profilePhone) ?>"
+                placeholder="09XX XXX XXXX">
             </div>
           <?php endif; ?>
           <div class="form-group">
             <label>Address / Location to Bless</label>
-            <textarea name="location_address" id="blessingAddressInput" rows="2" placeholder="House number, street, barangay..."><?= e($profileAddress) ?></textarea>
+            <textarea name="location_address" id="blessingAddressInput" rows="2"
+              placeholder="House number, street, barangay..."><?= e($profileAddress) ?></textarea>
             <p class="helper-text">This is just the address of the home/establishment — no document upload needed.</p>
           </div>
         </div>
 
-        <div id="dateOfDeathGroup" class="form-group" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px;">
+        <div id="dateOfDeathGroup" class="form-group"
+          style="display:none; background: var(--cream); padding: 14px; border-radius: 8px;">
           <label>Date of Death</label>
           <input type="date" name="date_of_death" id="dateOfDeathInput" max="<?= date('Y-m-d') ?>">
           <p class="helper-text" id="earliestFuneralHint"></p>
         </div>
 
-        <div class="form-group" id="scheduleTypeGroup" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px;">
+        <div class="form-group" id="scheduleTypeGroup"
+          style="display:none; background: var(--cream); padding: 14px; border-radius: 8px;">
           <label>Scheduling Option <span class="badge" id="scheduleTypeBadge" style="margin-left:6px;"></span></label>
           <label style="font-weight:400; display:block; margin-bottom:6px;">
             <input type="radio" name="schedule_type" value="Regular" id="scheduleTypeRegular" checked>
@@ -313,16 +396,27 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
           </label>
         </div>
 
-        <div id="feeClassificationGroup" class="form-group" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px;">
+        <div id="feeClassificationGroup" class="form-group"
+          style="display:none; background: var(--cream); padding: 14px; border-radius: 8px;">
           <label>PSS Classification Claim</label>
-          <select name="pss_claim" id="pssClaimInput"><option value="">-- Select --</option><option value="pss">PSS Giver (subject to verification)</option><option value="non_pss">Non-PSS Giver</option></select>
+          <select name="pss_claim" id="pssClaimInput">
+            <option value="">-- Select --</option>
+            <option value="pss">PSS Giver (subject to verification)</option>
+            <option value="non_pss">Non-PSS Giver</option>
+          </select>
           <p class="helper-text">The parish Secretary verifies this classification before the final fee is charged.</p>
         </div>
-        <div id="sponsorCountGroup" class="form-group" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px;">
-          <label>Number of Sponsors</label><input type="number" class="numeric-no-spinner numeric-zero-friendly" name="sponsor_count" id="sponsorCountInput" min="0" max="100" step="1" value="0">
+        <div id="sponsorCountGroup" class="form-group"
+          style="display:none; background: var(--cream); padding: 14px; border-radius: 8px;">
+          <label>Number of Sponsors</label><input type="number" class="numeric-no-spinner numeric-zero-friendly"
+            name="sponsor_count" id="sponsorCountInput" min="0" max="100" step="1" value="0">
         </div>
-        <div id="weddingSponsorCountGroup" class="form-group" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px;">
-          <label>Number of Individual Sponsors</label><input type="number" class="numeric-no-spinner numeric-zero-friendly" name="wedding_sponsor_count" id="weddingSponsorCountInput" min="0" max="200" step="1" value="0"><p class="helper-text">The first 2 sponsors are included; each additional individual sponsor is ₱100.</p>
+        <div id="weddingSponsorCountGroup" class="form-group"
+          style="display:none; background: var(--cream); padding: 14px; border-radius: 8px;">
+          <label>Number of Individual Sponsors</label><input type="number"
+            class="numeric-no-spinner numeric-zero-friendly" name="wedding_sponsor_count" id="weddingSponsorCountInput"
+            min="0" max="200" step="1" value="0">
+          <p class="helper-text">The first 2 sponsors are included; each additional individual sponsor is ₱100.</p>
         </div>
         <div id="regularSlotGroup" class="form-group" style="display:none;">
           <label>Preferred Date</label>
@@ -348,8 +442,10 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
               </div>
             </div>
           </div>
-          <div id="regularFixedTimeBox" style="display:none; margin-top:8px; background: var(--cream); border-radius: 8px; padding: 10px 12px;">
-            <strong>Time:</strong> <span id="regularFixedTimeText"></span> <span class="text-muted">(fixed for this schedule)</span>
+          <div id="regularFixedTimeBox"
+            style="display:none; margin-top:8px; background: var(--cream); border-radius: 8px; padding: 10px 12px;">
+            <strong>Time:</strong> <span id="regularFixedTimeText"></span> <span class="text-muted">(fixed for this
+              schedule)</span>
           </div>
           <input type="hidden" name="appointment_date" id="regularDateInput" disabled>
           <input type="hidden" name="appointment_time" id="regularTimeInput" disabled>
@@ -358,7 +454,8 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
         <div class="form-row" id="dateTimeRow">
           <div class="form-group">
             <label>Preferred Date</label>
-            <input type="date" name="appointment_date" id="appointmentDateInput" required min="<?= date('Y-m-d') ?>" value="<?= e($preselectedDate) ?>">
+            <input type="date" name="appointment_date" id="appointmentDateInput" required min="<?= date('Y-m-d') ?>"
+              value="<?= e($preselectedDate) ?>">
           </div>
           <div class="form-group">
             <label>Preferred Time</label>
@@ -381,26 +478,32 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
           </div>
         </div>
 
-        <div id="specialSchedulingMessage" class="alert" style="display:none; background: var(--cream); color: var(--brown-mid); border: 1px solid var(--cream-dark); margin-bottom:18px;">
+        <div id="specialSchedulingMessage" class="alert"
+          style="display:none; background: var(--cream); color: var(--brown-mid); border: 1px solid var(--cream-dark); margin-bottom:18px;">
         </div>
 
 
-        <div id="availabilityMsg" class="alert" style="display:none; background: var(--danger-bg); color: var(--danger); border: 1px solid #f5c2c2;"></div>
+        <div id="availabilityMsg" class="alert"
+          style="display:none; background: var(--danger-bg); color: var(--danger); border: 1px solid #f5c2c2;"></div>
 
         <div class="form-group" id="priestFieldGroup">
           <label>Preferred Priest (optional)</label>
           <select name="priest_id" id="priestSelect">
             <option value="">No preference</option>
             <?php foreach ($priests as $p): ?>
-              <option value="<?= $p['priest_id'] ?>"><?= e($p['title']) ?> <?= e($p['full_name']) ?></option>
+              <option value="<?= $p['priest_id'] ?>"><?= e($p['title']) ?>   <?= e($p['full_name']) ?></option>
             <?php endforeach; ?>
           </select>
-          <p class="helper-text">Choosing a specific priest is subject to his availability — in case of unavoidable priest emergencies or pastoral duties, the parish office reserves the right to assign an available priest.</p>
+          <p class="helper-text">Choosing a specific priest is subject to his availability — in case of unavoidable
+            priest emergencies or pastoral duties, the parish office reserves the right to assign an available priest.
+          </p>
         </div>
 
-        <div id="intentionFields" style="display:none; background: var(--cream); padding: 14px; border-radius: 8px; margin-bottom: 16px;">
+        <div id="intentionFields"
+          style="display:none; background: var(--cream); padding: 14px; border-radius: 8px; margin-bottom: 16px;">
           <h4 style="margin-top:0;">Mass Intention Details</h4>
-          <p class="helper-text" style="margin-top:-4px;">No documents needed. You choose the offering amount. Online payments are verified through PayMongo; cash offerings remain pending until the Cashier confirms them.</p>
+          <p class="helper-text" style="margin-top:-4px;">No documents needed. You choose the offering amount. Online
+            payments are verified through PayMongo; cash offerings remain pending until the Cashier confirms them.</p>
           <div class="form-row">
             <div class="form-group">
               <label>Intention Type</label>
@@ -414,12 +517,13 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
             </div>
             <div class="form-group">
               <label>Offerer Name</label>
-              <input type="text" name="offerer_name" id="offererNameInput" placeholder="Your full name">
+              <input type="text" name="offerer_name" id="offererNameInput" placeholder="Name">
             </div>
           </div>
           <div class="form-group">
             <label>Intention For</label>
-            <input type="text" name="intention_for" id="intentionForInput" placeholder="Name(s) the mass is offered for">
+            <input type="text" name="intention_for" id="intentionForInput"
+              placeholder="Name(s) the mass is offered for">
           </div>
           <div class="form-group">
             <label>Prayer Message (optional)</label>
@@ -429,7 +533,8 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
           <h4 style="margin-bottom:6px;">Offering &amp; Payment</h4>
           <div class="form-group">
             <label>Offering Amount (₱) — must be more than ₱0</label>
-            <input type="number" name="amount" id="offeringAmount" class="amount-no-spinner" min="0.01" step="0.01" placeholder="e.g. 500" inputmode="decimal">
+            <input type="number" name="amount" id="offeringAmount" class="amount-no-spinner" min="0.01" step="0.01"
+              placeholder="e.g. 500" inputmode="decimal">
           </div>
           <div class="form-group">
             <label>How would you like to pay?</label>
@@ -451,7 +556,8 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
 
         <div class="form-group" id="documentRequirementsNote" style="display:none;">
           <label>Required Documents</label>
-          <div class="alert" style="background: var(--cream); color: var(--brown-mid); border: 1px solid var(--cream-dark); font-size:13px; margin-bottom:12px;">
+          <div class="alert"
+            style="background: var(--cream); color: var(--brown-mid); border: 1px solid var(--cream-dark); font-size:13px; margin-bottom:12px;">
             <strong>Document Requirements:</strong>
             <ul style="margin:6px 0 0; padding-left:18px;">
               <li>Please upload a clear and readable document.</li>
@@ -461,7 +567,8 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
               <li>Upload the required document as a PDF, JPG, JPEG, or PNG file.</li>
               <li>Maximum file size: <?= e((string) MAX_DOCUMENT_UPLOAD_MB) ?> MB.</li>
             </ul>
-            <p style="margin:8px 0 0;">These automated checks confirm a file is readable and correctly formatted — they do not verify authenticity. Our parish staff will do a final manual review before approval.</p>
+            <p style="margin:8px 0 0;">These automated checks confirm a file is readable and correctly formatted — they
+              do not verify authenticity. Our parish staff will do a final manual review before approval.</p>
           </div>
         </div>
 
@@ -473,26 +580,38 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
           <div class="form-group" style="margin-top:10px;">
             <label>Additional Documents (optional)</label>
             <input type="file" name="documents[]" id="extraDocumentsInput" multiple accept=".pdf,.jpg,.jpeg,.png">
-            <p class="helper-text">Max <?= e(ini_get('upload_max_filesize')) ?> per file, <?= e(ini_get('post_max_size')) ?> total for the whole form. If your photos are larger than that (common for phone camera photos), you can also upload documents later from the appointment detail page instead.</p>
+            <p class="helper-text">Max <?= e(ini_get('upload_max_filesize')) ?> per file,
+              <?= e(ini_get('post_max_size')) ?> total for the whole form. If your photos are larger than that (common
+              for phone camera photos), you can also upload documents later from the appointment detail page instead.
+            </p>
           </div>
         </div>
 
-        <div id="requirementsPreviewBox" style="display:none; margin-top:20px; border:1px solid var(--cream-dark); border-radius:8px; padding:16px; background:var(--white);">
+        <div id="requirementsPreviewBox"
+          style="display:none; margin-top:20px; border:1px solid var(--cream-dark); border-radius:8px; padding:16px; background:var(--white);">
           <h4 style="margin:0 0 8px; color:var(--brown-dark);">Requirements for the Next Step</h4>
-          <p style="margin:0 0 16px; color:var(--brown-mid); font-size:14px;">Please prepare the following documents. You will upload them in the next step.</p>
-          
+          <p style="margin:0 0 16px; color:var(--brown-mid); font-size:14px;">Please prepare the following documents.
+            You will upload them in the next step.</p>
+
           <div id="previewSupportingDocuments" style="margin-bottom:16px;">
-            <h5 style="margin:0 0 6px; font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--gray-dark);">Supporting Documents</h5>
-            <ul id="previewDocumentsList" style="margin:0; padding-left:20px; color:var(--brown-dark); font-size:14px; line-height:1.5;"></ul>
+            <h5
+              style="margin:0 0 6px; font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--gray-dark);">
+              Supporting Documents</h5>
+            <ul id="previewDocumentsList"
+              style="margin:0; padding-left:20px; color:var(--brown-dark); font-size:14px; line-height:1.5;"></ul>
           </div>
 
           <div id="previewFormsToComplete">
-            <h5 style="margin:0 0 6px; font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--gray-dark);">Forms to Complete</h5>
-            <ul id="previewFormsList" style="margin:0; padding-left:20px; color:var(--brown-dark); font-size:14px; line-height:1.5;"></ul>
+            <h5
+              style="margin:0 0 6px; font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--gray-dark);">
+              Forms to Complete</h5>
+            <ul id="previewFormsList"
+              style="margin:0; padding-left:20px; color:var(--brown-dark); font-size:14px; line-height:1.5;"></ul>
           </div>
         </div>
 
-        <div id="bookFormError" class="alert" style="display:none; background: var(--danger-bg); color: var(--danger); border: 1px solid #f5c2c2;"></div>
+        <div id="bookFormError" class="alert"
+          style="display:none; background: var(--danger-bg); color: var(--danger); border: 1px solid #f5c2c2;"></div>
 
         <button type="submit" class="btn btn-primary btn-block" id="bookSubmitBtn">Submit Appointment Request</button>
       </form>
@@ -501,13 +620,18 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
     <div id="bookConfirmView" style="display:none; text-align:center; padding: 20px 10px;">
       <div style="font-size:48px; margin-bottom:8px;">🙏</div>
       <h3 style="margin:0 0 6px; color: var(--brown-dark);">Thank You for Your Booking!</h3>
-      <p style="color: var(--brown-mid); font-size:14px; margin: 0 0 12px;">Your request has been submitted and is pending review by our parish office.</p>
+      <p style="color: var(--brown-mid); font-size:14px; margin: 0 0 12px;">Your request has been submitted and is
+        pending review by our parish office.</p>
       <p id="bookConfirmScheduleType" style="display:none; margin: -4px 0 10px;"></p>
       <p id="bookConfirmMessage" style="color: var(--brown-mid); margin-bottom:16px; font-size:14px;"></p>
-      <div id="bookConfirmReferenceBox" style="background: var(--cream); border: 1px solid var(--cream-dark); border-radius: 10px; padding: 16px; margin-bottom:20px;">
-        <p class="helper-text" style="margin:0 0 4px; font-size:13px;">Your booking reference code — save this to track your request anytime:</p>
-        <p style="font-size:24px; font-weight:700; letter-spacing:2px; color: var(--brown-dark); margin:6px 0 8px;" id="bookConfirmReferenceCode"></p>
-        <p style="font-size:12px; color: var(--text-muted, #888); margin:0;">Screenshot or note this code. You can use it on the <a href="<?= url('status.php') ?>">status page</a> anytime.</p>
+      <div id="bookConfirmReferenceBox"
+        style="background: var(--cream); border: 1px solid var(--cream-dark); border-radius: 10px; padding: 16px; margin-bottom:20px;">
+        <p class="helper-text" style="margin:0 0 4px; font-size:13px;">Your booking reference code — save this to track
+          your request anytime:</p>
+        <p style="font-size:24px; font-weight:700; letter-spacing:2px; color: var(--brown-dark); margin:6px 0 8px;"
+          id="bookConfirmReferenceCode"></p>
+        <p style="font-size:12px; color: var(--text-muted, #888); margin:0;">Screenshot or note this code. You can use
+          it on the <a href="<?= url('status.php') ?>">status page</a> anytime.</p>
       </div>
       <div class="flex gap-3" style="justify-content:center; flex-wrap:wrap;">
         <a href="#" id="bookConfirmDetailLink" class="btn btn-outline" style="display:none;">View Appointment</a>
@@ -519,1097 +643,1098 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
 </dialog>
 
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.21/index.global.min.js"></script>
-<script src="<?= url('public/js/calendar.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/calendar.js') ?>"></script>
+<script
+  src="<?= url('public/js/calendar.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/calendar.js') ?>"></script>
 <script src="<?= url('public/js/scheduling.js') ?>"></script>
 <script>
-var POLICIES = <?= json_encode($policies, JSON_UNESCAPED_UNICODE) ?>;
-var CALENDAR_BLOCKED = <?= json_encode($calendarBlocked, JSON_UNESCAPED_UNICODE) ?>;
-var REQUIREMENTS_BY_SERVICE = <?= json_encode($requirementsByService, JSON_UNESCAPED_UNICODE) ?>;
-var SCHEDULE_TOGGLE_CATEGORIES = <?= json_encode($scheduleToggleCategories) ?>;
-var CHECK_AVAILABILITY_URL = <?= json_encode(url('parishioner/check-availability.php')) ?>;
+  var POLICIES = <?= json_encode($policies, JSON_UNESCAPED_UNICODE) ?>;
+  var CALENDAR_BLOCKED = <?= json_encode($calendarBlocked, JSON_UNESCAPED_UNICODE) ?>;
+  var REQUIREMENTS_BY_SERVICE = <?= json_encode($requirementsByService, JSON_UNESCAPED_UNICODE) ?>;
+  var SCHEDULE_TOGGLE_CATEGORIES = <?= json_encode($scheduleToggleCategories) ?>;
+  var CHECK_AVAILABILITY_URL = <?= json_encode(url('parishioner/check-availability.php')) ?>;
 
-function openBookModal(serviceId) {
-  var modal = document.getElementById('bookModal');
-  document.getElementById('bookFormView').style.display = 'block';
-  document.getElementById('bookConfirmView').style.display = 'none';
-  document.getElementById('bookFormError').style.display = 'none';
-  // A deliberate fresh open starts blank, so any saved Back-navigation snapshot is stale.
-  writeBookingSnapshot(null);
-  document.getElementById('bookForm').reset();
-
-  var select = document.getElementById('serviceSelect');
-  select.value = serviceId;
-  var category = select.options[select.selectedIndex]?.dataset.category || '';
-  document.getElementById('bookModalTitle').textContent = category === 'Mass Intention' ? 'Enter Mass Intentions' : 'Book a Service';
-  document.getElementById('scheduleTypeRegular').checked = true;
-
-  <?php if ($preselectedDate): ?>
-  document.getElementById('appointmentDateInput').value = <?= json_encode($preselectedDate) ?>;
-  <?php endif; ?>
-
-  // No need to reset KatinAwan payload as it's moved to the draft requirements step.
-
-  toggleServiceUI();
-  modal.showModal();
-}
-
-function closeBookModal() {
-  document.getElementById('bookModal').close();
-}
-
-/**
- * Keeps the Step 1 booking values when the user goes Back from a draft's
- * Supporting Documents page. Draft services (Baptism, Wedding, Funeral) leave
- * this page on submit, and the browser re-renders it on Back with an empty
- * form. The snapshot lives in sessionStorage (this tab only) and is restored
- * only on a back/forward navigation, so a fresh visit still starts blank.
- * File inputs are not restored: draft uploads are already saved server-side.
- */
-var BOOKING_SNAPSHOT_KEY = 'parishhubBookingSnapshot';
-
-function readBookingSnapshot() {
-  try { return JSON.parse(sessionStorage.getItem(BOOKING_SNAPSHOT_KEY) || 'null'); } catch (e) { return null; }
-}
-
-function writeBookingSnapshot(snapshot) {
-  try {
-    if (snapshot) sessionStorage.setItem(BOOKING_SNAPSHOT_KEY, JSON.stringify(snapshot));
-    else sessionStorage.removeItem(BOOKING_SNAPSHOT_KEY);
-  } catch (e) { /* storage blocked: the form just will not survive Back */ }
-}
-
-function captureBookingForm() {
-  var values = {};
-  var radios = {};
-  document.querySelectorAll('#bookForm input, #bookForm select, #bookForm textarea').forEach(function (el) {
-    if (el.type === 'radio') {
-      if (el.checked) radios[el.name] = el.value;
-      return;
-    }
-    if (!el.id || el.type === 'file' || el.type === 'password') return;
-    // Hidden fields are derived from other inputs, except the Mass time, which must survive the date reload.
-    if (el.type === 'hidden' && el.id !== 'massTimeInput') return;
-    values[el.id] = el.value;
-  });
-  return { serviceId: document.getElementById('serviceSelect').value, values: values, radios: radios };
-}
-
-function saveBookingSnapshotFromForm() {
-  writeBookingSnapshot(captureBookingForm());
-}
-
-function restoreBookingForm(snapshot) {
-  var serviceSelect = document.getElementById('serviceSelect');
-  serviceSelect.value = snapshot.serviceId;
-  if (serviceSelect.value !== snapshot.serviceId) return false; // service no longer offered
-
-  Object.keys(snapshot.radios).forEach(function (name) {
-    var radio = document.querySelector('#bookForm input[type="radio"][name="' + name + '"][value="' + snapshot.radios[name] + '"]');
-    if (radio) radio.checked = true;
-  });
-  toggleServiceUI();
-
-  Object.keys(snapshot.values).forEach(function (id) {
-    var el = document.getElementById(id);
-    if (el && el.type !== 'file') el.value = snapshot.values[id];
-  });
-
-  // Re-run the same side effects a user's own input would trigger.
-  var dateInput = document.getElementById('appointmentDateInput');
-  if (dateInput.value) dateInput.dispatchEvent(new Event('change'));
-  var firstName = document.getElementById('guestFirstNameInput');
-  if (firstName) firstName.dispatchEvent(new Event('input'));
-  updateEarliestFuneralHint();
-  refreshAvailability();
-  return true;
-}
-
-function resumeBookingAfterBack() {
-  var snapshot = readBookingSnapshot();
-  if (!snapshot) return;
-
-  var nav = performance.getEntriesByType ? performance.getEntriesByType('navigation')[0] : null;
-  var cameBack = nav ? nav.type === 'back_forward' : false;
-  if (!cameBack) {
-    writeBookingSnapshot(null); // a fresh visit starts blank
-    return;
-  }
-
-  document.getElementById('bookFormView').style.display = 'block';
-  document.getElementById('bookConfirmView').style.display = 'none';
-  document.getElementById('bookFormError').style.display = 'none';
-  if (restoreBookingForm(snapshot)) {
-    document.getElementById('bookModal').showModal();
-  } else {
+  function openBookModal(serviceId) {
+    var modal = document.getElementById('bookModal');
+    document.getElementById('bookFormView').style.display = 'block';
+    document.getElementById('bookConfirmView').style.display = 'none';
+    document.getElementById('bookFormError').style.display = 'none';
+    // A deliberate fresh open starts blank, so any saved Back-navigation snapshot is stale.
     writeBookingSnapshot(null);
-  }
-}
+    document.getElementById('bookForm').reset();
 
-document.addEventListener('DOMContentLoaded', function () {
-  var form = document.getElementById('bookForm');
-  form.addEventListener('input', saveBookingSnapshotFromForm);
-  form.addEventListener('change', saveBookingSnapshotFromForm);
-  form.addEventListener('submit', saveBookingSnapshotFromForm);
-});
+    var select = document.getElementById('serviceSelect');
+    select.value = serviceId;
+    var category = select.options[select.selectedIndex]?.dataset.category || '';
+    document.getElementById('bookModalTitle').textContent = category === 'Mass Intention' ? 'Enter Mass Intentions' : 'Book a Service';
+    document.getElementById('scheduleTypeRegular').checked = true;
 
-// pageshow runs after DOMContentLoaded, so the form's change listeners are attached before a restore fires them.
-window.addEventListener('pageshow', resumeBookingAfterBack);
+    <?php if ($preselectedDate): ?>
+      document.getElementById('appointmentDateInput').value = <?= json_encode($preselectedDate) ?>;
+    <?php endif; ?>
 
-/**
- * Special Mass Request: "Others" makes the Additional Requests box mandatory,
- * since the typed text is the occasion itself. Only active while the Special
- * Mass Request block is visible, so it never affects other services.
- */
-function updateOccasionUI() {
-  var specialVisible = document.getElementById('specialMassFields').style.display !== 'none';
-  var isOthers = specialVisible && document.getElementById('occasionSelect').value === 'Others';
-  var requestsInput = document.getElementById('specialRequestsInput');
-  requestsInput.required = isOthers;
-  requestsInput.placeholder = isOthers
-    ? 'Type the occasion and any other intentions or requests...'
-    : 'Enter any other important intentions or requests...';
-  document.getElementById('specialRequestsRequiredMark').style.display = isOthers ? 'inline' : 'none';
-  document.getElementById('specialRequestsHint').style.display = isOthers ? 'block' : 'none';
-}
+    // No need to reset KatinAwan payload as it's moved to the draft requirements step.
 
-function getScheduleType() {
-  return document.getElementById('scheduleTypeSpecial').checked ? 'Special' : 'Regular';
-}
-
-function toggleServiceUI() {
-  var select = document.getElementById('serviceSelect');
-  var selectedOption = select.options[select.selectedIndex];
-  var category = selectedOption ? selectedOption.dataset.category || '' : '';
-  var serviceId = selectedOption ? selectedOption.value : '';
-
-  // Clear any stale error from a previous service selection
-  document.getElementById('bookFormError').style.display = 'none';
-
-  var needsClassification = ['Baptism', 'Wedding', 'Funeral'].indexOf(category) !== -1;
-  document.getElementById('feeClassificationGroup').style.display = needsClassification ? 'block' : 'none';
-  document.getElementById('pssClaimInput').required = needsClassification;
-  document.getElementById('sponsorCountGroup').style.display = category === 'Baptism' ? 'block' : 'none';
-  document.getElementById('weddingSponsorCountGroup').style.display = category === 'Wedding' ? 'block' : 'none';
-  document.getElementById('sponsorCountInput').required = category === 'Baptism';
-  document.getElementById('weddingSponsorCountInput').required = category === 'Wedding';
-  // Handle generic Requirements Preview for draft services
-  var previewBox = document.getElementById('requirementsPreviewBox');
-  if (category === 'Wedding' || category === 'Baptism' || category === 'Funeral') {
-    previewBox.style.display = 'block';
-    renderRequirementsPreview(serviceId, category);
-  } else {
-    previewBox.style.display = 'none';
-  }
-  document.getElementById('bookSubmitBtn').textContent = submitButtonLabel();
-
-  var isMassIntention = category === 'Mass Intention';
-  var usesToggle = SCHEDULE_TOGGLE_CATEGORIES.indexOf(category) !== -1;
-  var scheduleType = usesToggle ? getScheduleType() : null;
-
-  document.getElementById('bookModalTitle').textContent = isMassIntention ? 'Enter Mass Intentions' : 'Book a Service';
-  document.getElementById('intentionFields').style.display = isMassIntention ? 'block' : 'none';
-  document.getElementById('offererNameInput').required = isMassIntention;
-  document.getElementById('intentionForInput').required = isMassIntention;
-  // The visible Mass-time picker is a UI control inside a conditionally
-  // displayed group; it is not the submitted field. Native required
-  // validation on it can block the form before our inline error handling
-  // runs, especially while the date/time options are still loading.
-  document.getElementById('massTimeSelect').required = false;
-  updatePayModeUI();
-  document.getElementById('dateOfDeathGroup').style.display = category === 'Funeral' ? 'block' : 'none';
-  document.getElementById('dateOfDeathInput').required = (category === 'Funeral');
-
-  // "Special Mass Request" shares the Wake category but has its own block
-  // (occasion + additional requests). Only plain Wake Mass uses the
-  // deceased-name block, so the two never show or require each other's fields.
-  var serviceName = selectedOption ? selectedOption.dataset.serviceName || '' : '';
-  var isSpecialMass = category === 'Wake' && serviceName === 'Special Mass Request';
-
-  var isAnointing = category === 'Anointing';
-  var isWakeMass  = category === 'Wake' && !isSpecialMass;
-  var showAnointingBlock = isAnointing || isWakeMass;
-  document.getElementById('anointingFields').style.display = showAnointingBlock ? 'block' : 'none';
-  document.getElementById('requesterNameInput').required = showAnointingBlock;
-  document.getElementById('patientNameInput').required   = showAnointingBlock;
-
-  document.getElementById('specialMassFields').style.display = isSpecialMass ? 'block' : 'none';
-  document.getElementById('specialRequesterInput').required = isSpecialMass;
-  document.getElementById('occasionSelect').required = isSpecialMass;
-  // Remarks are folded into the Special Mass Request's own text box, so the
-  // generic remarks field is hidden and disabled (not submitted) for it.
-  document.getElementById('remarksGroup').style.display = isSpecialMass ? 'none' : 'block';
-  document.getElementById('remarksInput').disabled = isSpecialMass;
-  updateOccasionUI();
-
-  if (isWakeMass) {
-    // Wake Mass is the only service left in this block with a deceased name.
-    document.getElementById('anointingFieldsTitle').textContent = selectedOption.textContent.trim() + ' Details';
-    document.getElementById('patientNameLabel').innerHTML = "Deceased Person's Name <span style=\"color:var(--danger);\">*</span>";
-    document.getElementById('patientNameInput').placeholder = 'Full name of the deceased';
-    document.getElementById('anointingFieldsNote').innerHTML = 'Fixed fee: <strong>₱1,500</strong>. Propose a preferred date and time — our parish office will confirm.';
-  } else {
-    document.getElementById('anointingFieldsTitle').textContent = 'Anointing of the Sick Details';
-    document.getElementById('patientNameLabel').innerHTML = "Sick Person's Name <span style=\"color:var(--danger);\">*</span>";
-    document.getElementById('patientNameInput').placeholder = 'Full name of the person to be anointed';
-    document.getElementById('anointingFieldsNote').innerHTML = 'This sacrament is provided <strong>free of charge</strong>. No payment is required.';
+    toggleServiceUI();
+    modal.showModal();
   }
 
-  var isBlessing = category === 'Blessing';
-  document.getElementById('blessingFields').style.display = isBlessing ? 'block' : 'none';
-  document.getElementById('blessingAddressInput').required = isBlessing;
-  var blessingPhone = document.getElementById('blessingPhoneInput');
-  if (blessingPhone) blessingPhone.required = isBlessing;
-
-  // Priests do not personally read Mass Intentions, so there's nothing to prefer.
-  var priestGroup = document.getElementById('priestFieldGroup');
-  var priestSelect = document.getElementById('priestSelect');
-  priestGroup.style.display = isMassIntention ? 'none' : 'block';
-  priestSelect.disabled = isMassIntention;
-  if (isMassIntention) priestSelect.value = '';
-
-  // No documents for Mass Intentions, drafts (Baptism/Wedding/Funeral), or
-  // services that handle documents separately (Anointing, Blessing, Wake).
-  var uploadGroup = document.getElementById('uploadGroup');
-  var draftService = category === 'Baptism' || category === 'Wedding' || category === 'Funeral';
-  var noDocsService = isMassIntention || draftService || category === 'Anointing' || category === 'Blessing' || category === 'Wake';
-  document.getElementById('documentRequirementsNote').style.display = noDocsService ? 'none' : 'block';
-  uploadGroup.style.display = noDocsService ? 'none' : 'block';
-  document.getElementById('extraDocumentsInput').disabled = noDocsService;
-  // ALWAYS clear old requirement rows first — prevents stale required inputs
-  // from a previous service (e.g. Funeral's "Death Certificate") from
-  // blocking a different service (e.g. Wedding) via hidden required fields.
-  document.getElementById('requirementRows').innerHTML = '';
-  if (!noDocsService) rebuildRequirementRows(serviceId);
-
-  var policyBox = document.getElementById('policyBox');
-  if (POLICIES[category]) {
-    policyBox.style.display = 'block';
-    policyBox.innerHTML = 'ℹ ' + POLICIES[category];
-  } else {
-    policyBox.style.display = 'none';
+  function closeBookModal() {
+    document.getElementById('bookModal').close();
   }
 
-  // Regular/Special toggle, only for the 4 admin-configurable categories.
-  var scheduleTypeGroup = document.getElementById('scheduleTypeGroup');
-  scheduleTypeGroup.style.display = usesToggle ? 'block' : 'none';
-  var badge = document.getElementById('scheduleTypeBadge');
-  if (usesToggle) {
-    badge.textContent = scheduleType;
-    badge.className = 'badge ' + (scheduleType === 'Regular' ? 'badge-regular' : 'badge-special');
-  } else {
-    badge.textContent = '';
+  /**
+   * Keeps the Step 1 booking values when the user goes Back from a draft's
+   * Supporting Documents page. Draft services (Baptism, Wedding, Funeral) leave
+   * this page on submit, and the browser re-renders it on Back with an empty
+   * form. The snapshot lives in sessionStorage (this tab only) and is restored
+   * only on a back/forward navigation, so a fresh visit still starts blank.
+   * File inputs are not restored: draft uploads are already saved server-side.
+   */
+  var BOOKING_SNAPSHOT_KEY = 'parishhubBookingSnapshot';
+
+  function readBookingSnapshot() {
+    try { return JSON.parse(sessionStorage.getItem(BOOKING_SNAPSHOT_KEY) || 'null'); } catch (e) { return null; }
   }
 
-  var freeGroup = document.getElementById('freeTimeGroup');
-  var fixedGroup = document.getElementById('fixedTimeGroup');
-  var massGroup = document.getElementById('massTimeGroup');
-  var regularGroup = document.getElementById('regularSlotGroup');
-  var dateTimeRow = document.getElementById('dateTimeRow');
-  var freeInput = document.getElementById('freeTimeInput');
-  var fixedHidden = document.getElementById('fixedTimeInput');
-  var massHidden = document.getElementById('massTimeInput');
-  var regularDateHidden = document.getElementById('regularDateInput');
-  var regularTimeHidden = document.getElementById('regularTimeInput');
-  var dateInput = document.getElementById('appointmentDateInput');
-
-  freeGroup.style.display = 'none'; freeInput.disabled = true;
-  fixedGroup.style.display = 'none'; fixedHidden.disabled = true;
-  massGroup.style.display = 'none'; massHidden.disabled = true;
-  regularGroup.style.display = 'none'; regularDateHidden.disabled = true; regularTimeHidden.disabled = true;
-  dateTimeRow.style.display = 'flex'; dateInput.disabled = false; dateInput.required = true;
-
-  var specialMsgBox = document.getElementById('specialSchedulingMessage');
-  specialMsgBox.style.display = 'none';
-
-  if (category === 'Confirmation' || category === 'First Communion' || category === 'Funeral') {
-    dateTimeRow.style.display = 'none';
-    dateInput.disabled = true;
-    dateInput.required = false;
-
-    // Hide Priest selector
-    var priestGroup = document.getElementById('priestFieldGroup');
-    var priestSelect = document.getElementById('priestSelect');
-    priestGroup.style.display = 'none';
-    priestSelect.disabled = true;
-
-    specialMsgBox.style.display = 'block';
-    if (category === 'Confirmation') {
-      specialMsgBox.textContent = "Schedule will be arranged by the parish office based on the Bishop's availability.";
-    } else if (category === 'First Communion') {
-      specialMsgBox.textContent = "First Communion is scheduled during February. The parish office will assign the final date and time.";
-    } else if (category === 'Funeral') {
-      specialMsgBox.textContent = "Funeral schedule will be arranged by the parish office after reviewing your documents.";
-    }
-  } else if (isMassIntention) {
-    massGroup.style.display = 'block';
-    massHidden.disabled = false;
-    autoAssignMassTime();
-  } else if (usesToggle && scheduleType === 'Regular') {
-    dateTimeRow.style.display = 'none';
-    dateInput.disabled = true;
-    dateInput.required = false;
-    regularGroup.style.display = 'block';
-    regularDateHidden.disabled = false;
-    regularTimeHidden.disabled = false;
-    initRegularCalendar(serviceId);
-  } else {
-    // Special mode for toggle categories, or free-form categories like House Blessing.
-    freeGroup.style.display = 'block';
-    freeInput.disabled = false;
-    updateOccupiedTimesHint();
+  function writeBookingSnapshot(snapshot) {
+    try {
+      if (snapshot) sessionStorage.setItem(BOOKING_SNAPSHOT_KEY, JSON.stringify(snapshot));
+      else sessionStorage.removeItem(BOOKING_SNAPSHOT_KEY);
+    } catch (e) { /* storage blocked: the form just will not survive Back */ }
   }
 
-  updateEarliestFuneralHint();
-  refreshAvailability();
-}
-
-/**
- * Regular-schedule date picker — a small dropdown calendar attached to a
- * single date field (like a native date-input picker), not a big
- * always-open grid. Only dates matching this service's configured weekly
- * schedule are clickable; every other date is dimmed but its number still
- * shows. The matching time is fixed and shown read-only once a date is
- * picked; there is no way to choose a different time. Re-created per
- * service since the available dates differ by service.
- */
-var regularAvailableByDate = {};
-var regularAutoJumped = false; // one-shot per calendar open — never fights a manual prev/next click
-var regularViewYear = 0;
-var regularViewMonth = 0; // 0-11
-var regularServiceId = null;
-var MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-function initRegularCalendar(serviceId) {
-  var hint = document.getElementById('regularSlotHint');
-  var fixedBox = document.getElementById('regularFixedTimeBox');
-  fixedBox.style.display = 'none';
-  document.getElementById('regularDateInput').value = '';
-  document.getElementById('regularTimeInput').value = '';
-  document.getElementById('regularDpFieldText').textContent = 'mm/dd/yyyy';
-  document.getElementById('regularDpFieldText').className = 'mini-dp-placeholder';
-  regularAvailableByDate = {};
-  regularAutoJumped = false;
-  regularServiceId = serviceId;
-  hint.textContent = 'Loading available dates…';
-
-  var now = new Date();
-  regularViewYear = now.getFullYear();
-  regularViewMonth = now.getMonth();
-  fetchRegularMonth(serviceId, regularYearMonth());
-  renderRegularDpGrid();
-}
-
-function regularYearMonth() {
-  return regularViewYear + '-' + String(regularViewMonth + 1).padStart(2, '0');
-}
-
-function todayStr() {
-  var now = new Date();
-  return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
-}
-
-/** Renders the 6x7 day grid for the currently-viewed month (regularViewYear/regularViewMonth). */
-function renderRegularDpGrid() {
-  var grid = document.getElementById('regularDpGrid');
-  var title = document.getElementById('regularDpTitle');
-  title.textContent = MONTH_NAMES[regularViewMonth] + ' ' + regularViewYear;
-
-  var firstOfMonth = new Date(regularViewYear, regularViewMonth, 1);
-  var startWeekday = firstOfMonth.getDay(); // 0 = Sunday
-  var daysInMonth = new Date(regularViewYear, regularViewMonth + 1, 0).getDate();
-  var daysInPrevMonth = new Date(regularViewYear, regularViewMonth, 0).getDate();
-  var selected = document.getElementById('regularDateInput').value;
-  var today = todayStr();
-
-  var cells = [];
-  // Leading days from the previous month (dimmed, not interactive).
-  for (var i = startWeekday - 1; i >= 0; i--) {
-    cells.push({ day: daysInPrevMonth - i, outside: true });
-  }
-  for (var d = 1; d <= daysInMonth; d++) {
-    var dateStr = regularYearMonth() + '-' + String(d).padStart(2, '0');
-    cells.push({ day: d, outside: false, dateStr: dateStr });
-  }
-  var trailing = 42 - cells.length;
-  for (var n = 1; n <= trailing; n++) {
-    cells.push({ day: n, outside: true });
-  }
-
-  grid.innerHTML = cells.map(function (c) {
-    if (c.outside) {
-      return '<span class="mini-dp-day mini-dp-outside">' + c.day + '</span>';
-    }
-    var available = Object.prototype.hasOwnProperty.call(regularAvailableByDate, c.dateStr);
-    var classes = 'mini-dp-day';
-    if (!available) classes += ' mini-dp-disabled';
-    if (c.dateStr === selected) classes += ' mini-dp-selected';
-    if (c.dateStr === today) classes += ' mini-dp-today';
-    return '<span class="' + classes + '" data-date="' + c.dateStr + '"' + (available ? '' : ' aria-disabled="true"') + '>' + c.day + '</span>';
-  }).join('');
-}
-
-function selectRegularDate(dateStr) {
-  if (!Object.prototype.hasOwnProperty.call(regularAvailableByDate, dateStr)) return;
-  var time = regularAvailableByDate[dateStr];
-  var fixedBox = document.getElementById('regularFixedTimeBox');
-  document.getElementById('regularDateInput').value = dateStr;
-  document.getElementById('regularTimeInput').value = time;
-  document.getElementById('regularFixedTimeText').textContent = formatTimeLabel(time);
-  fixedBox.style.display = 'block';
-
-  var fieldText = document.getElementById('regularDpFieldText');
-  var d = new Date(dateStr + 'T00:00:00');
-  fieldText.textContent = String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0') + '/' + d.getFullYear()
-    + ' — ' + formatTimeLabel(time);
-  fieldText.className = '';
-
-  document.getElementById('regularSlotHint').textContent = 'Selected. Click a different highlighted date to change it.';
-  renderRegularDpGrid();
-  closeRegularDpPopup();
-  refreshAvailability();
-}
-
-function openRegularDpPopup() {
-  document.getElementById('regularDpPopup').style.display = 'block';
-}
-function closeRegularDpPopup() {
-  document.getElementById('regularDpPopup').style.display = 'none';
-}
-
-function fetchRegularMonth(serviceId, yearMonth) {
-  var hint = document.getElementById('regularSlotHint');
-  fetch(CHECK_AVAILABILITY_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ service_id: serviceId, category: '', schedule_type: 'Regular', month: yearMonth })
-  })
-    .then(function (res) { return res.json(); })
-    .then(function (data) {
-      regularAvailableByDate = data.regular_month_dates || {};
-      renderRegularDpGrid();
-      var count = Object.keys(regularAvailableByDate).length;
-
-      if (count) {
-        hint.textContent = 'Highlighted dates are available for this schedule — pick one.';
+  function captureBookingForm() {
+    var values = {};
+    var radios = {};
+    document.querySelectorAll('#bookForm input, #bookForm select, #bookForm textarea').forEach(function (el) {
+      if (el.type === 'radio') {
+        if (el.checked) radios[el.name] = el.value;
         return;
       }
-
-      var nextMonth = data.regular_next_available_month;
-      if (nextMonth && !regularAutoJumped) {
-        // First time this calendar has come up empty since it was opened —
-        // jump straight to the nearest month that actually has an opening,
-        // instead of leaving the parishioner staring at an all-gray month
-        // with no clue "next" needs clicking (possibly many times, for a
-        // sparse schedule like "4th Saturday only").
-        regularAutoJumped = true;
-        hint.textContent = 'No openings this month — jumping to the next available month…';
-        var parts = nextMonth.split('-');
-        regularViewYear = parseInt(parts[0], 10);
-        regularViewMonth = parseInt(parts[1], 10) - 1;
-        renderRegularDpGrid();
-        fetchRegularMonth(serviceId, nextMonth);
-      } else if (nextMonth) {
-        hint.innerHTML = 'No available dates this month. <a href="#" id="regularJumpLink">Jump to the next available month</a>, or choose Special instead.';
-        var link = document.getElementById('regularJumpLink');
-        if (link) {
-          link.addEventListener('click', function (e) {
-            e.preventDefault();
-            var p = nextMonth.split('-');
-            regularViewYear = parseInt(p[0], 10);
-            regularViewMonth = parseInt(p[1], 10) - 1;
-            renderRegularDpGrid();
-            fetchRegularMonth(serviceId, nextMonth);
-          });
-        }
-      } else {
-        hint.textContent = 'No available dates found for this schedule in the next 12 months. Please choose Special instead, or contact the parish office.';
-      }
-    })
-    .catch(function () {
-      hint.textContent = 'Could not load available dates — please try again.';
+      if (!el.id || el.type === 'file' || el.type === 'password') return;
+      // Hidden fields are derived from other inputs, except the Mass time, which must survive the date reload.
+      if (el.type === 'hidden' && el.id !== 'massTimeInput') return;
+      values[el.id] = el.value;
     });
-}
-
-document.addEventListener('DOMContentLoaded', function () {
-  var offeringAmount = document.getElementById('offeringAmount');
-  if (offeringAmount) {
-    // Do not let an accidental mouse-wheel/trackpad scroll change the amount.
-    offeringAmount.addEventListener('wheel', function (event) {
-      if (document.activeElement === offeringAmount) event.preventDefault();
-    }, { passive: false });
+    return { serviceId: document.getElementById('serviceSelect').value, values: values, radios: radios };
   }
-  document.getElementById('regularDpField').addEventListener('click', openRegularDpPopup);
-  document.getElementById('regularDpField').addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRegularDpPopup(); }
+
+  function saveBookingSnapshotFromForm() {
+    writeBookingSnapshot(captureBookingForm());
+  }
+
+  function restoreBookingForm(snapshot) {
+    var serviceSelect = document.getElementById('serviceSelect');
+    serviceSelect.value = snapshot.serviceId;
+    if (serviceSelect.value !== snapshot.serviceId) return false; // service no longer offered
+
+    Object.keys(snapshot.radios).forEach(function (name) {
+      var radio = document.querySelector('#bookForm input[type="radio"][name="' + name + '"][value="' + snapshot.radios[name] + '"]');
+      if (radio) radio.checked = true;
+    });
+    toggleServiceUI();
+
+    Object.keys(snapshot.values).forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el && el.type !== 'file') el.value = snapshot.values[id];
+    });
+
+    // Re-run the same side effects a user's own input would trigger.
+    var dateInput = document.getElementById('appointmentDateInput');
+    if (dateInput.value) dateInput.dispatchEvent(new Event('change'));
+    var firstName = document.getElementById('guestFirstNameInput');
+    if (firstName) firstName.dispatchEvent(new Event('input'));
+    updateEarliestFuneralHint();
+    refreshAvailability();
+    return true;
+  }
+
+  function resumeBookingAfterBack() {
+    var snapshot = readBookingSnapshot();
+    if (!snapshot) return;
+
+    var nav = performance.getEntriesByType ? performance.getEntriesByType('navigation')[0] : null;
+    var cameBack = nav ? nav.type === 'back_forward' : false;
+    if (!cameBack) {
+      writeBookingSnapshot(null); // a fresh visit starts blank
+      return;
+    }
+
+    document.getElementById('bookFormView').style.display = 'block';
+    document.getElementById('bookConfirmView').style.display = 'none';
+    document.getElementById('bookFormError').style.display = 'none';
+    if (restoreBookingForm(snapshot)) {
+      document.getElementById('bookModal').showModal();
+    } else {
+      writeBookingSnapshot(null);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var form = document.getElementById('bookForm');
+    form.addEventListener('input', saveBookingSnapshotFromForm);
+    form.addEventListener('change', saveBookingSnapshotFromForm);
+    form.addEventListener('submit', saveBookingSnapshotFromForm);
   });
-  document.getElementById('regularDpPrev').addEventListener('click', function () {
-    regularViewMonth--;
-    if (regularViewMonth < 0) { regularViewMonth = 11; regularViewYear--; }
-    renderRegularDpGrid();
-    fetchRegularMonth(regularServiceId, regularYearMonth());
-  });
-  document.getElementById('regularDpNext').addEventListener('click', function () {
-    regularViewMonth++;
-    if (regularViewMonth > 11) { regularViewMonth = 0; regularViewYear++; }
-    renderRegularDpGrid();
-    fetchRegularMonth(regularServiceId, regularYearMonth());
-  });
-  document.getElementById('regularDpGrid').addEventListener('click', function (e) {
-    var cell = e.target.closest('.mini-dp-day:not(.mini-dp-outside):not(.mini-dp-disabled)');
-    if (cell) selectRegularDate(cell.dataset.date);
-  });
-  document.getElementById('regularDpClear').addEventListener('click', function (e) {
-    e.preventDefault();
+
+  // pageshow runs after DOMContentLoaded, so the form's change listeners are attached before a restore fires them.
+  window.addEventListener('pageshow', resumeBookingAfterBack);
+
+  /**
+   * Special Mass Request: "Others" makes the Additional Requests box mandatory,
+   * since the typed text is the occasion itself. Only active while the Special
+   * Mass Request block is visible, so it never affects other services.
+   */
+  function updateOccasionUI() {
+    var specialVisible = document.getElementById('specialMassFields').style.display !== 'none';
+    var isOthers = specialVisible && document.getElementById('occasionSelect').value === 'Others';
+    var requestsInput = document.getElementById('specialRequestsInput');
+    requestsInput.required = isOthers;
+    requestsInput.placeholder = isOthers
+      ? 'Type the occasion and any other intentions or requests...'
+      : 'Enter any other important intentions or requests...';
+    document.getElementById('specialRequestsRequiredMark').style.display = isOthers ? 'inline' : 'none';
+    document.getElementById('specialRequestsHint').style.display = isOthers ? 'block' : 'none';
+  }
+
+  function getScheduleType() {
+    return document.getElementById('scheduleTypeSpecial').checked ? 'Special' : 'Regular';
+  }
+
+  function toggleServiceUI() {
+    var select = document.getElementById('serviceSelect');
+    var selectedOption = select.options[select.selectedIndex];
+    var category = selectedOption ? selectedOption.dataset.category || '' : '';
+    var serviceId = selectedOption ? selectedOption.value : '';
+
+    // Clear any stale error from a previous service selection
+    document.getElementById('bookFormError').style.display = 'none';
+
+    var needsClassification = ['Baptism', 'Wedding', 'Funeral'].indexOf(category) !== -1;
+    document.getElementById('feeClassificationGroup').style.display = needsClassification ? 'block' : 'none';
+    document.getElementById('pssClaimInput').required = needsClassification;
+    document.getElementById('sponsorCountGroup').style.display = category === 'Baptism' ? 'block' : 'none';
+    document.getElementById('weddingSponsorCountGroup').style.display = category === 'Wedding' ? 'block' : 'none';
+    document.getElementById('sponsorCountInput').required = category === 'Baptism';
+    document.getElementById('weddingSponsorCountInput').required = category === 'Wedding';
+    // Handle generic Requirements Preview for draft services
+    var previewBox = document.getElementById('requirementsPreviewBox');
+    if (category === 'Wedding' || category === 'Baptism' || category === 'Funeral') {
+      previewBox.style.display = 'block';
+      renderRequirementsPreview(serviceId, category);
+    } else {
+      previewBox.style.display = 'none';
+    }
+    document.getElementById('bookSubmitBtn').textContent = submitButtonLabel();
+
+    var isMassIntention = category === 'Mass Intention';
+    var usesToggle = SCHEDULE_TOGGLE_CATEGORIES.indexOf(category) !== -1;
+    var scheduleType = usesToggle ? getScheduleType() : null;
+
+    document.getElementById('bookModalTitle').textContent = isMassIntention ? 'Enter Mass Intentions' : 'Book a Service';
+    document.getElementById('intentionFields').style.display = isMassIntention ? 'block' : 'none';
+    document.getElementById('offererNameInput').required = isMassIntention;
+    document.getElementById('intentionForInput').required = isMassIntention;
+    // The visible Mass-time picker is a UI control inside a conditionally
+    // displayed group; it is not the submitted field. Native required
+    // validation on it can block the form before our inline error handling
+    // runs, especially while the date/time options are still loading.
+    document.getElementById('massTimeSelect').required = false;
+    updatePayModeUI();
+    document.getElementById('dateOfDeathGroup').style.display = category === 'Funeral' ? 'block' : 'none';
+    document.getElementById('dateOfDeathInput').required = (category === 'Funeral');
+
+    // "Special Mass Request" shares the Wake category but has its own block
+    // (occasion + additional requests). Only plain Wake Mass uses the
+    // deceased-name block, so the two never show or require each other's fields.
+    var serviceName = selectedOption ? selectedOption.dataset.serviceName || '' : '';
+    var isSpecialMass = category === 'Wake' && serviceName === 'Special Mass Request';
+
+    var isAnointing = category === 'Anointing';
+    var isWakeMass = category === 'Wake' && !isSpecialMass;
+    var showAnointingBlock = isAnointing || isWakeMass;
+    document.getElementById('anointingFields').style.display = showAnointingBlock ? 'block' : 'none';
+    document.getElementById('requesterNameInput').required = showAnointingBlock;
+    document.getElementById('patientNameInput').required = showAnointingBlock;
+
+    document.getElementById('specialMassFields').style.display = isSpecialMass ? 'block' : 'none';
+    document.getElementById('specialRequesterInput').required = isSpecialMass;
+    document.getElementById('occasionSelect').required = isSpecialMass;
+    // Remarks are folded into the Special Mass Request's own text box, so the
+    // generic remarks field is hidden and disabled (not submitted) for it.
+    document.getElementById('remarksGroup').style.display = isSpecialMass ? 'none' : 'block';
+    document.getElementById('remarksInput').disabled = isSpecialMass;
+    updateOccasionUI();
+
+    if (isWakeMass) {
+      // Wake Mass is the only service left in this block with a deceased name.
+      document.getElementById('anointingFieldsTitle').textContent = selectedOption.textContent.trim() + ' Details';
+      document.getElementById('patientNameLabel').innerHTML = "Deceased Person's Name <span style=\"color:var(--danger);\">*</span>";
+      document.getElementById('patientNameInput').placeholder = 'Full name of the deceased';
+      document.getElementById('anointingFieldsNote').innerHTML = 'Fixed fee: <strong>₱1,500</strong>. Propose a preferred date and time — our parish office will confirm.';
+    } else {
+      document.getElementById('anointingFieldsTitle').textContent = 'Anointing of the Sick Details';
+      document.getElementById('patientNameLabel').innerHTML = "Sick Person's Name <span style=\"color:var(--danger);\">*</span>";
+      document.getElementById('patientNameInput').placeholder = 'Full name of the person to be anointed';
+      document.getElementById('anointingFieldsNote').innerHTML = 'This sacrament is provided <strong>free of charge</strong>. No payment is required.';
+    }
+
+    var isBlessing = category === 'Blessing';
+    document.getElementById('blessingFields').style.display = isBlessing ? 'block' : 'none';
+    document.getElementById('blessingAddressInput').required = isBlessing;
+    var blessingPhone = document.getElementById('blessingPhoneInput');
+    if (blessingPhone) blessingPhone.required = isBlessing;
+
+    // Priests do not personally read Mass Intentions, so there's nothing to prefer.
+    var priestGroup = document.getElementById('priestFieldGroup');
+    var priestSelect = document.getElementById('priestSelect');
+    priestGroup.style.display = isMassIntention ? 'none' : 'block';
+    priestSelect.disabled = isMassIntention;
+    if (isMassIntention) priestSelect.value = '';
+
+    // No documents for Mass Intentions, drafts (Baptism/Wedding/Funeral), or
+    // services that handle documents separately (Anointing, Blessing, Wake).
+    var uploadGroup = document.getElementById('uploadGroup');
+    var draftService = category === 'Baptism' || category === 'Wedding' || category === 'Funeral';
+    var noDocsService = isMassIntention || draftService || category === 'Anointing' || category === 'Blessing' || category === 'Wake';
+    document.getElementById('documentRequirementsNote').style.display = noDocsService ? 'none' : 'block';
+    uploadGroup.style.display = noDocsService ? 'none' : 'block';
+    document.getElementById('extraDocumentsInput').disabled = noDocsService;
+    // ALWAYS clear old requirement rows first — prevents stale required inputs
+    // from a previous service (e.g. Funeral's "Death Certificate") from
+    // blocking a different service (e.g. Wedding) via hidden required fields.
+    document.getElementById('requirementRows').innerHTML = '';
+    if (!noDocsService) rebuildRequirementRows(serviceId);
+
+    var policyBox = document.getElementById('policyBox');
+    if (POLICIES[category]) {
+      policyBox.style.display = 'block';
+      policyBox.innerHTML = 'ℹ ' + POLICIES[category];
+    } else {
+      policyBox.style.display = 'none';
+    }
+
+    // Regular/Special toggle, only for the 4 admin-configurable categories.
+    var scheduleTypeGroup = document.getElementById('scheduleTypeGroup');
+    scheduleTypeGroup.style.display = usesToggle ? 'block' : 'none';
+    var badge = document.getElementById('scheduleTypeBadge');
+    if (usesToggle) {
+      badge.textContent = scheduleType;
+      badge.className = 'badge ' + (scheduleType === 'Regular' ? 'badge-regular' : 'badge-special');
+    } else {
+      badge.textContent = '';
+    }
+
+    var freeGroup = document.getElementById('freeTimeGroup');
+    var fixedGroup = document.getElementById('fixedTimeGroup');
+    var massGroup = document.getElementById('massTimeGroup');
+    var regularGroup = document.getElementById('regularSlotGroup');
+    var dateTimeRow = document.getElementById('dateTimeRow');
+    var freeInput = document.getElementById('freeTimeInput');
+    var fixedHidden = document.getElementById('fixedTimeInput');
+    var massHidden = document.getElementById('massTimeInput');
+    var regularDateHidden = document.getElementById('regularDateInput');
+    var regularTimeHidden = document.getElementById('regularTimeInput');
+    var dateInput = document.getElementById('appointmentDateInput');
+
+    freeGroup.style.display = 'none'; freeInput.disabled = true;
+    fixedGroup.style.display = 'none'; fixedHidden.disabled = true;
+    massGroup.style.display = 'none'; massHidden.disabled = true;
+    regularGroup.style.display = 'none'; regularDateHidden.disabled = true; regularTimeHidden.disabled = true;
+    dateTimeRow.style.display = 'flex'; dateInput.disabled = false; dateInput.required = true;
+
+    var specialMsgBox = document.getElementById('specialSchedulingMessage');
+    specialMsgBox.style.display = 'none';
+
+    if (category === 'Confirmation' || category === 'First Communion' || category === 'Funeral') {
+      dateTimeRow.style.display = 'none';
+      dateInput.disabled = true;
+      dateInput.required = false;
+
+      // Hide Priest selector
+      var priestGroup = document.getElementById('priestFieldGroup');
+      var priestSelect = document.getElementById('priestSelect');
+      priestGroup.style.display = 'none';
+      priestSelect.disabled = true;
+
+      specialMsgBox.style.display = 'block';
+      if (category === 'Confirmation') {
+        specialMsgBox.textContent = "Schedule will be arranged by the parish office based on the Bishop's availability.";
+      } else if (category === 'First Communion') {
+        specialMsgBox.textContent = "First Communion is scheduled during February. The parish office will assign the final date and time.";
+      } else if (category === 'Funeral') {
+        specialMsgBox.textContent = "Funeral schedule will be arranged by the parish office after reviewing your documents.";
+      }
+    } else if (isMassIntention) {
+      massGroup.style.display = 'block';
+      massHidden.disabled = false;
+      autoAssignMassTime();
+    } else if (usesToggle && scheduleType === 'Regular') {
+      dateTimeRow.style.display = 'none';
+      dateInput.disabled = true;
+      dateInput.required = false;
+      regularGroup.style.display = 'block';
+      regularDateHidden.disabled = false;
+      regularTimeHidden.disabled = false;
+      initRegularCalendar(serviceId);
+    } else {
+      // Special mode for toggle categories, or free-form categories like House Blessing.
+      freeGroup.style.display = 'block';
+      freeInput.disabled = false;
+      updateOccupiedTimesHint();
+    }
+
+    updateEarliestFuneralHint();
+    refreshAvailability();
+  }
+
+  /**
+   * Regular-schedule date picker — a small dropdown calendar attached to a
+   * single date field (like a native date-input picker), not a big
+   * always-open grid. Only dates matching this service's configured weekly
+   * schedule are clickable; every other date is dimmed but its number still
+   * shows. The matching time is fixed and shown read-only once a date is
+   * picked; there is no way to choose a different time. Re-created per
+   * service since the available dates differ by service.
+   */
+  var regularAvailableByDate = {};
+  var regularAutoJumped = false; // one-shot per calendar open — never fights a manual prev/next click
+  var regularViewYear = 0;
+  var regularViewMonth = 0; // 0-11
+  var regularServiceId = null;
+  var MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+  function initRegularCalendar(serviceId) {
+    var hint = document.getElementById('regularSlotHint');
+    var fixedBox = document.getElementById('regularFixedTimeBox');
+    fixedBox.style.display = 'none';
     document.getElementById('regularDateInput').value = '';
     document.getElementById('regularTimeInput').value = '';
-    document.getElementById('regularFixedTimeBox').style.display = 'none';
-    var fieldText = document.getElementById('regularDpFieldText');
-    fieldText.textContent = 'mm/dd/yyyy';
-    fieldText.className = 'mini-dp-placeholder';
-    renderRegularDpGrid();
-    refreshAvailability();
-  });
-  document.getElementById('regularDpToday').addEventListener('click', function (e) {
-    e.preventDefault();
+    document.getElementById('regularDpFieldText').textContent = 'mm/dd/yyyy';
+    document.getElementById('regularDpFieldText').className = 'mini-dp-placeholder';
+    regularAvailableByDate = {};
+    regularAutoJumped = false;
+    regularServiceId = serviceId;
+    hint.textContent = 'Loading available dates…';
+
     var now = new Date();
     regularViewYear = now.getFullYear();
     regularViewMonth = now.getMonth();
+    fetchRegularMonth(serviceId, regularYearMonth());
     renderRegularDpGrid();
-    fetchRegularMonth(regularServiceId, regularYearMonth());
-  });
-  document.addEventListener('click', function (e) {
-    var wrap = document.getElementById('regularMiniDp');
-    if (wrap && !wrap.contains(e.target)) closeRegularDpPopup();
-  });
-});
-
-/**
- * Live pre-submit check: re-validates the currently selected date/time via
- * the server's scheduling rules and refreshes which priests are available.
- * Advisory only — book.php re-runs the same checks before actually saving.
- */
-function refreshAvailability() {
-  var select = document.getElementById('serviceSelect');
-  var selectedOption = select.options[select.selectedIndex];
-  var category = selectedOption ? selectedOption.dataset.category || '' : '';
-  var serviceId = selectedOption ? selectedOption.value : '';
-  if (!category) return;
-
-  var effective = getEffectiveDateTime(category);
-  var msgBox = document.getElementById('availabilityMsg');
-  var submitBtn = document.getElementById('bookSubmitBtn');
-
-  if (!effective.date || !effective.time) {
-    msgBox.style.display = 'none';
-    submitBtn.disabled = false;
-    return;
   }
 
-  var usesToggle = SCHEDULE_TOGGLE_CATEGORIES.indexOf(category) !== -1;
-  var payload = {
-    service_id: serviceId,
-    category: category,
-    schedule_type: category === 'Blessing' ? 'Special' : (usesToggle ? getScheduleType() : null),
-    appointment_date: effective.date,
-    appointment_time: effective.time,
-    priest_id: document.getElementById('priestSelect').value || null,
-    date_of_death: document.getElementById('dateOfDeathInput').value || null
-  };
+  function regularYearMonth() {
+    return regularViewYear + '-' + String(regularViewMonth + 1).padStart(2, '0');
+  }
 
-  fetch(CHECK_AVAILABILITY_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  })
-    .then(function (res) { return res.json(); })
-    .then(function (data) {
-      if (data.valid === false) {
-        msgBox.textContent = '⚠ ' + data.message;
-        msgBox.style.display = 'block';
-        submitBtn.disabled = true;
-      } else {
-        msgBox.style.display = 'none';
-        submitBtn.disabled = false;
+  function todayStr() {
+    var now = new Date();
+    return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+  }
+
+  /** Renders the 6x7 day grid for the currently-viewed month (regularViewYear/regularViewMonth). */
+  function renderRegularDpGrid() {
+    var grid = document.getElementById('regularDpGrid');
+    var title = document.getElementById('regularDpTitle');
+    title.textContent = MONTH_NAMES[regularViewMonth] + ' ' + regularViewYear;
+
+    var firstOfMonth = new Date(regularViewYear, regularViewMonth, 1);
+    var startWeekday = firstOfMonth.getDay(); // 0 = Sunday
+    var daysInMonth = new Date(regularViewYear, regularViewMonth + 1, 0).getDate();
+    var daysInPrevMonth = new Date(regularViewYear, regularViewMonth, 0).getDate();
+    var selected = document.getElementById('regularDateInput').value;
+    var today = todayStr();
+
+    var cells = [];
+    // Leading days from the previous month (dimmed, not interactive).
+    for (var i = startWeekday - 1; i >= 0; i--) {
+      cells.push({ day: daysInPrevMonth - i, outside: true });
+    }
+    for (var d = 1; d <= daysInMonth; d++) {
+      var dateStr = regularYearMonth() + '-' + String(d).padStart(2, '0');
+      cells.push({ day: d, outside: false, dateStr: dateStr });
+    }
+    var trailing = 42 - cells.length;
+    for (var n = 1; n <= trailing; n++) {
+      cells.push({ day: n, outside: true });
+    }
+
+    grid.innerHTML = cells.map(function (c) {
+      if (c.outside) {
+        return '<span class="mini-dp-day mini-dp-outside">' + c.day + '</span>';
       }
-      rebuildPriestOptions(data.available_priests || []);
+      var available = Object.prototype.hasOwnProperty.call(regularAvailableByDate, c.dateStr);
+      var classes = 'mini-dp-day';
+      if (!available) classes += ' mini-dp-disabled';
+      if (c.dateStr === selected) classes += ' mini-dp-selected';
+      if (c.dateStr === today) classes += ' mini-dp-today';
+      return '<span class="' + classes + '" data-date="' + c.dateStr + '"' + (available ? '' : ' aria-disabled="true"') + '>' + c.day + '</span>';
+    }).join('');
+  }
+
+  function selectRegularDate(dateStr) {
+    if (!Object.prototype.hasOwnProperty.call(regularAvailableByDate, dateStr)) return;
+    var time = regularAvailableByDate[dateStr];
+    var fixedBox = document.getElementById('regularFixedTimeBox');
+    document.getElementById('regularDateInput').value = dateStr;
+    document.getElementById('regularTimeInput').value = time;
+    document.getElementById('regularFixedTimeText').textContent = formatTimeLabel(time);
+    fixedBox.style.display = 'block';
+
+    var fieldText = document.getElementById('regularDpFieldText');
+    var d = new Date(dateStr + 'T00:00:00');
+    fieldText.textContent = String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0') + '/' + d.getFullYear()
+      + ' — ' + formatTimeLabel(time);
+    fieldText.className = '';
+
+    document.getElementById('regularSlotHint').textContent = 'Selected. Click a different highlighted date to change it.';
+    renderRegularDpGrid();
+    closeRegularDpPopup();
+    refreshAvailability();
+  }
+
+  function openRegularDpPopup() {
+    document.getElementById('regularDpPopup').style.display = 'block';
+  }
+  function closeRegularDpPopup() {
+    document.getElementById('regularDpPopup').style.display = 'none';
+  }
+
+  function fetchRegularMonth(serviceId, yearMonth) {
+    var hint = document.getElementById('regularSlotHint');
+    fetch(CHECK_AVAILABILITY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ service_id: serviceId, category: '', schedule_type: 'Regular', month: yearMonth })
     })
-    .catch(function () { /* Advisory check only — submit still re-validates server-side. */ });
-}
-
-/** Reads the date+time currently in effect for the selected category/mode. */
-function getEffectiveDateTime(category) {
-  var isMassIntention = category === 'Mass Intention';
-  var usesToggle = SCHEDULE_TOGGLE_CATEGORIES.indexOf(category) !== -1;
-
-  if (category === 'Funeral') {
-    return { date: document.getElementById('appointmentDateInput').value, time: document.getElementById('fixedTimeInput').value };
-  }
-  if (isMassIntention) {
-    return { date: document.getElementById('appointmentDateInput').value, time: document.getElementById('massTimeInput').value };
-  }
-  if (usesToggle && getScheduleType() === 'Regular') {
-    return { date: document.getElementById('regularDateInput').value, time: document.getElementById('regularTimeInput').value };
-  }
-  return { date: document.getElementById('appointmentDateInput').value, time: document.getElementById('freeTimeInput').value };
-}
-
-/** Rebuilds the priest <select> as Available/Unavailable optgroups from a check-availability.php response. */
-function rebuildPriestOptions(priests) {
-  var select = document.getElementById('priestSelect');
-  if (select.disabled || !priests.length) return;
-  var current = select.value;
-
-  var html = '<option value="">No preference</option>';
-  var available = priests.filter(function (p) { return p.available; });
-  var unavailable = priests.filter(function (p) { return !p.available; });
-
-  if (available.length) {
-    html += '<optgroup label="Available">' + available.map(function (p) {
-      return '<option value="' + p.priest_id + '">' + p.label + '</option>';
-    }).join('') + '</optgroup>';
-  }
-  if (unavailable.length) {
-    html += '<optgroup label="Unavailable">' + unavailable.map(function (p) {
-      return '<option value="' + p.priest_id + '" disabled title="' + (p.reason || '').replace(/"/g, '&quot;') + '">' + p.label + ' — Unavailable' + (p.note ? ' (' + p.note.replace(/</g, '&lt;') + ')' : '') + '</option>';
-    }).join('') + '</optgroup>';
-  }
-  select.innerHTML = html;
-
-  // Keep the parishioner's selection unless it just became unavailable.
-  var stillAvailable = available.some(function (p) { return String(p.priest_id) === current; });
-  select.value = stillAvailable ? current : '';
-}
-
-/**
- * Builds one file-upload row (with a live status pill) per parsed service
- * requirement. Each gets its own uniquely-named field (req_doc_0, req_doc_1,
- * ...) rather than a shared documents[] array, so the server can match each
- * upload to its requirement by field name alone — no fragile positional
- * pairing with a parallel labels array.
- */
-function renderRequirementsPreview(serviceId, category) {
-  var docList = document.getElementById('previewDocumentsList');
-  var formList = document.getElementById('previewFormsList');
-  var items = REQUIREMENTS_BY_SERVICE[serviceId] || [];
-  
-  var docs = [];
-  var forms = [];
-  
-  // Base forms based on category
-  if (category === 'Wedding') {
-    forms.push('Marriage Requirement and Application Form');
-    forms.push('Katin-awan sa Kasal / Cluster Clearance');
-    forms.push('Wedding Sponsor Clearance');
-  } else if (category === 'Baptism') {
-    forms.push('Katin-awan sa Bunyag');
-    forms.push('Cluster Clearance for Baptism Sponsor');
-  } else if (category === 'Funeral') {
-    forms.push('Katin-awan sa Paglubong');
-  }
-  
-  // Filter requirements from DB
-  items.forEach(function(item) {
-    if (item === 'Katin-awan sa Paglubong') {
-      // Already handled in base forms
-      return;
-    }
-    docs.push(item);
-  });
-  
-  // Render Docs
-  if (docs.length > 0) {
-    document.getElementById('previewSupportingDocuments').style.display = 'block';
-    docList.innerHTML = docs.map(function(d) {
-      return '<li style="margin-bottom:4px;">' + d + '</li>';
-    }).join('');
-  } else {
-    document.getElementById('previewSupportingDocuments').style.display = 'none';
-  }
-  
-  // Render Forms
-  if (forms.length > 0) {
-    document.getElementById('previewFormsToComplete').style.display = 'block';
-    formList.innerHTML = forms.map(function(f) {
-      return '<li style="margin-bottom:4px;">' + f + '</li>';
-    }).join('');
-  } else {
-    document.getElementById('previewFormsToComplete').style.display = 'none';
-  }
-}
-
-function rebuildRequirementRows(serviceId) {
-  var container = document.getElementById('requirementRows');
-  var items = REQUIREMENTS_BY_SERVICE[serviceId] || [];
-  container.innerHTML = items.map(function (label, i) {
-    if (label === 'Katin-awan sa Paglubong') {
-      return '<div class="form-group doc-req-row">' +
-        '<label>' + label + ' <span style="color:var(--danger);">*</span> <span class="badge badge-pending doc-status-pill">Generated Form</span></label>' +
-        '<p class="helper-text" style="margin-top:0;">You will fill out this form on the next screen after booking.</p>' +
-        '<input type="hidden" name="req_doc_' + i + '_generated" value="1">' +
-      '</div>';
-    }
-    var optionalIfMarried = /\(\s*if\s+married\s*\)/i.test(label);
-    var displayLabel = label.replace(/\s*\(\s*if\s+married\s*\)/i, '');
-    return (
-      '<div class="form-group doc-req-row">' +
-        '<label>' + displayLabel + (optionalIfMarried ? ' <span class="badge badge-pending doc-status-pill">Optional — only if parents are married</span>' : ' <span style="color:var(--danger);">*</span> <span class="badge badge-rejected doc-status-pill">Required</span>') + '</label>' +
-        '<input type="file" name="req_doc_' + i + '" accept=".pdf,.jpg,.jpeg,.png"' + (optionalIfMarried ? '' : ' required') + ' data-label="' + label.replace(/"/g, '&quot;') + '">' +
-      '</div>'
-    );
-  }).join('');
-
-  container.querySelectorAll('input[type="file"]').forEach(function (input) {
-    input.addEventListener('change', function () { checkRequirementFile(input); });
-  });
-}
-
-/** Client-side pre-check (extension/size/portrait) — advisory; book.php is authoritative. */
-function checkRequirementFile(input) {
-  var pill = input.closest('.doc-req-row').querySelector('.doc-status-pill');
-  var file = input.files[0];
-
-  if (!file) {
-    pill.textContent = 'Missing';
-    pill.className = 'badge badge-rejected doc-status-pill';
-    return;
-  }
-
-  pill.textContent = 'Checking…';
-  pill.className = 'badge badge-pending doc-status-pill';
-
-  var allowedExt = ['pdf', 'jpg', 'jpeg', 'png'];
-  var ext = file.name.split('.').pop().toLowerCase();
-  if (allowedExt.indexOf(ext) === -1) {
-    pill.textContent = 'Invalid';
-    pill.className = 'badge badge-rejected doc-status-pill';
-    return;
-  }
-
-  if (ext === 'pdf') {
-    pill.textContent = 'Valid';
-    pill.className = 'badge badge-pending doc-status-pill';
-    return;
-  }
-
-  checkImagePortrait(file, function (ok) {
-    if (ok) {
-      pill.textContent = 'Valid';
-      pill.className = 'badge badge-pending doc-status-pill';
-    } else {
-      pill.textContent = 'Invalid orientation';
-      pill.className = 'badge badge-rejected doc-status-pill';
-      pill.title = 'Please upload this document in portrait orientation.';
-    }
-  });
-}
-
-/** The parish's three official Sunday Mass Intention times (mirrors MASS_INTENTION_TIMES in includes/scheduling.php). */
-var MASS_INTENTION_TIMES = [['06:30', '1st Mass'], ['09:00', '2nd Mass'], ['16:30', '3rd Mass']];
-
-/** Returns the available Mass Intention times for a given date (mirrors massIntentionTimesForDate()). */
-function massTimesForDate(dateStr) {
-  var dow = new Date(dateStr + 'T00:00:00').getDay();
-  if (dow === 0) return MASS_INTENTION_TIMES; // Sunday: three Masses
-  if (dow === 3) return [['17:15', 'Afternoon Mass']]; // Wednesday: 5:15 PM
-  return [['06:00', 'Daily Mass']]; // all other days: 6:00 AM
-}
-
-/**
- * Mass Intentions can only be booked at the three official Masses — the
- * parishioner picks one from this dropdown (no free time entry). Each time
- * is checked against the server's availability rules for the chosen date;
- * unavailable/occupied ones are shown disabled with the reason.
- */
-function autoAssignMassTime() {
-  var dateInput = document.getElementById('appointmentDateInput');
-  var select = document.getElementById('massTimeSelect');
-  var hidden = document.getElementById('massTimeInput');
-  var hint = document.getElementById('massTimeHint');
-  var requestedDate = dateInput.value;
-
-  if (!requestedDate) {
-    select.innerHTML = '<option value="">Select a date first</option>';
-    hidden.value = '';
-    hint.textContent = 'Select a date to see the available Mass times.';
-    return;
-  }
-
-  var previous = hidden.value;
-  select.innerHTML = '<option value="">Checking available Mass times…</option>';
-  hidden.value = '';
-
-  function render(slots, checked) {
-    if (dateInput.value !== requestedDate) return; // date changed while loading
-    var anyAvailable = slots.some(function (s) { return s.available; });
-    select.innerHTML = '<option value="">-- Select a Mass time --</option>' + slots.map(function (s) {
-      return s.available
-        ? '<option value="' + s.time + '">' + s.label + '</option>'
-        : '<option value="' + s.time + '" disabled>' + s.label + ' — Unavailable' + (s.reason ? ' (' + s.reason + ')' : '') + '</option>';
-    }).join('');
-    var keep = slots.some(function (s) { return s.available && s.time === previous; });
-    select.value = keep ? previous : '';
-    hidden.value = select.value;
-    hint.textContent = !checked
-      ? 'Choose one of the parish\'s Mass times. Availability is confirmed when you submit.'
-      : (anyAvailable ? (new Date(requestedDate + 'T00:00:00').getDay() === 0 ? 'Sunday Masses: 6:00 AM, 9:00 AM and 4:00 PM. Unavailable times are greyed out.' : 'Monday to Saturday there is one Daily Mass at 6:00 AM.') : 'No Mass times are available on this date — please choose another date.');
-    refreshAvailability();
-  }
-
-  fetch(CHECK_AVAILABILITY_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ category: 'Mass Intention', appointment_date: requestedDate })
-  })
-    .then(function (res) { return res.json(); })
-    .then(function (data) { render(data.mass_slots || [], true); })
-    .catch(function () {
-      render(massTimesForDate(requestedDate).map(function (t) {
-        return { time: t[0], label: formatTimeLabel(t[0]) + ' — ' + t[1], available: true, reason: null };
-      }), false);
-    });
-}
-
-/** Submit-button wording: Mass Intentions are paid as part of submitting. */
-function submitButtonLabel() {
-  var select = document.getElementById('serviceSelect');
-  var category = select.options[select.selectedIndex]?.dataset.category || '';
-  var draftMode = document.getElementById('draftModeInput');
-  if (draftMode) draftMode.value = ['Wedding', 'Baptism', 'Funeral'].indexOf(category) !== -1 ? '1' : '0';
-  // Legacy fallback removed, handled cleanly by main event loop
-  if (category === 'Wedding') return 'Continue to Wedding Requirements';
-  if (category === 'Baptism') return 'Continue to Baptism Requirements';
-  if (category === 'Funeral') return 'Continue to Funeral Requirements';
-  return category === 'Mass Intention' ? 'Pay & Submit Mass Intention' : 'Submit Appointment Request';
-}
-
-function updatePayModeUI() {
-  // no-op: manual pay mode removed from Mass Intentions; kept for safety
-}
-
-/** For free-choice date/time entry (First Communion, or Special mode) — show which times that date is already occupied by a scheduled Mass. */
-function updateOccupiedTimesHint() {
-  var dateInput = document.getElementById('appointmentDateInput');
-  var hint = document.getElementById('occupiedTimesHint');
-  if (!dateInput.value) {
-    hint.textContent = '';
-  } else {
-    var times = massTimesForJS(dateInput.value).map(formatTimeLabel);
-    hint.textContent = 'Mass is scheduled on this date at: ' + times.join(', ') + '. You can still book these times; priests saying Mass then are shown as unavailable, so choose a different priest.';
-  }
-  refreshAvailability();
-}
-
-function updateEarliestFuneralHint() {
-  var select = document.getElementById('serviceSelect');
-  var category = select.options[select.selectedIndex]?.dataset.category || '';
-  var hint = document.getElementById('earliestFuneralHint');
-  var dodInput = document.getElementById('dateOfDeathInput');
-  var dateInput = document.getElementById('appointmentDateInput');
-
-  if (category !== 'Funeral' || !dodInput.value) {
-    hint.textContent = '';
-    return;
-  }
-  var earliest = addDaysJS(dodInput.value, 9);
-  hint.textContent = 'Earliest available funeral Mass date: ' + earliest + ' (9-day mourning period), fixed at 1:00 PM.';
-  dateInput.min = earliest;
-}
-
-document.addEventListener('DOMContentLoaded', function () {
-  document.getElementById('serviceSelect').addEventListener('change', toggleServiceUI);
-  document.getElementById('scheduleTypeRegular').addEventListener('change', toggleServiceUI);
-  document.getElementById('scheduleTypeSpecial').addEventListener('change', toggleServiceUI);
-  document.getElementById('priestSelect').addEventListener('change', refreshAvailability);
-  document.getElementById('dateOfDeathInput').addEventListener('change', function () {
-    updateEarliestFuneralHint();
-    refreshAvailability();
-  });
-  document.getElementById('appointmentDateInput').addEventListener('change', function () {
-    var select = document.getElementById('serviceSelect');
-    var category = select.options[select.selectedIndex]?.dataset.category || '';
-    if (category === 'Mass Intention') autoAssignMassTime();
-    else updateOccupiedTimesHint();
-  });
-  document.getElementById('freeTimeInput').addEventListener('change', refreshAvailability);
-
-  // Auto-compose the hidden guest_name from the split first/last/middle fields
-  var guestLast = document.getElementById('guestLastNameInput');
-  var guestFirst = document.getElementById('guestFirstNameInput');
-  var guestMiddle = document.getElementById('guestMiddleNameInput');
-  var guestCombined = document.getElementById('guestCombinedName');
-  if (guestLast && guestFirst && guestCombined) {
-    function syncGuestName() {
-      var last = guestLast.value.trim();
-      var first = guestFirst.value.trim();
-      var mid = guestMiddle ? guestMiddle.value.trim() : '';
-      guestCombined.value = last + ', ' + first + (mid ? ' ' + mid : '');
-    }
-    [guestLast, guestFirst, guestMiddle].filter(Boolean).forEach(function (el) {
-      el.addEventListener('input', syncGuestName);
-    });
-    syncGuestName();
-  }
-
-  document.getElementById('massTimeSelect').addEventListener('change', function () {
-    document.getElementById('massTimeInput').value = this.value;
-    refreshAvailability();
-  });
-
-  document.getElementById('bookForm').addEventListener('invalid', function (e) {
-    e.preventDefault();
-    var errorBox = document.getElementById('bookFormError');
-    var label = 'a required field';
-    if (e.target.labels && e.target.labels.length > 0) {
-      label = e.target.labels[0].textContent.replace(' (optional)', '').replace('*', '').trim();
-    } else if (e.target.previousElementSibling && e.target.previousElementSibling.tagName === 'LABEL') {
-      label = e.target.previousElementSibling.textContent.replace(' (optional)', '').replace('*', '').trim();
-    } else if (e.target.name) {
-      label = e.target.name.replace(/_/g, ' ');
-    }
-    
-    errorBox.textContent = 'Please fill out ' + label + '.';
-    errorBox.style.display = 'block';
-
-    if (!this.dataset.isInvalidated) {
-      this.dataset.isInvalidated = 'true';
-      setTimeout(function() { document.getElementById('bookForm').dataset.isInvalidated = ''; }, 100);
-      e.target.focus();
-      e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }, true);
-
-  document.getElementById('bookForm').addEventListener('submit', function (e) {
-    e.preventDefault();
-    var submitBtn = document.getElementById('bookSubmitBtn');
-    var errorBox = document.getElementById('bookFormError');
-    errorBox.style.display = 'none';
-
-    // Compose guest full name before submission
-    if (guestCombined && typeof syncGuestName === 'function') syncGuestName();
-
-    // Guest phone validation
-    var guestPhoneEl = document.getElementById('guestPhoneInput');
-    if (guestPhoneEl && guestPhoneEl.value.trim()) {
-      if (!/^09[0-9]{9}$/.test(guestPhoneEl.value.trim())) {
-        errorBox.textContent = 'Phone number must be exactly 11 digits starting with 09 (e.g. 09XXXXXXXXX).';
-        errorBox.style.display = 'block';
-        errorBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        guestPhoneEl.focus();
-        return;
-      }
-    }
-
-    // Enforce required document uploads
-    var missingDocs = [];
-    document.querySelectorAll('#requirementRows input[type="file"][required]').forEach(function (inp) {
-      if (!inp.files || inp.files.length === 0) {
-        missingDocs.push(inp.dataset.label || 'Required document');
-      }
-    });
-    if (missingDocs.length > 0) {
-      errorBox.textContent = 'Please upload all required documents before submitting: ' + missingDocs.join(', ') + '.';
-      errorBox.style.display = 'block';
-      errorBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      return;
-    }
-
-    var serviceSelect = document.getElementById('serviceSelect');
-    var category = serviceSelect.options[serviceSelect.selectedIndex]?.dataset.category || '';
-
-    var isMassIntention = (serviceSelect.options[serviceSelect.selectedIndex]?.dataset.category || '') === 'Mass Intention';
-    if (isMassIntention) {
-      var massDate = document.getElementById('appointmentDateInput').value;
-      var massTime = document.getElementById('massTimeInput').value;
-      if (!massDate || !massTime) {
-        errorBox.textContent = !massDate
-          ? 'Please choose the date of the Mass.'
-          : 'Please choose an available Mass time.';
-        errorBox.style.display = 'block';
-        errorBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        document.getElementById(!massDate ? 'appointmentDateInput' : 'massTimeSelect').focus();
-        return;
-      }
-      var amount = parseFloat(document.getElementById('offeringAmount').value);
-      if (!(amount > 0)) {
-        errorBox.textContent = 'Offering amount must be greater than ₱0.';
-        errorBox.style.display = 'block';
-        errorBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        document.getElementById('offeringAmount').focus();
-        return;
-      }
-    }
-
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Submitting...';
-
-    var formData = new FormData(e.target);
-    fetch('<?= url('parishioner/book.php') ?>', { method: 'POST', body: formData })
       .then(function (res) { return res.json(); })
       .then(function (data) {
-        if (data.success && data.redirect) {
-          // PayMongo's hosted checkout (provider-required redirect) — the
-          // Mass Intention only counts once that payment is actually completed.
-          submitBtn.textContent = 'Redirecting to secure payment…';
-          window.location.href = data.redirect;
+        regularAvailableByDate = data.regular_month_dates || {};
+        renderRegularDpGrid();
+        var count = Object.keys(regularAvailableByDate).length;
+
+        if (count) {
+          hint.textContent = 'Highlighted dates are available for this schedule — pick one.';
           return;
         }
-        submitBtn.disabled = false;
-        submitBtn.textContent = submitButtonLabel();
-        if (data.success) {
-          if (data.redirect) {
-            window.location.href = data.redirect;
-            return;
-          }
-          writeBookingSnapshot(null); // submitted: nothing left to restore on Back
-          document.getElementById('bookFormView').style.display = 'none';
-          document.getElementById('bookConfirmView').style.display = 'block';
-          document.getElementById('bookConfirmMessage').textContent = data.documents_reminder || '';
-          var detailLink = document.getElementById('bookConfirmDetailLink');
-          var refCode = data.tracking_number || data.guest_reference || '';
-          document.getElementById('bookConfirmReferenceCode').textContent = refCode;
-          if (!data.is_guest && data.detail_url) {
-            detailLink.style.display = '';
-            detailLink.href = data.detail_url;
-          } else {
-            detailLink.style.display = 'none';
-          }
-          var typeLine = document.getElementById('bookConfirmScheduleType');
-          if (data.schedule_type) {
-            typeLine.textContent = data.schedule_type + ' Schedule';
-            typeLine.className = 'badge ' + (data.schedule_type === 'Regular' ? 'badge-regular' : 'badge-special');
-            typeLine.style.display = 'inline-block';
-          } else {
-            typeLine.style.display = 'none';
+
+        var nextMonth = data.regular_next_available_month;
+        if (nextMonth && !regularAutoJumped) {
+          // First time this calendar has come up empty since it was opened —
+          // jump straight to the nearest month that actually has an opening,
+          // instead of leaving the parishioner staring at an all-gray month
+          // with no clue "next" needs clicking (possibly many times, for a
+          // sparse schedule like "4th Saturday only").
+          regularAutoJumped = true;
+          hint.textContent = 'No openings this month — jumping to the next available month…';
+          var parts = nextMonth.split('-');
+          regularViewYear = parseInt(parts[0], 10);
+          regularViewMonth = parseInt(parts[1], 10) - 1;
+          renderRegularDpGrid();
+          fetchRegularMonth(serviceId, nextMonth);
+        } else if (nextMonth) {
+          hint.innerHTML = 'No available dates this month. <a href="#" id="regularJumpLink">Jump to the next available month</a>, or choose Special instead.';
+          var link = document.getElementById('regularJumpLink');
+          if (link) {
+            link.addEventListener('click', function (e) {
+              e.preventDefault();
+              var p = nextMonth.split('-');
+              regularViewYear = parseInt(p[0], 10);
+              regularViewMonth = parseInt(p[1], 10) - 1;
+              renderRegularDpGrid();
+              fetchRegularMonth(serviceId, nextMonth);
+            });
           }
         } else {
-          errorBox.textContent = data.message;
-          errorBox.style.display = 'block';
-          errorBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          hint.textContent = 'No available dates found for this schedule in the next 12 months. Please choose Special instead, or contact the parish office.';
         }
       })
       .catch(function () {
-        submitBtn.disabled = false;
-        submitBtn.textContent = submitButtonLabel();
-        errorBox.textContent = 'Something went wrong submitting your request. Please try again.';
-        errorBox.style.display = 'block';
+        hint.textContent = 'Could not load available dates — please try again.';
       });
-  });
-});
+  }
 
-function currentScheduleSelection() {
-  var date = document.getElementById('regularDateInput');
-  var time = document.getElementById('regularTimeInput');
-  if (date && date.disabled === false) {
-    return { date: date.value, time: time.value };
+  document.addEventListener('DOMContentLoaded', function () {
+    var offeringAmount = document.getElementById('offeringAmount');
+    if (offeringAmount) {
+      // Do not let an accidental mouse-wheel/trackpad scroll change the amount.
+      offeringAmount.addEventListener('wheel', function (event) {
+        if (document.activeElement === offeringAmount) event.preventDefault();
+      }, { passive: false });
+    }
+    document.getElementById('regularDpField').addEventListener('click', openRegularDpPopup);
+    document.getElementById('regularDpField').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRegularDpPopup(); }
+    });
+    document.getElementById('regularDpPrev').addEventListener('click', function () {
+      regularViewMonth--;
+      if (regularViewMonth < 0) { regularViewMonth = 11; regularViewYear--; }
+      renderRegularDpGrid();
+      fetchRegularMonth(regularServiceId, regularYearMonth());
+    });
+    document.getElementById('regularDpNext').addEventListener('click', function () {
+      regularViewMonth++;
+      if (regularViewMonth > 11) { regularViewMonth = 0; regularViewYear++; }
+      renderRegularDpGrid();
+      fetchRegularMonth(regularServiceId, regularYearMonth());
+    });
+    document.getElementById('regularDpGrid').addEventListener('click', function (e) {
+      var cell = e.target.closest('.mini-dp-day:not(.mini-dp-outside):not(.mini-dp-disabled)');
+      if (cell) selectRegularDate(cell.dataset.date);
+    });
+    document.getElementById('regularDpClear').addEventListener('click', function (e) {
+      e.preventDefault();
+      document.getElementById('regularDateInput').value = '';
+      document.getElementById('regularTimeInput').value = '';
+      document.getElementById('regularFixedTimeBox').style.display = 'none';
+      var fieldText = document.getElementById('regularDpFieldText');
+      fieldText.textContent = 'mm/dd/yyyy';
+      fieldText.className = 'mini-dp-placeholder';
+      renderRegularDpGrid();
+      refreshAvailability();
+    });
+    document.getElementById('regularDpToday').addEventListener('click', function (e) {
+      e.preventDefault();
+      var now = new Date();
+      regularViewYear = now.getFullYear();
+      regularViewMonth = now.getMonth();
+      renderRegularDpGrid();
+      fetchRegularMonth(regularServiceId, regularYearMonth());
+    });
+    document.addEventListener('click', function (e) {
+      var wrap = document.getElementById('regularMiniDp');
+      if (wrap && !wrap.contains(e.target)) closeRegularDpPopup();
+    });
+  });
+
+  /**
+   * Live pre-submit check: re-validates the currently selected date/time via
+   * the server's scheduling rules and refreshes which priests are available.
+   * Advisory only — book.php re-runs the same checks before actually saving.
+   */
+  function refreshAvailability() {
+    var select = document.getElementById('serviceSelect');
+    var selectedOption = select.options[select.selectedIndex];
+    var category = selectedOption ? selectedOption.dataset.category || '' : '';
+    var serviceId = selectedOption ? selectedOption.value : '';
+    if (!category) return;
+
+    var effective = getEffectiveDateTime(category);
+    var msgBox = document.getElementById('availabilityMsg');
+    var submitBtn = document.getElementById('bookSubmitBtn');
+
+    if (!effective.date || !effective.time) {
+      msgBox.style.display = 'none';
+      submitBtn.disabled = false;
+      return;
+    }
+
+    var usesToggle = SCHEDULE_TOGGLE_CATEGORIES.indexOf(category) !== -1;
+    var payload = {
+      service_id: serviceId,
+      category: category,
+      schedule_type: category === 'Blessing' ? 'Special' : (usesToggle ? getScheduleType() : null),
+      appointment_date: effective.date,
+      appointment_time: effective.time,
+      priest_id: document.getElementById('priestSelect').value || null,
+      date_of_death: document.getElementById('dateOfDeathInput').value || null
+    };
+
+    fetch(CHECK_AVAILABILITY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (data.valid === false) {
+          msgBox.textContent = '⚠ ' + data.message;
+          msgBox.style.display = 'block';
+          submitBtn.disabled = true;
+        } else {
+          msgBox.style.display = 'none';
+          submitBtn.disabled = false;
+        }
+        rebuildPriestOptions(data.available_priests || []);
+      })
+      .catch(function () { /* Advisory check only — submit still re-validates server-side. */ });
   }
-  // For special/mass schedule if used in Funeral
-  var massTime = document.getElementById('massTimeInput');
-  if (massTime && massTime.disabled === false) {
-    // date might be regularDateInput or similar depending on implementation
-    return { date: date ? date.value : '', time: massTime.value };
+
+  /** Reads the date+time currently in effect for the selected category/mode. */
+  function getEffectiveDateTime(category) {
+    var isMassIntention = category === 'Mass Intention';
+    var usesToggle = SCHEDULE_TOGGLE_CATEGORIES.indexOf(category) !== -1;
+
+    if (category === 'Funeral') {
+      return { date: document.getElementById('appointmentDateInput').value, time: document.getElementById('fixedTimeInput').value };
+    }
+    if (isMassIntention) {
+      return { date: document.getElementById('appointmentDateInput').value, time: document.getElementById('massTimeInput').value };
+    }
+    if (usesToggle && getScheduleType() === 'Regular') {
+      return { date: document.getElementById('regularDateInput').value, time: document.getElementById('regularTimeInput').value };
+    }
+    return { date: document.getElementById('appointmentDateInput').value, time: document.getElementById('freeTimeInput').value };
   }
-  return { date: '', time: '' };
-}
+
+  /** Rebuilds the priest <select> as Available/Unavailable optgroups from a check-availability.php response. */
+  function rebuildPriestOptions(priests) {
+    var select = document.getElementById('priestSelect');
+    if (select.disabled || !priests.length) return;
+    var current = select.value;
+
+    var html = '<option value="">No preference</option>';
+    var available = priests.filter(function (p) { return p.available; });
+    var unavailable = priests.filter(function (p) { return !p.available; });
+
+    if (available.length) {
+      html += '<optgroup label="Available">' + available.map(function (p) {
+        return '<option value="' + p.priest_id + '">' + p.label + '</option>';
+      }).join('') + '</optgroup>';
+    }
+    if (unavailable.length) {
+      html += '<optgroup label="Unavailable">' + unavailable.map(function (p) {
+        return '<option value="' + p.priest_id + '" disabled title="' + (p.reason || '').replace(/"/g, '&quot;') + '">' + p.label + ' — Unavailable' + (p.note ? ' (' + p.note.replace(/</g, '&lt;') + ')' : '') + '</option>';
+      }).join('') + '</optgroup>';
+    }
+    select.innerHTML = html;
+
+    // Keep the parishioner's selection unless it just became unavailable.
+    var stillAvailable = available.some(function (p) { return String(p.priest_id) === current; });
+    select.value = stillAvailable ? current : '';
+  }
+
+  /**
+   * Builds one file-upload row (with a live status pill) per parsed service
+   * requirement. Each gets its own uniquely-named field (req_doc_0, req_doc_1,
+   * ...) rather than a shared documents[] array, so the server can match each
+   * upload to its requirement by field name alone — no fragile positional
+   * pairing with a parallel labels array.
+   */
+  function renderRequirementsPreview(serviceId, category) {
+    var docList = document.getElementById('previewDocumentsList');
+    var formList = document.getElementById('previewFormsList');
+    var items = REQUIREMENTS_BY_SERVICE[serviceId] || [];
+
+    var docs = [];
+    var forms = [];
+
+    // Base forms based on category
+    if (category === 'Wedding') {
+      forms.push('Marriage Requirement and Application Form');
+      forms.push('Katin-awan sa Kasal / Cluster Clearance');
+      forms.push('Wedding Sponsor Clearance');
+    } else if (category === 'Baptism') {
+      forms.push('Katin-awan sa Bunyag');
+      forms.push('Cluster Clearance for Baptism Sponsor');
+    } else if (category === 'Funeral') {
+      forms.push('Katin-awan sa Paglubong');
+    }
+
+    // Filter requirements from DB
+    items.forEach(function (item) {
+      if (item === 'Katin-awan sa Paglubong') {
+        // Already handled in base forms
+        return;
+      }
+      docs.push(item);
+    });
+
+    // Render Docs
+    if (docs.length > 0) {
+      document.getElementById('previewSupportingDocuments').style.display = 'block';
+      docList.innerHTML = docs.map(function (d) {
+        return '<li style="margin-bottom:4px;">' + d + '</li>';
+      }).join('');
+    } else {
+      document.getElementById('previewSupportingDocuments').style.display = 'none';
+    }
+
+    // Render Forms
+    if (forms.length > 0) {
+      document.getElementById('previewFormsToComplete').style.display = 'block';
+      formList.innerHTML = forms.map(function (f) {
+        return '<li style="margin-bottom:4px;">' + f + '</li>';
+      }).join('');
+    } else {
+      document.getElementById('previewFormsToComplete').style.display = 'none';
+    }
+  }
+
+  function rebuildRequirementRows(serviceId) {
+    var container = document.getElementById('requirementRows');
+    var items = REQUIREMENTS_BY_SERVICE[serviceId] || [];
+    container.innerHTML = items.map(function (label, i) {
+      if (label === 'Katin-awan sa Paglubong') {
+        return '<div class="form-group doc-req-row">' +
+          '<label>' + label + ' <span style="color:var(--danger);">*</span> <span class="badge badge-pending doc-status-pill">Generated Form</span></label>' +
+          '<p class="helper-text" style="margin-top:0;">You will fill out this form on the next screen after booking.</p>' +
+          '<input type="hidden" name="req_doc_' + i + '_generated" value="1">' +
+          '</div>';
+      }
+      var optionalIfMarried = /\(\s*if\s+married\s*\)/i.test(label);
+      var displayLabel = label.replace(/\s*\(\s*if\s+married\s*\)/i, '');
+      return (
+        '<div class="form-group doc-req-row">' +
+        '<label>' + displayLabel + (optionalIfMarried ? ' <span class="badge badge-pending doc-status-pill">Optional — only if parents are married</span>' : ' <span style="color:var(--danger);">*</span> <span class="badge badge-rejected doc-status-pill">Required</span>') + '</label>' +
+        '<input type="file" name="req_doc_' + i + '" accept=".pdf,.jpg,.jpeg,.png"' + (optionalIfMarried ? '' : ' required') + ' data-label="' + label.replace(/"/g, '&quot;') + '">' +
+        '</div>'
+      );
+    }).join('');
+
+    container.querySelectorAll('input[type="file"]').forEach(function (input) {
+      input.addEventListener('change', function () { checkRequirementFile(input); });
+    });
+  }
+
+  /** Client-side pre-check (extension/size/portrait) — advisory; book.php is authoritative. */
+  function checkRequirementFile(input) {
+    var pill = input.closest('.doc-req-row').querySelector('.doc-status-pill');
+    var file = input.files[0];
+
+    if (!file) {
+      pill.textContent = 'Missing';
+      pill.className = 'badge badge-rejected doc-status-pill';
+      return;
+    }
+
+    pill.textContent = 'Checking…';
+    pill.className = 'badge badge-pending doc-status-pill';
+
+    var allowedExt = ['pdf', 'jpg', 'jpeg', 'png'];
+    var ext = file.name.split('.').pop().toLowerCase();
+    if (allowedExt.indexOf(ext) === -1) {
+      pill.textContent = 'Invalid';
+      pill.className = 'badge badge-rejected doc-status-pill';
+      return;
+    }
+
+    if (ext === 'pdf') {
+      pill.textContent = 'Valid';
+      pill.className = 'badge badge-pending doc-status-pill';
+      return;
+    }
+
+    checkImagePortrait(file, function (ok) {
+      if (ok) {
+        pill.textContent = 'Valid';
+        pill.className = 'badge badge-pending doc-status-pill';
+      } else {
+        pill.textContent = 'Invalid orientation';
+        pill.className = 'badge badge-rejected doc-status-pill';
+        pill.title = 'Please upload this document in portrait orientation.';
+      }
+    });
+  }
+
+  /** The parish's three official Sunday Mass Intention times (mirrors MASS_INTENTION_TIMES in includes/scheduling.php). */
+  var MASS_INTENTION_TIMES = [['06:30', '1st Mass'], ['09:00', '2nd Mass'], ['16:30', '3rd Mass']];
+
+  /** Returns the available Mass Intention times for a given date (mirrors massIntentionTimesForDate()). */
+  function massTimesForDate(dateStr) {
+    var dow = new Date(dateStr + 'T00:00:00').getDay();
+    if (dow === 0) return MASS_INTENTION_TIMES; // Sunday: three Masses
+    if (dow === 3) return [['17:15', 'Afternoon Mass']]; // Wednesday: 5:15 PM
+    return [['06:00', 'Daily Mass']]; // all other days: 6:00 AM
+  }
+
+  /**
+   * Mass Intentions can only be booked at the three official Masses — the
+   * parishioner picks one from this dropdown (no free time entry). Each time
+   * is checked against the server's availability rules for the chosen date;
+   * unavailable/occupied ones are shown disabled with the reason.
+   */
+  function autoAssignMassTime() {
+    var dateInput = document.getElementById('appointmentDateInput');
+    var select = document.getElementById('massTimeSelect');
+    var hidden = document.getElementById('massTimeInput');
+    var hint = document.getElementById('massTimeHint');
+    var requestedDate = dateInput.value;
+
+    if (!requestedDate) {
+      select.innerHTML = '<option value="">Select a date first</option>';
+      hidden.value = '';
+      hint.textContent = 'Select a date to see the available Mass times.';
+      return;
+    }
+
+    var previous = hidden.value;
+    select.innerHTML = '<option value="">Checking available Mass times…</option>';
+    hidden.value = '';
+
+    function render(slots, checked) {
+      if (dateInput.value !== requestedDate) return; // date changed while loading
+      var anyAvailable = slots.some(function (s) { return s.available; });
+      select.innerHTML = '<option value="">-- Select a Mass time --</option>' + slots.map(function (s) {
+        return s.available
+          ? '<option value="' + s.time + '">' + s.label + '</option>'
+          : '<option value="' + s.time + '" disabled>' + s.label + ' — Unavailable' + (s.reason ? ' (' + s.reason + ')' : '') + '</option>';
+      }).join('');
+      var keep = slots.some(function (s) { return s.available && s.time === previous; });
+      select.value = keep ? previous : '';
+      hidden.value = select.value;
+      hint.textContent = !checked
+        ? 'Choose one of the parish\'s Mass times. Availability is confirmed when you submit.'
+        : (anyAvailable ? (new Date(requestedDate + 'T00:00:00').getDay() === 0 ? 'Sunday Masses: 6:00 AM, 9:00 AM and 4:00 PM. Unavailable times are greyed out.' : 'Monday to Saturday there is one Daily Mass at 6:00 AM.') : 'No Mass times are available on this date — please choose another date.');
+      refreshAvailability();
+    }
+
+    fetch(CHECK_AVAILABILITY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: 'Mass Intention', appointment_date: requestedDate })
+    })
+      .then(function (res) { return res.json(); })
+      .then(function (data) { render(data.mass_slots || [], true); })
+      .catch(function () {
+        render(massTimesForDate(requestedDate).map(function (t) {
+          return { time: t[0], label: formatTimeLabel(t[0]) + ' — ' + t[1], available: true, reason: null };
+        }), false);
+      });
+  }
+
+  /** Submit-button wording: Mass Intentions are paid as part of submitting. */
+  function submitButtonLabel() {
+    var select = document.getElementById('serviceSelect');
+    var category = select.options[select.selectedIndex]?.dataset.category || '';
+    var draftMode = document.getElementById('draftModeInput');
+    if (draftMode) draftMode.value = ['Wedding', 'Baptism', 'Funeral'].indexOf(category) !== -1 ? '1' : '0';
+    // Legacy fallback removed, handled cleanly by main event loop
+    if (category === 'Wedding') return 'Continue to Wedding Requirements';
+    if (category === 'Baptism') return 'Continue to Baptism Requirements';
+    if (category === 'Funeral') return 'Continue to Funeral Requirements';
+    return category === 'Mass Intention' ? 'Pay & Submit Mass Intention' : 'Submit Appointment Request';
+  }
+
+  function updatePayModeUI() {
+    // no-op: manual pay mode removed from Mass Intentions; kept for safety
+  }
+
+  /** For free-choice date/time entry (First Communion, or Special mode) — show which times that date is already occupied by a scheduled Mass. */
+  function updateOccupiedTimesHint() {
+    var dateInput = document.getElementById('appointmentDateInput');
+    var hint = document.getElementById('occupiedTimesHint');
+    if (!dateInput.value) {
+      hint.textContent = '';
+    } else {
+      var times = massTimesForJS(dateInput.value).map(formatTimeLabel);
+      hint.textContent = 'Mass is scheduled on this date at: ' + times.join(', ') + '. You can still book these times; priests saying Mass then are shown as unavailable, so choose a different priest.';
+    }
+    refreshAvailability();
+  }
+
+  function updateEarliestFuneralHint() {
+    var select = document.getElementById('serviceSelect');
+    var category = select.options[select.selectedIndex]?.dataset.category || '';
+    var hint = document.getElementById('earliestFuneralHint');
+    var dodInput = document.getElementById('dateOfDeathInput');
+    var dateInput = document.getElementById('appointmentDateInput');
+
+    if (category !== 'Funeral' || !dodInput.value) {
+      hint.textContent = '';
+      return;
+    }
+    var earliest = addDaysJS(dodInput.value, 9);
+    hint.textContent = 'Earliest available funeral Mass date: ' + earliest + ' (9-day mourning period), fixed at 1:00 PM.';
+    dateInput.min = earliest;
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    document.getElementById('serviceSelect').addEventListener('change', toggleServiceUI);
+    document.getElementById('scheduleTypeRegular').addEventListener('change', toggleServiceUI);
+    document.getElementById('scheduleTypeSpecial').addEventListener('change', toggleServiceUI);
+    document.getElementById('priestSelect').addEventListener('change', refreshAvailability);
+    document.getElementById('dateOfDeathInput').addEventListener('change', function () {
+      updateEarliestFuneralHint();
+      refreshAvailability();
+    });
+    document.getElementById('appointmentDateInput').addEventListener('change', function () {
+      var select = document.getElementById('serviceSelect');
+      var category = select.options[select.selectedIndex]?.dataset.category || '';
+      if (category === 'Mass Intention') autoAssignMassTime();
+      else updateOccupiedTimesHint();
+    });
+    document.getElementById('freeTimeInput').addEventListener('change', refreshAvailability);
+
+    // Auto-compose the hidden guest_name from the split first/last/middle fields
+    var guestLast = document.getElementById('guestLastNameInput');
+    var guestFirst = document.getElementById('guestFirstNameInput');
+    var guestMiddle = document.getElementById('guestMiddleNameInput');
+    var guestCombined = document.getElementById('guestCombinedName');
+    if (guestLast && guestFirst && guestCombined) {
+      function syncGuestName() {
+        var last = guestLast.value.trim();
+        var first = guestFirst.value.trim();
+        var mid = guestMiddle ? guestMiddle.value.trim() : '';
+        guestCombined.value = last + ', ' + first + (mid ? ' ' + mid : '');
+      }
+      [guestLast, guestFirst, guestMiddle].filter(Boolean).forEach(function (el) {
+        el.addEventListener('input', syncGuestName);
+      });
+      syncGuestName();
+    }
+
+    document.getElementById('massTimeSelect').addEventListener('change', function () {
+      document.getElementById('massTimeInput').value = this.value;
+      refreshAvailability();
+    });
+
+    document.getElementById('bookForm').addEventListener('invalid', function (e) {
+      e.preventDefault();
+      var errorBox = document.getElementById('bookFormError');
+      var label = 'a required field';
+      if (e.target.labels && e.target.labels.length > 0) {
+        label = e.target.labels[0].textContent.replace(' (optional)', '').replace('*', '').trim();
+      } else if (e.target.previousElementSibling && e.target.previousElementSibling.tagName === 'LABEL') {
+        label = e.target.previousElementSibling.textContent.replace(' (optional)', '').replace('*', '').trim();
+      } else if (e.target.name) {
+        label = e.target.name.replace(/_/g, ' ');
+      }
+
+      errorBox.textContent = 'Please fill out ' + label + '.';
+      errorBox.style.display = 'block';
+
+      if (!this.dataset.isInvalidated) {
+        this.dataset.isInvalidated = 'true';
+        setTimeout(function () { document.getElementById('bookForm').dataset.isInvalidated = ''; }, 100);
+        e.target.focus();
+        e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, true);
+
+    document.getElementById('bookForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var submitBtn = document.getElementById('bookSubmitBtn');
+      var errorBox = document.getElementById('bookFormError');
+      errorBox.style.display = 'none';
+
+      // Compose guest full name before submission
+      if (guestCombined && typeof syncGuestName === 'function') syncGuestName();
+
+      // Guest phone validation
+      var guestPhoneEl = document.getElementById('guestPhoneInput');
+      if (guestPhoneEl && guestPhoneEl.value.trim()) {
+        if (!/^09[0-9]{9}$/.test(guestPhoneEl.value.trim())) {
+          errorBox.textContent = 'Phone number must be exactly 11 digits starting with 09 (e.g. 09XXXXXXXXX).';
+          errorBox.style.display = 'block';
+          errorBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          guestPhoneEl.focus();
+          return;
+        }
+      }
+
+      // Enforce required document uploads
+      var missingDocs = [];
+      document.querySelectorAll('#requirementRows input[type="file"][required]').forEach(function (inp) {
+        if (!inp.files || inp.files.length === 0) {
+          missingDocs.push(inp.dataset.label || 'Required document');
+        }
+      });
+      if (missingDocs.length > 0) {
+        errorBox.textContent = 'Please upload all required documents before submitting: ' + missingDocs.join(', ') + '.';
+        errorBox.style.display = 'block';
+        errorBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        return;
+      }
+
+      var serviceSelect = document.getElementById('serviceSelect');
+      var category = serviceSelect.options[serviceSelect.selectedIndex]?.dataset.category || '';
+
+      var isMassIntention = (serviceSelect.options[serviceSelect.selectedIndex]?.dataset.category || '') === 'Mass Intention';
+      if (isMassIntention) {
+        var massDate = document.getElementById('appointmentDateInput').value;
+        var massTime = document.getElementById('massTimeInput').value;
+        if (!massDate || !massTime) {
+          errorBox.textContent = !massDate
+            ? 'Please choose the date of the Mass.'
+            : 'Please choose an available Mass time.';
+          errorBox.style.display = 'block';
+          errorBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          document.getElementById(!massDate ? 'appointmentDateInput' : 'massTimeSelect').focus();
+          return;
+        }
+        var amount = parseFloat(document.getElementById('offeringAmount').value);
+        if (!(amount > 0)) {
+          errorBox.textContent = 'Offering amount must be greater than ₱0.';
+          errorBox.style.display = 'block';
+          errorBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          document.getElementById('offeringAmount').focus();
+          return;
+        }
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting...';
+
+      var formData = new FormData(e.target);
+      fetch('<?= url('parishioner/book.php') ?>', { method: 'POST', body: formData })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          if (data.success && data.redirect) {
+            // PayMongo's hosted checkout (provider-required redirect) — the
+            // Mass Intention only counts once that payment is actually completed.
+            submitBtn.textContent = 'Redirecting to secure payment…';
+            window.location.href = data.redirect;
+            return;
+          }
+          submitBtn.disabled = false;
+          submitBtn.textContent = submitButtonLabel();
+          if (data.success) {
+            if (data.redirect) {
+              window.location.href = data.redirect;
+              return;
+            }
+            writeBookingSnapshot(null); // submitted: nothing left to restore on Back
+            document.getElementById('bookFormView').style.display = 'none';
+            document.getElementById('bookConfirmView').style.display = 'block';
+            document.getElementById('bookConfirmMessage').textContent = data.documents_reminder || '';
+            var detailLink = document.getElementById('bookConfirmDetailLink');
+            var refCode = data.tracking_number || data.guest_reference || '';
+            document.getElementById('bookConfirmReferenceCode').textContent = refCode;
+            if (!data.is_guest && data.detail_url) {
+              detailLink.style.display = '';
+              detailLink.href = data.detail_url;
+            } else {
+              detailLink.style.display = 'none';
+            }
+            var typeLine = document.getElementById('bookConfirmScheduleType');
+            if (data.schedule_type) {
+              typeLine.textContent = data.schedule_type + ' Schedule';
+              typeLine.className = 'badge ' + (data.schedule_type === 'Regular' ? 'badge-regular' : 'badge-special');
+              typeLine.style.display = 'inline-block';
+            } else {
+              typeLine.style.display = 'none';
+            }
+          } else {
+            errorBox.textContent = data.message;
+            errorBox.style.display = 'block';
+            errorBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+        })
+        .catch(function () {
+          submitBtn.disabled = false;
+          submitBtn.textContent = submitButtonLabel();
+          errorBox.textContent = 'Something went wrong submitting your request. Please try again.';
+          errorBox.style.display = 'block';
+        });
+    });
+  });
+
+  function currentScheduleSelection() {
+    var date = document.getElementById('regularDateInput');
+    var time = document.getElementById('regularTimeInput');
+    if (date && date.disabled === false) {
+      return { date: date.value, time: time.value };
+    }
+    // For special/mass schedule if used in Funeral
+    var massTime = document.getElementById('massTimeInput');
+    if (massTime && massTime.disabled === false) {
+      // date might be regularDateInput or similar depending on implementation
+      return { date: date ? date.value : '', time: massTime.value };
+    }
+    return { date: '', time: '' };
+  }
 
 </script>
 
