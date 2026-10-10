@@ -1828,9 +1828,11 @@ document.addEventListener('DOMContentLoaded', function () {
         .then(function (res) { return res.json(); })
         .then(function (data) {
           if (data.success && data.redirect) {
+            // Submitted: nothing left to restore if the person comes back to this page.
+            if (data.thank_you) writeBookingSnapshot(null);
             // PayMongo's hosted checkout (provider-required redirect) — the
             // Mass Intention only counts once that payment is actually completed.
-            submitBtn.textContent = 'Redirecting to secure payment…';
+            submitBtn.textContent = data.thank_you ? 'Redirecting…' : 'Redirecting to secure payment…';
             window.location.href = data.redirect;
             return;
           }

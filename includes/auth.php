@@ -290,6 +290,30 @@ function getFlash(): array
     return $flash;
 }
 
+/**
+ * Where a finished booking lands, with the Thank You dialog open: Check Status
+ * for guests, My Appointments for logged-in parishioners. The reference code
+ * travels in the session, not the URL, so the status lookup form is not
+ * pre-filled and the code is shown once.
+ */
+function bookingReturnUrl(bool $isGuest): string
+{
+    return url($isGuest ? 'status.php' : 'parishioner/appointments.php');
+}
+
+function rememberBookingThankYou(string $reference): void
+{
+    $_SESSION['booking_thank_you'] = $reference;
+}
+
+/** Returns the reference to show in the Thank You dialog, once, then clears it. */
+function pullBookingThankYou(): ?string
+{
+    $reference = $_SESSION['booking_thank_you'] ?? null;
+    unset($_SESSION['booking_thank_you']);
+    return $reference ? (string) $reference : null;
+}
+
 function e(?string $value): string
 {
     return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');

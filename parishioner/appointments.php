@@ -8,6 +8,9 @@ $stmt = db()->prepare('SELECT parishioner_id FROM parishioners WHERE user_id = ?
 $stmt->execute([$userId]);
 $parishionerId = $stmt->fetchColumn();
 
+// Set when a booking just landed here (see rememberBookingThankYou()); the dialog opens once.
+$thankYouReference = pullBookingThankYou();
+
 $statusFilter = $_GET['status'] ?? '';
 
 function fetchMyAppointmentsPage(int $parishionerId, string $statusFilter): array
@@ -124,6 +127,7 @@ include __DIR__ . '/../includes/dash-start.php';
 </div>
 
 
+$thankYouIsGuest = false; include __DIR__ . "/../includes/thank-you-modal.php";
 <?php include __DIR__ . '/../includes/detail-modal.php'; ?>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>

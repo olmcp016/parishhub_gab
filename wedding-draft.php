@@ -82,7 +82,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->prepare("UPDATE appointment_drafts SET status = 'finalized', finalized_appointment_id = ?, updated_at = CURRENT_TIMESTAMP WHERE draft_id = ? AND service_type = 'Wedding'")->execute([$appointmentId, $draftId]);
         $finalizationStage = 'commit';
         $pdo->commit();
-        redirect($guestReference ? url('status.php?ref=' . urlencode($guestReference) . '&contact=' . urlencode((string) ($locked['guest_phone'] ?: $locked['guest_email']))) : url('parishioner/appointment-detail.php?id=' . $appointmentId));
+        rememberBookingThankYou((string) $guestReference);
+        redirect(bookingReturnUrl(empty($locked['parishioner_id'])));
     } catch (Throwable $e) {
         $rolledBack = false;
         if ($pdo->inTransaction()) { $pdo->rollBack(); $rolledBack = true; }

@@ -107,9 +107,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submi
         funeralDraftDeletePreview($draft);
         unset($_SESSION['funeral_booking_drafts'][$draftId]);
         unset($_SESSION['funeral_draft_tokens'][$draftId]);
-        redirect(!empty($draft['is_guest'])
-            ? url('status.php?ref=' . urlencode($bookingReference) . '&contact=' . urlencode((string) (($draft['guest_phone'] ?? '') ?: ($draft['guest_email'] ?? ''))))
-            : url('parishioner/appointment-detail.php?id=' . $appointmentId));
+        rememberBookingThankYou((string) $bookingReference);
+        redirect(bookingReturnUrl(!empty($draft['is_guest'])));
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         error_log('Funeral finalization failed: ' . $e->getMessage());

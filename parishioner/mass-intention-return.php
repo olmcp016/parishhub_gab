@@ -98,6 +98,14 @@ if ($row) {
     }
 }
 
+// A verified payment completes the booking: go to Check Status (guests) or My
+// Appointments (parishioners), where the Thank You dialog opens. Only when the
+// viewer may see the reference code (see canViewGuestReference()).
+if ($row && $outcome === 'paid' && $row['guest_reference'] && canViewGuestReference((int) $row['appointment_id'])) {
+    rememberBookingThankYou((string) $row['guest_reference']);
+    redirect(bookingReturnUrl(!usesParishionerShell()));
+}
+
 $isGuestView = !usesParishionerShell();
 $active = 'services';
 $pageTitle = 'Mass Intention Payment';

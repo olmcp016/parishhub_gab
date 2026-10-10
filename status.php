@@ -14,6 +14,8 @@ require_once __DIR__ . '/includes/generated-form-workflow.php';
  * phone used for the booking is required too, and failed lookups are
  * throttled per connection, so a reference code alone is not enough (H-02).
  */
+// Set by a just-finished booking (see rememberBookingThankYou()); shown once in the Thank You dialog below.
+$thankYouReference = pullBookingThankYou();
 $reference = trim($_GET['ref'] ?? '');
 $contact = trim($_GET['contact'] ?? '');
 $searched = $reference !== '';
@@ -329,5 +331,7 @@ include __DIR__ . '/includes/header.php';
     </div>
   <?php endif; ?>
 </div>
+
+<?php $thankYouIsGuest = true; include __DIR__ . "/includes/thank-you-modal.php"; ?>
 
 <?php include __DIR__ . '/includes/footer.php'; ?>

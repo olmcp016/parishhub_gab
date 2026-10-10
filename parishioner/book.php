@@ -633,9 +633,10 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
             $successMessage .= " Your reference code is $guestReference — save it to check your request's status anytime.";
         }
 
-        $detailUrl = $isGuest
-            ? url('status.php?ref=' . urlencode($guestReference))
-            : url('parishioner/appointment-detail.php?id=' . $appointmentId);
+        // Guests and logged-in parishioners alike land on Check Status, which
+        // shows the Thank You dialog with the reference code.
+        rememberBookingThankYou((string) $guestReference);
+        $statusUrl = bookingReturnUrl($isGuest);
 
         if ($isAjax) {
             header('Content-Type: application/json');
@@ -649,17 +650,17 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
                 'tracking_number' => $guestReference,
                 'guest_reference' => $guestReference,
                 'is_guest' => $isGuest,
-                'detail_url' => $detailUrl,
+                'redirect' => $statusUrl,
+                'thank_you' => true,
             ]);
             exit;
         }
 
-        flash('success', $successMessage);
         if (!empty($skippedFiles)) {
             $limit = ini_get('upload_max_filesize');
             flash('error', 'Note: the following file(s) were too large (max ' . $limit . ' each) and were NOT uploaded: ' . implode(', ', $skippedFiles) . '. You can upload them separately from your appointment page.');
         }
-        redirect($detailUrl);
+        redirect($statusUrl);
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         foreach ($createdStorageKeys as $storageKey) { try { documentStorageDelete($storageKey); } catch (Throwable $cleanupError) { error_log('Document cleanup failed.'); } }
