@@ -791,7 +791,7 @@ function applyRoleChange() {
   // Role changes need the admin's password (audit M-08). The server checks it.
   var pwInput = document.getElementById('roleAdminPw');
   if (!pendingRoleSelect) { document.getElementById('roleConfirmModal').close(); return; }
-  if (!pwInput.value) { pwInput.reportValidity(); return; }
+  if (!pwInput.value) { reportInlineError(pwInput, 'Please enter your admin password to confirm this role change.'); return; }
   var form = pendingRoleSelect.form;
   var hidden = document.createElement('input');
   hidden.type = 'hidden';

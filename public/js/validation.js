@@ -249,11 +249,18 @@ function isValidatedField(el) {
  * messages with setCustomValidity() for rules that depend on other fields.
  */
 function attachInlineValidation(form, options) {
-  options = options || {};
+  if (!form || form.hasAttribute('data-no-inline-validation')) return;
+  // Already wired (every form is wired automatically): just take the page's rules.
+  if (form.dataset.inlineValidation === 'on') {
+    if (options && options.beforeCheck) form.inlineBeforeCheck = options.beforeCheck;
+    return;
+  }
+  form.dataset.inlineValidation = 'on';
+  form.inlineBeforeCheck = options && options.beforeCheck ? options.beforeCheck : null;
   form.setAttribute('novalidate', '');
 
   function runBeforeCheck() {
-    if (options.beforeCheck) options.beforeCheck(form);
+    if (form.inlineBeforeCheck) form.inlineBeforeCheck(form);
     syncDateLimits(form);
   }
 
@@ -284,3 +291,41 @@ function attachInlineValidation(form, options) {
     first.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, true);
 }
+
+/**
+ * For errors a script finds itself (e.g. a rule checked only in JavaScript):
+ * shows the same inline message and focuses the field, instead of a native popup.
+ */
+function reportInlineError(input, message) {
+  showFieldError(input, message);
+  // Clear it as soon as the person changes the field (works even outside a <form>).
+  var clearOnFix = function () {
+    clearFieldError(input);
+    input.removeEventListener('input', clearOnFix);
+    input.removeEventListener('change', clearOnFix);
+  };
+  input.addEventListener('input', clearOnFix);
+  input.addEventListener('change', clearOnFix);
+  input.focus();
+  input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+/** Wires every form on the page, and any form added later (modals, fetched fragments). */
+function initInlineValidation(root) {
+  (root || document).querySelectorAll('form').forEach(function (form) {
+    attachInlineValidation(form);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  initInlineValidation();
+  new MutationObserver(function (mutations) {
+    mutations.forEach(function (mutation) {
+      mutation.addedNodes.forEach(function (node) {
+        if (node.nodeType !== 1) return;
+        if (node.matches && node.matches('form')) attachInlineValidation(node);
+        initInlineValidation(node);
+      });
+    });
+  }).observe(document.body, { childList: true, subtree: true });
+});

@@ -295,7 +295,6 @@ include __DIR__ . '/../includes/' . ($isGuest ? 'public-shell-start.php' : 'dash
   </div>
 </dialog>
 
-<script src="<?= url('public/js/validation.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/validation.js') ?>"></script>
 <script>
 function openDonateModal() {
   document.getElementById('donateFormView').style.display = 'block';

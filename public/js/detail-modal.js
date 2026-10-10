@@ -143,8 +143,8 @@
         var customReason = document.getElementById('customRejectionReason');
         var rejectModal = document.getElementById('rejectApptModal');
         if (!rejectSelect || !rejectModal) return;
-        if (!rejectSelect.value) { rejectSelect.setCustomValidity('Please select a reason for rejection.'); rejectSelect.reportValidity(); rejectSelect.setCustomValidity(''); return; }
-        if (rejectSelect.value === 'Other' && !customReason.value.trim()) { customReason.setCustomValidity('Please specify the reason for rejection.'); customReason.reportValidity(); customReason.setCustomValidity(''); return; }
+        if (!rejectSelect.value) { reportInlineError(rejectSelect, 'Please select a reason for rejection.'); return; }
+        if (rejectSelect.value === 'Other' && !customReason.value.trim()) { reportInlineError(customReason, 'Please specify the reason for rejection.'); return; }
         document.getElementById('rejectConfirmReason').textContent = rejectSelect.value === 'Other' ? customReason.value.trim() : rejectSelect.value;
         rejectModal.showModal();
         return;
@@ -163,17 +163,11 @@
         var customReasonField = document.getElementById('customRejectionReason');
         if (!confirmation || !appointmentRejectForm || !reasonSelect) return;
         if (!reasonSelect.value) {
-          reasonSelect.setCustomValidity('Please select a reason for rejecting the appointment.');
-          reasonSelect.reportValidity();
-          reasonSelect.setCustomValidity('');
+          reportInlineError(reasonSelect, 'Please select a reason for rejecting the appointment.');
           return;
         }
         if (reasonSelect.value === 'Other' && (!customReasonField || !customReasonField.value.trim())) {
-          if (customReasonField) {
-            customReasonField.setCustomValidity('Please explain why the entire appointment cannot proceed.');
-            customReasonField.reportValidity();
-            customReasonField.setCustomValidity('');
-          }
+          if (customReasonField) reportInlineError(customReasonField, 'Please explain why the entire appointment cannot proceed.');
           return;
         }
         if (confirmation.open) confirmation.close();
@@ -368,11 +362,7 @@
         var reason = reasonField ? reasonField.value.trim() : '';
         if (!reason) {
           e.preventDefault();
-          if (reasonField) {
-            reasonField.setCustomValidity('Please provide a reason for rejection.');
-            reasonField.reportValidity();
-            reasonField.setCustomValidity('');
-          }
+          if (reasonField) reportInlineError(reasonField, 'Please provide a reason for rejection.');
           return;
         }
         reasonField.value = reason;

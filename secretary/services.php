@@ -189,7 +189,6 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
 </dialog>
 
-<script src="<?= url('public/js/validation.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/validation.js') ?>"></script>
 <script>
 (function () {
   // Add service validation

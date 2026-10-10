@@ -382,7 +382,6 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
     </form>
 </div>
 <?php if (in_array($type, WEDDING_FORM_TYPES, true)): ?>
-<script src="<?= url('public/js/validation.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/public/js/validation.js') ?>"></script>
 <script>
 (function () {
   var form = document.getElementById('weddingGeneratedForm');

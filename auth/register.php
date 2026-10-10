@@ -314,7 +314,6 @@ include __DIR__ . '/../includes/header.php';
 .pw-rule.met { color: #2d8a4e; }
 .pw-rule.met::before { content: '✓'; }
 </style>
-<script src="<?= url('public/js/validation.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/validation.js') ?>"></script>
 <script>
 function parishToggle(id, btn) {
   const input = document.getElementById(id);

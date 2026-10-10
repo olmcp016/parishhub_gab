@@ -91,7 +91,6 @@ include __DIR__ . '/../includes/dash-start.php';
   </form>
 </div>
 
-<script src="<?= url('public/js/validation.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/validation.js') ?>"></script>
 <script>
 (function () {
   var form = document.getElementById('profileForm');

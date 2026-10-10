@@ -855,7 +855,6 @@ document.addEventListener('DOMContentLoaded', function () {
 <script
   src="<?= url('public/js/calendar.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/calendar.js') ?>"></script>
 <script src="<?= url('public/js/scheduling.js') ?>"></script>
-<script src="<?= url('public/js/validation.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/validation.js') ?>"></script>
 <script>
   var POLICIES = <?= json_encode($policies, JSON_UNESCAPED_UNICODE) ?>;
   var CALENDAR_BLOCKED = <?= json_encode($calendarBlocked, JSON_UNESCAPED_UNICODE) ?>;

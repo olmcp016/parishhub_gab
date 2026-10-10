@@ -282,7 +282,6 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
     </div>
   </form>
 </div>
-<script src="<?= url('public/js/validation.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/public/js/validation.js') ?>"></script>
 <script>
 (function () {
   var form = document.getElementById('funeralGeneratedForm');

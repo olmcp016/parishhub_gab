@@ -21,6 +21,8 @@ $__title = isset($pageTitle) ? $pageTitle . ' | ' . APP_NAME : APP_NAME;
   <?php else: ?>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⛪</text></svg>">
   <?php endif; ?>
+  <!-- Synchronous (not deferred): page scripts call attachInlineValidation() while parsing. -->
+  <script src="<?= url('public/js/validation.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/validation.js') ?>"></script>
 </head>
 <body>
 <?php $__flash = getFlash(); ?>

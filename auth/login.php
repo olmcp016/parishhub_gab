@@ -304,7 +304,6 @@ include __DIR__ . '/../includes/header.php';
   </div>
 </dialog>
 <?php endif; ?>
-<script src="<?= url('public/js/validation.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/validation.js') ?>"></script>
 <script>
 function parishToggle(id, btn) {
   const input = document.getElementById(id);
