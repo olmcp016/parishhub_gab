@@ -664,7 +664,15 @@ function schedulingPolicyText(string $category, ?int $serviceId = null): string
         case 'Funeral':
             return 'Funeral Masses are held after the 9-day mourning period from the date of death, fixed at 1:00 PM.';
         case 'Mass Intention':
-            return 'Mass Intentions are offered on Sundays at the 1st Mass (6:30 AM), 2nd Mass (9:00 AM), or 3rd Mass (4:30 PM), on Wednesdays at the 5:15 PM Evening Mass, and all other days at the 6:00 AM Daily Mass — the available times appear after you pick your date. There is no fixed fee, but an offering greater than ₱0 must be paid to submit your intention. Once our Cashier confirms your payment, it is approved.';
+            return '<strong>Mass Intention times:</strong>'
+                . '<ul>'
+                . '<li><strong>Sundays:</strong> 1st Mass (6:30 AM), 2nd Mass (9:00 AM), or 3rd Mass (4:30 PM)</li>'
+                . '<li><strong>Wednesdays:</strong> 5:15 PM Afternoon Mass</li>'
+                . '<li><strong>All other days:</strong> 6:00 AM Daily Mass</li>'
+                . '</ul>'
+                . 'The available times appear after you pick your date.<br><br>'
+                . '<strong>Payment:</strong> There is no fixed fee, but an offering greater than ₱0 must be paid to submit your intention.<br>'
+                . 'Once our Cashier confirms your payment, it is approved.';
         case 'Anointing':
             return 'Propose a preferred date and time for the Anointing. This sacrament is free of charge — no payment is required.';
         case 'First Communion':

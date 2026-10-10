@@ -674,7 +674,7 @@ function toggleServiceUI() {
   var policyBox = document.getElementById('policyBox');
   if (POLICIES[category]) {
     policyBox.style.display = 'block';
-    policyBox.textContent = 'ℹ ' + POLICIES[category];
+    policyBox.innerHTML = 'ℹ ' + POLICIES[category];
   } else {
     policyBox.style.display = 'none';
   }
