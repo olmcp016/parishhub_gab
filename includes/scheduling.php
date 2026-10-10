@@ -663,7 +663,7 @@ function schedulingPolicyText(string $category, ?int $serviceId = null): string
         case 'Blessing':
             return 'Propose a custom date and time for the blessing. Availability is checked automatically, and a priest who is saying a Mass at that time is shown as unavailable.';
         case 'Funeral':
-            return 'Funeral Masses are held after the 9-day mourning period from the date of death, fixed at 1:00 PM.';
+            return '';
         case 'Mass Intention':
             return '<strong>Mass Intention times:</strong>'
                 . '<ul>'

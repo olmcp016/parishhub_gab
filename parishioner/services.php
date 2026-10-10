@@ -176,6 +176,16 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
         <?= csrfField() ?>
         <input type="hidden" name="ajax" value="1">
         <input type="hidden" name="draft_mode" id="draftModeInput" value="0">
+        <style>
+          /* JS sets #dateTimeRow to display:flex (overriding .form-row's grid),
+             so split the two halves evenly with flex-basis 0 */
+          #dateTimeRow { display: flex; gap: 16px; align-items: flex-start; }
+          #dateTimeRow > .form-group { flex: 1 1 0; min-width: 0; margin-bottom: 0; }
+          #dateTimeRow input[type="date"],
+          #dateTimeRow input[type="time"],
+          #dateTimeRow select,
+          #priestSelect { width: 100%; box-sizing: border-box; }
+        </style>
 
         <?php if ($identity['is_guest']): ?>
         <style>
