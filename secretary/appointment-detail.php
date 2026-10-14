@@ -186,6 +186,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Lock the appointment while evaluating the same prerequisites shown
         // in the modal. This makes two near-simultaneous approval requests
         // converge on one canonical status transition.
+        $noPaymentNeeded = false;
         $pdo = db();
         $pdo->beginTransaction();
         try {
@@ -211,12 +212,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 );
             }
 
-            $update = $pdo->prepare(
-                'UPDATE appointments
-                 SET status_id = 2, approved_by = ?, approved_at = NOW()
-                 WHERE appointment_id = ? AND status_id = 1'
+            // A verified PSS Giver Funeral Mass costs nothing, so there is no
+            // payment step: approve it straight to Confirmed. (Left at Approved,
+            // it would wait for a ₱0.00 payment and be auto-cancelled as unpaid.)
+            $feeSnapshot = json_decode((string) ($lockedAppointment['fee_snapshot'] ?? ''), true);
+            $noPaymentNeeded = $lockedAppointment['category'] === 'Funeral'
+                && in_array($lockedAppointment['pss_classification'], ['pss', 'non_pss'], true)
+                && is_array($feeSnapshot) && isset($feeSnapshot['total']) && (float) $feeSnapshot['total'] <= 0;
+            $update = $pdo->prepare($noPaymentNeeded
+                ? 'UPDATE appointments
+                   SET status_id = 5, approved_by = ?, approved_at = NOW(), confirmed_by = ?, confirmed_at = NOW()
+                   WHERE appointment_id = ? AND status_id = 1'
+                : 'UPDATE appointments
+                   SET status_id = 2, approved_by = ?, approved_at = NOW()
+                   WHERE appointment_id = ? AND status_id = 1'
             );
-            $update->execute([$userId, $id]);
+            $update->execute($noPaymentNeeded ? [$userId, $userId, $id] : [$userId, $id]);
             if ($update->rowCount() !== 1) {
                 throw new RuntimeException('This appointment is no longer pending approval.');
             }
@@ -230,6 +241,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             respondAjaxOrRedirect($isAjax, false, 'The appointment could not be approved. Please try again.', $redirectUrl);
         }
 
+        if ($noPaymentNeeded) {
+            logActivity($userId, "Approved and confirmed appointment #$id (PSS Giver Funeral Mass, no fees)", 'Appointments');
+            respondAjaxOrRedirect($isAjax, true, 'Appointment approved and confirmed. No payment is required (PSS Giver — No Fees).', $redirectUrl);
+        }
         logActivity($userId, "Approved appointment #$id", 'Appointments');
         respondAjaxOrRedirect($isAjax, true, 'Appointment approved. The parishioner may now proceed to payment.', $redirectUrl);
     } elseif ($action === 'reject') {
@@ -456,9 +471,14 @@ if (!$isAjax) {
       <p><strong>Parishioner:</strong> <?= e($appointment['firstname']) ?> <?= e($appointment['lastname']) ?> (<?= e($appointment['email']) ?>, <?= e($appointment['phone']) ?>)</p>
     <?php endif; ?>
     <p><strong>Date:</strong> <?= formatDate($appointment['appointment_date']) ?><?= $appointment['appointment_time'] ? ' at ' . date('g:i A', strtotime($appointment['appointment_time'])) : ' (To be scheduled)' ?></p>
+    <?php
+      // Funeral Mass shows "No Fees" for zero amounts (PSS Giver), not "Voluntary Offering".
+      $isFuneral = $appointment['category'] === 'Funeral';
+      $feeText = fn(float $amount): string => ($isFuneral && $amount <= 0) ? 'No Fees' : feeLabel($amount);
+    ?>
     <p><strong>Fee:</strong>
       <?php if ($appointment['pss_classification'] === 'pending_verification'): ?>Fee pending PSS verification
-      <?php elseif (!empty($appointment['fee_snapshot'])): ?><?= feeLabel((float) (json_decode($appointment['fee_snapshot'], true)['total'] ?? 0)) ?>
+      <?php elseif (!empty($appointment['fee_snapshot'])): ?><?= $feeText((float) (json_decode($appointment['fee_snapshot'], true)['total'] ?? 0)) ?>
       <?php else: ?><?= feeLabel((float) $appointment['fee']) ?><?php endif; ?>
     </p>
     <?php if (in_array($appointment['category'], ['Baptism', 'Wedding', 'Funeral'], true)): ?>
@@ -468,10 +488,10 @@ if (!$isAjax) {
       <?php if (!empty($appointment['fee_snapshot'])): $feeSnapshot = json_decode($appointment['fee_snapshot'], true) ?: []; ?>
         <div class="alert" style="background:var(--cream); border:1px solid var(--cream-dark);">
           <strong>Fee Calculation</strong><br>
-          Base Fee: <?= feeLabel((float) ($feeSnapshot['base_fee'] ?? 0)) ?><br>
-          Priest Stipend: <?= feeLabel((float) ($feeSnapshot['priest_stipend'] ?? 0)) ?><br>
-          Additional Sponsor Fee: <?= feeLabel((float) ($feeSnapshot['additional_sponsor_fee'] ?? 0)) ?><br>
-          <strong>Total: <?= feeLabel((float) ($feeSnapshot['total'] ?? 0)) ?></strong>
+          <?= $isFuneral ? 'Funeral Mass Service Fee' : 'Base Fee' ?>: <?= $feeText((float) ($feeSnapshot['base_fee'] ?? 0)) ?><br>
+          Priest Stipend: <?= $feeText((float) ($feeSnapshot['priest_stipend'] ?? 0)) ?><br>
+          <?php if (!$isFuneral): ?>Additional Sponsor Fee: <?= feeLabel((float) ($feeSnapshot['additional_sponsor_fee'] ?? 0)) ?><br><?php endif; ?>
+          <strong>Total<?= $isFuneral ? ' Payment' : '' ?>: <?= $feeText((float) ($feeSnapshot['total'] ?? 0)) ?></strong>
         </div>
       <?php endif; ?>
       <?php if ($appointment['pss_classification'] === 'pending_verification' && in_array((int) $appointment['status_id'], [1, 2], true)): ?>

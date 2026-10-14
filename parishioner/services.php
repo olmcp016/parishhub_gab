@@ -139,9 +139,10 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
           style="font-size: 13px; color: var(--success, #2d7a46); font-weight: 600; margin-bottom: 12px; margin-top: -6px;">
           Free — No payment required</p>
       <?php endif; ?>
-      <?php if (in_array($s['category'], ['Baptism', 'Wedding'], true) && !empty($feeRulesByCategory[$s['category']])): ?>
-        <p class="text-muted" style="font-size:13px; margin-bottom:4px;">Regular and Special fees available by PSS
-          classification.</p>
+      <?php if (in_array($s['category'], ['Baptism', 'Wedding', 'Funeral'], true) && !empty($feeRulesByCategory[$s['category']])): ?>
+        <p class="text-muted" style="font-size:13px; margin-bottom:4px;"><?php if ($s['category'] === 'Funeral'): ?>PSS
+          Giver and Non-PSS Giver fees available.<?php else: ?>Regular and Special fees available by PSS
+          classification.<?php endif; ?></p>
         <button type="button" class="btn btn-secondary btn-sm" style="align-self:flex-start; margin-bottom:12px;"
           onclick="document.getElementById('fees-<?= strtolower($s['category']) ?>').showModal()">View Fees</button>
       <?php endif; ?>
@@ -154,7 +155,8 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
       <div style="margin-top:auto; padding-top:16px;">
         <div style="margin-bottom:12px;">
           <span class="text-gold" style="font-weight:700; font-size:14px; display:block;">
-            <?= in_array($s['category'], $variableFeeCategories, true) ? 'Fee varies by schedule and PSS status' : feeLabel((float) $s['fee']) ?>
+            <?php if ($s['category'] === 'Funeral' && !empty($feeRulesByCategory['Funeral'])): ?>Fee varies by PSS status
+            <?php else: ?><?= in_array($s['category'], $variableFeeCategories, true) ? 'Fee varies by schedule and PSS status' : feeLabel((float) $s['fee']) ?><?php endif; ?>
           </span>
         </div>
         <button type="button" class="btn btn-primary btn-block" style="width:100%;"
@@ -220,6 +222,52 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
       </dialog><?php endif; ?>
   <?php endif; ?>
 <?php endforeach; ?>
+
+<?php
+// Funeral Mass: one fee table (no Regular/Special schedules), same modal design as Wedding/Baptism.
+$funeralFeeRules = [];
+foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_classification']] = $r;
+$noFeesLabel = fn(float $amount): string => $amount > 0 ? money($amount) : 'No Fees';
+?>
+<?php if (isset($funeralFeeRules['pss'], $funeralFeeRules['non_pss'])): ?>
+  <dialog class="modal" id="fees-funeral">
+    <div class="modal-head">
+      <h3>Funeral Mass Service Fees</h3><button type="button" class="modal-close"
+        onclick="this.closest('dialog').close()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th></th>
+              <th>PSS Giver</th>
+              <th>Non-PSS Giver</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php $pssRule = $funeralFeeRules['pss']; $nonRule = $funeralFeeRules['non_pss']; ?>
+            <tr>
+              <td>Funeral Mass Service Fee</td>
+              <td><?= $noFeesLabel((float) $pssRule['base_fee']) ?></td>
+              <td><?= $noFeesLabel((float) $nonRule['base_fee']) ?></td>
+            </tr>
+            <tr>
+              <td>Priest Stipend</td>
+              <td><?= $noFeesLabel((float) $pssRule['priest_stipend']) ?></td>
+              <td><?= $noFeesLabel((float) $nonRule['priest_stipend']) ?></td>
+            </tr>
+            <tr>
+              <td><strong>Total Payment</strong></td>
+              <td><strong><?= $noFeesLabel((float) $pssRule['base_fee'] + (float) $pssRule['priest_stipend']) ?></strong></td>
+              <td><strong><?= $noFeesLabel((float) $nonRule['base_fee'] + (float) $nonRule['priest_stipend']) ?></strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </dialog>
+<?php endif; ?>
 
 <!-- ===================== Booking Modal ===================== -->
 <dialog class="modal modal-lg" id="bookModal">
@@ -427,6 +475,9 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
             <option value="pss">PSS Giver (subject to verification)</option>
             <option value="non_pss">Non-PSS Giver</option>
           </select>
+          <?php if (isset($funeralFeeRules['pss'], $funeralFeeRules['non_pss'])): ?>
+            <div id="funeralFeeBreakdown" style="display:none; margin-top:10px;"></div>
+          <?php endif; ?>
           <p class="helper-text">The parish Secretary verifies this classification before the final fee is charged.</p>
         </div>
         <div id="sponsorCountGroup" class="form-group"
@@ -1035,6 +1086,31 @@ document.addEventListener('DOMContentLoaded', function () {
     return document.getElementById('scheduleTypeSpecial').checked ? 'Special' : 'Regular';
   }
 
+  /**
+   * Funeral Mass: show the fee breakdown for the selected PSS claim, from the
+   * same service_fee_rules the server uses (final fee is set after the
+   * Secretary verifies the classification).
+   */
+  var FUNERAL_FEES = <?= json_encode(array_map(fn($r) => ['base' => (float) $r['base_fee'], 'stipend' => (float) $r['priest_stipend']], $funeralFeeRules)) ?>;
+  function updateFuneralFeeBreakdown() {
+    var box = document.getElementById('funeralFeeBreakdown');
+    if (!box) return;
+    var opt = document.getElementById('serviceSelect').selectedOptions[0];
+    var claim = document.getElementById('pssClaimInput').value;
+    var rule = FUNERAL_FEES[claim];
+    if (!opt || opt.dataset.category !== 'Funeral' || !rule) { box.style.display = 'none'; return; }
+    function label(n) { return n > 0 ? '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'No Fees'; }
+    box.innerHTML = '';
+    [['Funeral Mass Service Fee', rule.base], ['Priest Stipend', rule.stipend], ['Total Payment', rule.base + rule.stipend]].forEach(function (row, i) {
+      var line = document.createElement('div');
+      line.style.cssText = 'display:flex; justify-content:space-between; font-size:13.5px;' + (i === 2 ? ' font-weight:700; border-top:1px solid var(--cream-dark); margin-top:4px; padding-top:4px;' : '');
+      var name = document.createElement('span'); name.textContent = row[0];
+      var value = document.createElement('span'); value.textContent = label(row[1]);
+      line.appendChild(name); line.appendChild(value); box.appendChild(line);
+    });
+    box.style.display = 'block';
+  }
+
   function toggleServiceUI() {
     var select = document.getElementById('serviceSelect');
     var selectedOption = select.options[select.selectedIndex];
@@ -1047,6 +1123,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var needsClassification = ['Baptism', 'Wedding', 'Funeral'].indexOf(category) !== -1;
     document.getElementById('feeClassificationGroup').style.display = needsClassification ? 'block' : 'none';
     document.getElementById('pssClaimInput').required = needsClassification;
+    updateFuneralFeeBreakdown();
     document.getElementById('sponsorCountGroup').style.display = category === 'Baptism' ? 'block' : 'none';
     document.getElementById('weddingSponsorCountGroup').style.display = category === 'Wedding' ? 'block' : 'none';
     document.getElementById('sponsorCountInput').required = category === 'Baptism';
@@ -1782,6 +1859,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('serviceSelect').addEventListener('change', toggleServiceUI);
+    document.getElementById('pssClaimInput').addEventListener('change', updateFuneralFeeBreakdown);
     document.getElementById('scheduleTypeRegular').addEventListener('change', toggleServiceUI);
     document.getElementById('scheduleTypeSpecial').addEventListener('change', toggleServiceUI);
     document.getElementById('priestSelect').addEventListener('change', refreshAvailability);

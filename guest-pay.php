@@ -81,6 +81,12 @@ if ($variableCategory && $appointment['pss_classification'] !== null) {
     $amount = (float) $appointment['fee'];
 }
 
+// PSS Giver Funeral Mass: No Fees, so no payment transaction is ever started.
+if ($appointment['category'] === 'Funeral' && $amount <= 0) {
+    flash('success', 'No payment is required for this Funeral Mass (PSS Giver — No Fees).');
+    redirect($statusUrl);
+}
+
 // A payment already in progress or completed blocks a second one. A failed
 // or cancelled payment — or an online checkout that was started but never
 // finished — does not: the guest can simply try again.

@@ -341,7 +341,7 @@ if (!$isAjax) {
     <?php endif; ?>
     <p><strong>Fee:</strong>
       <?php if ($appointment['pss_classification'] === 'pending_verification'): ?>Fee pending PSS verification
-      <?php elseif ($hasAuthoritativeFee): ?><?= money($authoritativeFee) ?>
+      <?php elseif ($hasAuthoritativeFee): ?><?= ($appointment['category'] === 'Funeral' && $authoritativeFee <= 0) ? 'No Fees' : money($authoritativeFee) ?>
       <?php else: ?><?= feeLabel((float) $appointment['fee']) ?><?php endif; ?>
     </p>
     <?php if ($appointment['category'] === 'Funeral' && $appointment['date_of_death']): ?>
