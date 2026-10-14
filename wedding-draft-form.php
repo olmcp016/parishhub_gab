@@ -99,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if ($type === 'cluster_clearance') $data['wedding_date'] = (string) ($draft['appointment_date'] ?? '');
     $validationErrors = weddingFormValidationErrors($type, $data, $action === 'generate');
-    if ($validationErrors) $error = implode(' ', $validationErrors);
+    if ($validationErrors) $error = ($action === 'generate' ? 'Please complete all required fields before continuing. ' : '') . implode(' ', $validationErrors);
     if (!$error) {
         $stored = null;
         $pdo->beginTransaction();
@@ -147,6 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 redirect(url('wedding-draft-form.php?draft_id=' . $draftId . '&form_type=' . urlencode($type) . '&generated_document_id=' . $newDocumentId));
             }
+            flash('success', 'Draft saved successfully. You can continue completing your application later.');
             redirect(url('wedding-draft.php?draft_id=' . $draftId));
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
@@ -213,7 +214,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
             </div>
         </div>
     <?php endif; ?>
-    <form method="POST" id="weddingGeneratedForm">
+    <form method="POST" id="weddingGeneratedForm" data-general-error="Please complete all required fields before continuing.">
         <?= csrfField() ?>
         <?php if ($type === 'matrimony_application'): ?>
             <div class="form-group">
@@ -376,7 +377,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
         <?php endif; ?>
         <?php generatedFormWorkflowActionHelper(); ?>
         <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
-          <button class="btn btn-outline" style="width: 100%;" name="action" value="save" <?= in_array($type, ['matrimony_application', 'cluster_clearance', 'wedding_sponsor_clearance']) ? 'formnovalidate' : '' ?>>Save Draft</button>
+          <button class="btn btn-outline" style="width: 100%;" name="action" value="save" formnovalidate data-skip-validation>Save Draft</button>
           <button class="btn btn-primary" style="width: 100%;" name="action" value="generate">Generate PDF</button>
         </div>
     </form>
@@ -416,7 +417,9 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
   syncMarriageFields();
 
   // Inline errors under each field. Birth-date rules (past, 18+ on the wedding
-  // date) and phone formats are declared on the inputs themselves.
+  // date) and phone formats are declared on the inputs themselves. Save Draft
+  // (data-skip-validation) is never checked; Generate PDF shows the form's
+  // data-general-error message too while anything is missing or invalid.
   attachInlineValidation(form);
 
   form.addEventListener('submit', function (event) {

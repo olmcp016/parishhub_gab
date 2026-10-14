@@ -35,7 +35,7 @@ if ($isDraft) {
         $isAjaxGenerate = $action === 'generate' && !empty($_POST['ajax_generate']);
         $errors = funeralKatinAwanValidationErrors($data, $action === 'generate');
         if ($errors) {
-            $error = implode(' ', $errors);
+            $error = ($action === 'generate' ? 'Please complete all required fields before continuing. ' : '') . implode(' ', $errors);
         } elseif ($action === 'save') {
             $oldPayload = funeralKatinAwanNormalizeData($draft['katin_awan_payload'] ?? []);
             $oldDocument = $draft['generated_document'] ?? null;
@@ -110,11 +110,12 @@ if ($isDraft) {
         $data = funeralKatinAwanNormalizeData($_POST);
         $action = ($_POST['action'] ?? '') === 'save' ? 'save' : 'generate';
         $isAjaxGenerate = $action === 'generate' && !empty($_POST['ajax_generate']);
-        $errors = ($form && ($form['review_status'] ?? '') === 'approved')
+        $isApprovedForm = $form && ($form['review_status'] ?? '') === 'approved';
+        $errors = $isApprovedForm
             ? ['Approved forms require Secretary review before they can be changed.']
             : funeralKatinAwanValidationErrors($data, $action === 'generate');
         if ($errors) {
-            $error = implode(' ', $errors);
+            $error = ($action === 'generate' && !$isApprovedForm ? 'Please complete all required fields before continuing. ' : '') . implode(' ', $errors);
         } elseif ($action === 'save') {
             try {
                 $pdo->beginTransaction();
@@ -208,7 +209,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
   <?php if (!empty($previewDocumentId)): ?><div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">The form was generated. If the PDF did not open automatically, <a href="<?= url('document.php?id=' . $previewDocumentId) ?>" target="_blank" rel="noopener"><strong>View Generated Form</strong></a>.</div><?php endif; ?>
   <?php if (!empty($form) && $form['status'] === 'rejected' && $form['rejection_reason']): ?><div class="alert" style="background:var(--danger-bg); color:var(--danger);"><strong>Secretary requested revisions:</strong> <?= e($form['rejection_reason']) ?></div><?php endif; ?>
 
-  <form method="POST" id="funeralGeneratedForm">
+  <form method="POST" id="funeralGeneratedForm" data-general-error="Please complete all required fields before continuing.">
     <?= csrfField() ?>
     <?php if ($isDraft): ?><input type="hidden" name="draft_id" value="<?= (int) $draftId ?>"><?php else: ?><input type="hidden" name="appointment_id" value="<?= $appointmentId ?>"><?php endif; ?>
     <div class="form-section">
@@ -274,7 +275,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
 
     <?php generatedFormWorkflowActionHelper(); ?>
     <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
-      <button type="submit" name="action" value="save" formnovalidate class="btn btn-outline" style="width: 100%;">Save Draft</button>
+      <button type="submit" name="action" value="save" formnovalidate data-skip-validation class="btn btn-outline" style="width: 100%;">Save Draft</button>
       <button type="submit" name="action" value="generate" class="btn btn-primary" style="width: 100%;">Generate PDF</button>
       <?php if ($form && $form['document_id']): ?>
         <a href="<?= documentViewUrl((int) $form['document_id']) ?>" target="_blank" rel="noopener" class="btn btn-outline" style="width: 100%;">Preview Current Form</a>

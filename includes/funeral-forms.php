@@ -141,10 +141,12 @@ function funeralKatinAwanValidationErrors(array $data, bool $requireComplete = t
         $errors[] = 'Select a valid marriage date.';
     }
     if ($data['diin_kasal'] !== '' && validateAddress($data['diin_kasal']) === false) $errors[] = 'Diin contains invalid characters.';
+    $lengthErrors = [];
     foreach (['ngalan_sa_ilubong'=>150,'edad'=>3,'pinuy_anan'=>255,'relihiyon'=>80,'sakop_sa_kapilya'=>150,'ngalan_sa_cluster'=>150,'unsay_namatyan'=>255,'responde'=>150,'ginikanan_anak'=>150,'ginikanan_anak_cell'=>11,'asawa_bana'=>150,'asawa_bana_cell'=>11,'diin_kasal'=>150] as $key => $limit) {
-        if (mb_strlen((string) ($data[$key] ?? '')) > $limit) $errors[] = ucwords(str_replace('_', ' ', $key)) . " must not exceed {$limit} characters.";
+        if (mb_strlen((string) ($data[$key] ?? '')) > $limit) $lengthErrors[] = ucwords(str_replace('_', ' ', $key)) . " must not exceed {$limit} characters.";
     }
-    return array_values(array_unique($errors));
+    // Save Draft keeps partial work as typed: only the length limits apply.
+    return array_values(array_unique($requireComplete ? array_merge($errors, $lengthErrors) : $lengthErrors));
 }
 
 function funeralPdfText(string $value): string

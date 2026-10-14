@@ -85,10 +85,12 @@ function baptismFormValidationErrors(string $type, array $data, bool $requireCom
     $limits = $type === 'katin_awan_bunyag'
         ? ['child_name'=>150,'birth_place'=>150,'father_name'=>150,'father_religion'=>50,'mother_name'=>150,'mother_religion'=>50,'marriage_place'=>150,'sponsor_1'=>150,'sponsor_2'=>150,'chapel'=>150,'cluster_name'=>150,'barangay'=>150]
         : ['sponsor_name'=>150,'address'=>255,'child_name'=>150,'father_name'=>150,'mother_maiden_name'=>150,'cluster_name'=>150];
+    $lengthErrors = [];
     foreach ($limits as $key => $limit) {
-        if (mb_strlen((string) ($data[$key] ?? '')) > $limit) $errors[] = $definition['fields'][$key] . " must not exceed {$limit} characters.";
+        if (mb_strlen((string) ($data[$key] ?? '')) > $limit) $lengthErrors[] = $definition['fields'][$key] . " must not exceed {$limit} characters.";
     }
-    return array_values(array_unique($errors));
+    // Save Draft keeps partial work as typed: only the length limits apply.
+    return array_values(array_unique($requireComplete ? array_merge($errors, $lengthErrors) : $lengthErrors));
 }
 
 function baptismPdfDate(string $date): string

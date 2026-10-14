@@ -232,6 +232,27 @@ function validateInlineForm(form, options) {
   return first;
 }
 
+/**
+ * Forms with data-general-error="…" also show that message above the form
+ * while a full (non-draft) submit is blocked; it hides once no field is invalid.
+ */
+function setGeneralFormError(form, show) {
+  var message = form.getAttribute('data-general-error');
+  if (!message) return;
+  var box = form.previousElementSibling;
+  if (!box || !box.hasAttribute('data-general-error-box')) {
+    if (!show) return;
+    box = document.createElement('div');
+    box.className = 'alert';
+    box.setAttribute('role', 'alert');
+    box.setAttribute('data-general-error-box', '');
+    box.style.cssText = 'background:var(--danger-bg); color:var(--danger); border:1px solid #f5c2c2;';
+    box.textContent = message;
+    form.parentNode.insertBefore(box, form);
+  }
+  box.style.display = show ? '' : 'none';
+}
+
 function isValidatedField(el) {
   return el.matches && el.matches('input, select, textarea') && ['hidden', 'submit', 'button', 'reset', 'image'].indexOf(el.type) === -1;
 }
@@ -243,7 +264,9 @@ function isValidatedField(el) {
  *  - on submit, validates everything and blocks the submit if anything is wrong
  *
  * Save-draft buttons marked formnovalidate only check format and age rules, not
- * whether every required field is filled in yet.
+ * whether every required field is filled in yet. Buttons marked
+ * data-skip-validation (with formnovalidate) skip every check. A form's
+ * data-general-error message is shown above it while a full submit is blocked.
  *
  * options.beforeCheck(form) runs before each check; use it to set custom
  * messages with setCustomValidity() for rules that depend on other fields.
@@ -266,10 +289,15 @@ function attachInlineValidation(form, options) {
 
   runBeforeCheck();
 
+  function hideGeneralErrorWhenFixed() {
+    if (!form.querySelector('.field-invalid')) setGeneralFormError(form, false);
+  }
+
   form.addEventListener('change', function (event) {
     if (!isValidatedField(event.target)) return;
     runBeforeCheck();
     checkInlineField(event.target, {});
+    hideGeneralErrorWhenFixed();
   });
 
   form.addEventListener('input', function (event) {
@@ -277,14 +305,23 @@ function attachInlineValidation(form, options) {
     if (!event.target.classList.contains('field-invalid') && event.target.type !== 'radio') return;
     runBeforeCheck();
     checkInlineField(event.target, {});
+    hideGeneralErrorWhenFixed();
   });
 
   // Capture phase on the form runs before the page's own submit handler, so an invalid submit never reaches it.
   form.addEventListener('submit', function (event) {
+    // A data-skip-validation button (e.g. a form's Save Draft) saves partial
+    // work as typed: no checks at all, and no leftover error highlights.
+    if (event.submitter && event.submitter.hasAttribute('data-skip-validation')) {
+      Array.prototype.forEach.call(form.elements, function (el) { if (el.classList && el.classList.contains('field-invalid')) clearFieldError(el); });
+      setGeneralFormError(form, false);
+      return;
+    }
     var requireFilled = !(event.submitter && event.submitter.hasAttribute('formnovalidate'));
     runBeforeCheck();
     var first = validateInlineForm(form, { requireFilled: requireFilled });
-    if (!first) return;
+    if (!first) { setGeneralFormError(form, false); return; }
+    if (requireFilled) setGeneralFormError(form, true);
     event.preventDefault();
     event.stopImmediatePropagation();
     first.focus();

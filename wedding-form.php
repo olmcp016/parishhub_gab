@@ -90,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($type === 'cluster_clearance') $data['wedding_date'] = (string) ($appointment['appointment_date'] ?? '');
     if ($type === 'wedding_sponsor_clearance' && !isset($data['service_requested'])) $data['service_requested'] = 'Kasal';
     $validationErrors = weddingFormValidationErrors($type, $data, $action === 'generate');
-    if ($validationErrors) $error = implode(' ', $validationErrors);
+    if ($validationErrors) $error = ($action === 'generate' ? 'Please complete all required fields before continuing. ' : '') . implode(' ', $validationErrors);
     if (!$error) {
         $pdo = db();
         $newPath = null;
@@ -143,7 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo json_encode(['success' => true, 'doc_id' => $newDocumentId, 'redirect' => $redirectAfterGenerate]);
                 exit;
             }
-            flash('success', $action === 'generate' ? 'Form generated and submitted for review.' : 'Draft saved.');
+            flash('success', $action === 'generate' ? 'Form generated and submitted for review.' : 'Draft saved successfully. You can continue completing your application later.');
             if ($action === 'generate') {
                 redirect($isGuest
                     ? url('status.php?ref=' . urlencode((string) ($appointment['guest_reference'] ?? '')))
@@ -202,7 +202,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
       <div class="flex gap-2" style="margin-top:8px; flex-wrap:wrap;"><button class="btn btn-outline btn-sm" type="button" data-copy-booking-contact="groom">Use for Groom</button><button class="btn btn-outline btn-sm" type="button" data-copy-booking-contact="bride">Use for Bride</button></div>
     </div>
   <?php endif; ?>
-  <form method="POST" id="weddingGeneratedForm">
+  <form method="POST" id="weddingGeneratedForm" data-general-error="Please complete all required fields before continuing.">
     <?= csrfField() ?>
     <input type="hidden" name="appointment_id" value="<?= $appointmentId ?>">
     <input type="hidden" name="form_type" value="<?= e($type) ?>">
@@ -249,7 +249,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
     <?php if ($type === 'wedding_sponsor_clearance'): ?><p class="text-muted">Serbisyo nga gipangayo: Kasal (ang ubang opisyal nga kapilian makita sa nahimong form). <span class="generated-form-guide-translation">(Service requested: Kasal; the other official choices remain printed on the generated form.)</span></p><?php endif; ?>
     <?php generatedFormWorkflowActionHelper(); ?>
     <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
-      <button class="btn btn-outline" style="width: 100%;" name="action" value="save" formnovalidate>Save Draft</button>
+      <button class="btn btn-outline" style="width: 100%;" name="action" value="save" formnovalidate data-skip-validation>Save Draft</button>
       <button class="btn btn-primary" style="width: 100%;" name="action" value="generate">Generate PDF</button>
     </div>
   </form>

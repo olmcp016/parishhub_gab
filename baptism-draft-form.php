@@ -89,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $data = baptismNormalizeData($data);
     $validationErrors = baptismFormValidationErrors($type, $data, $action === 'generate');
-    if ($validationErrors) $error = implode(' ', $validationErrors);
+    if ($validationErrors) $error = ($action === 'generate' ? 'Please complete all required fields before continuing. ' : '') . implode(' ', $validationErrors);
 
     if (!$error) {
         $stored = null;
@@ -215,7 +215,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
   <?php if ($error): ?><div class="alert"><?= e($error) ?></div><?php endif; ?>
   <?php if ($previewDocumentId): ?><div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">The form was generated. If the PDF did not open automatically, <a href="<?= url('document.php?id=' . $previewDocumentId) ?>" target="_blank" rel="noopener"><strong>View Generated Form</strong></a>.</div><?php endif; ?>
   <?php if ($form && (($form['status'] ?? '') === 'rejected' || ($form['review_status'] ?? '') === 'rejected')): ?><div class="alert" style="background:var(--danger-bg); color:var(--danger);"><strong>Secretary requested revisions.</strong><?= !empty($form['rejection_reason']) ? ' ' . e($form['rejection_reason']) : ' Please review the form and generate a corrected PDF.' ?></div><?php endif; ?>
-  <form method="POST" id="baptismGeneratedForm">
+  <form method="POST" id="baptismGeneratedForm" data-general-error="Please complete all required fields before continuing.">
     <?= csrfField() ?>
     <?php if ($isAppointmentForm): ?>
       <input type="hidden" name="appointment_id" value="<?= $appointmentId ?>">
@@ -324,7 +324,7 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
     <?php endif; ?>
     <?php generatedFormWorkflowActionHelper(); ?>
     <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
-      <button class="btn btn-outline" style="width: 100%;" name="action" value="save" formnovalidate>Save Draft</button>
+      <button class="btn btn-outline" style="width: 100%;" name="action" value="save" formnovalidate data-skip-validation>Save Draft</button>
       <button class="btn btn-primary" style="width: 100%;" name="action" value="generate">Generate PDF</button>
     </div>
   </form>

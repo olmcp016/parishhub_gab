@@ -216,6 +216,9 @@ function weddingMarriageValidationErrors(array $data, bool $requireComplete = tr
             $errors[] = $fieldLabels[$key] . " must not exceed {$limit} characters.";
         }
     }
+    // Save Draft keeps partial work as typed: only the length limits apply.
+    // Formats, dates and the 18+ rule are checked when generating the PDF.
+    if (!$requireComplete) return array_values(array_unique($errors));
 
     foreach (['date_applied', 'groom_birth_date', 'bride_birth_date', 'wedding_date'] as $key) {
         $value = (string) ($data[$key] ?? '');
@@ -327,11 +330,13 @@ function weddingFormValidationErrors(string $type, array $data, bool $requireCom
     $limits = $type === 'cluster_clearance'
         ? ['kaslonon_name'=>150,'kaslonon_status'=>50,'kaslonon_religion'=>50,'father_name'=>150,'father_religion'=>50,'mother_name'=>150,'mother_religion'=>50,'sponsor_1'=>150,'sponsor_2'=>150,'marriage_place'=>150,'address'=>255,'chapel'=>150,'cluster_name'=>150,'spouse_name'=>150,'spouse_status'=>50,'spouse_religion'=>50,'spouse_address'=>255]
         : ['recipient_name'=>150,'address'=>255,'groom_name'=>150,'bride_name'=>150,'cluster_name'=>150];
+    $lengthErrors = [];
     foreach ($limits as $key => $limit) {
-        if (mb_strlen((string) ($data[$key] ?? '')) > $limit) $errors[] = $definition['fields'][$key] . " must not exceed {$limit} characters.";
+        if (mb_strlen((string) ($data[$key] ?? '')) > $limit) $lengthErrors[] = $definition['fields'][$key] . " must not exceed {$limit} characters.";
     }
 
-    return array_values(array_unique($errors));
+    // Save Draft keeps partial work as typed: only the length limits apply.
+    return array_values(array_unique($requireComplete ? array_merge($errors, $lengthErrors) : $lengthErrors));
 }
 
 function weddingPdfHeader(FPDF $pdf, string $title): void
