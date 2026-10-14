@@ -100,8 +100,11 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
     <?php $isMassIntention = $s['category'] === 'Mass Intention'; ?>
     <div class="card" style="display:flex; flex-direction:column;">
       <h3><?= e($s['service_name']) ?></h3>
+      <?php // Special Mass Request is filed under the Wake category internally; don't label it "Wake". ?>
+      <?php if (!($s['category'] === 'Wake' && $s['service_name'] === 'Special Mass Request')): ?>
       <p class="text-muted" style="font-size:12.5px; text-transform:uppercase; letter-spacing:.4px;">
         <?= e($s['category']) ?></p>
+      <?php endif; ?>
       <p style="font-size:14px;"><?= e($s['description']) ?></p>
       <?php
       $scheduleDisplay = null;
@@ -367,6 +370,12 @@ include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start
               placeholder="Enter any other important intentions or requests..."></textarea>
             <p class="helper-text" id="specialRequestsHint" style="display:none;">Since you selected "Others", please
               type the specific occasion here.</p>
+          </div>
+          <div class="form-group">
+            <label>Location / Address of the Mass</label>
+            <textarea name="location_address" id="specialMassAddressInput" rows="2"
+              placeholder="House number, street, barangay..."></textarea>
+            <p class="helper-text">The complete address where the Mass will be celebrated.</p>
           </div>
           <p class="helper-text" style="margin-bottom:0;">Fixed fee: <strong>₱1,500</strong>. Propose a preferred date
             and time — our parish office will confirm.</p>
@@ -1085,6 +1094,11 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('specialMassFields').style.display = isSpecialMass ? 'block' : 'none';
     document.getElementById('specialRequesterInput').required = isSpecialMass;
     document.getElementById('occasionSelect').required = isSpecialMass;
+    // Both this and the House Blessing address post as location_address, so only
+    // the one for the selected service is enabled (and submitted).
+    var specialMassAddress = document.getElementById('specialMassAddressInput');
+    specialMassAddress.required = isSpecialMass;
+    specialMassAddress.disabled = !isSpecialMass;
     // Remarks are folded into the Special Mass Request's own text box, so the
     // generic remarks field is hidden and disabled (not submitted) for it.
     document.getElementById('remarksGroup').style.display = isSpecialMass ? 'none' : 'block';
@@ -1107,6 +1121,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var isBlessing = category === 'Blessing';
     document.getElementById('blessingFields').style.display = isBlessing ? 'block' : 'none';
     document.getElementById('blessingAddressInput').required = isBlessing;
+    document.getElementById('blessingAddressInput').disabled = !isBlessing;
     var blessingPhone = document.getElementById('blessingPhoneInput');
     if (blessingPhone) blessingPhone.required = isBlessing;
 

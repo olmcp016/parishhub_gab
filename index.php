@@ -125,7 +125,10 @@ include __DIR__ . '/includes/header.php';
     <?php foreach ($services as $s): ?>
       <div class="svc-card reveal">
         <span class="svc-icon"><?= serviceCategoryIcon($s['category']) ?></span>
+        <?php // Special Mass Request is filed under the Wake category internally; don't label it "Wake". ?>
+        <?php if (!($s['category'] === 'Wake' && $s['service_name'] === 'Special Mass Request')): ?>
         <div class="svc-eyebrow"><?= e($s['category']) ?></div>
+        <?php endif; ?>
         <h3><?= e($s['service_name']) ?></h3>
         <p><?= e($s['description']) ?></p>
         <?php 

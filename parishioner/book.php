@@ -257,6 +257,15 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         }
     }
 
+    // Special Mass Request: where the Mass will be celebrated, stored in the
+    // same location_address column as the House Blessing address.
+    if ($isSpecialMass) {
+        $locationAddress = trim($_POST['location_address'] ?? '');
+        if ($locationAddress === '') {
+            bookRespondError($isAjax, 'Please provide the location/address where the Mass will be celebrated.', url('parishioner/services.php'));
+        }
+    }
+
     // ---- Enforce the parish's fixed scheduling rules (Regular/Special, Mass conflicts, staff day-off, funeral mourning period, ...) ----
     $finalTime = $time;
     if (!$isNoScheduleCategory) {
