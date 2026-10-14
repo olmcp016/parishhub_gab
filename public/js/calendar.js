@@ -49,7 +49,20 @@ function renderParishCalendar(elId, options) {
       backgroundColor: '#2d7a46',
       borderColor: '#1a5c33',
       textColor: '#ffffff',
-      extendedProps: { kind: 'mass', cleanTitle: m.clean_title || m.title, time: m.time || '' }
+      extendedProps: { kind: 'mass', cleanTitle: m.clean_title || m.title, time: m.time || '', details: m.details || null }
+    };
+  });
+
+  // Optional: confirmed appointments (priest calendar). Same blue as the "Confirmed" badge.
+  var appointmentItems = (options.appointments || []).map(function (a) {
+    return {
+      title: a.title,
+      start: a.date,
+      allDay: true,
+      backgroundColor: '#2457a6',
+      borderColor: '#1b4280',
+      textColor: '#ffffff',
+      extendedProps: { kind: 'appointment', time: a.time || '', details: a.details || null }
     };
   });
 
@@ -77,7 +90,7 @@ function renderParishCalendar(elId, options) {
     height: 'auto',
     firstDay: 0,
     headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
-    events: massItems.concat(eventItems).concat(blockedItems),
+    events: massItems.concat(appointmentItems).concat(eventItems).concat(blockedItems),
     dayMaxEvents: options.dayMaxEvents !== undefined ? options.dayMaxEvents : 2,
 
     // Fires after initial render and after every prev/next/today navigation
@@ -94,6 +107,8 @@ function renderParishCalendar(elId, options) {
         options.onEventClick(info.event);
       } else if (kind === 'mass' && typeof options.onMassClick === 'function') {
         options.onMassClick(info.event);
+      } else if (kind === 'appointment' && typeof options.onAppointmentClick === 'function') {
+        options.onAppointmentClick(info.event);
       }
     },
 
@@ -143,6 +158,9 @@ function renderParishCalendar(elId, options) {
   // already fully handled above (dayCellClassNames greys it, dateClick
   // refuses it), so every disabled date — past or simply unavailable —
   // looks and behaves the same way: dimmed, but still showing its number.
+
+  // Optional ordering within a day, e.g. 'time,title' to list entries by their "HH:MM" time.
+  if (options.eventOrder) calendarConfig.eventOrder = options.eventOrder;
 
   var calendar = new FullCalendar.Calendar(el, calendarConfig);
   calendar.render();

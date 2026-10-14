@@ -6,30 +6,131 @@ requireRole('Priest');
 /**
  * View-only for the Priest role (item 22) — no add-event, block-date, or
  * availability controls at all, unlike secretary/calendar.php. Shows the
- * general parish calendar (Mass schedule / parish events) plus this
- * priest's own upcoming appointments, read-only throughout.
+ * parish Mass schedule (with each Mass's assigned priest), other parish
+ * events, and this priest's own confirmed appointments, read-only throughout.
  */
 $priestId = currentPriestId();
+$today = date('Y-m-d');
 
-$allEvents = db()->query('SELECT * FROM events ORDER BY event_date ASC')->fetchAll();
+$allEvents = db()->query(
+    "SELECT e.*, l.name AS location_name, p.title AS priest_title, p.full_name AS priest_name
+     FROM events e
+     LEFT JOIN locations l ON e.location_id = l.location_id
+     LEFT JOIN priests p ON e.priest_id = p.priest_id
+     ORDER BY e.event_date ASC, e.event_time ASC"
+)->fetchAll();
 $blocked = db()->query('SELECT * FROM calendar WHERE is_blocked = 1 ORDER BY calendar_date ASC')->fetchAll();
-$calendarEvents = array_map(fn($e) => ['date' => $e['event_date'], 'title' => $e['title']], $allEvents);
 $calendarBlocked = array_map(fn($b) => ['date' => $b['calendar_date'], 'notes' => $b['notes']], $blocked);
 
-$today = date('Y-m-d');
+$priestLabel = fn(?string $title, ?string $name) => $name ? trim(($title ?? '') . ' ' . $name) : null;
+$timeLabel = fn(?string $time) => $time ? date('g:i A', strtotime($time)) : '';
+
+/**
+ * Masses. The Secretary assigns a priest to a Mass by adding a real event on
+ * that date (secretary/calendar.php); those events replace the regular
+ * schedule's placeholder for that date + title. Every other event (fiesta,
+ * activities) stays a gold parish event, as before.
+ */
+$massSchedule = [];
+$calendarEvents = [];
+$existingRealMasses = [];
+foreach ($allEvents as $ev) {
+    $existingRealMasses[$ev['event_date'] . '_' . strtolower(trim($ev['title']))] = true;
+    if (!preg_match('/\bmass\b/i', $ev['title'])) { // whole word, so "Christmas Party" stays an event
+        $calendarEvents[] = ['date' => $ev['event_date'], 'title' => $ev['title']];
+        continue;
+    }
+    $priest = $priestLabel($ev['priest_title'], $ev['priest_name']);
+    $time = $ev['event_time'] ? substr($ev['event_time'], 0, 5) : '';
+    $massSchedule[] = [
+        'date' => $ev['event_date'],
+        'title' => $ev['title'] . ($time ? ' (' . $timeLabel($time) . ')' : '') . ' · ' . ($priest ?? 'Not Yet Assigned'),
+        'clean_title' => $ev['title'],
+        'time' => $time,
+        'details' => [
+            'title' => $ev['title'],
+            'date' => formatDate($ev['event_date']),
+            'time' => $timeLabel($time) ?: '—',
+            'priest' => $priest ?? 'Not Yet Assigned',
+            'isMine' => $priestId !== null && (int) $ev['priest_id'] === $priestId,
+            'location' => $ev['location_name'] ?: ($ev['location'] ?: null),
+        ],
+    ];
+}
+
+// The parish's regular Mass schedule for the next 90 days — same rules as
+// secretary/calendar.php. A slot with no real event has no priest assigned yet.
+$massStart = new DateTime('today');
+$massEnd = (clone $massStart)->modify('+90 days');
+for ($massDay = clone $massStart; $massDay <= $massEnd; $massDay->modify('+1 day')) {
+    $massDateStr = $massDay->format('Y-m-d');
+    $massDow = (int) $massDay->format('w');
+    if ($massDow === 0) { // Sunday: three Masses
+        $slots = [['1st Mass', '06:30'], ['2nd Mass', '09:00'], ['3rd Mass', '16:30']];
+    } elseif ($massDow === 3) { // Wednesday: Daily Mass (evening)
+        $slots = [['Daily Mass', '17:15']];
+    } else { // Mon/Tue/Thu/Fri/Sat: Daily Mass
+        $slots = [['Daily Mass', '06:00']];
+    }
+    foreach ($slots as [$massTitle, $massTime]) {
+        if (isset($existingRealMasses[$massDateStr . '_' . strtolower($massTitle)])) continue;
+        $massSchedule[] = [
+            'date' => $massDateStr,
+            'title' => $massTitle . ' (' . $timeLabel($massTime) . ') · Not Yet Assigned',
+            'clean_title' => $massTitle,
+            'time' => $massTime,
+            'details' => [
+                'title' => $massTitle,
+                'date' => formatDate($massDateStr),
+                'time' => $timeLabel($massTime),
+                'priest' => 'Not Yet Assigned',
+                'isMine' => false,
+                'location' => null,
+            ],
+        ];
+    }
+}
+
+// This priest's confirmed appointments only (status 5 = Confirmed); pending,
+// approved-but-unpaid, rejected, cancelled, and other priests' are excluded.
 $myAppointments = [];
+$calendarAppointments = [];
 if ($priestId) {
     $stmt = db()->prepare(
-        "SELECT a.appointment_id, a.appointment_date, a.appointment_time, s.service_name, st.status_name
+        "SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.guest_name,
+                s.service_name, st.status_name, u.firstname, u.lastname,
+                p.title AS priest_title, p.full_name AS priest_name
          FROM appointments a
          JOIN services s ON a.service_id = s.service_id
          JOIN appointment_status st ON a.status_id = st.status_id
-         WHERE a.priest_id = ? AND a.appointment_date >= ? AND a.status_id NOT IN (3, 7)
-         ORDER BY a.appointment_date, a.appointment_time LIMIT 20"
+         JOIN priests p ON a.priest_id = p.priest_id
+         LEFT JOIN parishioners par ON a.parishioner_id = par.parishioner_id
+         LEFT JOIN users u ON par.user_id = u.user_id
+         WHERE a.priest_id = ? AND a.status_id = 5
+         ORDER BY a.appointment_date, a.appointment_time"
     );
-    $stmt->execute([$priestId, $today]);
-    $myAppointments = $stmt->fetchAll();
+    $stmt->execute([$priestId]);
+    foreach ($stmt->fetchAll() as $a) {
+        $time = substr($a['appointment_time'], 0, 5);
+        $name = $a['guest_name'] ?: trim(($a['firstname'] ?? '') . ' ' . ($a['lastname'] ?? ''));
+        $calendarAppointments[] = [
+            'date' => $a['appointment_date'],
+            'title' => $timeLabel($time) . ' ' . $a['service_name'],
+            'time' => $time,
+            'details' => [
+                'service' => $a['service_name'],
+                'parishioner' => $name ?: '—',
+                'date' => formatDate($a['appointment_date']),
+                'time' => $timeLabel($time),
+                'priest' => $priestLabel($a['priest_title'], $a['priest_name']),
+                'status' => $a['status_name'],
+            ],
+        ];
+        if ($a['appointment_date'] >= $today && count($myAppointments) < 20) $myAppointments[] = $a;
+    }
 }
+
+$jsonFlags = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP;
 
 $active = 'calendar';
 $pageTitle = 'Parish Calendar';
@@ -45,6 +146,8 @@ include __DIR__ . '/../includes/dash-start.php';
     <div id="parishCalendar"></div>
     <div class="pcal-legend">
       <span><i class="pcal-dot pcal-dot-today"></i> Today</span>
+      <span><i class="pcal-dot" style="background:#2457a6;"></i> Confirmed Appointment</span>
+      <span><i class="pcal-dot" style="background:#2d7a46;"></i> Mass</span>
       <span><i class="pcal-dot pcal-dot-event"></i> Event</span>
       <span><i class="pcal-dot pcal-dot-blocked"></i> Unavailable</span>
     </div>
@@ -75,15 +178,70 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
 </div>
 
+<dialog class="modal" id="pcalDetailModal" aria-labelledby="pcalDetailTitle">
+  <div class="modal-head">
+    <h3 id="pcalDetailTitle">Details</h3>
+    <button type="button" class="modal-close" onclick="document.getElementById('pcalDetailModal').close()">✕</button>
+  </div>
+  <div class="modal-body">
+    <dl class="epanel-dl" id="pcalDetailList"></dl>
+  </div>
+</dialog>
+
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.21/index.global.min.js"></script>
 <script src="<?= url('public/js/calendar.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/calendar.js') ?>"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+  var modal = document.getElementById('pcalDetailModal');
+
+  // rows: [[label, value], ...]; values are set as text, never HTML.
+  function showDetails(heading, rows) {
+    document.getElementById('pcalDetailTitle').textContent = heading;
+    var list = document.getElementById('pcalDetailList');
+    list.innerHTML = '';
+    rows.forEach(function (row) {
+      if (row[1] == null || row[1] === '') return;
+      var dt = document.createElement('dt'); dt.textContent = row[0];
+      var dd = document.createElement('dd'); dd.textContent = row[1];
+      list.appendChild(dt); list.appendChild(dd);
+    });
+    modal.showModal();
+  }
+
   renderParishCalendar('parishCalendar', {
-    events: <?= json_encode($calendarEvents, JSON_UNESCAPED_UNICODE) ?>,
-    blocked: <?= json_encode($calendarBlocked, JSON_UNESCAPED_UNICODE) ?>,
-    onDateClick: function () { /* view-only — no booking/blocking from here */ }
+    events: <?= json_encode($calendarEvents, $jsonFlags) ?>,
+    blocked: <?= json_encode($calendarBlocked, $jsonFlags) ?>,
+    massSchedule: <?= json_encode($massSchedule, $jsonFlags) ?>,
+    appointments: <?= json_encode($calendarAppointments, $jsonFlags) ?>,
+    dayMaxEvents: 4,
+    eventOrder: 'time,title',
+    onDateClick: function () { /* view-only — no booking/blocking from here */ },
+    onMassClick: function (fcEvent) {
+      var d = fcEvent.extendedProps.details;
+      if (!d) return;
+      showDetails('Mass Details', [
+        ['Mass', d.title],
+        ['Date', d.date],
+        ['Time', d.time],
+        ['Priest', d.priest + (d.isMine ? ' (You)' : '')],
+        ['Location', d.location]
+      ]);
+    },
+    onAppointmentClick: function (fcEvent) {
+      var d = fcEvent.extendedProps.details;
+      if (!d) return;
+      showDetails('Appointment Details', [
+        ['Service', d.service],
+        ['Parishioner', d.parishioner],
+        ['Date', d.date],
+        ['Time', d.time],
+        ['Priest', d.priest],
+        ['Status', d.status]
+      ]);
+    }
   });
+
+  modal.addEventListener('click', function (e) { if (e.target === modal) modal.close(); });
 });
 </script>
 
@@ -91,6 +249,20 @@ document.addEventListener('DOMContentLoaded', function () {
 @media (max-width: 900px) {
   .calendar-layout { grid-template-columns: 1fr !important; }
 }
+/* Same detail list as the Secretary's event panel (secretary/calendar.php). */
+.epanel-dl {
+  display: grid; grid-template-columns: 100px 1fr;
+  gap: 6px 12px; margin: 0; align-items: baseline;
+}
+.epanel-dl dt {
+  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--brown-muted); padding-top: 2px;
+}
+.epanel-dl dd {
+  margin: 0; font-size: 14.5px; color: var(--brown-dark);
+  padding: 2px 0; border-bottom: 1px solid var(--cream-dark);
+}
+.epanel-dl dd:last-child { border-bottom: none; }
 </style>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
