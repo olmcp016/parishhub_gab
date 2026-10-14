@@ -54,6 +54,9 @@ foreach ($allEvents as $ev) {
         'title' => $ev['title'] . ($time ? ' (' . $timeLabel($time) . ')' : ''),
         'clean_title' => $ev['title'],
         'time' => $time,
+        // This priest's own Masses use the appointment blue; everyone else's stay green.
+        'backgroundColor' => $isMine ? '#2457a6' : null,
+        'borderColor' => $isMine ? '#1b4280' : null,
         'details' => [
             'title' => $ev['title'],
             'date' => formatDate($ev['event_date']),
@@ -168,8 +171,8 @@ include __DIR__ . '/../includes/dash-start.php';
     <div class="pcal-scroll"><div id="parishCalendar"></div></div>
     <div class="pcal-legend">
       <span><i class="pcal-dot pcal-dot-today"></i> Today</span>
-      <span><i class="pcal-dot" style="background:#2457a6;"></i> Approved Appointment</span>
-      <span><i class="pcal-dot" style="background:#2d7a46;"></i> Mass</span>
+      <span><i class="pcal-dot" style="background:#2457a6;"></i> Approved Appointment / Your Mass</span>
+      <span><i class="pcal-dot" style="background:#2d7a46;"></i> Other Mass</span>
       <span><i class="pcal-dot pcal-dot-event"></i> Event</span>
       <span><i class="pcal-dot pcal-dot-blocked"></i> Unavailable</span>
     </div>
@@ -246,8 +249,9 @@ document.addEventListener('DOMContentLoaded', function () {
         ['Mass', d.title],
         ['Date', d.date],
         ['Time', d.time],
-        ['Priest', d.priest + (d.isMine ? ' (You)' : '')],
-        ['Location', d.location]
+        ['Priest', d.priest],
+        ['Location', d.location],
+        ['Assignment', d.isMine ? 'Assigned to You' : (d.priest === 'Not Yet Assigned' ? 'Not Yet Assigned' : 'Assigned to Another Priest')]
       ]);
     },
     onAppointmentClick: function (fcEvent) {

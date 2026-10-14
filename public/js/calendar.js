@@ -46,8 +46,9 @@ function renderParishCalendar(elId, options) {
       title: m.title,
       start: m.date,
       allDay: true,
-      backgroundColor: '#2d7a46',
-      borderColor: '#1a5c33',
+      // Optional per-Mass colors (e.g. the priest calendar shows the viewer's own Masses in blue).
+      backgroundColor: m.backgroundColor || '#2d7a46',
+      borderColor: m.borderColor || '#1a5c33',
       textColor: '#ffffff',
       extendedProps: { kind: 'mass', cleanTitle: m.clean_title || m.title, time: m.time || '', details: m.details || null }
     };
