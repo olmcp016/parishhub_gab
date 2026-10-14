@@ -142,6 +142,9 @@ function renderNavSection(string $slug, string $title, array $items, string $act
         [url('priest/calendar.php'), 'calendar', 'calendar-days', 'Parish Calendar'],
         [url('priest/mass-intentions.php'), 'mass-intentions', 'flame', 'Mass Intentions'],
       ], $__active); ?>
+      <?php renderNavSection('parish-info', 'Parish Information', [
+        [url('priest/announcements.php'), 'announcements', 'megaphone', 'Announcements'],
+      ], $__active); ?>
     <?php endif; ?>
   </nav>
 

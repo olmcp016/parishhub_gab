@@ -48,6 +48,8 @@ foreach ($announcements as $a) {
         'pinned' => !empty($a['is_pinned']),
         'upcoming' => $status === 'Upcoming',
         'posted' => formatDate($a['created_at']),
+        // Only set when the page selects the poster's name (e.g. priest/announcements.php).
+        'postedBy' => trim((string) ($a['posted_by_name'] ?? '')) ?: null,
         'period' => $period,
         'excerpt' => announcementExcerpt($a['content']),
         'images' => $photos,
@@ -77,7 +79,7 @@ foreach ($announcements as $a) {
           <?php if ($c['upcoming']): ?><span class="badge badge-regular">Upcoming</span><?php endif; ?>
         </div>
         <h3 class="ann-title"><?= e($c['title']) ?></h3>
-        <span class="ann-date"><?= e($c['posted']) ?></span>
+        <span class="ann-date"><?= e($c['posted']) ?><?php if ($c['postedBy']): ?> · Posted by <?= e($c['postedBy']) ?><?php endif; ?></span>
         <p class="ann-excerpt<?= $hasMedia ? '' : ' ann-excerpt-long' ?>"><?= e($c['excerpt']) ?></p>
         <span class="ann-more">Read More →</span>
       </div>
@@ -177,7 +179,7 @@ foreach ($announcements as $a) {
     if (a.upcoming) badges.appendChild(el('span', 'badge badge-regular', 'Upcoming'));
 
     document.getElementById('annModalTitle').textContent = a.title;
-    document.getElementById('annModalMeta').textContent = 'Posted ' + a.posted + (a.period ? '  ·  ' + a.period : '');
+    document.getElementById('annModalMeta').textContent = 'Posted ' + a.posted + (a.postedBy ? ' by ' + a.postedBy : '') + (a.period ? '  ·  ' + a.period : '');
 
     var imgBox = document.getElementById('annModalImage');
     imgBox.innerHTML = '';
