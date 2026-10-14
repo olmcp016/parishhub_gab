@@ -119,7 +119,7 @@ $usesPublicShell = !$user;
 include __DIR__ . '/includes/header.php';
 include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 'dash-start.php');
 ?>
-<div class="card" style="max-width:850px;margin:auto;"><h2>Supporting Documents</h2><?php renderSupportingDocumentCards(weddingDraftRequiredDocuments($draft), $uploadedDocuments, 'wedding_draft', $draftId); ?></div>
+<div class="card" style="max-width:850px;margin:auto;"><h2>Supporting Documents</h2><?php renderBookingBackButton('wedding', $draftId); ?><?php renderSupportingDocumentCards(weddingDraftRequiredDocuments($draft), $uploadedDocuments, 'wedding_draft', $draftId); ?></div>
 <div class="card" style="max-width:850px;margin:auto;">
   <h2>Wedding Forms</h2>
   <?php foreach (WEDDING_DRAFT_FORMS as $type):

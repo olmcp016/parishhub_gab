@@ -138,6 +138,7 @@ include __DIR__ . '/includes/header.php';
 include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 'dash-start.php');
 ?>
 <div class="card"><h2>Supporting Documents</h2>
+<?php renderBookingBackButton('funeral', $draftId); ?>
 <?php renderSupportingDocumentCards(funeralDraftRequiredDocuments(), $uploadedDocuments, 'funeral_draft', $draftId); ?>
 </div>
 <div class="card"><h2>Funeral Forms</h2>

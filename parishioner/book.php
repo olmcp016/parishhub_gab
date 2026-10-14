@@ -15,6 +15,7 @@ require_once __DIR__ . '/../includes/paymongo.php';
 require_once __DIR__ . '/../includes/service-fees.php';
 require_once __DIR__ . '/../includes/wedding-draft.php';
 require_once __DIR__ . '/../includes/funeral-forms.php';
+require_once __DIR__ . '/../includes/booking-draft-resume.php';
 $identity = requireParishionerOrGuest();
 $userId = $identity['user_id'];
 $parishionerId = $identity['parishioner_id'];
@@ -111,7 +112,17 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     // Special Mass Request is a Wake-category service for any special intention
     // (birthday, thanksgiving, etc.), so it is identified by name within Wake.
     $isSpecialMass = ($category === 'Wake' && ($service['service_name'] ?? '') === 'Special Mass Request');
-    
+
+    // Coming back from "Back to Booking Form": re-submitting Step 1 updates the
+    // draft the parishioner came from (its uploaded documents and generated
+    // forms stay attached) instead of starting a second draft. Only a draft of
+    // the same service type that this user/guest can access is reused.
+    $resumeDraft = null;
+    if (preg_match('/^(baptism|wedding|funeral)-(\d+)$/', (string) ($_POST['resume_draft'] ?? ''), $resumeMatch)) {
+        $candidate = loadResumableBookingDraft($resumeMatch[1], (int) $resumeMatch[2]);
+        if ($candidate && $candidate['category'] === $category) $resumeDraft = $candidate;
+    }
+
     // Confirmation, First Communion, and Funeral have no parishioner-selected date/time.
     // Wake services (Wake Mass, Special Mass Request) now accept a proposed date/time like Anointing.
     $isNoScheduleCategory = in_array($category, ['Confirmation', 'First Communion', 'Funeral'], true);
@@ -373,11 +384,18 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         $pdo = db(); $createdStorageKeys = [];
         try {
             $pdo->beginTransaction();
-            $rawGuestToken = $isGuest ? bin2hex(random_bytes(32)) : null;
-            $stmt = $pdo->prepare("INSERT INTO appointment_drafts (service_type, parishioner_id, guest_access_token_hash, guest_name, guest_email, guest_phone, service_id, priest_id, appointment_date, appointment_time, schedule_type, pss_claim, sponsor_count, remarks, contact_phone, location_address) VALUES ('Baptism', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING draft_id");
-            $stmt->execute([$isGuest ? null : $parishionerId, $rawGuestToken ? hash('sha256', $rawGuestToken) : null, $guestName, $guestEmail, $guestPhone, $serviceId, $priestId, $date, $finalTime, $scheduleTypeToSave, $pssClaim, $sponsorCount, $remarks, $contactPhone, $locationAddress]);
-            $draftId = (int) $stmt->fetchColumn();
-            if ($rawGuestToken) $_SESSION['baptism_draft_tokens'][$draftId] = $rawGuestToken;
+            if ($resumeDraft) {
+                $draftId = $resumeDraft['id'];
+                $stmt = $pdo->prepare("UPDATE appointment_drafts SET guest_name = ?, guest_email = ?, guest_phone = ?, service_id = ?, priest_id = ?, appointment_date = ?, appointment_time = ?, schedule_type = ?, pss_claim = ?, sponsor_count = ?, remarks = ?, contact_phone = ?, location_address = ?, updated_at = CURRENT_TIMESTAMP WHERE draft_id = ? AND service_type = 'Baptism' AND status = 'draft'");
+                $stmt->execute([$guestName, $guestEmail, $guestPhone, $serviceId, $priestId, $date, $finalTime, $scheduleTypeToSave, $pssClaim, $sponsorCount, $remarks, $contactPhone, $locationAddress, $draftId]);
+                if ($stmt->rowCount() !== 1) throw new RuntimeException('Baptism draft is no longer available.');
+            } else {
+                $rawGuestToken = $isGuest ? bin2hex(random_bytes(32)) : null;
+                $stmt = $pdo->prepare("INSERT INTO appointment_drafts (service_type, parishioner_id, guest_access_token_hash, guest_name, guest_email, guest_phone, service_id, priest_id, appointment_date, appointment_time, schedule_type, pss_claim, sponsor_count, remarks, contact_phone, location_address) VALUES ('Baptism', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING draft_id");
+                $stmt->execute([$isGuest ? null : $parishionerId, $rawGuestToken ? hash('sha256', $rawGuestToken) : null, $guestName, $guestEmail, $guestPhone, $serviceId, $priestId, $date, $finalTime, $scheduleTypeToSave, $pssClaim, $sponsorCount, $remarks, $contactPhone, $locationAddress]);
+                $draftId = (int) $stmt->fetchColumn();
+                if ($rawGuestToken) $_SESSION['baptism_draft_tokens'][$draftId] = $rawGuestToken;
+            }
             foreach ($pendingUploads as $upload) {
                 $stored = documentStorageMoveUpload($upload['file']['tmp_name'], pathinfo($upload['file']['name'], PATHINFO_EXTENSION));
                 $createdStorageKeys[] = $stored['key'];
@@ -399,9 +417,10 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     // Funeral uses a session-based draft workflow to avoid a DB migration while
     // maintaining UX consistency (Booking Details -> Requirements -> Submit).
     if ($category === 'Funeral') {
-        $rawGuestToken = $isGuest ? bin2hex(random_bytes(32)) : null;
-        $draftId = time() . random_int(1000, 9999);
-        
+        // Resuming keeps the same draft id and guest token (set below).
+        $rawGuestToken = ($isGuest && !$resumeDraft) ? bin2hex(random_bytes(32)) : null;
+        $draftId = $resumeDraft ? $resumeDraft['id'] : time() . random_int(1000, 9999);
+
         $funeralDraft = [
             'id' => $draftId,
             'expires_at' => time() + (24 * 3600),
@@ -427,6 +446,14 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
             'katin_awan_payload' => null,
             'generated_document' => null
         ];
+        if ($resumeDraft) {
+            // Keep what was already done on the Requirements step: access token,
+            // uploaded documents, and the filled-in Katin-awan form.
+            $previous = $_SESSION['funeral_booking_drafts'][$draftId];
+            foreach (['guest_token', 'uploaded_keys', 'katin_awan_payload', 'generated_document'] as $keep) {
+                $funeralDraft[$keep] = $previous[$keep] ?? $funeralDraft[$keep];
+            }
+        }
 
         $createdStorageKeys = [];
         try {
@@ -459,12 +486,19 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         $createdStorageKeys = [];
         try {
             $pdo->beginTransaction();
-            $rawGuestToken = $isGuest ? bin2hex(random_bytes(32)) : null;
-            $stmt = $pdo->prepare("INSERT INTO appointment_drafts (service_type, parishioner_id, guest_access_token_hash, guest_name, guest_email, guest_phone, service_id, priest_id, appointment_date, appointment_time, schedule_type, pss_claim, sponsor_count, wedding_sponsor_count, remarks, contact_phone, location_address) VALUES ('Wedding', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING draft_id");
-            $stmt->execute([$isGuest ? null : $parishionerId, $rawGuestToken ? hash('sha256', $rawGuestToken) : null, $guestName, $guestEmail, $guestPhone, $serviceId, $priestId, $date, $finalTime, $scheduleTypeToSave, $pssClaim, null, $weddingSponsorCount, $remarks, $contactPhone, $locationAddress]);
-            $draftId = (int) $stmt->fetchColumn();
-            if ($draftId < 1) throw new RuntimeException('Wedding draft could not be created.');
-            if ($rawGuestToken) $_SESSION['wedding_draft_tokens'][$draftId] = $rawGuestToken;
+            if ($resumeDraft) {
+                $draftId = $resumeDraft['id'];
+                $stmt = $pdo->prepare("UPDATE appointment_drafts SET guest_name = ?, guest_email = ?, guest_phone = ?, service_id = ?, priest_id = ?, appointment_date = ?, appointment_time = ?, schedule_type = ?, pss_claim = ?, wedding_sponsor_count = ?, remarks = ?, contact_phone = ?, location_address = ?, updated_at = CURRENT_TIMESTAMP WHERE draft_id = ? AND service_type = 'Wedding' AND status = 'draft'");
+                $stmt->execute([$guestName, $guestEmail, $guestPhone, $serviceId, $priestId, $date, $finalTime, $scheduleTypeToSave, $pssClaim, $weddingSponsorCount, $remarks, $contactPhone, $locationAddress, $draftId]);
+                if ($stmt->rowCount() !== 1) throw new RuntimeException('Wedding draft is no longer available.');
+            } else {
+                $rawGuestToken = $isGuest ? bin2hex(random_bytes(32)) : null;
+                $stmt = $pdo->prepare("INSERT INTO appointment_drafts (service_type, parishioner_id, guest_access_token_hash, guest_name, guest_email, guest_phone, service_id, priest_id, appointment_date, appointment_time, schedule_type, pss_claim, sponsor_count, wedding_sponsor_count, remarks, contact_phone, location_address) VALUES ('Wedding', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING draft_id");
+                $stmt->execute([$isGuest ? null : $parishionerId, $rawGuestToken ? hash('sha256', $rawGuestToken) : null, $guestName, $guestEmail, $guestPhone, $serviceId, $priestId, $date, $finalTime, $scheduleTypeToSave, $pssClaim, null, $weddingSponsorCount, $remarks, $contactPhone, $locationAddress]);
+                $draftId = (int) $stmt->fetchColumn();
+                if ($draftId < 1) throw new RuntimeException('Wedding draft could not be created.');
+                if ($rawGuestToken) $_SESSION['wedding_draft_tokens'][$draftId] = $rawGuestToken;
+            }
             foreach ($pendingUploads as $upload) {
                 $stored = documentStorageMoveUpload($upload['file']['tmp_name'], pathinfo($upload['file']['name'], PATHINFO_EXTENSION));
                 $createdStorageKeys[] = $stored['key'];

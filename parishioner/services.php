@@ -3,7 +3,15 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/scheduling.php';
 require_once __DIR__ . '/../includes/wedding-draft.php';
+require_once __DIR__ . '/../includes/booking-draft-resume.php';
 $identity = requireParishionerOrGuest();
+
+// "Back to Booking Form" from a draft's Supporting Documents step: reopen the
+// form for that draft (access-checked) so re-submitting updates it in place.
+$resumeDraft = null;
+if (preg_match('/^(baptism|wedding|funeral)-(\d+)$/', (string) ($_GET['resume_draft'] ?? ''), $resumeMatch)) {
+  $resumeDraft = loadResumableBookingDraft($resumeMatch[1], (int) $resumeMatch[2]);
+}
 
 $services = db()->query("SELECT * FROM services WHERE is_active = 1 AND category != 'Donation' ORDER BY category, service_name")->fetchAll();
 $variableFeeCategories = ['Baptism', 'Wedding'];
@@ -286,6 +294,7 @@ $noFeesLabel = fn(float $amount): string => $amount > 0 ? money($amount) : 'No F
         <?= csrfField() ?>
         <input type="hidden" name="ajax" value="1">
         <input type="hidden" name="draft_mode" id="draftModeInput" value="0">
+        <input type="hidden" name="resume_draft" id="resumeDraftInput" value="">
         <style>
           /* JS sets #dateTimeRow to display:flex (overriding .form-row's grid),
              so split the two halves evenly with flex-basis 0 */
@@ -935,6 +944,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // A deliberate fresh open starts blank, so any saved Back-navigation snapshot is stale.
     writeBookingSnapshot(null);
     document.getElementById('bookForm').reset();
+    document.getElementById('resumeDraftInput').value = ''; // a fresh booking never updates an earlier draft
 
     var select = document.getElementById('serviceSelect');
     select.value = serviceId;
@@ -1039,7 +1049,46 @@ document.addEventListener('DOMContentLoaded', function () {
     return true;
   }
 
+  /**
+   * "Back to Booking Form" (?resume_draft=type-id): reopen the form for that
+   * draft. The browser's own snapshot of what was typed is used when it belongs
+   * to the same service; otherwise the draft's saved values refill the form.
+   * The hidden resume_draft field makes book.php update that draft in place.
+   */
+  var RESUME_DRAFT = <?= json_encode($resumeDraft ? [
+    'key' => $resumeDraft['type'] . '-' . $resumeDraft['id'],
+    'snapshot' => [
+      'serviceId' => (string) $resumeDraft['service_id'],
+      'radios' => $resumeDraft['schedule_type'] ? ['schedule_type' => $resumeDraft['schedule_type']] : (object) [],
+      'values' => array_filter([
+        'priestSelect' => $resumeDraft['priest_id'] !== null ? (string) $resumeDraft['priest_id'] : null,
+        'appointmentDateInput' => $resumeDraft['date'],
+        'freeTimeInput' => $resumeDraft['time'],
+        'pssClaimInput' => $resumeDraft['pss_claim'],
+        'sponsorCountInput' => $resumeDraft['sponsor_count'] !== null ? (string) $resumeDraft['sponsor_count'] : null,
+        'weddingSponsorCountInput' => $resumeDraft['wedding_sponsor_count'] !== null ? (string) $resumeDraft['wedding_sponsor_count'] : null,
+        'remarksInput' => $resumeDraft['remarks'],
+        'dateOfDeathInput' => $resumeDraft['date_of_death'],
+      ], fn($v) => $v !== null && $v !== ''),
+    ],
+  ] : null, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+
+  function resumeDraftBooking() {
+    var saved = readBookingSnapshot();
+    var snapshot = saved && saved.serviceId === RESUME_DRAFT.snapshot.serviceId ? saved : RESUME_DRAFT.snapshot;
+    document.getElementById('bookFormView').style.display = 'block';
+    document.getElementById('bookConfirmView').style.display = 'none';
+    document.getElementById('bookFormError').style.display = 'none';
+    document.getElementById('bookForm').reset();
+    if (!restoreBookingForm(snapshot)) return;
+    document.getElementById('resumeDraftInput').value = RESUME_DRAFT.key;
+    document.getElementById('bookModal').showModal();
+    // Drop ?resume_draft from the address bar so a reload or a later Book Now starts fresh.
+    if (window.history && history.replaceState) history.replaceState(null, '', window.location.pathname);
+  }
+
   function resumeBookingAfterBack() {
+    if (RESUME_DRAFT) { resumeDraftBooking(); RESUME_DRAFT = null; return; }
     var snapshot = readBookingSnapshot();
     if (!snapshot) return;
 

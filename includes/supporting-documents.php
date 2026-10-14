@@ -23,6 +23,26 @@ function supportingDocumentRequirementIsOptional(string $label): bool
 }
 
 /**
+ * "Back to Booking Form" on a draft's Supporting Documents step. Reopens the
+ * Services booking form for this same draft ($draftType: baptism|wedding|funeral)
+ * so the parishioner can change the priest, date, time or other details;
+ * re-submitting updates this draft (book.php), keeping its uploaded documents.
+ * Asks before leaving while a document upload is still in progress.
+ */
+function renderBookingBackButton(string $draftType, int $draftId): void
+{
+    $href = url('parishioner/services.php?resume_draft=' . urlencode($draftType . '-' . $draftId));
+    ?>
+    <p style="margin-top:0;">
+      <a href="<?= e($href) ?>" class="btn btn-outline btn-sm"
+        onclick="if (document.querySelector('[data-upload-progress]:not([hidden])') && !confirm('A document is still uploading. Leave this page anyway? The upload may not finish.')) return false;">
+        <i data-lucide="arrow-left" style="width:14px; height:14px;"></i> Back to Booking Form
+      </a>
+    </p>
+    <?php
+}
+
+/**
  * Render one self-contained card per supporting-document requirement.
  * $documents is keyed by the exact database requirement_label.
  */
