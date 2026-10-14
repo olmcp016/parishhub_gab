@@ -35,6 +35,7 @@ $massSchedule = [];
 $calendarEvents = [];
 $existingRealMasses = [];
 foreach ($allEvents as $ev) {
+    $ev['title'] = (string) ($ev['title'] ?? '');
     $existingRealMasses[$ev['event_date'] . '_' . strtolower(trim($ev['title']))] = true;
     if (!preg_match('/\bmass\b/i', $ev['title'])) { // whole word, so "Christmas Party" stays an event
         $calendarEvents[] = ['date' => $ev['event_date'], 'title' => $ev['title']];
@@ -42,9 +43,11 @@ foreach ($allEvents as $ev) {
     }
     $priest = $priestLabel($ev['priest_title'], $ev['priest_name']);
     $time = $ev['event_time'] ? substr($ev['event_time'], 0, 5) : '';
+    // Only a Mass whose event row names this priest is "theirs" — never assumed.
+    $isMine = $priestId !== null && $ev['priest_id'] !== null && (int) $ev['priest_id'] === $priestId;
     $massSchedule[] = [
         'date' => $ev['event_date'],
-        'title' => $ev['title'] . ($time ? ' (' . $timeLabel($time) . ')' : '') . ' · ' . ($priest ?? 'Not Yet Assigned'),
+        'title' => $ev['title'] . ($time ? ' (' . $timeLabel($time) . ')' : '') . ' – ' . ($priest ?? 'Not Yet Assigned') . ($isMine ? ' (You)' : ''),
         'clean_title' => $ev['title'],
         'time' => $time,
         'details' => [
@@ -52,7 +55,7 @@ foreach ($allEvents as $ev) {
             'date' => formatDate($ev['event_date']),
             'time' => $timeLabel($time) ?: '—',
             'priest' => $priest ?? 'Not Yet Assigned',
-            'isMine' => $priestId !== null && (int) $ev['priest_id'] === $priestId,
+            'isMine' => $isMine,
             'location' => $ev['location_name'] ?: ($ev['location'] ?: null),
         ],
     ];
@@ -76,7 +79,7 @@ for ($massDay = clone $massStart; $massDay <= $massEnd; $massDay->modify('+1 day
         if (isset($existingRealMasses[$massDateStr . '_' . strtolower($massTitle)])) continue;
         $massSchedule[] = [
             'date' => $massDateStr,
-            'title' => $massTitle . ' (' . $timeLabel($massTime) . ') · Not Yet Assigned',
+            'title' => $massTitle . ' (' . $timeLabel($massTime) . ') – Not Yet Assigned',
             'clean_title' => $massTitle,
             'time' => $massTime,
             'details' => [
@@ -91,8 +94,10 @@ for ($massDay = clone $massStart; $massDay <= $massEnd; $massDay->modify('+1 day
     }
 }
 
-// This priest's confirmed appointments only (status 5 = Confirmed); pending,
-// approved-but-unpaid, rejected, cancelled, and other priests' are excluded.
+// This priest's approved appointments: approved by the Secretary (2) and still
+// active as they move on through payment (4 Payment Verified, 5 Confirmed).
+// Pending (1), rejected (3), completed (6), cancelled (7), and other priests'
+// appointments are excluded.
 $myAppointments = [];
 $calendarAppointments = [];
 if ($priestId) {
@@ -106,27 +111,28 @@ if ($priestId) {
          JOIN priests p ON a.priest_id = p.priest_id
          LEFT JOIN parishioners par ON a.parishioner_id = par.parishioner_id
          LEFT JOIN users u ON par.user_id = u.user_id
-         WHERE a.priest_id = ? AND a.status_id = 5
-         ORDER BY a.appointment_date, a.appointment_time"
+         WHERE a.priest_id = ? AND a.status_id IN (2, 4, 5)
+         ORDER BY a.appointment_date, a.appointment_time, a.appointment_id"
     );
     $stmt->execute([$priestId]);
     foreach ($stmt->fetchAll() as $a) {
-        $time = substr($a['appointment_time'], 0, 5);
+        // Some appointments have no time set yet (NULL), so don't hand null to substr().
+        $time = $a['appointment_time'] ? substr($a['appointment_time'], 0, 5) : '';
         $name = $a['guest_name'] ?: trim(($a['firstname'] ?? '') . ' ' . ($a['lastname'] ?? ''));
         $calendarAppointments[] = [
             'date' => $a['appointment_date'],
-            'title' => $timeLabel($time) . ' ' . $a['service_name'],
+            'title' => $a['service_name'] . ($time ? ' (' . $timeLabel($time) . ')' : '') . ' – ' . $a['status_name'],
             'time' => $time,
             'details' => [
                 'service' => $a['service_name'],
                 'parishioner' => $name ?: '—',
                 'date' => formatDate($a['appointment_date']),
-                'time' => $timeLabel($time),
+                'time' => $timeLabel($time) ?: '—',
                 'priest' => $priestLabel($a['priest_title'], $a['priest_name']),
                 'status' => $a['status_name'],
             ],
         ];
-        if ($a['appointment_date'] >= $today && count($myAppointments) < 20) $myAppointments[] = $a;
+        if ($a['appointment_date'] >= $today && count($myAppointments) < 20) $myAppointments[] = $a + ['parishioner_name' => $name ?: '—'];
     }
 }
 
@@ -146,7 +152,7 @@ include __DIR__ . '/../includes/dash-start.php';
     <div id="parishCalendar"></div>
     <div class="pcal-legend">
       <span><i class="pcal-dot pcal-dot-today"></i> Today</span>
-      <span><i class="pcal-dot" style="background:#2457a6;"></i> Confirmed Appointment</span>
+      <span><i class="pcal-dot" style="background:#2457a6;"></i> Approved Appointment</span>
       <span><i class="pcal-dot" style="background:#2d7a46;"></i> Mass</span>
       <span><i class="pcal-dot pcal-dot-event"></i> Event</span>
       <span><i class="pcal-dot pcal-dot-blocked"></i> Unavailable</span>
@@ -157,17 +163,18 @@ include __DIR__ . '/../includes/dash-start.php';
   <div class="card">
     <div class="card-header"><h3>Your Upcoming Appointments</h3></div>
     <?php if (empty($myAppointments)): ?>
-      <p class="text-muted">No upcoming appointments assigned to you.</p>
+      <p class="text-muted">No upcoming approved appointments assigned to you.</p>
     <?php else: ?>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Date</th><th>Time</th><th>Service</th><th>Status</th></tr></thead>
+          <thead><tr><th>Date</th><th>Time</th><th>Service</th><th>Parishioner</th><th>Status</th></tr></thead>
           <tbody>
             <?php foreach ($myAppointments as $a): ?>
               <tr>
                 <td><?= formatDate($a['appointment_date']) ?></td>
-                <td><?= date('g:i A', strtotime($a['appointment_time'])) ?></td>
+                <td><?= $a['appointment_time'] ? date('g:i A', strtotime($a['appointment_time'])) : '—' ?></td>
                 <td><?= e($a['service_name']) ?></td>
+                <td><?= e($a['parishioner_name']) ?></td>
                 <td><span class="badge badge-<?= badgeClass($a['status_name']) ?>"><?= e($a['status_name']) ?></span></td>
               </tr>
             <?php endforeach; ?>
