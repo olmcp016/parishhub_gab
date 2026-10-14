@@ -266,6 +266,16 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         }
     }
 
+    // Wake Mass and Anointing of the Sick: same required location_address as Special Mass Request.
+    if ($category === 'Anointing' || ($category === 'Wake' && !$isSpecialMass)) {
+        $locationAddress = trim($_POST['location_address'] ?? '');
+        if ($locationAddress === '') {
+            bookRespondError($isAjax, $category === 'Wake'
+                ? 'Please provide the location/address where the Wake Mass will be held.'
+                : 'Please provide the location/address where the Anointing of the Sick will be performed.', url('parishioner/services.php'));
+        }
+    }
+
     // ---- Enforce the parish's fixed scheduling rules (Regular/Special, Mass conflicts, staff day-off, funeral mourning period, ...) ----
     $finalTime = $time;
     if (!$isNoScheduleCategory) {

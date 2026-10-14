@@ -521,7 +521,7 @@ if (!$isAjax) {
       <p><strong>Sick Person's Name:</strong> <?= e($appointment['patient_name']) ?></p>
     <?php endif; ?>
     <?php if (!empty($appointment['location_address'])): ?>
-      <p><strong><?= $appointment['category'] === 'Blessing' ? 'Address to Bless' : 'Mass Location' ?>:</strong> <?= nl2br(e($appointment['location_address'])) ?></p>
+      <p><strong><?= $appointment['category'] === 'Blessing' ? 'Address to Bless' : ($appointment['category'] === 'Anointing' ? 'Location/Address' : 'Mass Location') ?>:</strong> <?= nl2br(e($appointment['location_address'])) ?></p>
     <?php endif; ?>
     <?php if (!empty($appointment['contact_phone'])): ?>
       <p><strong>Contact Phone:</strong> <?= e($appointment['contact_phone']) ?></p>

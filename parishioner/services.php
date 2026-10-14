@@ -386,6 +386,11 @@ $noFeesLabel = fn(float $amount): string => $amount > 0 ? money($amount) : 'No F
             <input type="text" name="patient_name" id="patientNameInput"
               placeholder="Full name of the person to be anointed">
           </div>
+          <div class="form-group">
+            <label>Location/Address</label>
+            <textarea name="location_address" id="anointingAddressInput" rows="2"
+              placeholder="Enter the complete address where the Anointing of the Sick will be performed"></textarea>
+          </div>
           <p class="helper-text" id="anointingFieldsNote">This sacrament is provided <strong>free of charge</strong>. No
             payment is required.</p>
         </div>
@@ -1167,6 +1172,11 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('anointingFields').style.display = showAnointingBlock ? 'block' : 'none';
     document.getElementById('requesterNameInput').required = showAnointingBlock;
     document.getElementById('patientNameInput').required = showAnointingBlock;
+    // Like the Special Mass / House Blessing addresses, this posts as location_address,
+    // so it is only enabled (and submitted) for Anointing and Wake Mass.
+    var anointingAddress = document.getElementById('anointingAddressInput');
+    anointingAddress.required = showAnointingBlock;
+    anointingAddress.disabled = !showAnointingBlock;
 
     document.getElementById('specialMassFields').style.display = isSpecialMass ? 'block' : 'none';
     document.getElementById('specialRequesterInput').required = isSpecialMass;
@@ -1187,11 +1197,13 @@ document.addEventListener('DOMContentLoaded', function () {
       document.getElementById('anointingFieldsTitle').textContent = selectedOption.textContent.trim() + ' Details';
       document.getElementById('patientNameLabel').innerHTML = "Deceased Person's Name <span style=\"color:var(--danger);\">*</span>";
       document.getElementById('patientNameInput').placeholder = 'Full name of the deceased';
+      anointingAddress.placeholder = 'Enter the complete address where the Wake Mass will be held';
       document.getElementById('anointingFieldsNote').innerHTML = 'Fixed fee: <strong>₱1,500</strong>. Propose a preferred date and time — our parish office will confirm.';
     } else {
       document.getElementById('anointingFieldsTitle').textContent = 'Anointing of the Sick Details';
       document.getElementById('patientNameLabel').innerHTML = "Sick Person's Name <span style=\"color:var(--danger);\">*</span>";
       document.getElementById('patientNameInput').placeholder = 'Full name of the person to be anointed';
+      anointingAddress.placeholder = 'Enter the complete address where the Anointing of the Sick will be performed';
       document.getElementById('anointingFieldsNote').innerHTML = 'This sacrament is provided <strong>free of charge</strong>. No payment is required.';
     }
 
