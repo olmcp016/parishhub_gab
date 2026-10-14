@@ -4,7 +4,16 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/scheduling.php';
 require_once __DIR__ . '/../includes/wedding-draft.php';
 require_once __DIR__ . '/../includes/booking-draft-resume.php';
+require_once __DIR__ . '/../includes/paymongo.php';
 $identity = requireParishionerOrGuest();
+
+// Donor pressed Back/Cancel on PayMongo's donation checkout (donate.php's
+// cancel_url): record the cancellation and say so on this page.
+if (isset($_GET['paymongo_cancelled'])) {
+  $cancelledDonation = handleCancelledDonationCheckout((int) ($_GET['appointment_id'] ?? 0));
+  // flash.php shows only success/error; a cancellation uses the ⚠ (error) style.
+  if ($cancelledDonation) flash($cancelledDonation['status'] === 'cancelled' ? 'error' : 'success', $cancelledDonation['message']);
+}
 
 // "Back to Booking Form" from a draft's Supporting Documents step: reopen the
 // form for that draft (access-checked) so re-submitting updates it in place.

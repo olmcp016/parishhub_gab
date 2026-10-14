@@ -171,3 +171,48 @@ function paymongoStatusToLocal(string $paymongoStatus): string
         default => 'failed',
     };
 }
+
+/**
+ * A donor came back through a donation checkout's cancel_url. Only the browser
+ * session that started that checkout (donate.php sets the marker) may cancel
+ * it, and only a still-pending payment is touched. PayMongo stays the
+ * authority: if it reports the session as paid, the payment is verified
+ * instead of cancelled. Returns ['status' => ..., 'message' => ...] for the
+ * donor, or null when there is nothing to report (unknown or someone else's).
+ */
+function handleCancelledDonationCheckout(int $appointmentId): ?array
+{
+    if ($appointmentId < 1 || empty($_SESSION['donation_checkout'][$appointmentId])) return null;
+    $stmt = db()->prepare(
+        "SELECT p.payment_id, p.payment_status, t.gateway_transaction_id
+         FROM payments p
+         JOIN transactions t ON t.payment_id = p.payment_id AND t.gateway = 'paymongo'
+         JOIN appointments a ON a.appointment_id = p.appointment_id
+         JOIN services s ON s.service_id = a.service_id AND s.category = 'Donation'
+         WHERE p.appointment_id = ?
+         ORDER BY p.payment_id DESC LIMIT 1"
+    );
+    $stmt->execute([$appointmentId]);
+    $payment = $stmt->fetch();
+    if (!$payment) return null;
+
+    if ($payment['payment_status'] === 'verified') {
+        unset($_SESSION['donation_checkout'][$appointmentId]);
+        return ['status' => 'verified', 'message' => 'Thank you! Your donation has been received and verified.'];
+    }
+    if ($payment['payment_status'] === 'pending') {
+        $session = paymongoGetCheckoutSession((string) $payment['gateway_transaction_id']);
+        if ($session['ok'] && paymongoStatusToLocal($session['status']) === 'verified') {
+            // Paid after all (e.g. back button pressed after paying): never cancel a real payment.
+            $result = verifyPaymentAndIssueReceipt((int) $payment['payment_id'], null, $payment['gateway_transaction_id']);
+            unset($_SESSION['donation_checkout'][$appointmentId]);
+            return $result['ok']
+                ? ['status' => 'verified', 'message' => 'Thank you! Your donation has been received and verified — a receipt has been issued.']
+                : ['status' => 'pending', 'message' => "Your payment was received by PayMongo. We're finishing up on our end — it will show as verified shortly."];
+        }
+        markPaymentUnsuccessful((int) $payment['payment_id'], 'cancelled');
+        db()->prepare("UPDATE transactions SET status = 'cancelled' WHERE payment_id = ?")->execute([$payment['payment_id']]);
+    }
+    unset($_SESSION['donation_checkout'][$appointmentId]);
+    return ['status' => 'cancelled', 'message' => 'You cancelled the donation payment before it completed. No charge was made — you can try again anytime.'];
+}

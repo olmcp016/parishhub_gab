@@ -93,9 +93,11 @@ try {
         // Real-time PayMongo checkout — the browser gets redirected to
         // PayMongo's own hosted payment page (required by the provider for
         // card/e-wallet entry; card numbers never touch our server). The
-        // donor lands back on My Donations, which reconciles the result.
+        // donor lands back on My Donations, which reconciles the result. Cancel
+        // (PayMongo's Back button) returns to the Services page, which records
+        // the cancellation (handleCancelledDonationCheckout()).
         $successUrl = absoluteUrl('parishioner/donations.php') . '?paymongo_return=1&appointment_id=' . $appointmentId;
-        $cancelUrl = absoluteUrl('parishioner/donations.php') . '?paymongo_cancelled=1&appointment_id=' . $appointmentId;
+        $cancelUrl = absoluteUrl('parishioner/services.php') . '?paymongo_cancelled=1&appointment_id=' . $appointmentId;
         $checkout = paymongoCreateCheckoutSession($amount, 'Donation — ' . $purpose, $successUrl, $cancelUrl, $donorEmail);
 
         if (!$checkout['ok']) {

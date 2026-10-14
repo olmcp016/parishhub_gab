@@ -40,17 +40,13 @@ if (isset($_GET['paymongo_return']) || isset($_GET['paymongo_cancelled'])) {
     $stmt->execute([$returnAppointmentId]);
     $paymentRow = $stmt->fetch();
 
-    if ($paymentRow) {
-        if (isset($_GET['paymongo_cancelled']) && $paymentRow['payment_status'] !== 'verified' && !empty($_SESSION['donation_checkout'][$returnAppointmentId])) {
-            // Only the browser session that started this checkout may cancel it
-            // (anyone could otherwise add ?paymongo_cancelled=1 to someone
-            // else's link and kill an unfinished payment).
-            unset($_SESSION['donation_checkout'][$returnAppointmentId]);
-            markPaymentUnsuccessful((int) $paymentRow['payment_id'], 'cancelled');
-            db()->prepare("UPDATE transactions SET status = 'cancelled' WHERE payment_id = ?")->execute([$paymentRow['payment_id']]);
-            $paymongoResultStatus = 'cancelled';
-            $paymongoResultMessage = 'You cancelled the payment before it completed. No charge was made — you can try again anytime.';
-        } elseif ($paymentRow['payment_status'] === 'verified') {
+    // Checkouts started before cancel_url moved to the Services page still return here.
+    $cancelled = isset($_GET['paymongo_cancelled']) ? handleCancelledDonationCheckout($returnAppointmentId) : null;
+    if ($cancelled) {
+        $paymongoResultStatus = $cancelled['status'];
+        $paymongoResultMessage = $cancelled['message'];
+    } elseif ($paymentRow) {
+        if ($paymentRow['payment_status'] === 'verified') {
             // Already reconciled (e.g. webhook beat us to it, or a repeat visit).
             $paymongoResultStatus = 'verified';
             $paymongoResultMessage = 'Thank you! Your donation has been received and verified.';
