@@ -252,19 +252,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             respondAjaxOrRedirect($isAjax, false, 'This appointment is no longer pending review.', $redirectUrl);
         }
         $selectedReason = trim($_POST['rejection_reason'] ?? '');
-        $allowedReasons = ['Unresolvable Schedule Conflict', 'Invalid or Ineligible Request', 'Duplicate Request', 'Other'];
+        $allowedReasons = ['Incomplete Documents', 'Missing Information', 'Others'];
         if (!in_array($selectedReason, $allowedReasons, true)) {
             respondAjaxOrRedirect($isAjax, false, 'Please select a valid reason for rejecting this appointment.', $redirectUrl);
         }
         $reason = $selectedReason;
-        if ($selectedReason === 'Other') {
-            $reason = trim($_POST['custom_rejection_reason'] ?? '');
-            if ($reason === '') {
-                respondAjaxOrRedirect($isAjax, false, 'Please provide a reason for rejection.', $redirectUrl);
+        if ($selectedReason === 'Others') {
+            // Stored as "Others: <reason>" so the category is kept in the same
+            // rejection_reason column (VARCHAR(255)), leaving 247 characters.
+            $customReason = trim(preg_replace('/\s+/u', ' ', (string) ($_POST['custom_rejection_reason'] ?? '')));
+            if ($customReason === '') {
+                respondAjaxOrRedirect($isAjax, false, 'Please specify the reason for rejection.', $redirectUrl);
             }
-            if (mb_strlen($reason) > 500) {
-                respondAjaxOrRedirect($isAjax, false, 'The custom rejection reason must be 500 characters or fewer.', $redirectUrl);
+            if (mb_strlen($customReason) > 247) {
+                respondAjaxOrRedirect($isAjax, false, 'The rejection reason must be 247 characters or fewer.', $redirectUrl);
             }
+            $reason = 'Others: ' . $customReason;
         }
 
         $update = db()->prepare("UPDATE appointments SET status_id = 3, rejection_reason = ? WHERE appointment_id = ? AND status_id = 1");
@@ -768,16 +771,15 @@ if (!$isAjax) {
           <div class="form-group">
             <label for="rejectionReasonSelect">Reason for Rejection <span class="required-mark">*</span></label>
             <select name="rejection_reason" id="rejectionReasonSelect" required>
-              <option value="">Select a reason</option>
-              <option value="Unresolvable Schedule Conflict">Unresolvable Schedule Conflict</option>
-              <option value="Invalid or Ineligible Request">Invalid or Ineligible Request</option>
-              <option value="Duplicate Request">Duplicate Request</option>
-              <option value="Other">Other</option>
+              <option value="">Select Rejection Reason</option>
+              <option value="Incomplete Documents">Incomplete Documents</option>
+              <option value="Missing Information">Missing Information</option>
+              <option value="Others">Others</option>
             </select>
           </div>
           <div class="form-group" id="customRejectionReasonGroup" style="display:none;">
-            <label for="customRejectionReason">Reason details <span class="required-mark">*</span></label>
-            <textarea name="custom_rejection_reason" id="customRejectionReason" rows="5" maxlength="500" placeholder="Please explain the reason for rejection..."></textarea>
+            <label for="customRejectionReason">Please Specify Reason <span class="required-mark">*</span></label>
+            <textarea name="custom_rejection_reason" id="customRejectionReason" rows="5" maxlength="247" placeholder="Enter the reason for rejection"></textarea>
           </div>
           <div class="review-rejection-buttons">
             <button type="button" class="btn btn-outline" id="cancelAppointmentRejection">Cancel</button>

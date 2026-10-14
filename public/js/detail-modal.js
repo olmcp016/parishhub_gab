@@ -144,8 +144,8 @@
         var rejectModal = document.getElementById('rejectApptModal');
         if (!rejectSelect || !rejectModal) return;
         if (!rejectSelect.value) { reportInlineError(rejectSelect, 'Please select a reason for rejection.'); return; }
-        if (rejectSelect.value === 'Other' && !customReason.value.trim()) { reportInlineError(customReason, 'Please specify the reason for rejection.'); return; }
-        document.getElementById('rejectConfirmReason').textContent = rejectSelect.value === 'Other' ? customReason.value.trim() : rejectSelect.value;
+        if (rejectSelect.value === 'Others' && !customReason.value.trim()) { reportInlineError(customReason, 'Please specify the reason for rejection.'); return; }
+        document.getElementById('rejectConfirmReason').textContent = rejectSelect.value === 'Others' ? 'Others: ' + customReason.value.trim() : rejectSelect.value;
         rejectModal.showModal();
         return;
       }
@@ -166,7 +166,7 @@
           reportInlineError(reasonSelect, 'Please select a reason for rejecting the appointment.');
           return;
         }
-        if (reasonSelect.value === 'Other' && (!customReasonField || !customReasonField.value.trim())) {
+        if (reasonSelect.value === 'Others' && (!customReasonField || !customReasonField.value.trim())) {
           if (customReasonField) reportInlineError(customReasonField, 'Please explain why the entire appointment cannot proceed.');
           return;
         }
@@ -241,7 +241,7 @@
       var group = document.getElementById('customRejectionReasonGroup');
       var field = document.getElementById('customRejectionReason');
       if (!group || !field) return;
-      var isOther = e.target.value === 'Other';
+      var isOther = e.target.value === 'Others';
       group.style.display = isOther ? '' : 'none';
       field.required = isOther;
       if (!isOther) field.value = '';
