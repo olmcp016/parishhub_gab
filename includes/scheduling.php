@@ -226,6 +226,15 @@ const OCCURRENCE_ORDINALS = [1 => '1st', 2 => '2nd', 3 => '3rd', 4 => '4th', 5 =
  */
 function describeRegularSchedule(int $serviceId): string
 {
+    // Display text only; cached for this request because the Services page asks
+    // for the same service twice (card + scheduling policy), each a DB round trip.
+    static $cache = [];
+    if (array_key_exists($serviceId, $cache)) return $cache[$serviceId];
+    return $cache[$serviceId] = describeRegularScheduleUncached($serviceId);
+}
+
+function describeRegularScheduleUncached(int $serviceId): string
+{
     $rows = getServiceSchedules($serviceId);
     if (empty($rows)) {
         return 'No Regular schedule has been configured for this service yet — please choose Special.';

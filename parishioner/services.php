@@ -1087,8 +1087,10 @@ document.addEventListener('DOMContentLoaded', function () {
     if (window.history && history.replaceState) history.replaceState(null, '', window.location.pathname);
   }
 
+  var resumedFromDraft = false;
+
   function resumeBookingAfterBack() {
-    if (RESUME_DRAFT) { resumeDraftBooking(); RESUME_DRAFT = null; return; }
+    if (resumedFromDraft) return; // already reopened from "Back to Booking Form" on DOMContentLoaded
     var snapshot = readBookingSnapshot();
     if (!snapshot) return;
 
@@ -2043,6 +2045,14 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     return { date: '', time: '' };
   }
+
+  // "Back to Booking Form": reopen the form as soon as the DOM is ready. This
+  // listener is registered after every other DOMContentLoaded handler above, so
+  // the form's change listeners already exist; waiting for pageshow instead
+  // would hold the form back until every font, image and CDN script loaded.
+  document.addEventListener('DOMContentLoaded', function () {
+    if (RESUME_DRAFT) { resumeDraftBooking(); RESUME_DRAFT = null; resumedFromDraft = true; }
+  });
 
 </script>
 
