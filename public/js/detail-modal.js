@@ -94,6 +94,20 @@
     }
   }
 
+  /** Error line inside a Requirements Review rejection form, just above its buttons; '' hides it. */
+  function showRejectionFormError(form, message) {
+    var box = form.querySelector('.js-rejection-error');
+    if (!box) {
+      if (!message) return;
+      box = document.createElement('div');
+      box.className = 'supporting-document-error js-rejection-error';
+      box.setAttribute('role', 'alert');
+      form.insertBefore(box, form.querySelector('.review-rejection-buttons'));
+    }
+    box.textContent = message;
+    box.hidden = !message;
+  }
+
   function prependBanner(success, message) {
     var banner = document.createElement('div');
     banner.className = 'alert' + (success ? ' alert-success' : '');
@@ -385,15 +399,28 @@
         e.preventDefault();
         return;
       }
-      if (form.classList.contains('review-rejection-form')) {
-        var reasonField = form.querySelector('textarea[name="document_rejection_reason"]');
-        var reason = reasonField ? reasonField.value.trim() : '';
-        if (!reason) {
+      var isRequirementRejection = form.classList.contains('review-rejection-form');
+      if (isRequirementRejection) {
+        // Requirements Review rejection: a reason from the dropdown, plus the
+        // explanation when "Others" is chosen (same rules as the server).
+        var choiceField = form.querySelector('select[name="document_rejection_choice"]');
+        var customField = form.querySelector('textarea[name="document_rejection_custom"]');
+        if (!choiceField || !choiceField.value) {
           e.preventDefault();
-          if (reasonField) reportInlineError(reasonField, 'Please provide a reason for rejection.');
+          if (choiceField) reportInlineError(choiceField, 'Please select a rejection reason.');
+          else showRejectionFormError(form, 'This rejection form is out of date. Please close and reopen the appointment.');
           return;
         }
-        reasonField.value = reason;
+        if (choiceField.value === 'Others') {
+          var customReason = customField ? customField.value.trim() : '';
+          if (!customReason) {
+            e.preventDefault();
+            if (customField) reportInlineError(customField, 'Please specify the reason for rejection.');
+            return;
+          }
+          customField.value = customReason;
+        }
+        showRejectionFormError(form, '');
       }
       e.preventDefault();
 
@@ -406,6 +433,13 @@
         btn.dataset.originalText = btn.textContent;
         btn.textContent = 'Processing…';
       });
+      function restoreSubmitButtons() {
+        form.dataset.submitting = '0';
+        submitButtons.forEach(function (btn) {
+          btn.disabled = false;
+          if (btn.dataset.originalText) btn.textContent = btn.dataset.originalText;
+        });
+      }
 
       fetch(form.getAttribute('action'), {
         method: 'POST',
@@ -427,6 +461,12 @@
             window.location.href = data.redirect;
             return;
           }
+          if (isRequirementRejection && !data.success) {
+            // Not saved: keep the form open with the chosen reason so the Secretary can retry.
+            restoreSubmitButtons();
+            showRejectionFormError(form, data.message || 'The requirement could not be rejected. Please try again.');
+            return;
+          }
           if (data.success) dirty = true;
           return fetchFragment(submitUrl, detailAbortController && detailAbortController.signal).then(function (html) {
             if (submitRequestId !== activeDetailRequest || !modal.open) return;
@@ -437,11 +477,12 @@
         .catch(function (error) {
           if (error && error.name === 'AbortError') return;
           if (submitRequestId !== activeDetailRequest || !modal.open) return;
-          form.dataset.submitting = '0';
-          submitButtons.forEach(function (btn) {
-            btn.disabled = false;
-            if (btn.dataset.originalText) btn.textContent = btn.dataset.originalText;
-          });
+          restoreSubmitButtons();
+          if (window.console) console.error('Modal form submission failed:', error);
+          if (isRequirementRejection) {
+            showRejectionFormError(form, 'The requirement could not be rejected. Please check your connection and try again.');
+            return;
+          }
           alert('Something went wrong submitting that. Please try again.');
         });
     });

@@ -147,7 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             respondAjaxOrRedirect($isAjax, false, 'The document could not be rejected. Please try again.', $redirectUrl);
         }
         logActivity($userId, "Rejected a document for appointment #$id", 'Appointments');
-        respondAjaxOrRedirect($isAjax, true, 'Document rejected with instructions.', $redirectUrl);
+        respondAjaxOrRedirect($isAjax, true, 'Requirement rejected successfully.', $redirectUrl);
     }
 
     if ($action === 'verify_pss') {
