@@ -250,8 +250,7 @@ document.addEventListener('DOMContentLoaded', function () {
         ['Date', d.date],
         ['Time', d.time],
         ['Priest', d.priest],
-        ['Location', d.location],
-        ['Assignment', d.isMine ? 'Assigned to You' : (d.priest === 'Not Yet Assigned' ? 'Not Yet Assigned' : 'Assigned to Another Priest')]
+        ['Location', d.location]
       ]);
     },
     onAppointmentClick: function (fcEvent) {
