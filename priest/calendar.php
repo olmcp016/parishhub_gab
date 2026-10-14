@@ -7,7 +7,7 @@ requireRole('Priest');
  * View-only for the Priest role (item 22) — no add-event, block-date, or
  * availability controls at all, unlike secretary/calendar.php. Shows the
  * parish Mass schedule (with each Mass's assigned priest), other parish
- * events, and this priest's own confirmed appointments, read-only throughout.
+ * events, and this priest's own approved appointments, read-only throughout.
  */
 $priestId = currentPriestId();
 $today = date('Y-m-d');
@@ -21,6 +21,9 @@ $allEvents = db()->query(
 )->fetchAll();
 $blocked = db()->query('SELECT * FROM calendar WHERE is_blocked = 1 ORDER BY calendar_date ASC')->fetchAll();
 $calendarBlocked = array_map(fn($b) => ['date' => $b['calendar_date'], 'notes' => $b['notes']], $blocked);
+
+// Where church-held services and the regular Masses take place.
+$parishChurch = 'Our Lady of Mt. Carmel Parish, Del Carmen Norte, Balilihan, Bohol.';
 
 $priestLabel = fn(?string $title, ?string $name) => $name ? trim(($title ?? '') . ' ' . $name) : null;
 $timeLabel = fn(?string $time) => $time ? date('g:i A', strtotime($time)) : '';
@@ -56,7 +59,7 @@ foreach ($allEvents as $ev) {
             'time' => $timeLabel($time) ?: '—',
             'priest' => $priest ?? 'Not Yet Assigned',
             'isMine' => $isMine,
-            'location' => $ev['location_name'] ?: ($ev['location'] ?: null),
+            'location' => $ev['location_name'] ?: ($ev['location'] ?: $parishChurch),
         ],
     ];
 }
@@ -88,7 +91,7 @@ for ($massDay = clone $massStart; $massDay <= $massEnd; $massDay->modify('+1 day
                 'time' => $timeLabel($massTime),
                 'priest' => 'Not Yet Assigned',
                 'isMine' => false,
-                'location' => null,
+                'location' => $parishChurch,
             ],
         ];
     }
@@ -102,8 +105,8 @@ $myAppointments = [];
 $calendarAppointments = [];
 if ($priestId) {
     $stmt = db()->prepare(
-        "SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.guest_name,
-                s.service_name, st.status_name, u.firstname, u.lastname,
+        "SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.guest_name, a.location_address,
+                s.service_name, s.category, st.status_name, u.firstname, u.lastname,
                 p.title AS priest_title, p.full_name AS priest_name
          FROM appointments a
          JOIN services s ON a.service_id = s.service_id
@@ -115,13 +118,24 @@ if ($priestId) {
          ORDER BY a.appointment_date, a.appointment_time, a.appointment_id"
     );
     $stmt->execute([$priestId]);
+
+    // Church-held sacraments happen at the parish; everything else (House
+    // Blessing, Special Mass Request, ...) uses the address saved with the
+    // booking (appointments.location_address), if any.
+    $appointmentLocation = function (array $a) use ($parishChurch): string {
+        if (in_array($a['category'], ['Wedding', 'Baptism', 'Funeral', 'Confirmation'], true)) return $parishChurch;
+        $address = trim((string) ($a['location_address'] ?? ''));
+        return $address !== '' ? $address : 'Location not provided';
+    };
+
     foreach ($stmt->fetchAll() as $a) {
         // Some appointments have no time set yet (NULL), so don't hand null to substr().
         $time = $a['appointment_time'] ? substr($a['appointment_time'], 0, 5) : '';
         $name = $a['guest_name'] ?: trim(($a['firstname'] ?? '') . ' ' . ($a['lastname'] ?? ''));
         $calendarAppointments[] = [
             'date' => $a['appointment_date'],
-            'title' => $a['service_name'] . ($time ? ' (' . $timeLabel($time) . ')' : '') . ' – ' . $a['status_name'],
+            // Service name and time only; the address and other details are in the click-through modal.
+            'title' => $a['service_name'] . ($time ? ' (' . $timeLabel($time) . ')' : ''),
             'time' => $time,
             'details' => [
                 'service' => $a['service_name'],
@@ -130,6 +144,7 @@ if ($priestId) {
                 'time' => $timeLabel($time) ?: '—',
                 'priest' => $priestLabel($a['priest_title'], $a['priest_name']),
                 'status' => $a['status_name'],
+                'location' => $appointmentLocation($a),
             ],
         ];
         if ($a['appointment_date'] >= $today && count($myAppointments) < 20) $myAppointments[] = $a + ['parishioner_name' => $name ?: '—'];
@@ -144,7 +159,7 @@ include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/dash-start.php';
 ?>
 
-<div style="display:grid; grid-template-columns: auto 1fr; gap: 22px; align-items:start;" class="calendar-layout">
+<div style="display:grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 22px; align-items:start;" class="calendar-layout">
   <?php if (!$priestId): ?>
     <div class="alert" style="grid-column:1/-1;background:var(--danger-bg);color:var(--danger);border:1px solid #f5c2c2;">Your Priest Portal account is not linked to a priest profile. Please contact the parish office.</div>
   <?php endif; ?>
@@ -243,7 +258,8 @@ document.addEventListener('DOMContentLoaded', function () {
         ['Date', d.date],
         ['Time', d.time],
         ['Priest', d.priest],
-        ['Status', d.status]
+        ['Status', d.status],
+        ['Location', d.location]
       ]);
     }
   });
@@ -253,9 +269,14 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 
 <style>
-@media (max-width: 900px) {
-  .calendar-layout { grid-template-columns: 1fr !important; }
+/* The calendar takes the wide column so all seven days fit; the appointments
+   table scrolls inside its own card. Stack them once the calendar would get cramped. */
+@media (max-width: 1100px) {
+  .calendar-layout { grid-template-columns: minmax(0, 1fr) !important; }
 }
+/* Let long event titles (e.g. a Mass and its priest) wrap instead of being cut off. */
+#parishCalendar .fc-daygrid-event { white-space: normal; }
+#parishCalendar .fc-daygrid-event .fc-event-title { display: block; overflow-wrap: anywhere; }
 /* Same detail list as the Secretary's event panel (secretary/calendar.php). */
 .epanel-dl {
   display: grid; grid-template-columns: 100px 1fr;
@@ -268,6 +289,7 @@ document.addEventListener('DOMContentLoaded', function () {
 .epanel-dl dd {
   margin: 0; font-size: 14.5px; color: var(--brown-dark);
   padding: 2px 0; border-bottom: 1px solid var(--cream-dark);
+  white-space: pre-line; overflow-wrap: anywhere; /* full multi-line addresses */
 }
 .epanel-dl dd:last-child { border-bottom: none; }
 </style>
