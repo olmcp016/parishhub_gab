@@ -211,7 +211,7 @@
         if (!rejectionPanel) return;
         rejectionPanel.hidden = false;
         rejectionToggle.hidden = true;
-        var rejectionField = rejectionPanel.querySelector('textarea');
+        var rejectionField = rejectionPanel.querySelector('select, textarea');
         if (rejectionField) rejectionField.focus();
         return;
       }
@@ -226,7 +226,14 @@
         var matchingToggle = rejectionRoot.querySelector('.js-open-rejection[data-target="' + panel.id + '"]');
         if (!matchingToggle && formPanel) matchingToggle = rejectionRoot.querySelector('.js-open-rejection[data-target="' + formPanel.id + '"]');
         if (matchingToggle) matchingToggle.hidden = false;
-        if (formPanel) formPanel.reset();
+        if (formPanel) {
+          formPanel.reset();
+          // Cancel leaves nothing behind: no selected reason, no "Others" details, no error highlights.
+          syncDocumentRejectionChoice(formPanel.querySelector('.js-doc-rejection-choice'));
+          if (typeof clearFieldError === 'function') {
+            formPanel.querySelectorAll('select, textarea').forEach(function (field) { clearFieldError(field); });
+          }
+        }
         return;
       }
       // A direct hit on the <dialog> element itself (not a descendant) is
@@ -234,6 +241,27 @@
       if (modal && e.target === modal) {
         closeDetailModal();
       }
+    });
+
+    // Requirements Review (one document / generated form): "Others" shows a
+    // required "Please Specify Reason" box; any other choice hides and clears it.
+    function syncDocumentRejectionChoice(select) {
+      if (!select) return;
+      var form = select.closest('form');
+      var group = form ? form.querySelector('.js-doc-rejection-custom') : null;
+      var field = group ? group.querySelector('textarea') : null;
+      if (!group || !field) return;
+      var isOthers = select.value === 'Others';
+      group.hidden = !isOthers;
+      field.required = isOthers;
+      if (!isOthers) {
+        field.value = '';
+        if (typeof clearFieldError === 'function') clearFieldError(field);
+      }
+    }
+
+    document.addEventListener('change', function (e) {
+      if (e.target.classList && e.target.classList.contains('js-doc-rejection-choice')) syncDocumentRejectionChoice(e.target);
     });
 
     document.addEventListener('change', function (e) {

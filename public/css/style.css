@@ -1261,6 +1261,8 @@ dialog.modal::backdrop { background: rgba(36, 22, 17, 0.55); }
 .review-rejection-form { width: 100%; box-sizing: border-box; padding: 14px; border: 1px solid var(--cream-dark); border-radius: 10px; background: var(--cream); }
 .review-rejection-form label { display: block; margin-bottom: 6px; font-weight: 700; color: var(--brown-dark); }
 .review-rejection-form textarea { box-sizing: border-box; width: 100%; min-height: 110px; resize: vertical; padding: 10px; line-height: 1.45; }
+.review-rejection-form select { box-sizing: border-box; width: 100%; }
+.review-rejection-form .review-rejection-custom { margin-top: 12px; }
 .review-rejection-buttons { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 10px; }
 .review-rejection-buttons .btn { box-sizing: border-box; flex: 0 0 auto; min-width: 128px; padding: 8px 12px; font-size: 12px; white-space: nowrap; }
 .appointment-rejection-panel { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--cream-dark); }

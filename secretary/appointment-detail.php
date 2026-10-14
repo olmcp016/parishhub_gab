@@ -16,6 +16,25 @@ $isSecretaryViewer = currentUser()['role_name'] === 'Secretary';
 $isAjax = isDetailModalRequest();
 $redirectUrl = url('secretary/appointment-detail.php?id=' . $id);
 
+// Reasons for rejecting one supporting document or generated form ("Others" asks for details).
+const DOCUMENT_REJECTION_REASONS = ['Incomplete Documents', 'Missing Information', 'Others'];
+
+/** The reason dropdown (+ "Please Specify Reason" for Others) in each Requirements Review rejection form. */
+function renderDocumentRejectionReason(string $fieldId): void
+{
+    ?>
+    <label for="<?= e($fieldId) ?>">Reason for rejection</label>
+    <select id="<?= e($fieldId) ?>" name="document_rejection_choice" class="js-doc-rejection-choice" required>
+      <option value="">Select Rejection Reason</option>
+      <?php foreach (DOCUMENT_REJECTION_REASONS as $option): ?><option value="<?= e($option) ?>"><?= e($option) ?></option><?php endforeach; ?>
+    </select>
+    <div class="review-rejection-custom js-doc-rejection-custom" hidden>
+      <label for="<?= e($fieldId) ?>_custom">Please Specify Reason</label>
+      <textarea id="<?= e($fieldId) ?>_custom" name="document_rejection_custom" rows="4" maxlength="1000" placeholder="Enter the specific reason for rejection"></textarea>
+    </div>
+    <?php
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifyCsrf();
     $action = $_POST['action'] ?? '';
@@ -68,12 +87,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'reject_document') {
-        $reason = trim($_POST['document_rejection_reason'] ?? '');
-        if ($reason === '') {
-            respondAjaxOrRedirect($isAjax, false, 'Please provide a reason for rejection.', $redirectUrl);
+        $choice = trim((string) ($_POST['document_rejection_choice'] ?? ''));
+        if (!in_array($choice, DOCUMENT_REJECTION_REASONS, true)) {
+            respondAjaxOrRedirect($isAjax, false, 'Please select a rejection reason.', $redirectUrl);
         }
-        if (mb_strlen($reason) > 1000) {
-            respondAjaxOrRedirect($isAjax, false, 'The rejection reason must be 1000 characters or fewer.', $redirectUrl);
+        // Incomplete Documents / Missing Information are saved as-is; Others saves the Secretary's explanation.
+        $reason = $choice;
+        if ($choice === 'Others') {
+            $reason = trim((string) ($_POST['document_rejection_custom'] ?? ''));
+            if ($reason === '') {
+                respondAjaxOrRedirect($isAjax, false, 'Please specify the reason for rejection.', $redirectUrl);
+            }
+            if (mb_strlen($reason) > 1000) {
+                respondAjaxOrRedirect($isAjax, false, 'The rejection reason must be 1000 characters or fewer.', $redirectUrl);
+            }
         }
         if ($currentStatusId !== 1) {
             respondAjaxOrRedirect($isAjax, false, 'Documents can only be reviewed while the appointment is pending.', $redirectUrl);
@@ -88,9 +115,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->rollBack();
                 respondAjaxOrRedirect($isAjax, false, 'Documents can only be reviewed while the appointment is pending.', $redirectUrl);
             }
-            $documentInfo = $pdo->prepare('SELECT requirement_label FROM uploaded_documents WHERE document_id = ? AND appointment_id = ? AND review_status = \'pending\' AND superseded_by IS NULL FOR UPDATE');
+            $documentInfo = $pdo->prepare('SELECT requirement_label, document_source FROM uploaded_documents WHERE document_id = ? AND appointment_id = ? AND review_status = \'pending\' AND superseded_by IS NULL FOR UPDATE');
             $documentInfo->execute([$documentId, $id]);
-            $documentLabel = trim((string) ($documentInfo->fetchColumn() ?: 'Uploaded document'));
+            $documentRow = $documentInfo->fetch() ?: [];
+            $documentLabel = trim((string) (($documentRow['requirement_label'] ?? '') ?: 'Uploaded document'));
+            $itemKind = ($documentRow['document_source'] ?? '') === 'generated' ? 'form' : 'document';
             $update = $pdo->prepare(
                 "UPDATE uploaded_documents
                  SET review_status = 'rejected', verified = FALSE, rejection_reason = ?, reviewed_by = ?, reviewed_at = NOW()
@@ -107,7 +136,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $parishionerUserId = $recipient->fetchColumn();
             if ($parishionerUserId) {
                 $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Requirement Needs Revision', ?)")
-                    ->execute([(int) $parishionerUserId, "The requirement '$documentLabel' for appointment #$id needs correction. Reason: $reason"]);
+                    ->execute([(int) $parishionerUserId, $choice === 'Others'
+                        ? "The requirement '$documentLabel' for appointment #$id needs correction. Reason: $reason"
+                        : "Your submitted $itemKind '$documentLabel' for appointment #$id was rejected due to " . strtolower($reason) . ($itemKind === 'form' ? '. Please correct the form and generate it again.' : '. Please upload a corrected copy.')]);
             }
             $pdo->commit();
         } catch (Throwable $e) {
@@ -613,8 +644,7 @@ if (!$isAjax) {
                     <td colspan="3">
                       <form id="rejectDoc_<?= $d['document_id'] ?>" class="review-rejection-form" method="POST" action="<?= e($redirectUrl) ?>">
                         <?= csrfField() ?><input type="hidden" name="action" value="reject_document"><input type="hidden" name="document_id" value="<?= $d['document_id'] ?>">
-                        <label for="rejectDocReason_<?= $d['document_id'] ?>">Reason for rejection</label>
-                        <textarea id="rejectDocReason_<?= $d['document_id'] ?>" name="document_rejection_reason" rows="4" maxlength="1000" placeholder="Explain what needs to be replaced or corrected." required></textarea>
+                        <?php renderDocumentRejectionReason('rejectDocReason_' . $d['document_id']); ?>
                         <div class="review-rejection-buttons">
                           <button type="button" class="btn btn-outline btn-sm js-cancel-rejection">Cancel</button>
                           <button type="submit" class="btn btn-danger btn-sm">Confirm Rejection</button>
@@ -658,8 +688,7 @@ if (!$isAjax) {
                     <td colspan="3">
                       <form id="rejectDoc_<?= $d['document_id'] ?>" class="review-rejection-form" method="POST" action="<?= e($redirectUrl) ?>">
                         <?= csrfField() ?><input type="hidden" name="action" value="reject_document"><input type="hidden" name="document_id" value="<?= $d['document_id'] ?>">
-                        <label for="rejectDocReason_<?= $d['document_id'] ?>">Reason for rejection</label>
-                        <textarea id="rejectDocReason_<?= $d['document_id'] ?>" name="document_rejection_reason" rows="4" maxlength="1000" placeholder="Explain what needs to be replaced or corrected." required></textarea>
+                        <?php renderDocumentRejectionReason('rejectDocReason_' . $d['document_id']); ?>
                         <div class="review-rejection-buttons">
                           <button type="button" class="btn btn-outline btn-sm js-cancel-rejection">Cancel</button>
                           <button type="submit" class="btn btn-danger btn-sm">Confirm Rejection</button>
@@ -720,8 +749,7 @@ if (!$isAjax) {
                     <td colspan="3">
                       <form id="rejectForm_<?= $gf['document_id'] ?>" class="review-rejection-form" method="POST" action="<?= e($redirectUrl) ?>">
                         <?= csrfField() ?><input type="hidden" name="action" value="reject_document"><input type="hidden" name="document_id" value="<?= $gf['document_id'] ?>">
-                        <label for="rejectFormReason_<?= $gf['document_id'] ?>">Reason for rejection</label>
-                        <textarea id="rejectFormReason_<?= $gf['document_id'] ?>" name="document_rejection_reason" rows="4" maxlength="1000" placeholder="Explain what needs to be corrected in this form." required></textarea>
+                        <?php renderDocumentRejectionReason('rejectFormReason_' . $gf['document_id']); ?>
                         <div class="review-rejection-buttons">
                           <button type="button" class="btn btn-outline btn-sm js-cancel-rejection">Cancel</button>
                           <button type="submit" class="btn btn-danger btn-sm">Confirm Rejection</button>
