@@ -23,7 +23,7 @@ $blocked = db()->query('SELECT * FROM calendar WHERE is_blocked = 1 ORDER BY cal
 $calendarBlocked = array_map(fn($b) => ['date' => $b['calendar_date'], 'notes' => $b['notes']], $blocked);
 
 // Where church-held services and the regular Masses take place.
-$parishChurch = 'Our Lady of Mt. Carmel Parish, Del Carmen Norte, Balilihan, Bohol.';
+$parishChurch = 'Our Lady of Mt. Carmel Parish';
 
 $priestLabel = fn(?string $title, ?string $name) => $name ? trim(($title ?? '') . ' ' . $name) : null;
 $timeLabel = fn(?string $time) => $time ? date('g:i A', strtotime($time)) : '';
@@ -50,7 +50,8 @@ foreach ($allEvents as $ev) {
     $isMine = $priestId !== null && $ev['priest_id'] !== null && (int) $ev['priest_id'] === $priestId;
     $massSchedule[] = [
         'date' => $ev['event_date'],
-        'title' => $ev['title'] . ($time ? ' (' . $timeLabel($time) . ')' : '') . ' – ' . ($priest ?? 'Not Yet Assigned') . ($isMine ? ' (You)' : ''),
+        // Mass name and time only; priest and location are shown when the event is clicked.
+        'title' => $ev['title'] . ($time ? ' (' . $timeLabel($time) . ')' : ''),
         'clean_title' => $ev['title'],
         'time' => $time,
         'details' => [
@@ -59,7 +60,7 @@ foreach ($allEvents as $ev) {
             'time' => $timeLabel($time) ?: '—',
             'priest' => $priest ?? 'Not Yet Assigned',
             'isMine' => $isMine,
-            'location' => $ev['location_name'] ?: ($ev['location'] ?: $parishChurch),
+            'location' => $parishChurch, // every parish Mass is at the parish church
         ],
     ];
 }
@@ -82,7 +83,7 @@ for ($massDay = clone $massStart; $massDay <= $massEnd; $massDay->modify('+1 day
         if (isset($existingRealMasses[$massDateStr . '_' . strtolower($massTitle)])) continue;
         $massSchedule[] = [
             'date' => $massDateStr,
-            'title' => $massTitle . ' (' . $timeLabel($massTime) . ') – Not Yet Assigned',
+            'title' => $massTitle . ' (' . $timeLabel($massTime) . ')',
             'clean_title' => $massTitle,
             'time' => $massTime,
             'details' => [
@@ -164,7 +165,7 @@ include __DIR__ . '/../includes/dash-start.php';
     <div class="alert" style="grid-column:1/-1;background:var(--danger-bg);color:var(--danger);border:1px solid #f5c2c2;">Your Priest Portal account is not linked to a priest profile. Please contact the parish office.</div>
   <?php endif; ?>
   <div>
-    <div id="parishCalendar"></div>
+    <div class="pcal-scroll"><div id="parishCalendar"></div></div>
     <div class="pcal-legend">
       <span><i class="pcal-dot pcal-dot-today"></i> Today</span>
       <span><i class="pcal-dot" style="background:#2457a6;"></i> Approved Appointment</span>
@@ -269,13 +270,16 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 
 <style>
-/* The calendar takes the wide column so all seven days fit; the appointments
-   table scrolls inside its own card. Stack them once the calendar would get cramped. */
-@media (max-width: 1100px) {
+@media (max-width: 900px) {
   .calendar-layout { grid-template-columns: minmax(0, 1fr) !important; }
 }
-/* Let long event titles (e.g. a Mass and its priest) wrap instead of being cut off. */
-#parishCalendar .fc-daygrid-event { white-space: normal; }
+/* The calendar takes the wide column; the appointments table scrolls inside its
+   own card. If there still isn't room for all seven days, the calendar scrolls
+   sideways instead of squeezing or hiding the Saturday column. */
+.pcal-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+#parishCalendar { min-width: 540px; }
+/* Event labels wrap inside their day cell instead of spilling out of it. */
+#parishCalendar .fc-daygrid-event { white-space: normal; overflow: hidden; }
 #parishCalendar .fc-daygrid-event .fc-event-title { display: block; overflow-wrap: anywhere; }
 /* Same detail list as the Secretary's event panel (secretary/calendar.php). */
 .epanel-dl {
