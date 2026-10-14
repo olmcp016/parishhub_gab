@@ -153,7 +153,7 @@ include __DIR__ . '/includes/header.php';
           <div class="generated-form-item">
             <div class="generated-form-header">
               <span class="generated-form-title"><?= e(weddingFormDefinition($gf['form_type'])['title']) ?></span>
-              <span class="generated-form-status">Status: <?= e($state['label']) ?></span>
+              <span class="generated-form-status">Status: <?= generatedFormStatusBadge($state) ?></span>
               <div class="text-muted" style="margin-top:4px; font-size:.9rem;"><?= e($state['description']) ?></div>
               <?php if ($gf['rejection_reason']): ?><div class="text-muted" style="margin-top:4px; font-size:0.9rem;">Reason: <?= e($gf['rejection_reason']) ?></div><?php endif; ?>
             </div>
@@ -173,7 +173,7 @@ include __DIR__ . '/includes/header.php';
           <div class="generated-form-item">
             <div class="generated-form-header">
               <span class="generated-form-title"><?= e(baptismFormDefinition($gf['form_type'])['title']) ?></span>
-              <span class="generated-form-status">Status: <?= e($state['label']) ?></span>
+              <span class="generated-form-status">Status: <?= generatedFormStatusBadge($state) ?></span>
               <div class="text-muted" style="margin-top:4px; font-size:.9rem;"><?= e($state['description']) ?></div>
               <?php if ($gf['rejection_reason']): ?><div class="text-muted" style="margin-top:4px; font-size:0.9rem;">Reason: <?= e($gf['rejection_reason']) ?></div><?php endif; ?>
             </div>
@@ -199,7 +199,7 @@ include __DIR__ . '/includes/header.php';
         <div class="generated-form-item">
           <div class="generated-form-header">
             <span class="generated-form-title">Katin-awan sa Paglubong</span>
-            <span class="generated-form-status">Status: <?= e($state['label']) ?></span>
+            <span class="generated-form-status">Status: <?= generatedFormStatusBadge($state) ?></span>
             <div class="text-muted" style="margin-top:4px; font-size:.9rem;"><?= e($state['description']) ?></div>
             <?php if ($gf && $gf['rejection_reason']): ?><div class="text-muted" style="margin-top:4px; font-size:0.9rem;">Reason: <?= e($gf['rejection_reason']) ?></div><?php endif; ?>
           </div>

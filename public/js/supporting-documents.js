@@ -45,7 +45,7 @@
         var result = xhr.response || {};
         try {
           if (xhr.status >= 200 && xhr.status < 300 && result.success) {
-            status.innerHTML = '<span class="supporting-document-success">Pending Review</span>'
+            status.innerHTML = '<span class="badge badge-pending">Pending Review</span>'
               + '<span class="supporting-document-filename" data-upload-filename></span>'
               + (result.view_url ? ' <a class="btn btn-outline btn-sm" data-upload-view target="_blank" rel="noopener">View</a>' : '');
             status.querySelector('[data-upload-filename]').textContent = result.file_name || file.name;

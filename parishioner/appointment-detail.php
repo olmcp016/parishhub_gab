@@ -303,7 +303,7 @@ if (!$isAjax) {
         <div class="generated-form-item">
           <div class="generated-form-header">
             <span class="generated-form-title"><?= e(weddingFormDefinition($gf['form_type'])['title']) ?></span>
-            <span class="generated-form-status">Status: <?= e($state['label']) ?></span>
+            <span class="generated-form-status">Status: <?= generatedFormStatusBadge($state) ?></span>
             <div class="text-muted" style="margin-top:4px; font-size:.9rem;"><?= e($state['description']) ?></div>
             <?php if ($gf['rejection_reason']): ?><div class="text-muted" style="margin-top:4px; font-size:0.9rem;">Reason: <?= e($gf['rejection_reason']) ?></div><?php endif; ?>
           </div>
@@ -324,7 +324,7 @@ if (!$isAjax) {
         <div class="generated-form-item">
           <div class="generated-form-header">
             <span class="generated-form-title"><?= e($baptismTitles[$gf['form_type']] ?? $gf['form_type']) ?></span>
-            <span class="generated-form-status">Status: <?= e($state['label']) ?></span>
+            <span class="generated-form-status">Status: <?= generatedFormStatusBadge($state) ?></span>
             <div class="text-muted" style="margin-top:4px; font-size:.9rem;"><?= e($state['description']) ?></div>
             <?php if ($gf['rejection_reason']): ?><div class="text-muted" style="margin-top:4px; font-size:0.9rem;">Reason: <?= e($gf['rejection_reason']) ?></div><?php endif; ?>
           </div>
@@ -545,7 +545,7 @@ if (!$isAjax) {
             <div class="generated-form-item" style="margin-top: 16px;">
               <div class="generated-form-header">
                 <span class="generated-form-title"><?= e($label) ?></span>
-                <span class="generated-form-status">Status: <?= e($state['label']) ?></span>
+                <span class="generated-form-status">Status: <?= generatedFormStatusBadge($state) ?></span>
                 <div class="text-muted" style="margin-top:4px; font-size:.9rem;"><?= e($state['description']) ?></div>
                 <?php if (!empty($gf['rejection_reason'])): ?><div class="text-muted" style="margin-top:4px; font-size:.9rem;">Secretary's note: <?= e($gf['rejection_reason']) ?></div><?php endif; ?>
               </div>

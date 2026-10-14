@@ -98,6 +98,23 @@ function generatedFormWorkflowState(?array $form, ?array $document = null, bool 
     ];
 }
 
+/**
+ * The form's status as a badge: Needs Revision red, Approved green, pending
+ * review gold (the same badges as supporting documents). Draft and Not started
+ * keep their plain neutral text.
+ */
+function generatedFormStatusBadge(array $state): string
+{
+    $class = match ($state['code'] ?? '') {
+        'needs_revision' => 'badge-rejected',
+        'approved' => 'badge-approved',
+        'pending_review', 'generated' => 'badge-pending',
+        default => null,
+    };
+    $label = e((string) ($state['label'] ?? ''));
+    return $class ? '<span class="badge ' . $class . '">' . $label . '</span>' : $label;
+}
+
 function generatedFormWorkflowActionLabel(array $state): string
 {
     return match ($state['code'] ?? '') {

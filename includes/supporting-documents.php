@@ -74,12 +74,13 @@ function renderSupportingDocumentCards(array $requirements, array $documents, st
           <p class="supporting-document-help">Accepted files: <?= e(supportingDocumentAcceptedFiles()) ?><br>Maximum size: <?= e(supportingDocumentMaxSizeLabel()) ?></p>
           <div class="supporting-document-status" data-upload-status aria-live="polite">
             <?php if ($fileName): ?>
-              <?php if ($reviewStatus === 'rejected'): ?>
-                <span class="supporting-document-error">Needs Revision</span>
+              <?php // Same badges as generated forms: Needs Revision red, Approved green, Pending Review gold. ?>
+              <?php if (in_array($reviewStatus, ['rejected', 'needs_revision'], true)): ?>
+                <span class="badge badge-rejected">Needs Revision</span>
               <?php elseif ($reviewStatus === 'approved' || (is_array($document) && appointmentWorkflowBoolean($document['verified'] ?? false))): ?>
-                <span class="supporting-document-success">✓ Approved</span>
+                <span class="badge badge-approved">✓ Approved</span>
               <?php else: ?>
-                <span class="supporting-document-success">Pending Review</span>
+                <span class="badge badge-pending">Pending Review</span>
               <?php endif; ?>
               <span class="supporting-document-filename" data-upload-filename><?= e($fileName) ?></span>
               <?php if ($documentId): ?><a class="btn btn-outline btn-sm" data-upload-view href="<?= url('document.php?id=' . $documentId) ?>" target="_blank" rel="noopener">View</a><?php endif; ?>
