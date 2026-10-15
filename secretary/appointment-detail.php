@@ -382,7 +382,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             respondAjaxOrRedirect($isAjax, false, 'The schedule was not changed. Refresh and try again.', $redirectUrl);
         }
         logActivity($userId, "Rescheduled appointment #$id", 'Appointments');
-        respondAjaxOrRedirect($isAjax, true, 'Schedule updated.', $redirectUrl);
+
+        // Confirmation / First Communion are booked without a date; tell the
+        // parishioner once the office sets the final schedule. Guests see it on
+        // their booking status page instead (they have no account to notify).
+        $scheduleMessage = 'Schedule updated.';
+        if (in_array($category, ['Confirmation', 'First Communion'], true)) {
+            try {
+                $recipient = db()->prepare(
+                    "SELECT u.user_id, a.guest_name FROM appointments a
+                     JOIN parishioners p ON p.parishioner_id = a.parishioner_id
+                     JOIN users u ON u.user_id = p.user_id
+                     WHERE a.appointment_id = ?"
+                );
+                $recipient->execute([$id]);
+                $recipientRow = $recipient->fetch();
+                if ($recipientRow && trim((string) ($recipientRow['guest_name'] ?? '')) === '') {
+                    $when = formatDate($newDate) . ' at ' . date('g:i A', strtotime((string) $finalTime));
+                    db()->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', ?, ?)")
+                        ->execute([(int) $recipientRow['user_id'], "$category Schedule Confirmed", "Your $category schedule for appointment #$id has been set: $when."]);
+                    $scheduleMessage = 'Schedule updated. The parishioner has been notified.';
+                } else {
+                    $scheduleMessage = 'Schedule updated. The guest will see it on their booking status page.';
+                }
+            } catch (Throwable $e) {
+                error_log("Schedule notification failed for appointment #$id: " . $e->getMessage());
+                $scheduleMessage = 'Schedule updated, but the parishioner could not be notified. Please contact them directly.';
+            }
+        }
+        respondAjaxOrRedirect($isAjax, true, $scheduleMessage, $redirectUrl);
     } elseif ($action === 'confirm') {
         if ($currentStatusId !== 4) {
             respondAjaxOrRedirect($isAjax, false, 'Only a payment-verified appointment can be confirmed.', $redirectUrl);

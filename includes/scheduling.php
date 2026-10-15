@@ -659,9 +659,11 @@ function validateBooking(
 function schedulingPolicyText(string $category, ?int $serviceId = null): string
 {
     switch ($category) {
+        case 'Confirmation':
+            // No date/time is chosen when booking; the office schedules it (see book.php).
+            return "You may submit your booking request and required documents without selecting a date or time. The Parish Office will arrange the Confirmation schedule based on the Bishop's availability and notify you once the final schedule is confirmed.";
         case 'Baptism':
         case 'Wedding':
-        case 'Confirmation':
             if ($serviceId === null) {
                 $stmt = db()->prepare('SELECT service_id FROM services WHERE category = ? AND is_active = TRUE LIMIT 1');
                 $stmt->execute([$category]);
@@ -686,7 +688,7 @@ function schedulingPolicyText(string $category, ?int $serviceId = null): string
         case 'Anointing':
             return 'Propose a preferred date and time for the Anointing. This sacrament is free of charge — no payment is required.';
         case 'First Communion':
-            return 'Propose a preferred date and time below. A priest who is saying a Mass at that time is shown as unavailable.';
+            return 'You may submit your booking request and required documents without selecting a date or time. First Communion is scheduled during February, and the Parish Office will notify you once the final date and time are confirmed.';
         default:
             return '';
     }

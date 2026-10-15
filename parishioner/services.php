@@ -1292,7 +1292,8 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!noDocsService) rebuildRequirementRows(serviceId);
 
     var policyBox = document.getElementById('policyBox');
-    if (POLICIES[category]) {
+    // Confirmation / First Communion show their note where the date fields would be instead (no duplicate).
+    if (POLICIES[category] && category !== 'Confirmation' && category !== 'First Communion') {
       policyBox.style.display = 'block';
       policyBox.innerHTML = 'ℹ ' + POLICIES[category];
     } else {
@@ -1343,10 +1344,9 @@ document.addEventListener('DOMContentLoaded', function () {
       priestSelect.disabled = true;
 
       specialMsgBox.style.display = 'block';
-      if (category === 'Confirmation') {
-        specialMsgBox.textContent = "Schedule will be arranged by the parish office based on the Bishop's availability.";
-      } else if (category === 'First Communion') {
-        specialMsgBox.textContent = "First Communion is scheduled during February. The parish office will assign the final date and time.";
+      if (category === 'Confirmation' || category === 'First Communion') {
+        // Same note as includes/scheduling.php schedulingPolicyText() (no date/time to pick).
+        specialMsgBox.textContent = POLICIES[category] || '';
       } else if (category === 'Funeral') {
         specialMsgBox.textContent = "Funeral schedule will be arranged by the parish office after reviewing your documents.";
       }
