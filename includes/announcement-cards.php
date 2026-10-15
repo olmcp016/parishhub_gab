@@ -13,6 +13,7 @@
  * $donorModalId: the id of a donor-list dialog on the page; the current
  * week's donor announcement then gets a "View donor list" button in its modal.
  */
+require_once __DIR__ . '/announcement-images.php';
 $donorModalId = $donorModalId ?? null;
 
 $annCards = [];
@@ -21,11 +22,11 @@ foreach ($announcements as $a) {
     // Up to ANNOUNCEMENT_MAX_IMAGES posters; older rows may hold a PDF poster.
     $photos = [];
     $pdfs = [];
-    foreach (announcementImageSlots($a) as $path) {
+    foreach (announcementImageSlots($a) as $slot => $path) {
         if (strtolower(pathinfo($path, PATHINFO_EXTENSION)) === 'pdf') {
             $pdfs[] = documentUrl($path);
         } else {
-            $photos[] = documentUrl($path);
+            $photos[] = announcementImageUrl((int) $a['announcement_id'], $slot, $path);
         }
     }
     $status = announcementStatus($a['start_date'] ?? null, $a['end_date'] ?? null);

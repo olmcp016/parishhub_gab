@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/document-validation.php';
+require_once __DIR__ . '/../includes/announcement-images.php';
 requireRole('Secretary', 'Admin');
 
 $userId = currentUser()['user_id'];
@@ -88,8 +89,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('error', 'An announcement can have at most ' . ANNOUNCEMENT_MAX_IMAGES . ' images. Remove one or choose fewer files.');
             redirect(url('secretary/announcements.php'));
         }
-        foreach ($uploads as $file) {
+        $uploadMimes = [];
+        foreach ($uploads as $i => $file) {
             $result = validateAnnouncementImage($file);
+            // Over PHP's own upload limit: report it as too large, not as a generic failure.
+            if (in_array($file['error'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) $result['reason'] = 'too_large';
+            $uploadMimes[$i] = $result['mime'];
             if (!$result['valid']) {
                 $imgMsg = match ($result['reason']) {
                     'invalid_type' => 'Unsupported image format. Please upload JPG, PNG, GIF, or WEBP files.',
@@ -102,45 +107,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        // Persistent storage (Supabase in production — Render's disk is wiped on redeploy).
+        // If any upload fails, the ones already stored are removed and nothing is saved.
         $newImages = [];
-        foreach ($uploads as $file) {
-            $safeName = time() . '-' . bin2hex(random_bytes(3)) . '-' . preg_replace('/[^A-Za-z0-9._-]/', '_', $file['name']);
-            if (move_uploaded_file($file['tmp_name'], __DIR__ . '/../public/uploads/' . $safeName)) {
-                $newImages[] = 'public/uploads/' . $safeName;
+        try {
+            foreach ($uploads as $i => $file) {
+                $newImages[] = announcementImageStore($file['tmp_name'], (string) $uploadMimes[$i]);
             }
+        } catch (Throwable $e) {
+            error_log('Announcement image upload failed: ' . $e->getMessage());
+            announcementImagesDelete($newImages);
+            flash('error', 'The image could not be uploaded, so the announcement was not saved. Please try again.');
+            redirect(url('secretary/announcements.php'));
         }
 
         [$image1, $image2, $image3] = array_pad(array_merge($keptImages, $newImages), ANNOUNCEMENT_MAX_IMAGES, null);
 
-        if ($action === 'create') {
-            $stmt = db()->prepare(
-                "INSERT INTO announcements (title, content, posted_by, is_pinned, status, start_date, end_date, duration_type, image, image2, image3, category)
-                 VALUES (?, ?, ?, ?, 'published', ?, ?, ?, ?, ?, ?, ?)"
-            );
-            $stmt->execute([
-                $_POST['title'], $_POST['content'], $userId, !empty($_POST['is_pinned']) ? 1 : 0,
-                $startDate, $endDate, $durationType, $image1, $image2, $image3, normalizeAnnouncementCategory($_POST['category'] ?? null),
-            ]);
-            logActivity($userId, "Created announcement: {$_POST['title']}", 'Announcements');
-            flash('success', 'Announcement published.');
-        } else {
-            $stmt = db()->prepare(
-                "UPDATE announcements SET title = ?, content = ?, is_pinned = ?, start_date = ?, end_date = ?, duration_type = ?,
-                        image = ?, image2 = ?, image3 = ?, category = ?
-                 WHERE announcement_id = ?"
-            );
-            $stmt->execute([
-                $_POST['title'], $_POST['content'], !empty($_POST['is_pinned']) ? 1 : 0,
-                $startDate, $endDate, $durationType, $image1, $image2, $image3, normalizeAnnouncementCategory($_POST['category'] ?? null), $id,
-            ]);
-            logActivity($userId, "Updated announcement #$id", 'Announcements');
-            flash('success', 'Announcement updated.');
+        try {
+            if ($action === 'create') {
+                $stmt = db()->prepare(
+                    "INSERT INTO announcements (title, content, posted_by, is_pinned, status, start_date, end_date, duration_type, image, image2, image3, category)
+                     VALUES (?, ?, ?, ?, 'published', ?, ?, ?, ?, ?, ?, ?)"
+                );
+                $stmt->execute([
+                    $_POST['title'], $_POST['content'], $userId, !empty($_POST['is_pinned']) ? 1 : 0,
+                    $startDate, $endDate, $durationType, $image1, $image2, $image3, normalizeAnnouncementCategory($_POST['category'] ?? null),
+                ]);
+                logActivity($userId, "Created announcement: {$_POST['title']}", 'Announcements');
+                flash('success', 'Announcement published.');
+            } else {
+                $stmt = db()->prepare(
+                    "UPDATE announcements SET title = ?, content = ?, is_pinned = ?, start_date = ?, end_date = ?, duration_type = ?,
+                            image = ?, image2 = ?, image3 = ?, category = ?
+                     WHERE announcement_id = ?"
+                );
+                $stmt->execute([
+                    $_POST['title'], $_POST['content'], !empty($_POST['is_pinned']) ? 1 : 0,
+                    $startDate, $endDate, $durationType, $image1, $image2, $image3, normalizeAnnouncementCategory($_POST['category'] ?? null), $id,
+                ]);
+                logActivity($userId, "Updated announcement #$id", 'Announcements');
+                flash('success', 'Announcement updated.');
+            }
+        } catch (Throwable $e) {
+            error_log('Announcement save failed: ' . $e->getMessage());
+            announcementImagesDelete($newImages);
+            flash('error', 'The announcement could not be saved. Please try again.');
+            redirect(url('secretary/announcements.php'));
         }
+        // Saved: posters the Secretary removed are no longer referenced.
+        if ($existing) announcementImagesDelete(array_diff(announcementImageSlots($existing), $keptImages));
     } elseif ($action === 'delete') {
-        $stmt = db()->prepare('SELECT title FROM announcements WHERE announcement_id = ?');
+        $stmt = db()->prepare('SELECT title, image, image2, image3 FROM announcements WHERE announcement_id = ?');
         $stmt->execute([$_POST['announcement_id']]);
-        $deletedTitle = $stmt->fetchColumn();
+        $deletedRow = $stmt->fetch() ?: [];
+        $deletedTitle = $deletedRow['title'] ?? false;
         db()->prepare('DELETE FROM announcements WHERE announcement_id = ?')->execute([$_POST['announcement_id']]);
+        announcementImagesDelete(announcementImageSlots($deletedRow));
         logActivity($userId, "Deleted announcement: " . ($deletedTitle ?: '#' . $_POST['announcement_id']), 'Announcements');
         flash('success', 'Announcement removed.');
     }
@@ -294,7 +316,7 @@ include __DIR__ . '/../includes/dash-start.php';
                           <?php if (strtolower(pathinfo($path, PATHINFO_EXTENSION)) === 'pdf'): ?>
                             <span class="ann-edit-pdf">📄 PDF</span>
                           <?php else: ?>
-                            <img src="<?= documentUrl($path) ?>" alt="">
+                            <img src="<?= e(announcementImageUrl((int) $a['announcement_id'], $slot, $path)) ?>" alt="">
                           <?php endif; ?>
                           <label class="ann-edit-remove">
                             <input type="checkbox" name="remove_images[]" value="<?= $slot ?>" onchange="checkEditImageCount(<?= $a['announcement_id'] ?>)"> Remove
