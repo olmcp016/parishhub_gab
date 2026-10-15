@@ -4,6 +4,7 @@ require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/funeral-draft.php';
 require_once __DIR__ . '/includes/funeral-forms.php';
 require_once __DIR__ . '/includes/generated-form-workflow.php';
+require_once __DIR__ . '/includes/requirements-review.php';
 
 $appointmentId = (int) ($_GET['appointment_id'] ?? $_POST['appointment_id'] ?? 0);
 $draftId = $_GET['draft_id'] ?? $_POST['draft_id'] ?? '';
@@ -95,6 +96,7 @@ if ($isDraft) {
         $q->execute([$appointment['parishioner_id'], $user['user_id']]);
         if (!$q->fetchColumn()) { http_response_code(403); exit('Not authorized.'); }
     } elseif (!$isGuest) { http_response_code(403); exit('Verify the guest appointment before accessing this form.'); }
+    if ($isGuest) refreshGuestBookingAccess($appointmentId);
 
     $formQuery = $pdo->prepare('SELECT f.*, d.review_status FROM generated_forms f LEFT JOIN uploaded_documents d ON d.document_id = f.document_id WHERE f.service_category = \'Funeral\' AND f.appointment_id = ? AND f.form_type = ?');
     $formQuery->execute([$appointmentId, $type]);
@@ -151,16 +153,15 @@ if ($isDraft) {
                 $formQuery->execute([$appointmentId, $type]);
                 $updatedForm = $formQuery->fetch();
                 $newDocumentId = (int) ($updatedForm['document_id'] ?? 0);
+                // Back to this booking's requirements (a guest gets a signed link, not the public lookup form).
+                $bookingUrl = applicantBookingUrl($appointmentId, $appointment['guest_reference'] ?? null, $isGuest);
+                flash('success', regeneratedFormMessage($appointmentId));
                 if ($isAjaxGenerate) {
-                    $redirectAfterGenerate = $isGuest
-                        ? url('status.php?ref=' . urlencode((string) ($appointment['guest_reference'] ?? '')))
-                        : url('parishioner/appointment-detail.php?id=' . $appointmentId);
                     header('Content-Type: application/json');
-                    echo json_encode(['success' => true, 'doc_id' => $newDocumentId, 'redirect' => $redirectAfterGenerate]);
+                    echo json_encode(['success' => true, 'doc_id' => $newDocumentId, 'redirect' => $bookingUrl]);
                     exit;
                 }
-                flash('success', 'Katin-awan sa Paglubong has been generated and submitted for review.');
-                redirect(url('funeral-form.php?appointment_id=' . $appointmentId . '&generated_document_id=' . $newDocumentId));
+                redirect($bookingUrl);
             } catch (Throwable $e) {
                 error_log('Funeral form generation failed: ' . $e->getMessage());
                 $errorMsg = $e->getMessage() === 'Approved forms require Secretary review before they can be changed.'
@@ -188,7 +189,7 @@ $definition = funeralFormDefinition($type);
 
 $backLink = $isDraft 
     ? url('funeral-draft.php?draft_id=' . $draftId)
-    : ($isGuest ? url('status.php?ref=' . urlencode($appointment['guest_reference'] ?? '')) : url('parishioner/appointment-detail.php?id=' . $appointmentId));
+    : applicantBookingUrl($appointmentId, $appointment['guest_reference'] ?? null, $isGuest);
 $pageTitle = $definition['title'];
 $usesPublicShell = $isDraft ? !empty($draft['is_guest']) : $isGuest;
 include __DIR__ . '/includes/header.php';

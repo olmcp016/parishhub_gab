@@ -115,15 +115,50 @@ function secretaryNotificationFeed(int $userId, int $limit = 10): array
     $stmt->execute();
     $items = [];
     foreach ($stmt->fetchAll() as $n) {
-        $appointmentId = $link && !empty($n['appointment_id']) ? (int) $n['appointment_id'] : null;
+        $appointmentId = $link && !empty($n['appointment_id']) ? (int) $n['appointment_id'] : notificationAppointmentFromText((string) $n['message']);
+        $id = (int) $n['notification_id'];
         $items[] = [
-            'id' => (int) $n['notification_id'],
+            'id' => $id,
             'title' => (string) $n['title'],
             'message' => (string) $n['message'],
             'time' => formatDateTime($n['created_at']),
             'is_read' => in_array($n['is_read'], [true, 1, '1', 't', 'true'], true),
-            'url' => $appointmentId ? url('secretary/appointment-detail.php?id=' . $appointmentId) . '#requirements-review' : url('secretary/appointments.php'),
+            // The appointment page marks the notification read once it has loaded (?notification=).
+            'url' => $appointmentId
+                ? url('secretary/appointment-detail.php?id=' . $appointmentId . '&notification=' . $id) . '#requirements-review'
+                : url('secretary/appointments.php'),
         ];
     }
     return ['unread' => (int) $count->fetchColumn(), 'items' => $items];
+}
+
+/**
+ * Appointment a notification is about, from its text, for rows without
+ * notifications.appointment_id (written before migration_notifications_v2.sql):
+ * "Reference: PH-…" / "Booking PH-…", or "appointment #123".
+ */
+function notificationAppointmentFromText(string $message): ?int
+{
+    static $byReference = [];
+    if (preg_match('/\b(?:Reference:|Booking)\s+([A-Z]{2,}-[A-Z0-9]+)/', $message, $m)) {
+        $reference = $m[1];
+        if (!array_key_exists($reference, $byReference)) {
+            $stmt = db()->prepare('SELECT appointment_id FROM appointments WHERE guest_reference = ?');
+            $stmt->execute([$reference]);
+            $byReference[$reference] = ($found = $stmt->fetchColumn()) ? (int) $found : null;
+        }
+        if ($byReference[$reference]) return $byReference[$reference];
+    }
+    if (preg_match('/\bappointment\s+#(\d+)/i', $message, $m)) return (int) $m[1];
+    return null;
+}
+
+/** Marks one of this Secretary's notifications read — called by the appointment page after it loaded. */
+function markSecretaryNotificationRead(int $notificationId, int $userId): void
+{
+    try {
+        db()->prepare('UPDATE notifications SET is_read = TRUE WHERE notification_id = ? AND user_id = ?')->execute([$notificationId, $userId]);
+    } catch (Throwable $e) {
+        error_log('markSecretaryNotificationRead: ' . $e->getMessage());
+    }
 }

@@ -8,6 +8,7 @@ require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/wedding-forms.php';
 require_once __DIR__ . '/includes/document-storage.php';
 require_once __DIR__ . '/includes/generated-form-workflow.php';
+require_once __DIR__ . '/includes/requirements-review.php';
 
 $appointmentId = (int) ($_GET['appointment_id'] ?? $_POST['appointment_id'] ?? 0);
 $type = (string) ($_GET['form_type'] ?? $_POST['form_type'] ?? '');
@@ -28,6 +29,9 @@ if ($user) {
     $q->execute([$appointment['parishioner_id'], $user['user_id']]);
     if (!$q->fetchColumn()) { http_response_code(403); exit('Not authorized.'); }
 } elseif (!$isGuest) { http_response_code(403); exit('Verify the guest appointment before accessing this form.'); }
+if ($isGuest) refreshGuestBookingAccess($appointmentId);
+// Back to THIS booking (a guest gets a signed link, not the public lookup form).
+$bookingUrl = applicantBookingUrl($appointmentId, $appointment['guest_reference'] ?? null, $isGuest);
 
 $formQuery = db()->prepare('SELECT g.*, d.review_status, d.verified, d.rejection_reason FROM generated_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.service_category = \'Wedding\' AND g.appointment_id = ? AND g.form_type = ?');
 $formQuery->execute([$appointmentId, $type]);
@@ -136,18 +140,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $pdo->commit();
             if ($isAjaxGenerate) {
-                $redirectAfterGenerate = $isGuest
-                    ? url('status.php?ref=' . urlencode((string) ($appointment['guest_reference'] ?? '')))
-                    : url('parishioner/appointment-detail.php?id=' . $appointmentId);
+                // Shown on the booking page the browser goes to next.
+                flash('success', regeneratedFormMessage($appointmentId));
                 header('Content-Type: application/json');
-                echo json_encode(['success' => true, 'doc_id' => $newDocumentId, 'redirect' => $redirectAfterGenerate]);
+                echo json_encode(['success' => true, 'doc_id' => $newDocumentId, 'redirect' => $bookingUrl]);
                 exit;
             }
-            flash('success', $action === 'generate' ? 'Form generated and submitted for review.' : 'Draft saved successfully. You can continue completing your application later.');
+            flash('success', $action === 'generate' ? regeneratedFormMessage($appointmentId) : 'Draft saved successfully. You can continue completing your application later.');
             if ($action === 'generate') {
-                redirect($isGuest
-                    ? url('status.php?ref=' . urlencode((string) ($appointment['guest_reference'] ?? '')))
-                    : url('parishioner/appointment-detail.php?id=' . $appointmentId));
+                redirect($bookingUrl);
             }
             redirect(url('wedding-form.php?appointment_id=' . $appointmentId . '&form_type=' . urlencode($type)));
         } catch (Throwable $e) {
@@ -176,9 +177,7 @@ if ($form && !empty($form['document_id'])) {
 }
 $pageTitle = $def['title'];
 $usesPublicShell = !$user;
-$backLink = $isGuest
-    ? url('status.php?ref=' . urlencode((string) ($appointment['guest_reference'] ?? '')))
-    : url('parishioner/appointment-detail.php?id=' . $appointmentId);
+$backLink = $bookingUrl;
 include __DIR__ . '/includes/header.php';
 include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 'dash-start.php');
 ?>

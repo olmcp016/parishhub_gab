@@ -134,6 +134,46 @@ function guestAccessLink(int $appointmentId, string $reference): string
     ]);
 }
 
+/**
+ * Where a guest or parishioner returns after editing a form for an existing
+ * booking: their own booking page, at its requirements. A guest gets a signed,
+ * booking-specific link (never the bare reference, which would only show the
+ * public lookup form).
+ */
+function applicantBookingUrl(int $appointmentId, ?string $guestReference, bool $isGuest): string
+{
+    if ($isGuest && trim((string) $guestReference) !== '') {
+        return guestAccessLink($appointmentId, (string) $guestReference) . '#booking-requirements';
+    }
+    return url('parishioner/appointment-detail.php?id=' . $appointmentId) . '#booking-requirements';
+}
+
+/** Keeps a verified guest's booking access alive while they edit forms (sliding 30 minutes). */
+function refreshGuestBookingAccess(int $appointmentId): void
+{
+    $guest = $_SESSION['guest_status_verification'] ?? null;
+    if (is_array($guest) && (int) ($guest['appointment_id'] ?? 0) === $appointmentId && (int) ($guest['expires_at'] ?? 0) >= time()) {
+        $_SESSION['guest_status_verification']['expires_at'] = time() + 1800;
+    }
+}
+
+/** After regenerating a form during an open revision request: remind the applicant to submit. */
+function regeneratedFormMessage(int $appointmentId): string
+{
+    try {
+        if (requirementsReviewAvailable()) {
+            $stmt = db()->prepare('SELECT requirements_review_status FROM appointments WHERE appointment_id = ?');
+            $stmt->execute([$appointmentId]);
+            if ($stmt->fetchColumn() === 'awaiting_revision') {
+                return 'Updated form generated. Review your corrections, then click Submit Updated Requirements so the Parish Office can review them.';
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('regeneratedFormMessage: ' . $e->getMessage());
+    }
+    return 'Form generated and submitted for review.';
+}
+
 /** Validates a status.php "access" value for the appointment with that reference. */
 function guestAccessTokenValid(int $appointmentId, string $reference, string $token): bool
 {
@@ -234,11 +274,12 @@ function sendRevisionRequest(int $appointmentId, int $secretaryUserId): array
     // One email per revision request: the request's own timestamp is part of the key.
     $delivery = sendLoggedEmail('revision_request', "revision_request:$appointmentId:$requestedAt", $appointmentId, requirementsReviewReference($appointment),
         $toEmail, $isGuest ? (string) $appointment['guest_name'] : trim(($appointment['firstname'] ?? '') . ' ' . ($appointment['lastname'] ?? '')),
-        'ParishHub – Your Booking Requirements Need Revision', emailTemplate('Your Booking Requirements Need Revision', $body, $link, 'Open My Booking'), $secretaryUserId);
+        'ParishHub – Your Requirements Need Revision', emailTemplate('Your Requirements Need Revision', $body, $link, 'Open My Booking'), $secretaryUserId);
 
-    // 'duplicate' = this exact email was already accepted by Brevo earlier, so it is delivered too.
+    // 'duplicate' = this exact email was already accepted by Brevo earlier.
+    // "Accepted" is all the API can confirm — actual inbox delivery is not known here.
     return $delivery !== 'failed'
-        ? ['ok' => true, 'message' => 'Revision request sent. The applicant was emailed at ' . maskEmail($toEmail) . ' and the appointment is now Awaiting Revision.']
+        ? ['ok' => true, 'message' => 'Revision request sent. The email to ' . maskEmail($toEmail) . ' was accepted by the email service for delivery, and the appointment is now Awaiting Revision.']
         : ['ok' => true, 'message' => 'Revision request saved (Awaiting Revision), but the email could not be sent' . (emailDeliveryConfigured() ? '' : ' because email is not configured on this server') . '. Please contact the applicant directly.'];
 }
 
@@ -281,7 +322,7 @@ function submitUpdatedRequirements(int $appointmentId, ?int $actorUserId): array
 
     // The Secretary is told inside ParishHub (notification bell), not by email.
     notifySecretariesUpdatedRequirements($appointmentId);
-    return ['ok' => true, 'message' => 'Your updated requirements were submitted and are now Ready for Re-Review. The parish office will review them.'];
+    return ['ok' => true, 'message' => 'Your updated requirements have been submitted successfully. The Parish Office will review your corrections.'];
 }
 
 /**

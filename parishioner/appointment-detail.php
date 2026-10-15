@@ -520,7 +520,7 @@ if (!$isAjax) {
       // a new booking and must not be treated as a document correction.
       $canUpload = $appointment['status_name'] === 'Pending';
     ?>
-    <div class="card">
+    <div class="card" id="booking-requirements">
       <div class="card-header"><h3><?= $canUpload ? 'Required Documents &amp; Replacements' : 'Required Documents' ?></h3></div>
       <?php if ($canUpload): ?>
         <p class="helper-text" style="margin-top:-6px;">Replace only documents marked “Needs Revision.” The appointment and booking reference stay the same while your replacement is reviewed.</p>

@@ -2,7 +2,7 @@
  * PARISHHUB — Secretary notification bell (includes/topbar.php).
  * Polls secretary/notifications-feed.php every 30 seconds (and when the panel
  * opens) so new bookings / updated requirements appear without a page refresh.
- * Clicking a notification marks it read, then opens its appointment.
+ * Clicking a notification opens its appointment, which then marks it read.
  */
 (function () {
   var root = document.getElementById('notifBell');
@@ -73,14 +73,9 @@
     request('POST', body).then(render).catch(function () {});
   });
 
-  list.addEventListener('click', function (e) {
-    var item = e.target.closest('.notif-bell-item');
-    if (!item) return;
-    e.preventDefault();
-    var body = new FormData(); body.append('action', 'read'); body.append('id', item.dataset.id);
-    // Open the appointment even if marking read fails.
-    request('POST', body).catch(function () {}).then(function () { window.location.href = item.href; });
-  });
+  // Clicking a notification just follows its link to the appointment; the
+  // appointment page marks it read only after it has actually loaded
+  // (secretary/appointment-detail.php?notification=…).
 
   setInterval(function () { if (!document.hidden) refresh(); }, POLL_MS);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(); });

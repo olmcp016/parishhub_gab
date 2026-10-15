@@ -157,7 +157,7 @@ include __DIR__ . '/includes/header.php';
       No matching record found. Double-check your reference code and the email or phone you gave when booking.
     </div>
   <?php elseif ($appointment): ?>
-    <div class="card" style="margin-top:20px;">
+    <div class="card" style="margin-top:20px;" id="booking-requirements">
       <div class="card-header">
         <h3><?= e($appointment['service_name']) ?></h3>
         <?php if ($appointment['category'] === 'Mass Intention'): $miStatus = massIntentionStatusDisplay($appointment['status_name'], !empty($payment) && !((int) $payment['method_id'] === 7 && $payment['payment_status'] !== 'verified')); ?>

@@ -50,10 +50,12 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
 <?php endif; ?>
 
+<?php // Before the migration there are no real counts: show a dash, never a made-up 0.
+$reviewCount = fn(string $key) => $reviewEnabled ? (string) $reviewCounts[$key] : '—'; ?>
 <div class="stat-grid">
-  <a class="stat-card stat-card-link review-pending" href="<?= url('secretary/appointments.php?status=' . urlencode('review:pending_review')) ?>"><div class="stat-label">Pending Review</div><div class="stat-value"><?= $reviewCounts['pending_review'] ?></div></a>
-  <a class="stat-card stat-card-link review-awaiting" href="<?= url('secretary/appointments.php?status=' . urlencode('review:awaiting_revision')) ?>"><div class="stat-label">Awaiting Revision</div><div class="stat-value"><?= $reviewCounts['awaiting_revision'] ?></div></a>
-  <a class="stat-card stat-card-link review-ready" href="<?= url('secretary/appointments.php?status=' . urlencode('review:ready_for_rereview')) ?>"><div class="stat-label">Ready for Re-Review</div><div class="stat-value"><?= $reviewCounts['ready_for_rereview'] ?></div></a>
+  <a class="stat-card stat-card-link review-pending" href="<?= url('secretary/appointments.php?status=' . urlencode('review:pending_review')) ?>"><div class="stat-label">Pending Review</div><div class="stat-value"><?= $reviewCount('pending_review') ?></div></a>
+  <a class="stat-card stat-card-link review-awaiting" href="<?= url('secretary/appointments.php?status=' . urlencode('review:awaiting_revision')) ?>"><div class="stat-label">Awaiting Revision</div><div class="stat-value"><?= $reviewCount('awaiting_revision') ?></div></a>
+  <a class="stat-card stat-card-link review-ready" href="<?= url('secretary/appointments.php?status=' . urlencode('review:ready_for_rereview')) ?>"><div class="stat-label">Ready for Re-Review</div><div class="stat-value"><?= $reviewCount('ready_for_rereview') ?></div></a>
 </div>
 
 <div class="card">

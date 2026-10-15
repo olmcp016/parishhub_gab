@@ -6,6 +6,7 @@ require_once __DIR__ . '/includes/baptism-forms.php';
 require_once __DIR__ . '/includes/wedding-forms.php';
 require_once __DIR__ . '/includes/document-storage.php';
 require_once __DIR__ . '/includes/generated-form-workflow.php';
+require_once __DIR__ . '/includes/requirements-review.php';
 
 $id = (int) ($_GET['draft_id'] ?? $_POST['draft_id'] ?? 0);
 $appointmentId = (int) ($_GET['appointment_id'] ?? $_POST['appointment_id'] ?? 0);
@@ -31,6 +32,7 @@ if ($isAppointmentForm) {
     } elseif (!$isGuest) {
         http_response_code(403); exit('Verify the guest appointment before accessing this form (30).');
     }
+    if ($isGuest) refreshGuestBookingAccess($appointmentId);
     $draft = [
         'contact_phone' => (string) (($appointment['contact_phone'] ?? '') ?: ($appointment['guest_phone'] ?? '')),
         'appointment_date' => (string) ($appointment['appointment_date'] ?? ''),
@@ -154,17 +156,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $pdo->commit();
             if ($isAjaxGenerate) {
+                // An existing booking returns to that booking's requirements (guest: signed link).
                 $redirectAfterGenerate = $isAppointmentForm
-                    ? url('baptism-draft-form.php?appointment_id=' . $appointmentId . '&form_type=' . urlencode($type))
+                    ? applicantBookingUrl($appointmentId, $appointment['guest_reference'] ?? null, $isGuest)
                     : url('baptism-draft.php?draft_id=' . $id);
+                if ($isAppointmentForm) flash('success', regeneratedFormMessage($appointmentId));
                 header('Content-Type: application/json');
                 echo json_encode(['success' => true, 'doc_id' => $newId, 'redirect' => $redirectAfterGenerate]);
                 exit;
             }
-            flash('success', 'Baptism form generated and submitted for review.');
             if ($isAppointmentForm) {
-                redirect(url('baptism-draft-form.php?appointment_id=' . $appointmentId . '&form_type=' . urlencode($type) . '&generated_document_id=' . $newId));
+                flash('success', regeneratedFormMessage($appointmentId));
+                redirect(applicantBookingUrl($appointmentId, $appointment['guest_reference'] ?? null, $isGuest));
             }
+            flash('success', 'Baptism form generated and submitted for review.');
             redirect(url('baptism-draft.php?draft_id=' . $id . '&auto_open_pdf=' . $newId));
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) { $pdo->rollBack(); }
@@ -201,9 +206,7 @@ if ($form && !empty($form['document_id'])) {
 $pageTitle = $def['title'];
 $usesPublicShell = !$user;
 $backLink = $isAppointmentForm
-    ? ($isGuest
-        ? url('status.php?ref=' . urlencode((string) ($appointment['guest_reference'] ?? '')))
-        : url('parishioner/appointment-detail.php?id=' . $appointmentId))
+    ? applicantBookingUrl($appointmentId, $appointment['guest_reference'] ?? null, $isGuest)
     : url('baptism-draft.php?draft_id=' . $id);
 include __DIR__ . '/includes/header.php';
 include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 'dash-start.php');

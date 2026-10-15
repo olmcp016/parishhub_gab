@@ -285,12 +285,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             respondAjaxOrRedirect($isAjax, false, 'The appointment could not be approved. Please try again.', $redirectUrl);
         }
 
+        // The approval is committed; the email / notification can no longer undo it.
+        require_once __DIR__ . '/../includes/appointment-approval.php';
         if ($noPaymentNeeded) {
             logActivity($userId, "Approved and confirmed appointment #$id (PSS Giver Funeral Mass, no fees)", 'Appointments');
-            respondAjaxOrRedirect($isAjax, true, 'Appointment approved and confirmed. No payment is required (PSS Giver — No Fees).', $redirectUrl);
+            $approvalNotice = appointmentApprovedNoticeSummary(notifyAppointmentApproved($id, (int) $userId));
+            respondAjaxOrRedirect($isAjax, true, 'Appointment approved and confirmed. No payment is required (PSS Giver — No Fees). ' . $approvalNotice, $redirectUrl);
         }
         logActivity($userId, "Approved appointment #$id", 'Appointments');
-        respondAjaxOrRedirect($isAjax, true, 'Appointment approved. The parishioner may now proceed to payment.', $redirectUrl);
+        $approvalNotice = appointmentApprovedNoticeSummary(notifyAppointmentApproved($id, (int) $userId));
+        respondAjaxOrRedirect($isAjax, true, 'Appointment approved. The parishioner may now proceed to payment. ' . $approvalNotice, $redirectUrl);
     } elseif ($action === 'reject') {
         if ($currentStatusId !== 1 || in_array($actionAppointment['category'], ['Mass Intention', 'Donation'], true)) {
             respondAjaxOrRedirect($isAjax, false, 'This appointment is no longer pending review.', $redirectUrl);
@@ -481,6 +485,12 @@ if (!$appointment) {
     redirect(url('secretary/appointments.php'));
 }
 
+// Opened from the notification bell: the appointment loaded, so mark that notification read.
+if (!empty($_GET['notification']) && currentUser()['role_name'] === 'Secretary') {
+    require_once __DIR__ . '/../includes/secretary-notifications.php';
+    markSecretaryNotificationRead((int) $_GET['notification'], (int) $userId);
+}
+
 $priests = db()->query("SELECT * FROM priests WHERE status = 'active'")->fetchAll();
 $priestSchedules = [];
 $priestUnavailability = [];
@@ -626,7 +636,7 @@ if (!$isAjax) {
         $updatedStmt = db()->prepare("SELECT DISTINCT superseded_by FROM uploaded_documents WHERE appointment_id = ? AND review_status = 'rejected' AND superseded_by IS NOT NULL");
         $updatedStmt->execute([$id]);
         $updatedDocumentIds = array_flip(array_map('intval', $updatedStmt->fetchAll(PDO::FETCH_COLUMN)));
-        $updatedBadge = static fn($documentId): string => isset($updatedDocumentIds[(int) $documentId]) ? ' <span class="badge badge-confirmed" title="Re-submitted to replace a rejected item">Updated</span>' : '';
+        $updatedBadge = static fn($documentId): string => isset($updatedDocumentIds[(int) $documentId]) ? ' <span class="badge badge-confirmed review-updated-badge" title="Re-submitted to replace a rejected item">Updated</span>' : '';
       ?>
 
       <?php
