@@ -95,6 +95,10 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         if (!$guestPhone) {
             bookRespondError($isAjax, 'Enter a valid 11-digit mobile number starting with 09.', url('parishioner/services.php'));
         }
+        // Required: booking updates (e.g. requirement revision requests) are sent by email.
+        if (!$guestEmail) {
+            bookRespondError($isAjax, 'Please enter a valid email address. We send updates about your booking to this email.', url('parishioner/services.php'));
+        }
         $guestReference = generateGuestReference();
     }
     // The same canonical booking reference is stored for registered

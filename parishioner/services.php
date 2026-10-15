@@ -367,9 +367,10 @@ $noFeesLabel = fn(float $amount): string => $amount > 0 ? money($amount) : 'No F
                   style="width:100%;">
               </div>
               <div class="form-group">
-                <label>Email Address <span class="text-muted" style="font-weight:400;">(optional)</span></label>
+                <label>Email Address</label>
                 <input type="email" name="guest_email" id="guestEmailInput" placeholder="you@example.com"
-                  style="width:100%;">
+                  style="width:100%;" required maxlength="150">
+                <p class="helper-text">We'll send updates about your booking to this email.</p>
               </div>
             </div>
             <input type="hidden" name="guest_name" id="guestCombinedName">

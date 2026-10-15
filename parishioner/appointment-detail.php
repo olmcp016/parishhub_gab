@@ -7,6 +7,7 @@ require_once __DIR__ . '/../includes/baptism-forms.php';
 require_once __DIR__ . '/../includes/document-validation.php';
 require_once __DIR__ . '/../includes/supporting-documents.php';
 require_once __DIR__ . '/../includes/generated-form-workflow.php';
+require_once __DIR__ . '/../includes/requirements-review.php';
 requireRole('Parishioner');
 
 $userId = currentUser()['user_id'];
@@ -54,6 +55,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         flash('success', 'Appointment cancelled.');
         redirect(url('parishioner/appointments.php'));
+    }
+
+    if ($action === 'submit_updated_requirements') {
+        // Only the owner of the appointment (same rule as cancel above).
+        $owner = db()->prepare('SELECT 1 FROM appointments WHERE appointment_id = ? AND parishioner_id = ?');
+        $owner->execute([$id, $parishionerId]);
+        if (!$owner->fetchColumn() || !requirementsReviewAvailable()) {
+            respondAjaxOrRedirect($isAjax, false, 'This appointment cannot receive updated requirements.', $redirectUrl);
+        }
+        $result = submitUpdatedRequirements($id, (int) $userId);
+        respondAjaxOrRedirect($isAjax, $result['ok'], $result['message'], $redirectUrl);
     }
 
     if ($action === 'upload_documents') {
@@ -561,6 +573,29 @@ if (!$isAjax) {
             </div>
           <?php endif; ?>
         <?php endforeach; ?>
+      <?php endif; ?>
+
+      <?php if (requirementsReviewAvailable() && ($appointment['requirements_review_status'] ?? null) !== null && (int) $appointment['status_id'] === 1):
+        $applicantReviewItems = requirementsReviewItems($id);
+        $applicantReviewState = requirementsReviewState($appointment['requirements_review_status'], requirementsReviewCounts($applicantReviewItems));
+        $stillNeedsRevision = array_values(array_filter($applicantReviewItems, static fn(array $i): bool => $i['review_status'] === 'rejected'));
+      ?>
+        <div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark); margin-top:16px;">
+          <p style="margin-top:0;"><strong>Requirements status:</strong> <span class="badge badge-<?= e($applicantReviewState['badge']) ?>"><?= e($applicantReviewState['label']) ?></span></p>
+          <?php if ($applicantReviewState['code'] === 'awaiting_revision'): ?>
+            <p style="margin:0 0 10px;">
+              <?= $stillNeedsRevision
+                  ? 'Update each item marked Needs Revision (' . e(implode(', ', array_map(static fn($i) => $i['label'], $stillNeedsRevision))) . '), then submit them for review.'
+                  : 'All items marked Needs Revision have been updated. Submit them so the parish office can review them again.' ?>
+            </p>
+            <form method="POST" action="<?= e($redirectUrl) ?>">
+              <?= csrfField() ?><input type="hidden" name="action" value="submit_updated_requirements">
+              <button type="submit" class="btn btn-primary">Submit Updated Requirements</button>
+            </form>
+          <?php else: ?>
+            <p style="margin:0;">Your updated requirements were submitted. The parish office will review them and email you if anything else is needed.</p>
+          <?php endif; ?>
+        </div>
       <?php endif; ?>
 
       <?php if (!empty($extraDocuments)): ?>

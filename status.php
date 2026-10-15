@@ -5,6 +5,7 @@ require_once __DIR__ . '/includes/wedding-forms.php';
 require_once __DIR__ . '/includes/baptism-forms.php';
 require_once __DIR__ . '/includes/supporting-documents.php';
 require_once __DIR__ . '/includes/generated-form-workflow.php';
+require_once __DIR__ . '/includes/requirements-review.php';
 
 /**
  * Public, no-account status lookup for a guest booking/Mass Intention/
@@ -18,6 +19,9 @@ require_once __DIR__ . '/includes/generated-form-workflow.php';
 $thankYouReference = pullBookingThankYou();
 $reference = trim($_GET['ref'] ?? '');
 $contact = trim($_GET['contact'] ?? '');
+// Signed, expiring link from a revision-request email (includes/requirements-review.php):
+// stands in for the email/phone, but only for that one booking and only until it expires.
+$accessToken = trim((string) ($_GET['access'] ?? ''));
 $searched = $reference !== '';
 $appointment = null;
 $notFound = false;
@@ -29,7 +33,26 @@ if ($searched) {
     // used for the booking must match too, and failed lookups are throttled.
     $ipKey = 'status_ip:' . hash('sha256', $_SERVER['REMOTE_ADDR'] ?? 'unknown');
     $lockedFor = throttleSecondsLeft($ipKey);
-    if ($contact === '') {
+    if ($contact === '' && $accessToken !== '' && $lockedFor > 0) {
+        $lookupError = 'Too many lookups from this connection. Please try again in ' . ceil($lockedFor / 60) . ' minute(s).';
+    } elseif ($contact === '' && $accessToken !== '') {
+        $stmt = db()->prepare(
+            "SELECT a.*, s.service_name, s.fee, s.category, s.requirements, st.status_name, p.full_name AS priest_name
+             FROM appointments a
+             JOIN services s ON a.service_id = s.service_id
+             JOIN appointment_status st ON a.status_id = st.status_id
+             LEFT JOIN priests p ON a.priest_id = p.priest_id
+             WHERE a.guest_reference = ?"
+        );
+        $stmt->execute([$code]);
+        $candidate = $stmt->fetch() ?: null;
+        if ($candidate && guestAccessTokenValid((int) $candidate['appointment_id'], $code, $accessToken)) {
+            $appointment = $candidate;
+        } else {
+            throttleRecordFailure($ipKey, 10, 15 * 60);
+            $lookupError = 'This booking link has expired or is not valid. Enter your reference code and the email or phone you used when booking.';
+        }
+    } elseif ($contact === '') {
         $lookupError = 'Enter the email or phone number you gave when booking, together with your reference code.';
     } elseif ($lockedFor > 0) {
         $lookupError = 'Too many lookups from this connection. Please try again in ' . ceil($lockedFor / 60) . ' minute(s).';
@@ -254,6 +277,29 @@ include __DIR__ . '/includes/header.php';
       <?php if (!empty($appointment['contact_phone'])): ?><p><strong>Contact Phone:</strong> <?= e($appointment['contact_phone']) ?></p><?php endif; ?>
       <?php if ($appointment['rejection_reason']): ?><p><strong>Reason:</strong> <?= e($appointment['rejection_reason']) ?></p><?php endif; ?>
       <?php if ($appointment['cancelled_reason']): ?><p><strong>Cancellation Reason:</strong> <?= e($appointment['cancelled_reason']) ?></p><?php endif; ?>
+
+      <?php if (requirementsReviewAvailable() && ($appointment['requirements_review_status'] ?? null) !== null && (int) $appointment['status_id'] === 1):
+        $guestReviewItems = requirementsReviewItems((int) $appointment['appointment_id']);
+        $guestReviewState = requirementsReviewState($appointment['requirements_review_status'], requirementsReviewCounts($guestReviewItems));
+        $guestStillNeedsRevision = array_values(array_filter($guestReviewItems, static fn(array $i): bool => $i['review_status'] === 'rejected'));
+      ?>
+        <div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark); margin-top:16px;">
+          <p style="margin-top:0;"><strong>Requirements status:</strong> <span class="badge badge-<?= e($guestReviewState['badge']) ?>"><?= e($guestReviewState['label']) ?></span></p>
+          <?php if ($guestReviewState['code'] === 'awaiting_revision'): ?>
+            <p style="margin:0 0 10px;">
+              <?= $guestStillNeedsRevision
+                  ? 'Update each item marked Needs Revision (' . e(implode(', ', array_map(static fn($i) => $i['label'], $guestStillNeedsRevision))) . '), then submit them for review.'
+                  : 'All items marked Needs Revision have been updated. Submit them so the parish office can review them again.' ?>
+            </p>
+            <form method="POST" action="<?= url('guest-requirements-submit.php') ?>">
+              <?= csrfField() ?><input type="hidden" name="appointment_id" value="<?= (int) $appointment['appointment_id'] ?>">
+              <button type="submit" class="btn btn-primary">Submit Updated Requirements</button>
+            </form>
+          <?php else: ?>
+            <p style="margin:0;">Your updated requirements were submitted. The parish office will review them and email you if anything else is needed.</p>
+          <?php endif; ?>
+        </div>
+      <?php endif; ?>
 
       <?php if (!empty($intention)): ?>
         <hr style="border-color: var(--cream-dark); margin: 18px 0;">

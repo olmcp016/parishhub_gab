@@ -1,7 +1,11 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/requirements-review.php';
 requireRole('Secretary', 'Admin');
+
+// Requirements revision queues (filter values "review:<status>"), see includes/requirements-review.php.
+const REQUIREMENTS_REVIEW_FILTERS = ['review:awaiting_revision' => 'Awaiting Revision', 'review:ready_for_rereview' => 'Ready for Re-Review'];
 
 $statusFilter = $_GET['status'] ?? '';
 $search = $_GET['search'] ?? '';
@@ -18,7 +22,12 @@ function buildAppointmentsQuery(string $statusFilter, string $search): array
             LEFT JOIN priests p ON a.priest_id = p.priest_id
             WHERE s.category != 'Donation'";
     $params = [];
-    if ($statusFilter) {
+    if (isset(REQUIREMENTS_REVIEW_FILTERS[$statusFilter])) {
+        if (requirementsReviewAvailable()) {
+            $sql .= ' AND a.status_id = 1 AND a.requirements_review_status = ?';
+            $params[] = substr($statusFilter, strlen('review:'));
+        }
+    } elseif ($statusFilter) {
         $sql .= ' AND st.status_name = ?';
         $params[] = $statusFilter;
     }
@@ -84,6 +93,10 @@ function renderAppointmentsTable(array $appointments, bool $isSecretaryViewer): 
                 <?php else: ?>
                   <span class="badge badge-<?= badgeClass($a['status_name']) ?>"><?= e($a['status_name']) ?></span>
                 <?php endif; ?>
+                <?php if ((int) $a['status_id'] === 1 && in_array($a['requirements_review_status'] ?? null, ['awaiting_revision', 'ready_for_rereview'], true)):
+                  $reviewBadge = requirementsReviewState($a['requirements_review_status'], ['rejected' => 0, 'pending' => 0, 'approved' => 0]); ?>
+                  <span class="badge badge-<?= e($reviewBadge['badge']) ?>"><?= e($reviewBadge['label']) ?></span>
+                <?php endif; ?>
               </td>
               <td><a href="<?= url('secretary/appointment-detail.php?id=' . $a['appointment_id']) ?>" class="btn btn-outline btn-sm js-view-modal" data-url="<?= url('secretary/appointment-detail.php?id=' . $a['appointment_id']) ?>" data-title="<?= e('Appointment #' . $a['appointment_id'] . ' — ' . $a['service_name']) ?>">Review</a></td>
             </tr>
@@ -119,6 +132,11 @@ include __DIR__ . '/../includes/dash-start.php';
         <?php foreach ($statuses as $s): ?>
           <option value="<?= e($s['status_name']) ?>" <?= $statusFilter===$s['status_name']?'selected':'' ?>><?= e($s['status_name']) ?></option>
         <?php endforeach; ?>
+        <?php if (requirementsReviewAvailable()): ?>
+          <?php foreach (REQUIREMENTS_REVIEW_FILTERS as $value => $label): ?>
+            <option value="<?= e($value) ?>" <?= $statusFilter === $value ? 'selected' : '' ?>>Requirements: <?= e($label) ?></option>
+          <?php endforeach; ?>
+        <?php endif; ?>
       </select>
     </div>
     <div class="form-group" style="flex: 2 1 250px; margin-bottom:0;">

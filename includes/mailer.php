@@ -18,7 +18,8 @@ const BREVO_API_BASE = 'https://api.brevo.com/v3';
 /**
  * Sends one HTML email via Brevo.
  *
- * @return array{ok: bool, error: ?string}
+ * @return array{ok: bool, error: ?string, retryable?: bool} retryable = a temporary
+ *         failure (network, rate limit, Brevo 5xx) that is safe to try again.
  */
 function sendEmail(string $toEmail, ?string $toName, string $subject, string $html): array
 {
@@ -57,7 +58,7 @@ function sendEmail(string $toEmail, ?string $toName, string $subject, string $ht
 
     if ($curlError) {
         error_log("Brevo send failed (cURL): $curlError");
-        return ['ok' => false, 'error' => 'Could not reach the email service.'];
+        return ['ok' => false, 'error' => 'Could not reach the email service.', 'retryable' => true];
     }
 
     $body = json_decode($raw, true) ?: [];
@@ -67,7 +68,7 @@ function sendEmail(string $toEmail, ?string $toName, string $subject, string $ht
 
     $message = $body['message'] ?? "Brevo returned HTTP $httpStatus";
     error_log("Brevo send failed: $message (to=$toEmail)");
-    return ['ok' => false, 'error' => $message];
+    return ['ok' => false, 'error' => $message, 'retryable' => $httpStatus === 429 || $httpStatus >= 500];
 }
 
 /**

@@ -8,6 +8,7 @@ require_once __DIR__ . '/../includes/wedding-draft.php';
 require_once __DIR__ . '/../includes/baptism-forms.php';
 require_once __DIR__ . '/../includes/appointment-workflow.php';
 require_once __DIR__ . '/../includes/generated-form-workflow.php';
+require_once __DIR__ . '/../includes/requirements-review.php';
 requireRole('Secretary', 'Admin');
 
 $id = (int) ($_GET['id'] ?? 0);
@@ -83,7 +84,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             respondAjaxOrRedirect($isAjax, false, 'The document could not be approved. Please try again.', $redirectUrl);
         }
         logActivity($userId, "Verified a document for appointment #$id", 'Appointments');
+        requirementsReviewAfterSecretaryDecision($id);
         respondAjaxOrRedirect($isAjax, true, 'Document marked as verified.', $redirectUrl);
+    }
+
+    if ($action === 'send_revision_request') {
+        if (!requirementsReviewAvailable()) {
+            respondAjaxOrRedirect($isAjax, false, 'Revision requests need the requirements review database update first.', $redirectUrl);
+        }
+        $result = sendRevisionRequest($id, (int) $userId);
+        respondAjaxOrRedirect($isAjax, $result['ok'], $result['message'], $redirectUrl);
     }
 
     if ($action === 'reject_document') {
@@ -134,7 +144,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $recipient = $pdo->prepare('SELECT u.user_id FROM appointments a JOIN parishioners p ON p.parishioner_id = a.parishioner_id JOIN users u ON u.user_id = p.user_id WHERE a.appointment_id = ?');
             $recipient->execute([$id]);
             $parishionerUserId = $recipient->fetchColumn();
-            if ($parishionerUserId) {
+            // With the revision workflow in place the applicant hears about all
+            // rejections at once, by email, when the Secretary sends the revision request.
+            if ($parishionerUserId && !requirementsReviewAvailable()) {
                 $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Requirement Needs Revision', ?)")
                     ->execute([(int) $parishionerUserId, $choice === 'Others'
                         ? "The requirement '$documentLabel' for appointment #$id needs correction. Reason: $reason"
@@ -147,6 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             respondAjaxOrRedirect($isAjax, false, 'The document could not be rejected. Please try again.', $redirectUrl);
         }
         logActivity($userId, "Rejected a document for appointment #$id", 'Appointments');
+        requirementsReviewAfterSecretaryDecision($id);
         respondAjaxOrRedirect($isAjax, true, 'Requirement rejected successfully.', $redirectUrl);
     }
 
@@ -791,6 +804,47 @@ if (!$isAjax) {
           </table>
         </div>
       <?php endif; ?>
+      <?php endif; ?>
+
+      <?php if (requirementsReviewAvailable()):
+        // Requirements revision / re-review (see includes/requirements-review.php).
+        $reviewItems = requirementsReviewItems($id);
+        $reviewState = requirementsReviewState($appointment['requirements_review_status'] ?? null, requirementsReviewCounts($reviewItems));
+        $unsentRejections = requirementsReviewUnsentRejections($appointment, $reviewItems);
+        $previousStmt = db()->prepare(
+            "SELECT old.requirement_label, old.file_name, old.rejection_reason
+             FROM uploaded_documents old JOIN uploaded_documents cur ON cur.document_id = old.superseded_by
+             WHERE old.appointment_id = ? AND old.review_status = 'rejected' AND old.rejection_reason IS NOT NULL AND cur.superseded_by IS NULL
+             ORDER BY old.document_id"
+        );
+        $previousStmt->execute([$id]);
+        $previousRejections = $previousStmt->fetchAll();
+      ?>
+        <div class="card" style="background:var(--cream); margin-top:16px;">
+          <p style="margin-top:0;"><strong>Requirements status:</strong> <span class="badge badge-<?= e($reviewState['badge']) ?>"><?= e($reviewState['label']) ?></span></p>
+          <?php if (!empty($appointment['revision_requested_at'])): ?>
+            <p class="text-muted" style="margin:0 0 8px;">Last revision request sent: <?= e(date('M j, Y g:i A', strtotime((string) $appointment['revision_requested_at']))) ?></p>
+          <?php endif; ?>
+          <?php if ($previousRejections): ?>
+            <p style="margin:8px 0 4px;"><strong>Previous rejection reasons</strong> (replaced items):</p>
+            <ul style="margin:0 0 8px; padding-left:20px;">
+              <?php foreach ($previousRejections as $previous): ?>
+                <li><?= e(preg_replace('/\.pdf$/i', '', (string) ($previous['requirement_label'] ?: $previous['file_name']))) ?> — <?= e($previous['rejection_reason']) ?></li>
+              <?php endforeach; ?>
+            </ul>
+          <?php endif; ?>
+          <?php if ((int) $appointment['status_id'] === 1 && $unsentRejections): ?>
+            <form method="POST" action="<?= e($redirectUrl) ?>">
+              <?= csrfField() ?><input type="hidden" name="action" value="send_revision_request">
+              <p class="helper-text" style="margin-top:0;"><?= count($unsentRejections) ?> rejected requirement<?= count($unsentRejections) === 1 ? '' : 's' ?> will be listed, with reasons, in one email to the applicant. Finish reviewing the other requirements first.</p>
+              <button type="submit" class="btn btn-danger btn-block">Send Revision Request</button>
+            </form>
+          <?php elseif ($reviewState['code'] === 'awaiting_revision'): ?>
+            <p class="helper-text" style="margin:0;">Waiting for the applicant to submit updated requirements. You can review other appointments meanwhile.</p>
+          <?php elseif ($reviewState['code'] === 'ready_for_rereview'): ?>
+            <p class="helper-text" style="margin:0;">The applicant submitted updated requirements. Approve or reject the items marked Pending Review above.</p>
+          <?php endif; ?>
+        </div>
       <?php endif; ?>
 
     <?php endif; ?>
