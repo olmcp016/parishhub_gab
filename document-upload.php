@@ -6,6 +6,19 @@ require_once __DIR__ . '/includes/document-validation.php';
 require_once __DIR__ . '/includes/baptism-draft.php';
 require_once __DIR__ . '/includes/wedding-draft.php';
 require_once __DIR__ . '/includes/funeral-draft.php';
+require_once __DIR__ . '/includes/requirements-review.php';
+
+/**
+ * During a revision request the Secretary is notified once, when the applicant
+ * clicks "Submit Updated Requirements" — not for every replacement file.
+ */
+function uploadNotifiesSecretary(int $appointmentId): bool
+{
+    if (!requirementsReviewAvailable()) return true;
+    $stmt = db()->prepare('SELECT requirements_review_status FROM appointments WHERE appointment_id = ?');
+    $stmt->execute([$appointmentId]);
+    return $stmt->fetchColumn() !== 'awaiting_revision';
+}
 
 function documentUploadJson(bool $success, string $message, array $extra = [], int $status = 200): void
 {
@@ -127,7 +140,7 @@ try {
         if ($oldId) $pdo->prepare('UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ?')->execute([$newId, $oldId]);
         $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Documents Updated', ?)")
             ->execute([(int) $user['user_id'], "Your requirement replacement for appointment #$contextId has been submitted and remains under review."]);
-        $secretaries = $pdo->query("SELECT user_id FROM users u JOIN roles r ON r.role_id = u.role_id WHERE r.role_name IN ('Secretary', 'Admin') AND u.status = 'active'")->fetchAll(PDO::FETCH_COLUMN);
+        $secretaries = uploadNotifiesSecretary($contextId) ? $pdo->query("SELECT user_id FROM users u JOIN roles r ON r.role_id = u.role_id WHERE r.role_name IN ('Secretary', 'Admin') AND u.status = 'active'")->fetchAll(PDO::FETCH_COLUMN) : [];
         $notify = $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Documents Updated', ?)");
         foreach ($secretaries as $secretaryId) {
             $notify->execute([(int) $secretaryId, "Appointment #$contextId has updated documents and is ready for review."]);
@@ -163,7 +176,7 @@ try {
         $insert->execute([$contextId, $original['requirement_id'], $original['requirement_label'], basename((string) $file['name']), $stored['key'], $stored['mime']]);
         $newId = (int) $pdo->lastInsertId();
         $pdo->prepare('UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ?')->execute([$newId, $documentId]);
-        $secretaries = $pdo->query("SELECT user_id FROM users u JOIN roles r ON r.role_id = u.role_id WHERE r.role_name IN ('Secretary', 'Admin') AND u.status = 'active'")->fetchAll(PDO::FETCH_COLUMN);
+        $secretaries = uploadNotifiesSecretary($contextId) ? $pdo->query("SELECT user_id FROM users u JOIN roles r ON r.role_id = u.role_id WHERE r.role_name IN ('Secretary', 'Admin') AND u.status = 'active'")->fetchAll(PDO::FETCH_COLUMN) : [];
         $notify = $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Guest Document Updated', ?)");
         foreach ($secretaries as $secretaryId) {
             $notify->execute([(int) $secretaryId, "A guest replacement for appointment #$contextId has been submitted and is ready for review."]);

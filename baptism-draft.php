@@ -9,6 +9,7 @@ require_once __DIR__ . '/includes/supporting-documents.php';
 require_once __DIR__ . '/includes/wedding-forms.php';
 require_once __DIR__ . '/includes/scheduling.php';
 require_once __DIR__ . '/includes/generated-form-workflow.php';
+require_once __DIR__ . '/includes/secretary-notifications.php';
 
 $id = (int) ($_GET['draft_id'] ?? $_POST['draft_id'] ?? 0);
 $pdo = db();
@@ -108,6 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->prepare("UPDATE appointment_drafts SET status = 'finalized', finalized_appointment_id = ?, updated_at = CURRENT_TIMESTAMP WHERE draft_id = ? AND service_type = 'Baptism'")->execute([$appointmentId, $id]);
         $baptismFinalizationStage = 'commit';
         $pdo->commit();
+        notifySecretariesNewBooking($appointmentId); // website notification; never throws
         rememberBookingThankYou((string) $guestReference);
         redirect(bookingReturnUrl(empty($locked['parishioner_id'])));
     } catch (Throwable $e) {

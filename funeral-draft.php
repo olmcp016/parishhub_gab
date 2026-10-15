@@ -7,6 +7,7 @@ require_once __DIR__ . '/includes/supporting-documents.php';
 require_once __DIR__ . '/includes/funeral-draft.php';
 require_once __DIR__ . '/includes/funeral-forms.php';
 require_once __DIR__ . '/includes/generated-form-workflow.php';
+require_once __DIR__ . '/includes/secretary-notifications.php';
 
 $draftId = (int) ($_GET['draft_id'] ?? $_POST['draft_id'] ?? 0);
 $user = currentUser();
@@ -103,6 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submi
         processFuneralGeneratedForm($appointmentId, 'katin_awan_paglubong', $draft['katin_awan_payload']);
 
         $pdo->commit();
+        notifySecretariesNewBooking($appointmentId); // website notification; never throws
 
         funeralDraftDeletePreview($draft);
         unset($_SESSION['funeral_booking_drafts'][$draftId]);

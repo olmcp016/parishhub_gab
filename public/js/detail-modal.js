@@ -80,8 +80,30 @@
       });
   }
 
+  /**
+   * A Requirements Review rejection the Secretary started (reason chosen or
+   * text typed) but has not confirmed yet. Only this unsaved action is
+   * guarded — other appointments stay freely reachable.
+   */
+  function hasUnsavedReviewAction() {
+    if (!modalBody) return false;
+    return Array.prototype.some.call(modalBody.querySelectorAll('.review-rejection-form'), function (form) {
+      var row = form.closest('.review-rejection-row') || form;
+      if (row.hidden || form.dataset.submitting === '1') return false;
+      var choice = form.querySelector('select[name="document_rejection_choice"]');
+      var custom = form.querySelector('textarea[name="document_rejection_custom"]');
+      return !!((choice && choice.value) || (custom && custom.value.trim()));
+    });
+  }
+
+  function confirmLeaveUnsavedReview() {
+    return !hasUnsavedReviewAction()
+      || window.confirm('You have a rejection that has not been confirmed yet. Close this appointment without saving it?');
+  }
+
   function closeDetailModal() {
     if (!refs()) return;
+    if (!confirmLeaveUnsavedReview()) return;
     activeDetailRequest += 1;
     if (detailAbortController) detailAbortController.abort();
     detailAbortController = null;
@@ -372,7 +394,8 @@
     // Esc key closes natively via the dialog's "cancel" event — still
     // needs the same dirty-reload follow-up as any other close path.
     if (modal) {
-      modal.addEventListener('cancel', function () {
+      modal.addEventListener('cancel', function (e) {
+        if (!confirmLeaveUnsavedReview()) { e.preventDefault(); return; }
         activeDetailRequest += 1;
         if (detailAbortController) detailAbortController.abort();
         detailAbortController = null;

@@ -620,7 +620,14 @@ if (!$isAjax) {
 
     <?php if (!in_array($appointment['category'], ['Mass Intention', 'Donation'], true)): ?>
       <hr style="border-color: var(--cream-dark); margin: 18px 0;">
-      <h4>Requirements Review</h4>
+      <h4 id="requirements-review">Requirements Review</h4>
+      <?php
+        // Items the applicant re-submitted to replace a rejected one ("Updated" in the status column).
+        $updatedStmt = db()->prepare("SELECT DISTINCT superseded_by FROM uploaded_documents WHERE appointment_id = ? AND review_status = 'rejected' AND superseded_by IS NOT NULL");
+        $updatedStmt->execute([$id]);
+        $updatedDocumentIds = array_flip(array_map('intval', $updatedStmt->fetchAll(PDO::FETCH_COLUMN)));
+        $updatedBadge = static fn($documentId): string => isset($updatedDocumentIds[(int) $documentId]) ? ' <span class="badge badge-confirmed" title="Re-submitted to replace a rejected item">Updated</span>' : '';
+      ?>
 
       <?php
         $requirementsList = $appointment['category'] === 'Wedding'
@@ -666,7 +673,7 @@ if (!$isAjax) {
                     <?php if ($docStatus === 'approved'): ?><span class="badge badge-verified">Approved</span>
                     <?php elseif ($docStatus === 'rejected'): ?><span class="badge badge-rejected">Needs Revision</span>
                     <?php elseif ($docStatus === 'missing'): ?><span class="badge badge-rejected">Missing</span>
-                    <?php else: ?><span class="badge badge-pending">Pending Review</span><?php endif; ?>
+                    <?php else: ?><span class="badge badge-pending">Pending Review</span><?= $d ? $updatedBadge($d['document_id']) : '' ?><?php endif; ?>
                   </td>
                   <td data-label="Actions">
                     <div class="review-actions">
@@ -710,7 +717,7 @@ if (!$isAjax) {
                   <td data-label="Status">
                     <?php if ($docStatus === 'approved'): ?><span class="badge badge-verified">Approved</span>
                     <?php elseif ($docStatus === 'rejected'): ?><span class="badge badge-rejected">Needs Revision</span>
-                    <?php else: ?><span class="badge badge-pending">Pending Review</span><?php endif; ?>
+                    <?php else: ?><span class="badge badge-pending">Pending Review</span><?= $updatedBadge($d['document_id']) ?><?php endif; ?>
                   </td>
                   <td data-label="Actions">
                     <div class="review-actions">
@@ -771,7 +778,7 @@ if (!$isAjax) {
                     <?php elseif ($formStatus === 'needs_revision'): ?><span class="badge badge-rejected">Needs Revision</span>
                     <?php elseif ($formStatus === 'not_started'): ?><span class="badge badge-rejected">Missing</span>
                     <?php elseif ($formStatus === 'draft'): ?><span class="badge badge-pending">Draft saved</span>
-                    <?php else: ?><span class="badge badge-pending">Pending Review</span><?php endif; ?>
+                    <?php else: ?><span class="badge badge-pending">Pending Review</span><?= $gf['document_id'] ? $updatedBadge($gf['document_id']) : '' ?><?php endif; ?>
                   </td>
                   <td data-label="Actions">
                     <div class="review-actions">

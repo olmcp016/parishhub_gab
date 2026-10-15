@@ -16,6 +16,7 @@ require_once __DIR__ . '/../includes/service-fees.php';
 require_once __DIR__ . '/../includes/wedding-draft.php';
 require_once __DIR__ . '/../includes/funeral-forms.php';
 require_once __DIR__ . '/../includes/booking-draft-resume.php';
+require_once __DIR__ . '/../includes/secretary-notifications.php';
 $identity = requireParishionerOrGuest();
 $userId = $identity['user_id'];
 $parishionerId = $identity['parishioner_id'];
@@ -671,6 +672,8 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         if ($isMassIntention) $massIntentionStage = 'commit';
         $pdo->commit();
         logActivity($userId, ($isMassIntention ? "Submitted Mass Intention #$appointmentId with an offering of ₱" . number_format($offeringAmount, 2) : "Booked appointment #$appointmentId") . ($isGuest ? ' (guest)' : ''), 'Appointments');
+        // Saved: website notification for the Secretary (skips Mass Intentions; never blocks the booking).
+        notifySecretariesNewBooking((int) $appointmentId);
 
         if ($isMassIntention && $checkoutUrl) {
             if ($isAjax) {

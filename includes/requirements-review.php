@@ -1,12 +1,13 @@
 <?php
 /**
- * PARISHHUB — requirements revision / re-review workflow (email based).
+ * PARISHHUB — requirements revision / re-review workflow.
  *
- *   Secretary rejects items  ->  "Send Revision Request"  (one email to the
+ *   Secretary rejects items  ->  "Send Revision Request"  (one EMAIL to the
  *   parishioner/guest listing every rejected item)  ->  appointment is
  *   "Awaiting Revision"  ->  applicant replaces documents / regenerates forms
- *   ->  "Submit Updated Requirements"  (email to the Secretaries)  ->  "Ready
- *   for Re-Review"  ->  Secretary approves / rejects again.
+ *   ->  "Submit Updated Requirements"  (WEBSITE notification to the
+ *   Secretaries — never email)  ->  "Ready for Re-Review"  ->  Secretary
+ *   approves / rejects again.
  *
  * Stored state (database/migration_requirements_review.sql):
  *   appointments.requirements_review_status  NULL | 'awaiting_revision' | 'ready_for_rereview'
@@ -20,6 +21,8 @@
  */
 require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/mailer.php';
+require_once __DIR__ . '/email-log.php';
+require_once __DIR__ . '/secretary-notifications.php';
 
 const GUEST_ACCESS_LINK_TTL = 7 * 24 * 3600;
 
@@ -140,27 +143,6 @@ function guestAccessTokenValid(int $appointmentId, string $reference, string $to
     return hash_equals(guestAccessSignature($appointmentId, $reference, $expires), $m[2]);
 }
 
-/**
- * Sends one workflow email, retrying once on a temporary failure, and logs the
- * outcome to activity_logs. Never throws.
- */
-function sendRequirementsEmail(string $toEmail, ?string $toName, string $subject, string $html, int $appointmentId, ?int $actorUserId): bool
-{
-    $result = ['ok' => false, 'error' => 'not attempted'];
-    for ($attempt = 1; $attempt <= 2; $attempt++) {
-        try {
-            $result = sendEmail($toEmail, $toName, $subject, $html);
-        } catch (Throwable $e) {
-            $result = ['ok' => false, 'error' => $e->getMessage(), 'retryable' => true];
-        }
-        if ($result['ok'] || empty($result['retryable'])) break;
-        usleep(700000);
-    }
-    $masked = preg_replace('/(?<=.).(?=[^@]*@)/', '*', $toEmail);
-    logActivity($actorUserId, ($result['ok'] ? 'Email sent' : 'Email FAILED') . " for appointment #$appointmentId: \"$subject\" to $masked" . ($result['ok'] ? '' : ' — ' . ($result['error'] ?? 'unknown error')), 'Email');
-    return (bool) $result['ok'];
-}
-
 /** The appointment fields both emails need (service, reference, applicant email). */
 function requirementsReviewAppointment(int $appointmentId, bool $lock = false): ?array
 {
@@ -210,6 +192,9 @@ function sendRevisionRequest(int $appointmentId, int $secretaryUserId): array
         }
         $pdo->prepare("UPDATE appointments SET requirements_review_status = 'awaiting_revision', revision_requested_at = CURRENT_TIMESTAMP WHERE appointment_id = ?")
             ->execute([$appointmentId]);
+        $requestedAtStmt = $pdo->prepare('SELECT revision_requested_at FROM appointments WHERE appointment_id = ?');
+        $requestedAtStmt->execute([$appointmentId]);
+        $requestedAt = (string) $requestedAtStmt->fetchColumn();
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
@@ -246,21 +231,15 @@ function sendRevisionRequest(int $appointmentId, int $secretaryUserId): array
         . "<p style=\"margin-top:18px;\">$how</p>"
         . '<p>Your booking stays active — no new booking is needed. Approved requirements are kept.</p>'
         . '<p>Thank you,<br>Our Lady of Mt. Carmel Parish</p>';
-    $sent = sendRequirementsEmail($toEmail, $isGuest ? (string) $appointment['guest_name'] : trim(($appointment['firstname'] ?? '') . ' ' . ($appointment['lastname'] ?? '')),
-        'ParishHub – Requirements Need Revision', emailTemplate('Requirements Need Revision', $body, $link, 'Open My Booking'), $appointmentId, $secretaryUserId);
+    // One email per revision request: the request's own timestamp is part of the key.
+    $delivery = sendLoggedEmail('revision_request', "revision_request:$appointmentId:$requestedAt", $appointmentId, requirementsReviewReference($appointment),
+        $toEmail, $isGuest ? (string) $appointment['guest_name'] : trim(($appointment['firstname'] ?? '') . ' ' . ($appointment['lastname'] ?? '')),
+        'ParishHub – Your Booking Requirements Need Revision', emailTemplate('Your Booking Requirements Need Revision', $body, $link, 'Open My Booking'), $secretaryUserId);
 
-    return $sent
-        ? ['ok' => true, 'message' => 'Revision request sent. The applicant has been emailed and the appointment is now Awaiting Revision.']
-        : ['ok' => true, 'message' => 'Revision request saved (Awaiting Revision), but the email could not be sent. Please contact the applicant directly.'];
-}
-
-/** Secretary email recipients: SECRETARY_NOTIFY_EMAIL (comma-separated) if set, else every active Secretary account. */
-function requirementsReviewSecretaryEmails(): array
-{
-    $configured = array_filter(array_map('trim', explode(',', (string) getenv('SECRETARY_NOTIFY_EMAIL'))));
-    if ($configured) return array_values(array_filter($configured, static fn($e) => filter_var($e, FILTER_VALIDATE_EMAIL)));
-    $stmt = db()->query("SELECT DISTINCT u.email FROM users u JOIN roles r ON r.role_id = u.role_id WHERE r.role_name = 'Secretary' AND u.status = 'active' AND u.email IS NOT NULL AND u.email <> ''");
-    return array_values(array_filter($stmt->fetchAll(PDO::FETCH_COLUMN), static fn($e) => filter_var($e, FILTER_VALIDATE_EMAIL)));
+    // 'duplicate' = this exact email was already accepted by Brevo earlier, so it is delivered too.
+    return $delivery !== 'failed'
+        ? ['ok' => true, 'message' => 'Revision request sent. The applicant was emailed at ' . maskEmail($toEmail) . ' and the appointment is now Awaiting Revision.']
+        : ['ok' => true, 'message' => 'Revision request saved (Awaiting Revision), but the email could not be sent' . (emailDeliveryConfigured() ? '' : ' because email is not configured on this server') . '. Please contact the applicant directly.'];
 }
 
 /**
@@ -300,18 +279,8 @@ function submitUpdatedRequirements(int $appointmentId, ?int $actorUserId): array
     }
     logActivity($actorUserId, "Submitted updated requirements for appointment #$appointmentId (Ready for Re-Review)", 'Appointments');
 
-    $body = '<p>Dear Secretary,</p>'
-        . '<p>A ' . (requirementsReviewIsGuest($appointment) ? 'Guest' : 'Parishioner') . ' has submitted corrected requirements.</p>'
-        . '<p><strong>Service:</strong> ' . htmlspecialchars((string) $appointment['service_name']) . '<br>'
-        . '<strong>Booking Reference:</strong> ' . htmlspecialchars(requirementsReviewReference($appointment)) . '<br>'
-        . '<strong>Status:</strong> Ready for Re-Review</p>'
-        . '<p>Please log in to ParishHub to review the updated documents and forms.</p>';
-    $html = emailTemplate('Updated Requirements Ready for Re-Review', $body, absoluteUrl('secretary/appointment-detail.php?id=' . $appointmentId), 'Review Appointment');
-    $sentAny = false;
-    foreach (requirementsReviewSecretaryEmails() as $email) {
-        $sentAny = sendRequirementsEmail($email, 'Parish Secretary', 'ParishHub – Updated Requirements Ready for Re-Review', $html, $appointmentId, $actorUserId) || $sentAny;
-    }
-    if (!$sentAny) error_log("No Secretary was emailed about re-review of appointment #$appointmentId.");
+    // The Secretary is told inside ParishHub (notification bell), not by email.
+    notifySecretariesUpdatedRequirements($appointmentId);
     return ['ok' => true, 'message' => 'Your updated requirements were submitted and are now Ready for Re-Review. The parish office will review them.'];
 }
 

@@ -5,7 +5,7 @@ require_once __DIR__ . '/../includes/requirements-review.php';
 requireRole('Secretary', 'Admin');
 
 // Requirements revision queues (filter values "review:<status>"), see includes/requirements-review.php.
-const REQUIREMENTS_REVIEW_FILTERS = ['review:awaiting_revision' => 'Awaiting Revision', 'review:ready_for_rereview' => 'Ready for Re-Review'];
+const REQUIREMENTS_REVIEW_FILTERS = ['review:pending_review' => 'Pending Review', 'review:awaiting_revision' => 'Awaiting Revision', 'review:ready_for_rereview' => 'Ready for Re-Review'];
 
 $statusFilter = $_GET['status'] ?? '';
 $search = $_GET['search'] ?? '';
@@ -23,9 +23,16 @@ function buildAppointmentsQuery(string $statusFilter, string $search): array
             WHERE s.category != 'Donation'";
     $params = [];
     if (isset(REQUIREMENTS_REVIEW_FILTERS[$statusFilter])) {
-        if (requirementsReviewAvailable()) {
-            $sql .= ' AND a.status_id = 1 AND a.requirements_review_status = ?';
-            $params[] = substr($statusFilter, strlen('review:'));
+        // Same rules as the dashboard cards: pending appointments the Secretary reviews.
+        $sql .= " AND a.status_id = 1 AND s.category NOT IN ('Mass Intention', 'Donation')";
+        $reviewStatus = substr($statusFilter, strlen('review:'));
+        if ($reviewStatus === 'pending_review') {
+            if (requirementsReviewAvailable()) $sql .= ' AND a.requirements_review_status IS NULL';
+        } elseif (requirementsReviewAvailable()) {
+            $sql .= ' AND a.requirements_review_status = ?';
+            $params[] = $reviewStatus;
+        } else {
+            $sql .= ' AND 1 = 0'; // queue does not exist until the database update is run
         }
     } elseif ($statusFilter) {
         $sql .= ' AND st.status_name = ?';
@@ -128,15 +135,13 @@ include __DIR__ . '/../includes/dash-start.php';
     <div class="form-group" style="flex: 1 1 150px; margin-bottom:0;">
       <label>Filter by Status</label>
       <select name="status" onchange="this.form.submit()">
-        <option value="">All Statuses</option>
+        <option value="">All Appointments</option>
         <?php foreach ($statuses as $s): ?>
           <option value="<?= e($s['status_name']) ?>" <?= $statusFilter===$s['status_name']?'selected':'' ?>><?= e($s['status_name']) ?></option>
         <?php endforeach; ?>
-        <?php if (requirementsReviewAvailable()): ?>
-          <?php foreach (REQUIREMENTS_REVIEW_FILTERS as $value => $label): ?>
-            <option value="<?= e($value) ?>" <?= $statusFilter === $value ? 'selected' : '' ?>>Requirements: <?= e($label) ?></option>
-          <?php endforeach; ?>
-        <?php endif; ?>
+        <?php foreach (REQUIREMENTS_REVIEW_FILTERS as $value => $label): ?>
+          <option value="<?= e($value) ?>" <?= $statusFilter === $value ? 'selected' : '' ?>>Requirements: <?= e($label) ?></option>
+        <?php endforeach; ?>
       </select>
     </div>
     <div class="form-group" style="flex: 2 1 250px; margin-bottom:0;">

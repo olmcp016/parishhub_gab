@@ -1,7 +1,20 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/requirements-review.php';
 requireRole('Secretary', 'Admin');
+
+// Requirements review queues: distinct pending appointments (Mass Intentions and
+// Donations are the Cashier's), by appointments.requirements_review_status.
+$reviewEnabled = requirementsReviewAvailable();
+$reviewCounts = ['pending_review' => 0, 'awaiting_revision' => 0, 'ready_for_rereview' => 0];
+$reviewBase = "FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.status_id = 1 AND s.category NOT IN ('Mass Intention', 'Donation')";
+if ($reviewEnabled) {
+    $reviewRows = db()->query("SELECT COALESCE(a.requirements_review_status, 'pending_review') AS review_status, COUNT(DISTINCT a.appointment_id) AS total $reviewBase GROUP BY 1")->fetchAll();
+    foreach ($reviewRows as $row) $reviewCounts[$row['review_status']] = (int) $row['total'];
+} else {
+    $reviewCounts['pending_review'] = (int) db()->query("SELECT COUNT(DISTINCT a.appointment_id) $reviewBase")->fetchColumn();
+}
 
 $pendingCount = db()->query("SELECT COUNT(*) FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.status_id = 1 AND s.category != 'Donation'")->fetchColumn();
 $todayCount = db()->query("SELECT COUNT(*) FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_date::date = CURRENT_DATE AND s.category != 'Donation'")->fetchColumn();
@@ -28,6 +41,19 @@ include __DIR__ . '/../includes/dash-start.php';
   <div class="stat-card"><div class="stat-label">Pending Approvals</div><div class="stat-value"><?= (int)$pendingCount ?></div></div>
   <div class="stat-card"><div class="stat-label">Today's Appointments</div><div class="stat-value"><?= (int)$todayCount ?></div></div>
   <div class="stat-card"><div class="stat-label">This Week</div><div class="stat-value"><?= (int)$weekCount ?></div></div>
+</div>
+
+<?php if (!$reviewEnabled || !emailDeliveryConfigured()): ?>
+  <div class="alert" style="background:var(--danger-bg); color:var(--danger); border:1px solid #f5c2c2; margin-bottom:16px;">
+    <?php if (!$reviewEnabled): ?><strong>Requirements review is not active yet:</strong> the database update (database/migration_requirements_review.sql) has not been run, so revision requests and the Awaiting Revision / Ready for Re-Review queues are unavailable.<br><?php endif; ?>
+    <?php if (!emailDeliveryConfigured()): ?><strong>Email is not configured on this server:</strong> revision-request emails to guests and parishioners cannot be sent until BREVO_API_KEY and BREVO_SENDER_EMAIL are set.<?php endif; ?>
+  </div>
+<?php endif; ?>
+
+<div class="stat-grid">
+  <a class="stat-card stat-card-link review-pending" href="<?= url('secretary/appointments.php?status=' . urlencode('review:pending_review')) ?>"><div class="stat-label">Pending Review</div><div class="stat-value"><?= $reviewCounts['pending_review'] ?></div></a>
+  <a class="stat-card stat-card-link review-awaiting" href="<?= url('secretary/appointments.php?status=' . urlencode('review:awaiting_revision')) ?>"><div class="stat-label">Awaiting Revision</div><div class="stat-value"><?= $reviewCounts['awaiting_revision'] ?></div></a>
+  <a class="stat-card stat-card-link review-ready" href="<?= url('secretary/appointments.php?status=' . urlencode('review:ready_for_rereview')) ?>"><div class="stat-label">Ready for Re-Review</div><div class="stat-value"><?= $reviewCounts['ready_for_rereview'] ?></div></a>
 </div>
 
 <div class="card">

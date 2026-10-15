@@ -259,6 +259,23 @@ img { max-width: 100%; }
 }
 .menu-toggle { display: none; background: none; border: none; font-size: 22px; color: var(--brown-dark); cursor: pointer; }
 
+/* Secretary notification bell (includes/topbar.php, public/js/notification-bell.js) */
+.notif-bell { position: relative; }
+.notif-bell-button { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; border: none; background: var(--cream); color: var(--brown-dark); cursor: pointer; }
+.notif-bell-button:hover { background: var(--cream-dark); }
+.notif-bell-badge { position: absolute; top: 2px; right: 2px; min-width: 18px; padding: 1px 5px; border-radius: 10px; background: var(--danger, #c62828); color: #fff; font-size: 11px; font-weight: 700; line-height: 1.4; text-align: center; }
+.notif-bell-panel { position: absolute; right: 0; top: calc(100% + 8px); width: min(360px, calc(100vw - 32px)); background: var(--ivory); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); z-index: 60; }
+.notif-bell-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--cream-dark); color: var(--brown-dark); }
+.notif-bell-readall { background: none; border: none; color: var(--gold-dark); font-size: 12px; font-weight: 700; cursor: pointer; }
+.notif-bell-list { max-height: 380px; overflow-y: auto; }
+.notif-bell-item { display: block; padding: 10px 14px; border-bottom: 1px solid var(--cream-dark); color: var(--brown-dark); text-decoration: none; }
+.notif-bell-item:hover { background: var(--cream); }
+.notif-bell-item.is-unread { background: var(--warning-bg); }
+.notif-bell-item strong { display: block; font-size: 13.5px; }
+.notif-bell-message { display: block; font-size: 12.5px; margin: 2px 0; color: var(--brown-mid); }
+.notif-bell-time { display: block; font-size: 11.5px; color: var(--brown-muted); }
+.notif-bell-empty { padding: 14px; margin: 0; }
+
 .page-body { padding: 28px; flex: 1; }
 
 /* ---------- Cards ---------- */
@@ -313,6 +330,14 @@ img { max-width: 100%; }
 .stat-card.dark { background: var(--brown-dark); color: var(--cream); border-color: transparent; }
 .stat-card.dark .stat-label { color: var(--gold-light); }
 .stat-card.light { background: var(--ivory); color: var(--brown-darkest); }
+/* Clickable review-queue cards (secretary/dashboard.php): same card, coloured top stripe. */
+.stat-card-link { display: block; text-decoration: none; transition: transform .15s ease, box-shadow .15s ease; }
+.stat-card-link:hover { transform: translateY(-2px); }
+.stat-card.review-pending::after { background: var(--gold); }
+.stat-card.review-awaiting::after { background: var(--danger); }
+.stat-card.review-awaiting .stat-value { color: var(--danger); }
+.stat-card.review-ready::after { background: var(--info); }
+.stat-card.review-ready .stat-value { color: var(--info); }
 
 /* ---------- Buttons ---------- */
 .btn {
