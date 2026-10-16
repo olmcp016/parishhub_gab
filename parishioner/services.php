@@ -96,6 +96,7 @@ $precanaSessions = $precanaEnabled ? precanaRegularSessions(null, 18) : [];
 
 $active = 'services';
 $pageTitle = 'Available Services';
+$hidePageHeading = true; // the nav bar already names this page
 include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start.php' : 'dash-start.php');
 ?>

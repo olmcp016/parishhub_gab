@@ -98,7 +98,7 @@ include __DIR__ . '/includes/header.php';
 
 <?php include __DIR__ . '/includes/public-nav.php'; ?>
 
-<div style="max-width:640px; margin:0 auto; padding: 28px 20px 60px;">
+<div style="max-width:640px; margin:0 auto; padding: 100px 20px 60px;">
   <div class="card" style="text-align:center;">
     <div style="font-size:48px; margin-bottom:8px;"><?= $outcome === 'paid' ? '✔' : ($outcome === 'failed' ? '⚠' : '⏳') ?></div>
     <h3><?= $outcome === 'paid' ? 'Payment Received' : ($outcome === 'failed' ? 'Payment Not Completed' : 'Payment') ?></h3>
