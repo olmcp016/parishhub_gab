@@ -1,7 +1,11 @@
 <?php $__user = currentUser(); $__photoUrl = null; if ($__user && !empty($__user['user_id'])) { $photoStmt = db()->prepare('SELECT profile_photo FROM users WHERE user_id = ?'); $photoStmt->execute([(int) $__user['user_id']]); $photoPath = $photoStmt->fetchColumn(); if ($photoPath && is_file(__DIR__ . '/../' . ltrim($photoPath, '/'))) $__photoUrl = url(ltrim($photoPath, '/')); } ?>
 <?php
-// Secretary-only notification bell (website notifications: new bookings, updated requirements).
-$__showBell = $__user && ($__user['role_name'] ?? '') === 'Secretary';
+// Notification bell (website notifications) for the Secretary (new bookings, updated
+// requirements) and the Parishioner (booking/payment updates). Same bell, same
+// script; each role reads only its own feed (secretary/ or parishioner/notifications-feed.php).
+$__bellRole = $__user['role_name'] ?? '';
+$__showBell = $__user && in_array($__bellRole, ['Secretary', 'Parishioner'], true);
+$__bellFeedUrl = $__bellRole === 'Parishioner' ? url('parishioner/notifications-feed.php') : url('secretary/notifications-feed.php');
 $__unread = 0;
 if ($__showBell) {
     try {
@@ -17,7 +21,7 @@ if ($__showBell) {
   </div>
   <div class="flex gap-3" style="align-items:center;">
     <?php if ($__showBell): ?>
-      <div class="notif-bell" id="notifBell" data-feed-url="<?= e(url('secretary/notifications-feed.php')) ?>" data-csrf="<?= e(csrfToken()) ?>">
+      <div class="notif-bell" id="notifBell" data-feed-url="<?= e($__bellFeedUrl) ?>" data-csrf="<?= e(csrfToken()) ?>">
         <button type="button" class="notif-bell-button" id="notifBellButton" aria-haspopup="true" aria-expanded="false" aria-label="Notifications">
           <i data-lucide="bell" style="width:20px; height:20px;"></i>
           <span class="notif-bell-badge" id="notifBellBadge"<?= $__unread ? '' : ' hidden' ?>><?= $__unread > 99 ? '99+' : $__unread ?></span>
@@ -28,6 +32,9 @@ if ($__showBell) {
             <button type="button" class="notif-bell-readall" id="notifBellReadAll">Mark all as read</button>
           </div>
           <div class="notif-bell-list" id="notifBellList"><p class="text-muted notif-bell-empty">Loading…</p></div>
+          <?php if ($__bellRole === 'Parishioner'): ?>
+            <a class="notif-bell-all" href="<?= e(url('parishioner/notifications.php')) ?>">View All Notifications</a>
+          <?php endif; ?>
         </div>
       </div>
     <?php endif; ?>

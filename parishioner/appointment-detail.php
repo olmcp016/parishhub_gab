@@ -247,6 +247,13 @@ if (!$appointment) {
     redirect(url('parishioner/appointments.php'));
 }
 
+// Opened from the notification bell: now that this appointment is confirmed to be
+// the parishioner's own, mark that one notification read (only if it is theirs).
+if (!empty($_GET['notification'])) {
+    require_once __DIR__ . '/../includes/secretary-notifications.php';
+    markOwnNotificationRead((int) $_GET['notification'], (int) $userId);
+}
+
 $feeSnapshot = !empty($appointment['fee_snapshot']) ? json_decode($appointment['fee_snapshot'], true) : null;
 $hasAuthoritativeFee = is_array($feeSnapshot)
     && array_key_exists('total', $feeSnapshot)

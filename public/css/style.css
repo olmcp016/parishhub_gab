@@ -275,6 +275,12 @@ img { max-width: 100%; }
 .notif-bell-message { display: block; font-size: 12.5px; margin: 2px 0; color: var(--brown-mid); }
 .notif-bell-time { display: block; font-size: 11.5px; color: var(--brown-muted); }
 .notif-bell-empty { padding: 14px; margin: 0; }
+.notif-bell-all { display: block; padding: 11px 14px; text-align: center; font-size: 12.5px; font-weight: 700; color: var(--gold-dark); border-top: 1px solid var(--cream-dark); text-decoration: none; }
+.notif-bell-all:hover { background: var(--cream); color: var(--brown-dark); }
+/* Phones: the bell sits left of the profile chip, so a panel anchored to the bell would run off the left edge — pin it inside the viewport. */
+@media (max-width: 600px) {
+  .notif-bell-panel { position: fixed; top: 68px; left: 12px; right: 12px; width: auto; }
+}
 
 .page-body { padding: 28px; flex: 1; }
 

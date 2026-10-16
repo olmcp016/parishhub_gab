@@ -1,8 +1,9 @@
 /**
- * PARISHHUB — Secretary notification bell (includes/topbar.php).
- * Polls secretary/notifications-feed.php every 30 seconds (and when the panel
- * opens) so new bookings / updated requirements appear without a page refresh.
- * Clicking a notification opens its appointment, which then marks it read.
+ * PARISHHUB — notification bell (includes/topbar.php), for the Secretary and
+ * the Parishioner. Polls the feed in data-feed-url (secretary/ or
+ * parishioner/notifications-feed.php) every 30 seconds and when the panel
+ * opens, so new notifications appear without a page refresh. Clicking a
+ * notification opens its appointment, which then marks it read.
  */
 (function () {
   var root = document.getElementById('notifBell');

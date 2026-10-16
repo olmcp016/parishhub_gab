@@ -162,3 +162,55 @@ function markSecretaryNotificationRead(int $notificationId, int $userId): void
         error_log('markSecretaryNotificationRead: ' . $e->getMessage());
     }
 }
+
+/**
+ * Unread count + latest notifications for a Parishioner's bell (same shape as
+ * secretaryNotificationFeed()). Only this user's rows. An appointment
+ * notification links to the parishioner's own appointment page (which marks it
+ * read once the appointment has loaded); anything else — or an appointment this
+ * parishioner does not own — links to the full Notifications page. Never to a
+ * Secretary or Admin page.
+ */
+function parishionerNotificationFeed(int $userId, int $limit = 10): array
+{
+    $count = db()->prepare('SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = FALSE');
+    $count->execute([$userId]);
+    $link = notificationsHaveAppointmentLink();
+    $stmt = db()->prepare('SELECT notification_id, title, message, is_read, created_at' . ($link ? ', appointment_id' : '') . ' FROM notifications WHERE user_id = ? ORDER BY created_at DESC, notification_id DESC LIMIT ?');
+    $stmt->bindValue(1, $userId, PDO::PARAM_INT);
+    $stmt->bindValue(2, $limit, PDO::PARAM_INT);
+    $stmt->execute();
+    $owns = db()->prepare(
+        'SELECT 1 FROM appointments a JOIN parishioners p ON p.parishioner_id = a.parishioner_id WHERE a.appointment_id = ? AND p.user_id = ?'
+    );
+    $items = [];
+    foreach ($stmt->fetchAll() as $n) {
+        $appointmentId = $link && !empty($n['appointment_id']) ? (int) $n['appointment_id'] : notificationAppointmentFromText((string) $n['message']);
+        if ($appointmentId) {
+            $owns->execute([$appointmentId, $userId]);
+            if (!$owns->fetchColumn()) $appointmentId = null;
+        }
+        $id = (int) $n['notification_id'];
+        $items[] = [
+            'id' => $id,
+            'title' => (string) $n['title'],
+            'message' => (string) $n['message'],
+            'time' => formatDateTime($n['created_at']),
+            'is_read' => in_array($n['is_read'], [true, 1, '1', 't', 'true'], true),
+            'url' => $appointmentId
+                ? url('parishioner/appointment-detail.php?id=' . $appointmentId . '&notification=' . $id)
+                : url('parishioner/notifications.php'),
+        ];
+    }
+    return ['unread' => (int) $count->fetchColumn(), 'items' => $items];
+}
+
+/** Marks one of this user's own notifications read (a forged id for anyone else's matches nothing). */
+function markOwnNotificationRead(int $notificationId, int $userId): void
+{
+    try {
+        db()->prepare('UPDATE notifications SET is_read = TRUE WHERE notification_id = ? AND user_id = ?')->execute([$notificationId, $userId]);
+    } catch (Throwable $e) {
+        error_log('markOwnNotificationRead: ' . $e->getMessage());
+    }
+}

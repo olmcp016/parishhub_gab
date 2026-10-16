@@ -38,14 +38,7 @@ function renderNavSection(string $slug, string $title, array $items, string $act
 
   <nav class="sidebar-nav" id="sidebarNav">
     <?php if ($__user['role_name'] === 'Parishioner'): ?>
-      <?php
-        $__unreadNotifications = 0;
-        try {
-            $__notifStmt = db()->prepare('SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = FALSE');
-            $__notifStmt->execute([$__user['user_id']]);
-            $__unreadNotifications = (int) $__notifStmt->fetchColumn();
-        } catch (Throwable $__notifErr) { /* table may not exist on older installs */ }
-      ?>
+      <?php // Notifications: the bell in the topbar (includes/topbar.php), with "View All Notifications". ?>
       <?php renderNavSection('overview', 'Overview', [
         [url('parishioner/dashboard.php'), 'dashboard', 'layout-dashboard', 'Dashboard'],
       ], $__active); ?>
@@ -60,9 +53,6 @@ function renderNavSection(string $slug, string $title, array $items, string $act
       <?php renderNavSection('parish-info', 'Parish Information', [
         [url('parishioner/calendar.php'), 'calendar', 'calendar-days', 'Parish Calendar'],
         [url('parishioner/announcements.php'), 'announcements', 'megaphone', 'Announcements'],
-      ], $__active); ?>
-      <?php renderNavSection('notifications', 'Notifications', [
-        [url('parishioner/notifications.php'), 'notifications', 'bell', 'Notifications', $__unreadNotifications ?: null],
       ], $__active); ?>
       <?php renderNavSection('account', 'Account', [
         [url('parishioner/profile.php'), 'profile', 'user-circle', 'My Profile'],
