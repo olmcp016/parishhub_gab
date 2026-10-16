@@ -53,5 +53,9 @@ function loadResumableBookingDraft(string $type, int $id): ?array
         'wedding_sponsor_count' => isset($d['wedding_sponsor_count']) ? (int) $d['wedding_sponsor_count'] : null,
         'remarks' => $d['remarks'] ?? null,
         'date_of_death' => null,
+        // Wedding Pre-Cana seminar (NULL before database/migration_precana.sql or for older drafts).
+        'precana_type' => $d['precana_type'] ?? null,
+        'precana_date' => $d['precana_date'] ?? null,
+        'precana_time' => !empty($d['precana_time']) ? substr((string) $d['precana_time'], 0, 5) : null,
     ];
 }

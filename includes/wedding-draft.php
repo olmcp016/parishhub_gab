@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/wedding-forms.php';
+require_once __DIR__ . '/precana.php';
 
 // Backward-compatible name used by the draft pages; the generated-form
 // definitions themselves live in wedding-forms.php.
@@ -37,9 +38,10 @@ function weddingRequiredDocumentsFromCatalog(?string $requirements): array
     return parseRequirementsList($requirements ?? '');
 }
 
+/** Documents needed to submit the booking. A parish Pre-Cana seminar defers its certificate (includes/precana.php). */
 function weddingDraftRequiredDocuments(array $draft): array
 {
-    return weddingRequiredDocumentsFromCatalog($draft['requirements'] ?? '');
+    return precanaBookingRequirements(weddingRequiredDocumentsFromCatalog($draft['requirements'] ?? ''), $draft);
 }
 
 function weddingDraftComplete(PDO $pdo, array $draft): array

@@ -240,9 +240,24 @@ include __DIR__ . '/includes/header.php';
         <p><strong>Priest:</strong> <?= e($appointment['priest_name'] ?? 'Not yet assigned') ?></p>
         <p><strong>Fee:</strong>
           <?php if ($appointment['pss_classification'] === 'pending_verification'): ?>Fee pending PSS verification
-          <?php elseif ($appointmentSnapshot): ?><?= feeLabel($displayFee) ?>
+          <?php elseif ($appointmentSnapshot): ?><?= in_array($appointment['category'], ['Funeral', 'Wedding'], true) && $displayFee <= 0 ? 'No Fees' : feeLabel($displayFee) ?>
           <?php else: ?><?= feeLabel((float) $appointment['fee']) ?><?php endif; ?>
+          <?php if (array_key_exists('precana_fee', $appointmentSnapshot)): ?>
+            <br><span class="text-muted" style="font-size:13px;">Includes Pre-Cana Seminar (<?= e((string) ($appointmentSnapshot['precana_type'] ?? '')) ?>): <?= (float) $appointmentSnapshot['precana_fee'] > 0 ? money((float) $appointmentSnapshot['precana_fee']) : 'No Fees' ?></span>
+          <?php endif; ?>
         </p>
+        <?php if ($appointment['category'] === 'Wedding'): ?>
+          <?php renderPrecanaSummary($appointment); ?>
+          <?php if (precanaCertificateDeferred($appointment)):
+            // Parish Pre-Cana: the certificate is uploaded after the seminar, before confirmation.
+            $precanaCertificate = precanaCertificateStatus((int) $appointment['appointment_id']);
+            $canUploadCertificate = precanaCertificateOpen($appointment) && in_array($precanaCertificate['status'], ['missing', 'rejected'], true);
+            $documents = array_values(array_filter($documents, static fn(array $d): bool => !precanaIsCertificateLabel($d['requirement_label']))); ?>
+            <h4 style="margin-bottom:4px;"><?= e(PRECANA_CERTIFICATE_LABEL) ?></h4>
+            <p class="helper-text" style="margin-top:0;">Upload it after you attend your Pre-Cana seminar. It is not needed for approval, but the Parish Office needs it before your Wedding is confirmed.</p>
+            <?php renderSupportingDocumentCards([PRECANA_CERTIFICATE_LABEL], $precanaCertificate['document'] ? [PRECANA_CERTIFICATE_LABEL => $precanaCertificate['document']] : [], 'guest_appointment', (int) $appointment['appointment_id'], $canUploadCertificate); ?>
+          <?php endif; ?>
+        <?php endif; ?>
         <?php if ($documents): ?>
           <div class="card" style="margin-top:18px;">
             <div class="card-header"><h3>Submitted Documents</h3></div>

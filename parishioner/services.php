@@ -84,6 +84,12 @@ foreach (['Mass Intention', 'Funeral', 'First Communion'] as $cat) {
 // (custom date/time, availability-checked) choice — see includes/scheduling.php.
 $scheduleToggleCategories = ['Baptism', 'Wedding'];
 
+// Wedding Pre-Cana seminar (includes/precana.php): shown once its database
+// columns exist. Regular sessions are calculated here (second Saturdays,
+// 8:00 AM); the form only offers the ones before the chosen wedding date.
+$precanaEnabled = precanaAvailable();
+$precanaSessions = $precanaEnabled ? precanaRegularSessions(null, 18) : [];
+
 $active = 'services';
 $pageTitle = 'Available Services';
 include __DIR__ . '/../includes/header.php';
@@ -584,6 +590,48 @@ $noFeesLabel = fn(float $amount): string => $amount > 0 ? money($amount) : 'No F
         <div id="availabilityMsg" class="alert"
           style="display:none; background: var(--danger-bg); color: var(--danger); border: 1px solid #f5c2c2;"></div>
 
+        <?php if ($precanaEnabled): // Wedding only — separate from the Wedding Ceremony schedule above ?>
+        <div id="precanaGroup" class="form-group precana-group" style="display:none;">
+          <label class="precana-heading">Pre-Cana Seminar Type <span style="color:var(--danger);">*</span></label>
+          <div class="precana-options" role="radiogroup" aria-label="Pre-Cana Seminar Type">
+            <label class="precana-option">
+              <input type="radio" name="precana_type" value="Regular" id="precanaTypeRegular">
+              <span class="precana-option-body">
+                <strong>Regular Pre-Cana — No Fees</strong>
+                <span>Every second Saturday of the month at 8:00 AM.</span>
+              </span>
+            </label>
+            <label class="precana-option">
+              <input type="radio" name="precana_type" value="Special" id="precanaTypeSpecial">
+              <span class="precana-option-body">
+                <strong>Special Pre-Cana — <?= e(money(PRECANA_SPECIAL_FEE)) ?></strong>
+                <span>Choose your preferred seminar date and time, subject to Parish Office approval.</span>
+              </span>
+            </label>
+          </div>
+          <div id="precanaRegularFields" class="precana-fields" style="display:none;">
+            <label for="precanaSessionSelect">Regular Seminar Session</label>
+            <select name="precana_regular_date" id="precanaSessionSelect" disabled></select>
+            <p class="helper-text" id="precanaRegularHint"></p>
+          </div>
+          <div id="precanaSpecialFields" class="precana-fields" style="display:none;">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="precanaDateInput">Preferred Seminar Date</label>
+                <input type="date" name="precana_date" id="precanaDateInput" min="<?= date('Y-m-d') ?>" disabled>
+              </div>
+              <div class="form-group">
+                <label for="precanaTimeInput">Preferred Seminar Time</label>
+                <input type="time" name="precana_time" id="precanaTimeInput" step="1800" disabled>
+              </div>
+            </div>
+            <p class="precana-notice">Your preferred Pre-Cana schedule is subject to Parish Office approval.</p>
+          </div>
+          <div id="precanaSummary" class="precana-summary" style="display:none;"></div>
+          <p class="helper-text" style="margin-bottom:0;">The Pre-Cana Seminar Certificate is not needed to submit this booking — upload it after you attend the seminar.</p>
+        </div>
+        <?php endif; ?>
+
         <div class="form-group" id="priestFieldGroup">
           <label>Preferred Priest (optional)</label>
           <select name="priest_id" id="priestSelect">
@@ -945,6 +993,151 @@ document.addEventListener('DOMContentLoaded', function () {
   var REQUIREMENTS_BY_SERVICE = <?= json_encode($requirementsByService, JSON_UNESCAPED_UNICODE) ?>;
   var SCHEDULE_TOGGLE_CATEGORIES = <?= json_encode($scheduleToggleCategories) ?>;
   var CHECK_AVAILABILITY_URL = <?= json_encode(url('parishioner/check-availability.php')) ?>;
+  var PRECANA = <?= json_encode([
+      'enabled' => $precanaEnabled,
+      'sessions' => $precanaSessions,
+      'specialFee' => money(PRECANA_SPECIAL_FEE),
+      'certificateLabel' => PRECANA_CERTIFICATE_LABEL,
+  ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
+
+  /**
+   * Pre-Cana seminar (Wedding only). Kept apart from the Wedding Ceremony
+   * schedule: its own radios and fields, and only the fields of the chosen
+   * type are enabled (so only they are submitted). Regular offers only the
+   * calculated second-Saturday sessions before the wedding date — the date and
+   * time cannot be typed. The server re-checks everything (includes/precana.php).
+   */
+  function weddingCeremonyDate() {
+    var regular = document.getElementById('regularDateInput');
+    if (regular && !regular.disabled && regular.value) return regular.value;
+    var free = document.getElementById('appointmentDateInput');
+    return free && !free.disabled ? free.value : '';
+  }
+
+  function precanaLongDate(iso) {
+    return new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  }
+
+  function precanaTime12(hhmm) {
+    var parts = hhmm.split(':'); var h = parseInt(parts[0], 10);
+    return ((h % 12) || 12) + ':' + parts[1] + ' ' + (h < 12 ? 'AM' : 'PM');
+  }
+
+  function selectedPrecanaType() {
+    var regular = document.getElementById('precanaTypeRegular');
+    var special = document.getElementById('precanaTypeSpecial');
+    return regular && regular.checked ? 'Regular' : (special && special.checked ? 'Special' : '');
+  }
+
+  function updatePrecanaUI() {
+    var group = document.getElementById('precanaGroup');
+    if (!group) return;
+    var serviceSelect = document.getElementById('serviceSelect');
+    var isWedding = (serviceSelect.options[serviceSelect.selectedIndex]?.dataset.category || '') === 'Wedding';
+    group.style.display = isWedding ? 'block' : 'none';
+    ['precanaTypeRegular', 'precanaTypeSpecial'].forEach(function (id) {
+      var radio = document.getElementById(id);
+      radio.disabled = !isWedding;
+      radio.required = isWedding;
+    });
+    var type = isWedding ? selectedPrecanaType() : '';
+    var wedding = weddingCeremonyDate();
+
+    var regularBox = document.getElementById('precanaRegularFields');
+    var specialBox = document.getElementById('precanaSpecialFields');
+    var sessionSelect = document.getElementById('precanaSessionSelect');
+    var dateInput = document.getElementById('precanaDateInput');
+    var timeInput = document.getElementById('precanaTimeInput');
+    regularBox.style.display = type === 'Regular' ? 'block' : 'none';
+    specialBox.style.display = type === 'Special' ? 'block' : 'none';
+    sessionSelect.disabled = type !== 'Regular';
+    sessionSelect.required = type === 'Regular';
+    dateInput.disabled = timeInput.disabled = type !== 'Special';
+    dateInput.required = timeInput.required = type === 'Special';
+
+    // Regular: rebuild the session list for the current wedding date, keeping a still-valid choice.
+    var chosen = sessionSelect.value;
+    var sessions = PRECANA.sessions.filter(function (s) { return !wedding || s.date < wedding; });
+    sessionSelect.innerHTML = '';
+    var placeholder = document.createElement('option');
+    placeholder.value = ''; placeholder.textContent = sessions.length ? 'Select a seminar session' : 'No session available';
+    sessionSelect.appendChild(placeholder);
+    sessions.forEach(function (s) {
+      var option = document.createElement('option');
+      option.value = s.date; option.textContent = s.label;
+      sessionSelect.appendChild(option);
+    });
+    if (sessions.some(function (s) { return s.date === chosen; })) sessionSelect.value = chosen;
+    document.getElementById('precanaRegularHint').textContent = !wedding
+      ? 'Choose your Wedding Ceremony date first — only seminar sessions before it can be selected.'
+      : (sessions.length
+        ? 'Fixed parish schedule (second Saturday, 8:00 AM) — the date and time cannot be changed.'
+        : 'No Regular Pre-Cana seminar is available before your wedding date. Please contact the Parish Office or choose Special Pre-Cana.');
+
+    // Special: the preferred date must be before the wedding.
+    if (wedding) {
+      var dayBefore = new Date(wedding + 'T00:00:00'); dayBefore.setDate(dayBefore.getDate() - 1);
+      dateInput.max = dayBefore.getFullYear() + '-' + String(dayBefore.getMonth() + 1).padStart(2, '0') + '-' + String(dayBefore.getDate()).padStart(2, '0');
+    } else {
+      dateInput.removeAttribute('max');
+    }
+
+    // Live summary of the chosen seminar (no hardcoded dates).
+    var summary = document.getElementById('precanaSummary');
+    var rows = [];
+    if (type === 'Regular' && sessionSelect.value) {
+      rows = [['Schedule', precanaLongDate(sessionSelect.value)], ['Time', '8:00 AM'], ['Fee', 'No Fees']];
+    } else if (type === 'Special' && dateInput.value) {
+      rows = [['Preferred Schedule', precanaLongDate(dateInput.value)], ['Time', timeInput.value ? precanaTime12(timeInput.value) : '—'],
+        ['Fee', PRECANA.specialFee], ['Status', 'Preferred Schedule — Awaiting Parish Office Confirmation']];
+    }
+    summary.innerHTML = '';
+    if (rows.length) {
+      var heading = document.createElement('strong');
+      heading.textContent = type + ' Pre-Cana Seminar';
+      summary.appendChild(heading);
+      rows.forEach(function (row) {
+        var line = document.createElement('div');
+        var label = document.createElement('span'); label.textContent = row[0] + ': ';
+        var value = document.createElement('span'); value.textContent = row[1];
+        line.appendChild(label); line.appendChild(value); summary.appendChild(line);
+      });
+    }
+    summary.style.display = rows.length ? 'block' : 'none';
+  }
+
+  /** Inline messages for the rules the browser cannot express with attributes. */
+  function precanaBeforeCheck() {
+    var group = document.getElementById('precanaGroup');
+    if (!group) return;
+    var regularRadio = document.getElementById('precanaTypeRegular');
+    var sessionSelect = document.getElementById('precanaSessionSelect');
+    var dateInput = document.getElementById('precanaDateInput');
+    var timeInput = document.getElementById('precanaTimeInput');
+    [regularRadio, sessionSelect, dateInput, timeInput].forEach(function (el) { el.setCustomValidity(''); });
+    if (group.style.display === 'none') return;
+    var type = selectedPrecanaType();
+    var wedding = weddingCeremonyDate();
+    if (!type) { regularRadio.setCustomValidity('Please choose a Pre-Cana Seminar Type.'); return; }
+    if (type === 'Regular' && !sessionSelect.value) {
+      sessionSelect.setCustomValidity(sessionSelect.options.length > 1
+        ? 'Please choose a Regular Pre-Cana session.'
+        : 'No Regular Pre-Cana seminar is available before your wedding date. Please contact the Parish Office or choose Special Pre-Cana.');
+    }
+    if (type === 'Special') {
+      if (dateInput.value && wedding && dateInput.value >= wedding) dateInput.setCustomValidity('The Pre-Cana seminar must be before the Wedding Ceremony date.');
+      if (timeInput.value && !/:(00|30)$/.test(timeInput.value)) timeInput.setCustomValidity('Please choose a time in 30-minute intervals.');
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var form = document.getElementById('bookForm');
+    if (!form || !document.getElementById('precanaGroup')) return;
+    form.addEventListener('change', updatePrecanaUI);
+    form.addEventListener('input', updatePrecanaUI);
+    // The Regular wedding calendar sets its hidden date without a change event.
+    form.addEventListener('click', function () { setTimeout(updatePrecanaUI, 0); });
+  });
 
   function openBookModal(serviceId) {
     var modal = document.getElementById('bookModal');
@@ -990,6 +1183,7 @@ document.addEventListener('DOMContentLoaded', function () {
       isMass && !document.getElementById('massTimeInput').value ? 'Please choose an available Mass time.' : ''
     );
     amount.setCustomValidity(isMass && !(parseFloat(amount.value) > 0) ? 'Offering amount must be greater than ₱0.' : '');
+    precanaBeforeCheck();
   }
 
   /**
@@ -1069,7 +1263,7 @@ document.addEventListener('DOMContentLoaded', function () {
     'key' => $resumeDraft['type'] . '-' . $resumeDraft['id'],
     'snapshot' => [
       'serviceId' => (string) $resumeDraft['service_id'],
-      'radios' => $resumeDraft['schedule_type'] ? ['schedule_type' => $resumeDraft['schedule_type']] : (object) [],
+      'radios' => array_filter(['schedule_type' => $resumeDraft['schedule_type'], 'precana_type' => $resumeDraft['precana_type'] ?? null]) ?: (object) [],
       'values' => array_filter([
         'priestSelect' => $resumeDraft['priest_id'] !== null ? (string) $resumeDraft['priest_id'] : null,
         'appointmentDateInput' => $resumeDraft['date'],
@@ -1079,6 +1273,10 @@ document.addEventListener('DOMContentLoaded', function () {
         'weddingSponsorCountInput' => $resumeDraft['wedding_sponsor_count'] !== null ? (string) $resumeDraft['wedding_sponsor_count'] : null,
         'remarksInput' => $resumeDraft['remarks'],
         'dateOfDeathInput' => $resumeDraft['date_of_death'],
+        // Pre-Cana seminar: Regular keeps its session, Special its preferred date/time.
+        'precanaSessionSelect' => ($resumeDraft['precana_type'] ?? null) === 'Regular' ? $resumeDraft['precana_date'] : null,
+        'precanaDateInput' => ($resumeDraft['precana_type'] ?? null) === 'Special' ? $resumeDraft['precana_date'] : null,
+        'precanaTimeInput' => ($resumeDraft['precana_type'] ?? null) === 'Special' ? $resumeDraft['precana_time'] : null,
       ], fn($v) => $v !== null && $v !== ''),
     ],
   ] : null, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
@@ -1203,6 +1401,10 @@ document.addEventListener('DOMContentLoaded', function () {
       previewBox.style.display = 'none';
     }
     document.getElementById('bookSubmitBtn').textContent = submitButtonLabel();
+    // Synchronous first, so a restored Pre-Cana session finds its option; again
+    // once this function has set up the wedding date fields.
+    updatePrecanaUI();
+    setTimeout(updatePrecanaUI, 0);
 
     var isMassIntention = category === 'Mass Intention';
     var usesToggle = SCHEDULE_TOGGLE_CATEGORIES.indexOf(category) !== -1;
@@ -1720,6 +1922,10 @@ document.addEventListener('DOMContentLoaded', function () {
     items.forEach(function (item) {
       if (item === 'Katin-awan sa Paglubong') {
         // Already handled in base forms
+        return;
+      }
+      if (category === 'Wedding' && PRECANA.enabled && item === PRECANA.certificateLabel) {
+        docs.push(item + ' (upload after your Pre-Cana seminar)');
         return;
       }
       docs.push(item);

@@ -48,7 +48,8 @@ function approvedAppointmentAmountDue(array $a): ?float
     if (is_array($snapshot) && isset($snapshot['total'])) return (float) $snapshot['total'];
     if (!in_array($a['pss_classification'], ['pss', 'non_pss'], true)) return null;
     $sponsors = $a['category'] === 'Wedding' ? (int) $a['wedding_sponsor_count'] : (int) $a['sponsor_count'];
-    $calculation = calculateServiceFee($a['category'], $a['schedule_type'], $a['pss_classification'], $sponsors);
+    $precanaType = $a['category'] === 'Wedding' ? (precanaForAppointment((int) $a['appointment_id'])['precana_type'] ?? null) : null;
+    $calculation = calculateServiceFee($a['category'], $a['schedule_type'], $a['pss_classification'], $sponsors, $precanaType);
     return $calculation ? (float) $calculation['total'] : null;
 }
 
@@ -65,6 +66,9 @@ function approvedAppointmentPaymentHtml(array $a, bool $isGuest): string
     if ($paymentStatus === 'pending') return '<strong>Payment:</strong> Your payment has been submitted and is awaiting verification by the parish cashier.';
 
     $amount = approvedAppointmentAmountDue($a);
+    if ($amount !== null && $amount <= 0 && in_array($a['category'], ['Wedding', 'Funeral'], true)) {
+        return '<strong>Payment:</strong> No payment is required for this appointment (No Fees). The Parish Office will confirm your appointment.';
+    }
     $where = $isGuest
         ? 'through your ParishHub booking page (button below) or at the parish office'
         : 'by logging in to ParishHub and opening this appointment, or at the parish office';
@@ -129,8 +133,17 @@ function appointmentApprovedEmailHtml(array $a, bool $isGuest, string $name, str
     ];
     if (trim((string) $a['location_address']) !== '') $rows['Location'] = $h($a['location_address']);
     $rows['Status'] = (int) $a['status_id'] === 5 ? 'Approved (Confirmed)' : 'Approved';
+    // Wedding Pre-Cana seminar (its own schedule, separate from the ceremony above).
+    $precana = $a['category'] === 'Wedding' ? precanaForAppointment((int) $a['appointment_id']) : null;
+    if ($precana && ($p = precanaDisplay($precana))) {
+        $rows['Pre-Cana Seminar'] = $h($p['type_label']) . ' — ' . $h($p['date']) . ', ' . $h($p['time']) . ' (' . $h($p['fee_label']) . ')';
+        $rows['Pre-Cana Schedule Status'] = $h($p['status_label']);
+    }
     $list = '';
     foreach ($rows as $label => $value) $list .= "<li><strong>$label:</strong> $value</li>";
+    if ($precana) {
+        $list .= '<li><strong>' . $h(PRECANA_CERTIFICATE_LABEL) . ':</strong> please submit it through ParishHub after you attend the seminar; it is needed before your Wedding is confirmed.</li>';
+    }
 
     return '<p>Dear ' . $h($name) . ',</p>'
         . "<p>Good news! Your appointment request for <strong>$service</strong> has been approved by the Parish Office.</p>"

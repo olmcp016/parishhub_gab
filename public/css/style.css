@@ -1354,6 +1354,27 @@ dialog.modal::backdrop { background: rgba(36, 22, 17, 0.55); }
   .report-print-head { margin-bottom: 14px; }
 }
 
+/* ---------- Wedding Pre-Cana seminar (booking modal + detail pages) ---------- */
+.precana-group { background: var(--cream); padding: 14px; border-radius: 8px; }
+.precana-heading { text-transform: uppercase; letter-spacing: .06em; font-size: 12px; color: var(--brown-mid); }
+.precana-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin: 6px 0 10px; }
+.precana-option { display: flex; gap: 10px; align-items: flex-start; background: var(--ivory, #fffdf8); border: 1px solid var(--cream-dark); border-radius: 10px; padding: 12px; cursor: pointer; font-weight: 400; transition: border-color .15s ease, box-shadow .15s ease; }
+.precana-option input { width: auto; margin-top: 3px; flex-shrink: 0; }
+.precana-option:has(input:checked) { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(201, 168, 76, .25); }
+.precana-option-body { display: flex; flex-direction: column; gap: 3px; }
+.precana-option-body strong { color: var(--brown-darkest); }
+.precana-option-body span { font-size: 13px; color: var(--brown-mid); }
+.precana-fields { margin-top: 4px; }
+.precana-notice { font-size: 13px; color: var(--brown-mid); background: var(--warning-bg); border-radius: 6px; padding: 8px 10px; margin: 0 0 8px; }
+.precana-summary { background: var(--ivory, #fffdf8); border: 1px solid var(--cream-dark); border-left: 3px solid var(--gold); border-radius: 8px; padding: 10px 12px; margin: 8px 0 10px; font-size: 13.5px; }
+.precana-summary strong:first-child { display: block; margin-bottom: 4px; color: var(--brown-darkest); }
+.precana-summary p { margin: 4px 0; }
+.precana-status-note { font-size: 13px; color: var(--brown-mid); }
+.precana-review-section { background: var(--cream); border: 1px solid var(--cream-dark); border-radius: 10px; padding: 12px 14px; margin: 10px 0; }
+.precana-review-section h5 { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 14px; color: var(--brown-darkest); text-transform: uppercase; letter-spacing: .04em; }
+.precana-review-section h5 .badge { text-transform: none; letter-spacing: 0; }
+.precana-review-section p { margin: 4px 0; }
+
 /* ---------- Mass Intentions — read-aloud print sheet ---------- */
 .mass-print-block { margin-bottom: 36px; break-inside: avoid; }
 .mass-print-title {

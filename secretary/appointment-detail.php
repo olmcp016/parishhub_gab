@@ -52,17 +52,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $currentStatusId = (int) $actionAppointment['status_id'];
 
+    // Documents are reviewed while the appointment is pending. The one exception:
+    // the Pre-Cana Seminar Certificate of a parish seminar arrives after the
+    // seminar, so it is reviewed until the Wedding is confirmed (includes/precana.php).
+    $documentReviewOpen = static function (int $documentId) use ($id, $currentStatusId): bool {
+        if ($currentStatusId === 1) return true;
+        if (!in_array($currentStatusId, [2, 4], true) || !precanaForAppointment($id)) return false;
+        $label = db()->prepare('SELECT requirement_label FROM uploaded_documents WHERE document_id = ? AND appointment_id = ?');
+        $label->execute([$documentId, $id]);
+        return precanaIsCertificateLabel((string) $label->fetchColumn());
+    };
+
     if ($action === 'verify_document') {
-        if ($currentStatusId !== 1) {
+        $documentId = (int) ($_POST['document_id'] ?? 0);
+        if (!$documentReviewOpen($documentId)) {
             respondAjaxOrRedirect($isAjax, false, 'Documents can only be reviewed while the appointment is pending.', $redirectUrl);
         }
-        $documentId = (int) ($_POST['document_id'] ?? 0);
         $pdo = db();
         $pdo->beginTransaction();
         try {
             $statusLock = $pdo->prepare('SELECT status_id FROM appointments WHERE appointment_id = ? FOR UPDATE');
             $statusLock->execute([$id]);
-            if ((int) $statusLock->fetchColumn() !== 1) {
+            if ((int) $statusLock->fetchColumn() !== $currentStatusId) {
                 $pdo->rollBack();
                 respondAjaxOrRedirect($isAjax, false, 'Documents can only be reviewed while the appointment is pending.', $redirectUrl);
             }
@@ -112,16 +123,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 respondAjaxOrRedirect($isAjax, false, 'The rejection reason must be 1000 characters or fewer.', $redirectUrl);
             }
         }
-        if ($currentStatusId !== 1) {
+        $documentId = (int) ($_POST['document_id'] ?? 0);
+        if (!$documentReviewOpen($documentId)) {
             respondAjaxOrRedirect($isAjax, false, 'Documents can only be reviewed while the appointment is pending.', $redirectUrl);
         }
-        $documentId = (int) ($_POST['document_id'] ?? 0);
         $pdo = db();
         $pdo->beginTransaction();
         try {
             $statusLock = $pdo->prepare('SELECT status_id FROM appointments WHERE appointment_id = ? FOR UPDATE');
             $statusLock->execute([$id]);
-            if ((int) $statusLock->fetchColumn() !== 1) {
+            if ((int) $statusLock->fetchColumn() !== $currentStatusId) {
                 $pdo->rollBack();
                 respondAjaxOrRedirect($isAjax, false, 'Documents can only be reviewed while the appointment is pending.', $redirectUrl);
             }
@@ -141,12 +152,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 respondAjaxOrRedirect($isAjax, false, 'This document is no longer pending review.', $redirectUrl);
             }
             $pdo->prepare("UPDATE generated_forms SET status = 'rejected', rejection_reason = ?, updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?")->execute([$reason, $documentId, $id]);
-            $recipient = $pdo->prepare('SELECT u.user_id FROM appointments a JOIN parishioners p ON p.parishioner_id = a.parishioner_id JOIN users u ON u.user_id = p.user_id WHERE a.appointment_id = ?');
+            $recipient = $pdo->prepare('SELECT u.user_id, a.guest_name FROM appointments a JOIN parishioners p ON p.parishioner_id = a.parishioner_id JOIN users u ON u.user_id = p.user_id WHERE a.appointment_id = ?');
             $recipient->execute([$id]);
-            $parishionerUserId = $recipient->fetchColumn();
+            $recipientRow = $recipient->fetch() ?: [];
+            $parishionerUserId = $recipientRow['user_id'] ?? null;
             // With the revision workflow in place the applicant hears about all
             // rejections at once, by email, when the Secretary sends the revision request.
-            if ($parishionerUserId && !requirementsReviewAvailable()) {
+            // That workflow is for pending appointments only, so a Pre-Cana certificate
+            // rejected after approval is notified here directly (registered
+            // parishioners; guests see it on their booking status page).
+            $isGuestBooking = trim((string) ($recipientRow['guest_name'] ?? '')) !== '';
+            if ($parishionerUserId && (!requirementsReviewAvailable() || ($currentStatusId !== 1 && !$isGuestBooking))) {
                 $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Requirement Needs Revision', ?)")
                     ->execute([(int) $parishionerUserId, $choice === 'Others'
                         ? "The requirement '$documentLabel' for appointment #$id needs correction. Reason: $reason"
@@ -160,6 +176,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         logActivity($userId, "Rejected a document for appointment #$id", 'Appointments');
         requirementsReviewAfterSecretaryDecision($id);
+        // A Pre-Cana certificate rejected after approval: email the applicant now (one
+        // email per rejected submission). While pending, the rejection goes out in the
+        // regular consolidated revision-request email instead.
+        if ($currentStatusId !== 1 && precanaIsCertificateLabel($documentRow['requirement_label'] ?? '') && precanaForAppointment($id)) {
+            require_once __DIR__ . '/../includes/precana-notifications.php';
+            $emailNotice = precanaEmailNotice(sendPrecanaCertificateRevisionEmail($id, $documentId, $reason, (int) $userId));
+            respondAjaxOrRedirect($isAjax, true, 'Pre-Cana Seminar Certificate rejected (Needs Revision). ' . $emailNotice, $redirectUrl);
+        }
         respondAjaxOrRedirect($isAjax, true, 'Requirement rejected successfully.', $redirectUrl);
     }
 
@@ -185,7 +209,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $stage = 'calculate_fee';
             $sponsors = $feeAppointment['category'] === 'Wedding' ? (int) $feeAppointment['wedding_sponsor_count'] : (int) $feeAppointment['sponsor_count'];
-            $calculation = calculateServiceFee($feeAppointment['category'], $feeAppointment['schedule_type'], $classification, $sponsors);
+            // Wedding Pre-Cana seminar fee (Special ₱2,500, Regular none) is added once, here, to the frozen fee.
+            $precanaType = $feeAppointment['category'] === 'Wedding' ? (precanaForAppointment($id)['precana_type'] ?? null) : null;
+            $calculation = calculateServiceFee($feeAppointment['category'], $feeAppointment['schedule_type'], $classification, $sponsors, $precanaType);
             if (!$calculation) throw new RuntimeException('No fee rule is configured for this appointment.');
             $calculation['verified_by'] = $userId;
             $stage = 'update_appointment';
@@ -231,6 +257,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // in the modal. This makes two near-simultaneous approval requests
         // converge on one canonical status transition.
         $noPaymentNeeded = false;
+        $confirmNow = false;
+        $ceremonyBlockers = [];
         $pdo = db();
         $pdo->beginTransaction();
         try {
@@ -256,14 +284,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 );
             }
 
-            // A verified PSS Giver Funeral Mass costs nothing, so there is no
-            // payment step: approve it straight to Confirmed. (Left at Approved,
-            // it would wait for a ₱0.00 payment and be auto-cancelled as unpaid.)
-            $feeSnapshot = json_decode((string) ($lockedAppointment['fee_snapshot'] ?? ''), true);
-            $noPaymentNeeded = $lockedAppointment['category'] === 'Funeral'
-                && in_array($lockedAppointment['pss_classification'], ['pss', 'non_pss'], true)
-                && is_array($feeSnapshot) && isset($feeSnapshot['total']) && (float) $feeSnapshot['total'] <= 0;
-            $update = $pdo->prepare($noPaymentNeeded
+            // A verified ₱0 total (PSS Giver Funeral Mass, or a Wedding whose fees
+            // all come to ₱0) has no payment step: approve it straight to Confirmed.
+            // (Left at Approved, it would wait for a ₱0.00 payment and be
+            // auto-cancelled as unpaid.) A Wedding still waiting on its Pre-Cana
+            // conditions stays Approved — no payment needed — and is confirmed later.
+            $noPaymentNeeded = appointmentNoPaymentRequired($lockedAppointment);
+            $ceremonyBlockers = $noPaymentNeeded ? precanaCeremonyBlockers($lockedAppointment) : [];
+            $confirmNow = $noPaymentNeeded && !$ceremonyBlockers;
+            $update = $pdo->prepare($confirmNow
                 ? 'UPDATE appointments
                    SET status_id = 5, approved_by = ?, approved_at = NOW(), confirmed_by = ?, confirmed_at = NOW()
                    WHERE appointment_id = ? AND status_id = 1'
@@ -271,7 +300,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                    SET status_id = 2, approved_by = ?, approved_at = NOW()
                    WHERE appointment_id = ? AND status_id = 1'
             );
-            $update->execute($noPaymentNeeded ? [$userId, $userId, $id] : [$userId, $id]);
+            $update->execute($confirmNow ? [$userId, $userId, $id] : [$userId, $id]);
             if ($update->rowCount() !== 1) {
                 throw new RuntimeException('This appointment is no longer pending approval.');
             }
@@ -287,10 +316,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // The approval is committed; the email / notification can no longer undo it.
         require_once __DIR__ . '/../includes/appointment-approval.php';
-        if ($noPaymentNeeded) {
-            logActivity($userId, "Approved and confirmed appointment #$id (PSS Giver Funeral Mass, no fees)", 'Appointments');
+        if ($confirmNow) {
+            $isFuneralApproval = $lockedAppointment['category'] === 'Funeral';
+            logActivity($userId, "Approved and confirmed appointment #$id (" . ($isFuneralApproval ? 'PSS Giver Funeral Mass' : 'verified total ₱0') . ', no fees)', 'Appointments');
             $approvalNotice = appointmentApprovedNoticeSummary(notifyAppointmentApproved($id, (int) $userId));
-            respondAjaxOrRedirect($isAjax, true, 'Appointment approved and confirmed. No payment is required (PSS Giver — No Fees). ' . $approvalNotice, $redirectUrl);
+            respondAjaxOrRedirect($isAjax, true, 'Appointment approved and confirmed. No payment is required (' . ($isFuneralApproval ? 'PSS Giver — No Fees' : 'verified total: No Fees') . '). ' . $approvalNotice, $redirectUrl);
+        }
+        if ($noPaymentNeeded) {
+            logActivity($userId, "Approved appointment #$id (no fees; awaiting Pre-Cana conditions before confirmation)", 'Appointments');
+            $approvalNotice = appointmentApprovedNoticeSummary(notifyAppointmentApproved($id, (int) $userId));
+            respondAjaxOrRedirect($isAjax, true, 'Appointment approved. No payment is required. Confirm it once these are done: ' . implode(' ', $ceremonyBlockers) . ' ' . $approvalNotice, $redirectUrl);
         }
         logActivity($userId, "Approved appointment #$id", 'Appointments');
         $approvalNotice = appointmentApprovedNoticeSummary(notifyAppointmentApproved($id, (int) $userId));
@@ -389,6 +424,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$check['valid']) {
             respondAjaxOrRedirect($isAjax, false, $check['message'], $redirectUrl);
         }
+        // The Wedding Ceremony may not move to or before its Pre-Cana seminar (a separate schedule).
+        $reschedulePrecana = $category === 'Wedding' ? precanaForAppointment($id) : null;
+        if ($reschedulePrecana && !empty($reschedulePrecana['precana_date']) && $newDate && $newDate <= $reschedulePrecana['precana_date']) {
+            respondAjaxOrRedirect($isAjax, false, 'The Wedding Ceremony must stay after its Pre-Cana seminar (' . formatDate($reschedulePrecana['precana_date']) . '). Change the Pre-Cana schedule first, or choose a later wedding date.', $redirectUrl);
+        }
         if (serviceSlotIsBooked((int) $apptInfo['service_id'], $newDate, $check['forcedTime'] ?? $newTime, $id)) {
             respondAjaxOrRedirect($isAjax, false, 'That exact date and time is already booked for this service. Please choose another slot.', $redirectUrl);
         }
@@ -429,8 +469,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         respondAjaxOrRedirect($isAjax, true, $scheduleMessage, $redirectUrl);
     } elseif ($action === 'confirm') {
-        if ($currentStatusId !== 4) {
+        $confirmStmt = db()->prepare('SELECT a.*, s.category FROM appointments a JOIN services s ON s.service_id = a.service_id WHERE a.appointment_id = ?');
+        $confirmStmt->execute([$id]);
+        $confirmAppointment = $confirmStmt->fetch() ?: [];
+        // Payment Verified — or Approved with a verified ₱0 total (no payment step).
+        $confirmableStatus = $currentStatusId === 4 || ($currentStatusId === 2 && appointmentNoPaymentRequired($confirmAppointment));
+        if (!$confirmableStatus) {
             respondAjaxOrRedirect($isAjax, false, 'Only a payment-verified appointment can be confirmed.', $redirectUrl);
+        }
+        // Ready for ceremony: a Wedding with a parish Pre-Cana seminar needs its conditions met first.
+        $confirmBlockers = precanaCeremonyBlockers($confirmAppointment);
+        if ($confirmBlockers) {
+            respondAjaxOrRedirect($isAjax, false, 'Cannot confirm yet: ' . implode(' ', $confirmBlockers), $redirectUrl);
         }
         // Mass Intention/Donation payment confirmation is the Cashier's
         // responsibility (see treasurer/payment-detail.php) — Secretary no
@@ -441,13 +491,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             respondAjaxOrRedirect($isAjax, false, 'Payment confirmation for Mass Intentions and Donations is handled by the Cashier.', $redirectUrl);
         }
 
-        $update = db()->prepare("UPDATE appointments SET status_id = 5 WHERE appointment_id = ? AND status_id = 4");
-        $update->execute([$id]);
+        $update = db()->prepare("UPDATE appointments SET status_id = 5 WHERE appointment_id = ? AND status_id = ?");
+        $update->execute([$id, $currentStatusId]);
         if ($update->rowCount() !== 1) {
             respondAjaxOrRedirect($isAjax, false, 'This appointment is no longer awaiting confirmation.', $redirectUrl);
         }
         logActivity($userId, "Confirmed appointment #$id", 'Appointments');
         respondAjaxOrRedirect($isAjax, true, 'Appointment confirmed.', $redirectUrl);
+    } elseif ($action === 'confirm_precana' || $action === 'propose_precana') {
+        // Special Pre-Cana only: confirm the schedule on file, or propose another
+        // one. A proposal is NOT a confirmation: it stays "Awaiting Parish Office
+        // Confirmation" until confirmed. Separate from the Wedding Ceremony
+        // schedule; Regular sessions are fixed and have no edit action.
+        require_once __DIR__ . '/../includes/precana-notifications.php';
+        $precanaRow = precanaForAppointment($id);
+        if (!$precanaRow || $precanaRow['precana_type'] !== 'Special' || !in_array($currentStatusId, [1, 2, 4], true)) {
+            respondAjaxOrRedirect($isAjax, false, 'Only a Special Pre-Cana schedule of an active Wedding booking can be confirmed or changed.', $redirectUrl);
+        }
+        if ($action === 'confirm_precana') {
+            $newPrecanaDate = (string) $precanaRow['precana_date'];
+            $newPrecanaTime = substr((string) $precanaRow['precana_time'], 0, 5);
+            if ($precanaRow['precana_status'] === 'confirmed') {
+                respondAjaxOrRedirect($isAjax, false, 'This Pre-Cana schedule is already confirmed.', $redirectUrl);
+            }
+        } else {
+            $newPrecanaDate = (string) ($_POST['precana_date'] ?? '');
+            $newPrecanaTime = (string) ($_POST['precana_time'] ?? '');
+        }
+        $weddingDateStmt = db()->prepare('SELECT appointment_date FROM appointments WHERE appointment_id = ?');
+        $weddingDateStmt->execute([$id]);
+        $precanaCheck = precanaValidate('Special', null, $newPrecanaDate, $newPrecanaTime, $weddingDateStmt->fetchColumn() ?: null);
+        if (!$precanaCheck['valid']) respondAjaxOrRedirect($isAjax, false, $precanaCheck['message'], $redirectUrl);
+
+        $isConfirm = $action === 'confirm_precana';
+        $update = db()->prepare("UPDATE appointments SET precana_date = ?, precana_time = ?, precana_status = ? WHERE appointment_id = ? AND precana_type = 'Special' AND status_id IN (1, 2, 4)");
+        // Propose: an Office-proposed alternative, never confirmed automatically.
+        $update->execute([$precanaCheck['date'], $precanaCheck['time'], $isConfirm ? 'confirmed' : 'proposed', $id]);
+        if ($update->rowCount() !== 1) respondAjaxOrRedirect($isAjax, false, 'The Pre-Cana schedule was not changed. Refresh and try again.', $redirectUrl);
+        $when = date('l, F j, Y', strtotime($precanaCheck['date'])) . ' at ' . date('g:i A', strtotime($precanaCheck['time']));
+        logActivity($userId, ($isConfirm ? 'Confirmed' : 'Proposed a new') . " Special Pre-Cana schedule for appointment #$id ($when)", 'Appointments');
+        // Registered parishioners also get a website notification.
+        try {
+            $recipient = db()->prepare("SELECT u.user_id FROM appointments a JOIN parishioners p ON p.parishioner_id = a.parishioner_id JOIN users u ON u.user_id = p.user_id WHERE a.appointment_id = ? AND COALESCE(a.guest_name, '') = ''");
+            $recipient->execute([$id]);
+            if ($recipientId = $recipient->fetchColumn()) {
+                db()->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', ?, ?)")
+                    ->execute([(int) $recipientId, $isConfirm ? 'Pre-Cana Schedule Confirmed' : 'Pre-Cana Schedule Proposed', $isConfirm
+                        ? "Your Special Pre-Cana seminar schedule for appointment #$id is confirmed: $when."
+                        : "The Parish Office proposed a new Special Pre-Cana seminar schedule for appointment #$id: $when. It is not yet confirmed."]);
+            }
+        } catch (Throwable $e) {
+            error_log("Pre-Cana schedule notification failed for appointment #$id: " . $e->getMessage());
+        }
+        // Email (guests and parishioners) only after the change is saved; a failure never undoes it.
+        $emailNotice = precanaEmailNotice(sendPrecanaScheduleEmail($id, $isConfirm ? 'confirmed' : 'proposed', (int) $userId));
+        respondAjaxOrRedirect($isAjax, true, ($isConfirm
+            ? 'Special Pre-Cana schedule confirmed: ' . $when . '. '
+            : 'New Special Pre-Cana schedule proposed: ' . $when . '. It stays Office-Proposed — Not Yet Confirmed until you confirm it. ') . $emailNotice, $redirectUrl);
     } elseif ($action === 'complete') {
         if ($currentStatusId !== 5) {
             respondAjaxOrRedirect($isAjax, false, 'Only a confirmed appointment can be completed.', $redirectUrl);
@@ -505,6 +605,13 @@ $stmt->execute([$id]);
 $documents = $stmt->fetchAll();
 $generatedForms = appointmentGeneratedFormReviewRows(db(), $id, (string) ($appointment['category'] ?? ''));
 $approvalEligibility = appointmentApprovalEligibility($appointment);
+// Supporting documents are reviewed while pending; a parish Pre-Cana certificate also after approval (until confirmation).
+$certificateReviewOpen = precanaCertificateOpen($appointment);
+$canReviewDoc = static fn(array $d): bool => (int) $appointment['status_id'] === 1
+    || ($certificateReviewOpen && precanaIsCertificateLabel($d['requirement_label'] ?? ''));
+// Ready for ceremony: what still blocks confirming (Pre-Cana schedule + certificate).
+$ceremonyBlockers = precanaCeremonyBlockers($appointment);
+$noPaymentRequired = appointmentNoPaymentRequired($appointment);
 
 // Each priest's upcoming schedule and declared unavailability, so the
 // secretary can check availability before assigning — directly at the
@@ -556,7 +663,8 @@ if (!$isAjax) {
     <?php
       // Funeral Mass shows "No Fees" for zero amounts (PSS Giver), not "Voluntary Offering".
       $isFuneral = $appointment['category'] === 'Funeral';
-      $feeText = fn(float $amount): string => ($isFuneral && $amount <= 0) ? 'No Fees' : feeLabel($amount);
+      // Weddings likewise: a ₱0 Wedding fee (e.g. Regular PSS) is "No Fees".
+      $feeText = fn(float $amount): string => (($isFuneral || $appointment['category'] === 'Wedding') && $amount <= 0) ? 'No Fees' : feeLabel($amount);
     ?>
     <p><strong>Fee:</strong>
       <?php if ($appointment['pss_classification'] === 'pending_verification'): ?>Fee pending PSS verification
@@ -573,6 +681,7 @@ if (!$isAjax) {
           <?= $isFuneral ? 'Funeral Mass Service Fee' : 'Base Fee' ?>: <?= $feeText((float) ($feeSnapshot['base_fee'] ?? 0)) ?><br>
           Priest Stipend: <?= $feeText((float) ($feeSnapshot['priest_stipend'] ?? 0)) ?><br>
           <?php if (!$isFuneral): ?>Additional Sponsor Fee: <?= feeLabel((float) ($feeSnapshot['additional_sponsor_fee'] ?? 0)) ?><br><?php endif; ?>
+          <?php if (array_key_exists('precana_fee', $feeSnapshot)): ?>Pre-Cana Seminar (<?= e((string) ($feeSnapshot['precana_type'] ?? '')) ?>): <?= (float) $feeSnapshot['precana_fee'] > 0 ? money((float) $feeSnapshot['precana_fee']) : 'No Fees' ?><br><?php endif; ?>
           <strong>Total<?= $isFuneral ? ' Payment' : '' ?>: <?= $feeText((float) ($feeSnapshot['total'] ?? 0)) ?></strong>
         </div>
       <?php endif; ?>
@@ -587,6 +696,80 @@ if (!$isAjax) {
           </select>
           <button class="btn btn-primary btn-sm" type="submit" style="margin-top:10px;">Save Classification &amp; Calculate Fee</button>
         </form>
+      <?php endif; ?>
+    <?php endif; ?>
+    <?php if ($appointment['category'] === 'Wedding'): // Pre-Cana seminar — separate from the Wedding Ceremony date above ?>
+      <hr style="border-color: var(--cream-dark); margin: 18px 0;">
+      <?php if (!precanaCertificateDeferred($appointment)): ?>
+        <?php renderPrecanaSummary($appointment); // older Wedding: "Not recorded" ?>
+      <?php else:
+        $precanaInfo = precanaDisplay($appointment);
+        [$scheduleText, $scheduleBadge] = precanaScheduleStatusLabel($appointment);
+        $precanaCertificate = precanaCertificateStatus($id);
+        $certificateDoc = $precanaCertificate['document'];
+        [$certificateText, $certificateBadge] = precanaCertificateStatusLabel($precanaCertificate['status']);
+        $precanaActive = in_array((int) $appointment['status_id'], [1, 2, 4], true); ?>
+        <h4 id="precana-review" style="margin-bottom:6px;">Pre-Cana Seminar</h4>
+        <p style="margin-top:0;"><strong>Seminar Type:</strong> <?= e($precanaInfo['type_label']) ?> &nbsp;·&nbsp; <strong>Seminar Fee:</strong> <?= e($precanaInfo['fee_label']) ?></p>
+        <?php if (!precanaCatalogHasCertificate($appointment['requirements'] ?? '')): ?>
+          <div class="approval-blockers" role="status"><strong>Service setup:</strong> the Wedding service's requirements do not list a Pre-Cana Seminar Certificate (Services → Wedding → Requirements). The certificate is still required below before this Wedding can be confirmed.</div>
+        <?php endif; ?>
+
+        <section class="precana-review-section" aria-labelledby="precanaScheduleHeading">
+          <h5 id="precanaScheduleHeading">Seminar Schedule <span class="badge badge-<?= e($scheduleBadge) ?>"><?= e($scheduleText) ?></span></h5>
+          <p><strong><?= e($precanaInfo['schedule_heading']) ?>:</strong> <?= e($precanaInfo['date']) ?> &nbsp;·&nbsp; <strong>Time:</strong> <?= e($precanaInfo['time']) ?></p>
+          <?php if ($precanaInfo['type'] === 'Regular'): ?>
+            <p class="helper-text">Fixed parish session (second Saturday, 8:00 AM) — it cannot be changed here.</p>
+          <?php elseif ($precanaActive): ?>
+            <?php if (($appointment['precana_status'] ?? '') !== 'confirmed'): ?>
+              <form method="POST" action="<?= e($redirectUrl) ?>" class="mb-3">
+                <?= csrfField() ?><input type="hidden" name="action" value="confirm_precana">
+                <button type="submit" class="btn btn-success btn-sm">✔ Confirm Schedule</button>
+                <span class="helper-text">Confirms the date and time shown above and emails the applicant.</span>
+              </form>
+            <?php endif; ?>
+            <details>
+              <summary class="text-muted" style="cursor:pointer; font-size:13px;">Propose Another Schedule</summary>
+              <form method="POST" action="<?= e($redirectUrl) ?>" class="mt-2">
+                <?= csrfField() ?><input type="hidden" name="action" value="propose_precana">
+                <div class="form-row">
+                  <div class="form-group"><label>Seminar Date</label><input type="date" name="precana_date" required min="<?= date('Y-m-d') ?>"<?= $appointment['appointment_date'] ? ' max="' . e(date('Y-m-d', strtotime($appointment['appointment_date'] . ' -1 day'))) . '"' : '' ?>></div>
+                  <div class="form-group"><label>Seminar Time</label><input type="time" name="precana_time" required step="1800"></div>
+                </div>
+                <p class="helper-text">Before the Wedding Ceremony, in 30-minute steps, outside the staff day off. A proposed schedule stays <strong>Office-Proposed — Not Yet Confirmed</strong> until you confirm it; the applicant is emailed that it is proposed, not confirmed. The Wedding Ceremony schedule does not change.</p>
+                <button type="submit" class="btn btn-outline btn-sm">Propose Schedule</button>
+              </form>
+            </details>
+          <?php endif; ?>
+        </section>
+
+        <section class="precana-review-section" aria-labelledby="precanaCertificateHeading">
+          <h5 id="precanaCertificateHeading">Certificate Review <span class="badge badge-<?= e($certificateBadge) ?>"><?= e($certificateText) ?></span></h5>
+          <?php if ($certificateDoc): ?>
+            <p><a href="<?= url('document.php?id=' . (int) $certificateDoc['document_id']) ?>" target="_blank" rel="noopener">📄 <?= e($certificateDoc['file_name']) ?></a></p>
+            <?php if ($precanaCertificate['status'] === 'rejected' && $certificateDoc['rejection_reason']): ?><p class="text-muted" style="font-size:.9em;">Reason: <?= e($certificateDoc['rejection_reason']) ?></p><?php endif; ?>
+          <?php else: ?>
+            <p class="text-muted">The couple uploads it after attending the seminar.</p>
+          <?php endif; ?>
+          <p class="helper-text">Not required for Wedding approval; must be Approved before the Wedding is confirmed.</p>
+          <?php if ($certificateDoc && $precanaCertificate['status'] === 'pending' && ((int) $appointment['status_id'] === 1 || $precanaActive)): ?>
+            <div class="review-actions">
+              <form method="POST" action="<?= e($redirectUrl) ?>" class="review-approve-form">
+                <?= csrfField() ?><input type="hidden" name="action" value="verify_document"><input type="hidden" name="document_id" value="<?= (int) $certificateDoc['document_id'] ?>">
+                <button type="submit" class="btn btn-success btn-sm">Approve Certificate</button>
+              </form>
+              <button type="button" class="btn btn-danger btn-sm js-open-rejection" data-target="rejectPrecanaCertificate">Reject Certificate</button>
+            </div>
+            <form id="rejectPrecanaCertificate" class="review-rejection-form" method="POST" action="<?= e($redirectUrl) ?>" hidden>
+              <?= csrfField() ?><input type="hidden" name="action" value="reject_document"><input type="hidden" name="document_id" value="<?= (int) $certificateDoc['document_id'] ?>">
+              <?php renderDocumentRejectionReason('rejectPrecanaCertificateReason'); ?>
+              <div class="review-rejection-buttons">
+                <button type="button" class="btn btn-outline btn-sm js-cancel-rejection">Cancel</button>
+                <button type="submit" class="btn btn-danger btn-sm">Confirm Rejection</button>
+              </div>
+            </form>
+          <?php endif; ?>
+        </section>
       <?php endif; ?>
     <?php endif; ?>
     <?php if ($appointment['category'] === 'Funeral' && $appointment['date_of_death']): ?>
@@ -654,6 +837,7 @@ if (!$isAjax) {
       ?>
 
       <h5 style="margin-top:16px; margin-bottom:10px; color:var(--brown-mid);">Supporting Documents</h5>
+      <?php if (precanaCertificateDeferred($appointment)): ?><p class="helper-text" style="margin-top:-6px;">The Pre-Cana Seminar Certificate is reviewed in the <a href="#precana-review">Pre-Cana Seminar → Certificate Review</a> section.</p><?php endif; ?>
       <?php if (empty($requirementsList) && empty($documents)): ?>
         <p class="text-muted">No supporting documents are required or uploaded.</p>
       <?php else: ?>
@@ -687,7 +871,7 @@ if (!$isAjax) {
                   </td>
                   <td data-label="Actions">
                     <div class="review-actions">
-                    <?php if ($d && $docStatus === 'pending' && $d['superseded_by'] === null && (int) $appointment['status_id'] === 1): ?>
+                    <?php if ($d && $docStatus === 'pending' && $d['superseded_by'] === null && $canReviewDoc($d)): ?>
                       <form method="POST" action="<?= e($redirectUrl) ?>" class="review-approve-form">
                         <?= csrfField() ?><input type="hidden" name="action" value="verify_document"><input type="hidden" name="document_id" value="<?= $d['document_id'] ?>">
                         <button type="submit" class="btn btn-success btn-sm">Approve</button>
@@ -697,7 +881,7 @@ if (!$isAjax) {
                     </div>
                   </td>
                 </tr>
-                <?php if ($d && $docStatus === 'pending' && $d['superseded_by'] === null && (int) $appointment['status_id'] === 1): ?>
+                <?php if ($d && $docStatus === 'pending' && $d['superseded_by'] === null && $canReviewDoc($d)): ?>
                   <tr id="rejectDocRow_<?= $d['document_id'] ?>" class="review-rejection-row" hidden>
                     <td colspan="3">
                       <form id="rejectDoc_<?= $d['document_id'] ?>" class="review-rejection-form" method="POST" action="<?= e($redirectUrl) ?>">
@@ -716,6 +900,8 @@ if (!$isAjax) {
               <?php foreach ($documents as $d): ?>
                 <?php 
                   if (in_array($d['document_id'], $matchedDocIds, true)) continue;
+                  // A parish Pre-Cana certificate is reviewed in its own "Certificate Review" section above.
+                  if (precanaCertificateDeferred($appointment) && precanaIsCertificateLabel($d['requirement_label'] ?? '')) continue;
                   $docStatus = $d['review_status'] ?? (appointmentWorkflowBoolean($d['verified'] ?? false) ? 'approved' : 'pending');
                 ?>
                 <tr>
@@ -731,7 +917,7 @@ if (!$isAjax) {
                   </td>
                   <td data-label="Actions">
                     <div class="review-actions">
-                    <?php if ($docStatus === 'pending' && $d['superseded_by'] === null && (int) $appointment['status_id'] === 1): ?>
+                    <?php if ($docStatus === 'pending' && $d['superseded_by'] === null && $canReviewDoc($d)): ?>
                       <form method="POST" action="<?= e($redirectUrl) ?>" class="review-approve-form">
                         <?= csrfField() ?><input type="hidden" name="action" value="verify_document"><input type="hidden" name="document_id" value="<?= $d['document_id'] ?>">
                         <button type="submit" class="btn btn-success btn-sm">Approve</button>
@@ -741,7 +927,7 @@ if (!$isAjax) {
                     </div>
                   </td>
                 </tr>
-                <?php if ($docStatus === 'pending' && $d['superseded_by'] === null && (int) $appointment['status_id'] === 1): ?>
+                <?php if ($docStatus === 'pending' && $d['superseded_by'] === null && $canReviewDoc($d)): ?>
                   <tr id="rejectDocRow_<?= $d['document_id'] ?>" class="review-rejection-row" hidden>
                     <td colspan="3">
                       <form id="rejectDoc_<?= $d['document_id'] ?>" class="review-rejection-form" method="POST" action="<?= e($redirectUrl) ?>">
@@ -914,11 +1100,18 @@ if (!$isAjax) {
         </div>
       <?php elseif ($appointment['status_name'] === 'Payment Verified' && in_array($appointment['category'], ['Mass Intention', 'Donation'], true)): ?>
         <p class="text-muted">This request is being finalized by the Cashier — no action needed here.</p>
-      <?php elseif ($appointment['status_name'] === 'Payment Verified'): ?>
+      <?php elseif ($appointment['status_name'] === 'Payment Verified' || ($appointment['status_name'] === 'Approved' && $noPaymentRequired)): ?>
+        <?php if ($appointment['status_name'] === 'Approved'): ?><p class="helper-text" style="margin-top:0;">No payment is required (verified total: No Fees).</p><?php endif; ?>
+        <?php if ($ceremonyBlockers): ?>
+          <div class="approval-blockers" role="status">
+            <strong>Not ready for ceremony yet:</strong>
+            <ul><?php foreach ($ceremonyBlockers as $blocker): ?><li><?= e($blocker) ?></li><?php endforeach; ?></ul>
+          </div>
+        <?php endif; ?>
         <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>">
           <?= csrfField() ?>
           <input type="hidden" name="action" value="confirm">
-          <button type="submit" class="btn btn-success btn-block">✔ Confirm Appointment</button>
+          <button type="submit" class="btn btn-success btn-block" <?= $ceremonyBlockers ? 'disabled title="Complete the Pre-Cana conditions listed above first."' : '' ?>>✔ Confirm Appointment</button>
         </form>
       <?php elseif ($appointment['status_name'] === 'Confirmed'): ?>
         <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>">

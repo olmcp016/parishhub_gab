@@ -177,6 +177,13 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     if ($category === 'Wedding' && ($weddingSponsorCount === null || $weddingSponsorCount === false)) {
         bookRespondError($isAjax, 'Please enter a valid non-negative individual sponsor count.', url('parishioner/services.php'));
     }
+    // Pre-Cana seminar (Wedding only; separate from the Wedding Ceremony schedule).
+    // Hidden until database/migration_precana.sql has been run.
+    $precana = null;
+    if ($category === 'Wedding' && precanaAvailable()) {
+        $precana = precanaValidate($_POST['precana_type'] ?? null, $_POST['precana_regular_date'] ?? null, $_POST['precana_date'] ?? null, $_POST['precana_time'] ?? null, $date ?: null);
+        if (!$precana['valid']) bookRespondError($isAjax, $precana['message'], url('parishioner/services.php'));
+    }
     $pssClassification = $usesFeeRules ? 'pending_verification' : null;
 
     $intentionType = $offererName = $intentionFor = $intentionMessage = null;
@@ -491,15 +498,20 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         $createdStorageKeys = [];
         try {
             $pdo->beginTransaction();
+            $precanaValues = $precana ? [$precana['type'], $precana['date'], $precana['time'], $precana['status']] : [];
             if ($resumeDraft) {
                 $draftId = $resumeDraft['id'];
-                $stmt = $pdo->prepare("UPDATE appointment_drafts SET guest_name = ?, guest_email = ?, guest_phone = ?, service_id = ?, priest_id = ?, appointment_date = ?, appointment_time = ?, schedule_type = ?, pss_claim = ?, wedding_sponsor_count = ?, remarks = ?, contact_phone = ?, location_address = ?, updated_at = CURRENT_TIMESTAMP WHERE draft_id = ? AND service_type = 'Wedding' AND status = 'draft'");
-                $stmt->execute([$guestName, $guestEmail, $guestPhone, $serviceId, $priestId, $date, $finalTime, $scheduleTypeToSave, $pssClaim, $weddingSponsorCount, $remarks, $contactPhone, $locationAddress, $draftId]);
+                $stmt = $pdo->prepare("UPDATE appointment_drafts SET guest_name = ?, guest_email = ?, guest_phone = ?, service_id = ?, priest_id = ?, appointment_date = ?, appointment_time = ?, schedule_type = ?, pss_claim = ?, wedding_sponsor_count = ?, remarks = ?, contact_phone = ?, location_address = ?"
+                    . ($precana ? ', precana_type = ?, precana_date = ?, precana_time = ?, precana_status = ?' : '')
+                    . ", updated_at = CURRENT_TIMESTAMP WHERE draft_id = ? AND service_type = 'Wedding' AND status = 'draft'");
+                $stmt->execute(array_merge([$guestName, $guestEmail, $guestPhone, $serviceId, $priestId, $date, $finalTime, $scheduleTypeToSave, $pssClaim, $weddingSponsorCount, $remarks, $contactPhone, $locationAddress], $precanaValues, [$draftId]));
                 if ($stmt->rowCount() !== 1) throw new RuntimeException('Wedding draft is no longer available.');
             } else {
                 $rawGuestToken = $isGuest ? bin2hex(random_bytes(32)) : null;
-                $stmt = $pdo->prepare("INSERT INTO appointment_drafts (service_type, parishioner_id, guest_access_token_hash, guest_name, guest_email, guest_phone, service_id, priest_id, appointment_date, appointment_time, schedule_type, pss_claim, sponsor_count, wedding_sponsor_count, remarks, contact_phone, location_address) VALUES ('Wedding', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING draft_id");
-                $stmt->execute([$isGuest ? null : $parishionerId, $rawGuestToken ? hash('sha256', $rawGuestToken) : null, $guestName, $guestEmail, $guestPhone, $serviceId, $priestId, $date, $finalTime, $scheduleTypeToSave, $pssClaim, null, $weddingSponsorCount, $remarks, $contactPhone, $locationAddress]);
+                $stmt = $pdo->prepare("INSERT INTO appointment_drafts (service_type, parishioner_id, guest_access_token_hash, guest_name, guest_email, guest_phone, service_id, priest_id, appointment_date, appointment_time, schedule_type, pss_claim, sponsor_count, wedding_sponsor_count, remarks, contact_phone, location_address"
+                    . ($precana ? ', precana_type, precana_date, precana_time, precana_status' : '')
+                    . ") VALUES ('Wedding', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?" . ($precana ? ', ?, ?, ?, ?' : '') . ") RETURNING draft_id");
+                $stmt->execute(array_merge([$isGuest ? null : $parishionerId, $rawGuestToken ? hash('sha256', $rawGuestToken) : null, $guestName, $guestEmail, $guestPhone, $serviceId, $priestId, $date, $finalTime, $scheduleTypeToSave, $pssClaim, null, $weddingSponsorCount, $remarks, $contactPhone, $locationAddress], $precanaValues));
                 $draftId = (int) $stmt->fetchColumn();
                 if ($draftId < 1) throw new RuntimeException('Wedding draft could not be created.');
                 if ($rawGuestToken) $_SESSION['wedding_draft_tokens'][$draftId] = $rawGuestToken;

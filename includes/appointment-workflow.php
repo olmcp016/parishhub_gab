@@ -9,6 +9,7 @@
 require_once __DIR__ . '/wedding-forms.php';
 require_once __DIR__ . '/baptism-forms.php';
 require_once __DIR__ . '/funeral-forms.php';
+require_once __DIR__ . '/precana.php';
 
 function appointmentCategoryRequiresPriest(?string $category): bool
 {
@@ -205,6 +206,8 @@ function appointmentApprovalEligibility(array $appointment): array
             // A newly uploaded labeled requirement must not be ignored simply
             // because the legacy service requirement text did not list it.
             foreach ($latestByLabel as $label => $document) {
+                // A parish Pre-Cana certificate is checked before confirmation (precanaCeremonyBlockers), not approval.
+                if (precanaIsCertificateLabel($label) && precanaCertificateDeferred($appointment)) continue;
                 if (!appointmentWorkflowBoolean($document['verified'] ?? false) && !in_array($label, $requirements, true)) {
                     $addBlocking($label . (($document['review_status'] ?? '') === 'rejected'
                         ? ' needs replacement.'

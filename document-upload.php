@@ -118,11 +118,15 @@ try {
         );
         $owner->execute([$contextId, $user['user_id']]);
         $appointment = $owner->fetch();
-        if (!$appointment || (int) $appointment['status_id'] !== 1) documentUploadJson(false, 'Only a pending appointment can receive a requirement replacement.', [], 403);
+        // A parish Pre-Cana certificate arrives after the seminar: accepted until the Wedding is confirmed.
+        $precanaRow = $appointment ? precanaForAppointment($contextId) : null;
+        $isPrecanaCertificate = precanaIsCertificateLabel($label) && $precanaRow
+            && precanaCertificateOpen($precanaRow + ['status_id' => $appointment['status_id']]);
+        if (!$appointment || ((int) $appointment['status_id'] !== 1 && !$isPrecanaCertificate)) documentUploadJson(false, 'Only a pending appointment can receive a requirement replacement.', [], 403);
         $requirements = !empty($appointment['requirements_snapshot'])
             ? (json_decode($appointment['requirements_snapshot'], true) ?: [])
             : parseRequirementsList($appointment['requirements']);
-        if (!in_array($label, $requirements, true) || $label === 'Katin-awan sa Paglubong') documentUploadJson(false, 'That document is not an upload requirement for this appointment.', [], 422);
+        if ((!in_array($label, $requirements, true) && !$isPrecanaCertificate) || $label === 'Katin-awan sa Paglubong') documentUploadJson(false, 'That document is not an upload requirement for this appointment.', [], 422);
 
         $pdo->beginTransaction();
         $active = $pdo->prepare("SELECT document_id, review_status FROM uploaded_documents WHERE appointment_id = ? AND requirement_label = ? AND superseded_by IS NULL ORDER BY document_id DESC LIMIT 1 FOR UPDATE");
@@ -159,14 +163,38 @@ try {
         $pdo->beginTransaction();
         $appointmentLock = $pdo->prepare('SELECT status_id FROM appointments WHERE appointment_id = ? FOR UPDATE');
         $appointmentLock->execute([$contextId]);
-        if ((int) $appointmentLock->fetchColumn() !== 1) {
+        $guestStatusId = (int) $appointmentLock->fetchColumn();
+        // A parish Pre-Cana certificate arrives after the seminar: accepted until the Wedding is confirmed.
+        $guestPrecana = precanaForAppointment($contextId);
+        $guestCertificateOpen = precanaIsCertificateLabel($label) && $guestPrecana
+            && precanaCertificateOpen($guestPrecana + ['status_id' => $guestStatusId]);
+        if ($guestStatusId !== 1 && !$guestCertificateOpen) {
             $pdo->rollBack();
             documentUploadJson(false, 'This appointment was rejected as a whole and must be rebooked. Requirement replacements are only available while the appointment remains pending.', [], 403);
+        }
+        if ($guestCertificateOpen && $documentId === 0) {
+            // First certificate upload (nothing to replace): only while none is pending or approved.
+            $activeStatus = precanaCertificateStatus($contextId)['status'];
+            if (!in_array($activeStatus, ['missing', 'rejected'], true)) {
+                $pdo->rollBack();
+                documentUploadJson(false, 'This certificate already has an active submission. Wait for review before uploading another file.', [], 409);
+            }
+            $stored = documentStorageMoveUpload($file['tmp_name'], pathinfo((string) $file['name'], PATHINFO_EXTENSION));
+            $insert = $pdo->prepare("INSERT INTO uploaded_documents (appointment_id, requirement_label, file_name, file_path, file_type, review_status, verified, document_source) VALUES (?, ?, ?, ?, ?, 'pending', FALSE, 'uploaded')");
+            $insert->execute([$contextId, PRECANA_CERTIFICATE_LABEL, basename((string) $file['name']), $stored['key'], $stored['mime']]);
+            $newId = (int) $pdo->lastInsertId();
+            $notify = $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Guest Document Updated', ?)");
+            foreach ($pdo->query("SELECT user_id FROM users u JOIN roles r ON r.role_id = u.role_id WHERE r.role_name IN ('Secretary', 'Admin') AND u.status = 'active'")->fetchAll(PDO::FETCH_COLUMN) as $secretaryId) {
+                $notify->execute([(int) $secretaryId, "A guest uploaded the Pre-Cana Seminar Certificate for appointment #$contextId. It is ready for review."]);
+            }
+            $pdo->commit();
+            documentUploadJson(true, 'Certificate uploaded for review.', ['document_id' => $newId, 'file_name' => basename((string) $file['name']), 'view_url' => url('document.php?id=' . $newId)]);
         }
         $originalQuery = $pdo->prepare('SELECT * FROM uploaded_documents WHERE document_id = ? AND appointment_id = ? FOR UPDATE');
         $originalQuery->execute([$documentId, $contextId]);
         $original = $originalQuery->fetch();
-        if (!$original || ($original['review_status'] ?? '') !== 'rejected' || $original['superseded_by'] !== null) {
+        if (!$original || ($original['review_status'] ?? '') !== 'rejected' || $original['superseded_by'] !== null
+            || ($guestStatusId !== 1 && !precanaIsCertificateLabel($original['requirement_label'] ?? ''))) {
             $pdo->rollBack();
             documentUploadJson(false, 'This document is no longer eligible for replacement.', [], 422);
         }

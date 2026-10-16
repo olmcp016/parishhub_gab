@@ -293,7 +293,7 @@ function parseRequirementsList(?string $requirementsText): array
  * a valid range so an out-of-range ?page= never errors or shows nothing.
  */
 /**
- * Auto-cancels an Approved appointment whose scheduled date has already
+ * Auto-cancels an Approved appointment that has a fee to pay, whose scheduled date has already
  * passed while it was never actually paid (no pending or verified payment
  * attempt at all — a payment awaiting Cashier verification is NOT
  * "unpaid", it's just not confirmed yet, so it's left alone). There's no
@@ -310,8 +310,9 @@ function autoCancelExpiredUnpaidAppointments(): void
     $_SESSION['auto_cancel_ran_on'] = date('Y-m-d');
 
     try {
+        require_once __DIR__ . '/service-fees.php'; // appointmentNoPaymentRequired()
         $stmt = db()->query(
-            "SELECT a.appointment_id, u.user_id, s.service_name
+            "SELECT a.appointment_id, u.user_id, s.service_name, s.category, a.pss_classification, a.fee_snapshot
              FROM appointments a
              JOIN services s ON a.service_id = s.service_id
              JOIN parishioners par ON a.parishioner_id = par.parishioner_id
@@ -323,7 +324,10 @@ function autoCancelExpiredUnpaidAppointments(): void
                      WHERE p.appointment_id = a.appointment_id AND p.payment_status IN ('pending', 'verified')
                    )"
         );
-        $expired = $stmt->fetchAll();
+        // A verified ₱0 total (e.g. a Wedding waiting only for its Pre-Cana
+        // certificate) has nothing to pay, so it is never cancelled "for
+        // nonpayment"; it stays Approved for the Secretary to handle.
+        $expired = array_values(array_filter($stmt->fetchAll(), static fn(array $row): bool => !appointmentNoPaymentRequired($row)));
         if (empty($expired)) {
             return;
         }

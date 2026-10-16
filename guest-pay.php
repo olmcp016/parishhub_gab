@@ -69,7 +69,8 @@ if ($variableCategory && $appointment['pss_classification'] !== null) {
         $amount = (float) $snapshot['total'];
     } else {
         $sponsors = $appointment['category'] === 'Wedding' ? (int) $appointment['wedding_sponsor_count'] : (int) $appointment['sponsor_count'];
-        $calculation = calculateServiceFee($appointment['category'], $appointment['schedule_type'], $appointment['pss_classification'], $sponsors);
+        $precanaType = $appointment['category'] === 'Wedding' ? (precanaForAppointment($appointmentId)['precana_type'] ?? null) : null;
+        $calculation = calculateServiceFee($appointment['category'], $appointment['schedule_type'], $appointment['pss_classification'], $sponsors, $precanaType);
         if (!$calculation) {
             flash('error', 'The applicable service fee could not be determined. Please contact the parish office.');
             redirect($statusUrl);
@@ -81,9 +82,12 @@ if ($variableCategory && $appointment['pss_classification'] !== null) {
     $amount = (float) $appointment['fee'];
 }
 
-// PSS Giver Funeral Mass: No Fees, so no payment transaction is ever started.
-if ($appointment['category'] === 'Funeral' && $amount <= 0) {
-    flash('success', 'No payment is required for this Funeral Mass (PSS Giver — No Fees).');
+// A verified ₱0 total (PSS Giver Funeral Mass, or a Wedding whose fees come to
+// ₱0): No Fees, so no payment transaction is ever started.
+if (in_array($appointment['category'], ['Funeral', 'Wedding'], true) && $amount <= 0) {
+    flash('success', $appointment['category'] === 'Funeral'
+        ? 'No payment is required for this Funeral Mass (PSS Giver — No Fees).'
+        : 'No payment is required for this Wedding (No Fees). The Parish Office will confirm your appointment.');
     redirect($statusUrl);
 }
 

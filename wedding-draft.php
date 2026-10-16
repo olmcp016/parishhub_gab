@@ -65,11 +65,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $schedule = validateBooking('Wedding', $locked['appointment_date'], $locked['appointment_time'], null, $locked['schedule_type'], (int) $locked['service_id']);
         if (!$schedule['valid']) throw new RuntimeException($schedule['message']);
         $finalTime = $schedule['forcedTime'] ?: $locked['appointment_time'];
+        // Pre-Cana seminar: re-checked against the Wedding date, and copied as chosen
+        // (a Special preferred schedule stays pending until the Parish Office confirms it).
+        $finalizationStage = 'validate_precana';
+        $precanaValues = [];
+        if (precanaAvailable() && precanaCertificateDeferred($locked)) {
+            $precana = precanaValidate($locked['precana_type'], $locked['precana_date'], $locked['precana_date'], $locked['precana_time'], $locked['appointment_date']);
+            if (!$precana['valid']) throw new RuntimeException('Pre-Cana seminar: ' . $precana['message'] . ' Use Back to Booking Form to choose another seminar schedule.');
+            $precanaValues = [$precana['type'], $precana['date'], $precana['time'], $precana['status']];
+        }
         $guestReference = generateGuestReference();
         $appointmentParishionerId = $locked['parishioner_id'] ?: guestParishionerId();
         $finalizationStage = 'insert_appointment';
-        $stmt = $pdo->prepare("INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, schedule_type, pss_claim, pss_classification, wedding_sponsor_count, guest_name, guest_email, guest_phone, guest_reference, contact_phone, location_address, requirements_snapshot) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 'pending_verification', ?, ?, ?, ?, ?, ?, ?, ?) RETURNING appointment_id");
-        $stmt->execute([$appointmentParishionerId, $locked['service_id'], $locked['priest_id'], $locked['appointment_date'], $finalTime, $locked['remarks'], $locked['schedule_type'], $locked['pss_claim'], $locked['wedding_sponsor_count'], $locked['guest_name'], $locked['guest_email'], $locked['guest_phone'], $guestReference, $locked['contact_phone'], $locked['location_address'], json_encode(weddingDraftRequiredDocuments($locked))]);
+        $stmt = $pdo->prepare("INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, schedule_type, pss_claim, pss_classification, wedding_sponsor_count, guest_name, guest_email, guest_phone, guest_reference, contact_phone, location_address, requirements_snapshot"
+            . ($precanaValues ? ', precana_type, precana_date, precana_time, precana_status' : '')
+            . ") VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 'pending_verification', ?, ?, ?, ?, ?, ?, ?, ?" . ($precanaValues ? ', ?, ?, ?, ?' : '') . ") RETURNING appointment_id");
+        $stmt->execute(array_merge([$appointmentParishionerId, $locked['service_id'], $locked['priest_id'], $locked['appointment_date'], $finalTime, $locked['remarks'], $locked['schedule_type'], $locked['pss_claim'], $locked['wedding_sponsor_count'], $locked['guest_name'], $locked['guest_email'], $locked['guest_phone'], $guestReference, $locked['contact_phone'], $locked['location_address'], json_encode(weddingDraftRequiredDocuments($locked))], $precanaValues));
         $appointmentId = (int) $stmt->fetchColumn();
         if ($appointmentId < 1) throw new RuntimeException('Wedding appointment could not be created.');
         $finalizationStage = 'transfer_supporting_documents';
@@ -100,7 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $rolledBack ? 'yes' : 'no',
             preg_replace('/\s+/', ' ', $e->getMessage())
         ));
-        flash('error', 'The Wedding booking could not be submitted.'); redirect(url('wedding-draft.php?draft_id=' . $draftId));
+        flash('error', $finalizationStage === 'validate_precana' ? $e->getMessage() : 'The Wedding booking could not be submitted.'); redirect(url('wedding-draft.php?draft_id=' . $draftId));
     }
 }
 
@@ -121,7 +132,12 @@ $usesPublicShell = !$user;
 include __DIR__ . '/includes/header.php';
 include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 'dash-start.php');
 ?>
-<div class="card" style="max-width:850px;margin:auto;"><h2>Supporting Documents</h2><?php renderBookingBackButton('wedding', $draftId); ?><?php renderSupportingDocumentCards(weddingDraftRequiredDocuments($draft), $uploadedDocuments, 'wedding_draft', $draftId); ?></div>
+<div class="card" style="max-width:850px;margin:auto;"><h2>Supporting Documents</h2><?php renderBookingBackButton('wedding', $draftId); ?>
+  <?php if (precanaCertificateDeferred($draft)): // booking summary: the seminar the couple chose ?>
+    <?php renderPrecanaSummary($draft + ['category' => 'Wedding']); ?>
+    <p class="helper-text">The <strong><?= e(PRECANA_CERTIFICATE_LABEL) ?></strong> is not needed to submit this booking. Upload it after you attend the seminar; the Parish Office needs it before your Wedding is confirmed.</p>
+  <?php endif; ?>
+  <?php renderSupportingDocumentCards(weddingDraftRequiredDocuments($draft), $uploadedDocuments, 'wedding_draft', $draftId); ?></div>
 <div class="card" style="max-width:850px;margin:auto;">
   <h2>Wedding Forms</h2>
   <?php foreach (WEDDING_DRAFT_FORMS as $type):

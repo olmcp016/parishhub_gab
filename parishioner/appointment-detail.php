@@ -251,6 +251,8 @@ $hasAuthoritativeFee = is_array($feeSnapshot)
     && array_key_exists('total', $feeSnapshot)
     && is_numeric($feeSnapshot['total']);
 $authoritativeFee = $hasAuthoritativeFee ? (float) $feeSnapshot['total'] : null;
+// A verified ₱0 Wedding/Funeral has no payment step (the Parish Office confirms it directly).
+$noPaymentRequired = $hasAuthoritativeFee && $authoritativeFee <= 0 && in_array($appointment['category'], ['Wedding', 'Funeral'], true);
 
 $stmt = db()->prepare('SELECT * FROM mass_intentions WHERE appointment_id = ?');
 $stmt->execute([$id]);
@@ -269,6 +271,7 @@ $payment = $stmt->fetch() ?: null;
 // failed/was cancelled, can simply be retried — it's not a completed payment.
 $onlineUnfinished = $payment && (int) $payment['method_id'] === 7 && $payment['payment_status'] === 'pending';
 $canPay = $appointment['status_name'] === 'Approved'
+    && !$noPaymentRequired
     && (!$payment || $onlineUnfinished || in_array($payment['payment_status'], ['failed', 'cancelled'], true));
 
 $stmt = db()->prepare("SELECT * FROM uploaded_documents WHERE appointment_id = ? AND superseded_by IS NULL AND (document_source IS NULL OR document_source <> 'generated') ORDER BY uploaded_at DESC, document_id DESC");
@@ -353,9 +356,13 @@ if (!$isAjax) {
     <?php endif; ?>
     <p><strong>Fee:</strong>
       <?php if ($appointment['pss_classification'] === 'pending_verification'): ?>Fee pending PSS verification
-      <?php elseif ($hasAuthoritativeFee): ?><?= ($appointment['category'] === 'Funeral' && $authoritativeFee <= 0) ? 'No Fees' : money($authoritativeFee) ?>
+      <?php elseif ($hasAuthoritativeFee): ?><?= (in_array($appointment['category'], ['Funeral', 'Wedding'], true) && $authoritativeFee <= 0) ? 'No Fees' : money($authoritativeFee) ?>
       <?php else: ?><?= feeLabel((float) $appointment['fee']) ?><?php endif; ?>
+      <?php if ($hasAuthoritativeFee && array_key_exists('precana_fee', $feeSnapshot)): ?>
+        <br><span class="text-muted" style="font-size:13px;">Includes Pre-Cana Seminar (<?= e((string) ($feeSnapshot['precana_type'] ?? '')) ?>): <?= (float) $feeSnapshot['precana_fee'] > 0 ? money((float) $feeSnapshot['precana_fee']) : 'No Fees' ?></span>
+      <?php endif; ?>
     </p>
+    <?php if ($appointment['category'] === 'Wedding'): ?><?php renderPrecanaSummary($appointment); ?><?php endif; ?>
     <?php if ($appointment['category'] === 'Funeral' && $appointment['date_of_death']): ?>
       <p><strong>Date of Death:</strong> <?= formatDate($appointment['date_of_death']) ?></p>
     <?php endif; ?>
@@ -391,7 +398,9 @@ if (!$isAjax) {
       </div>
     <?php elseif ($appointment['status_name'] === 'Approved' && !$payment): ?>
       <div class="alert" style="background: var(--cream); color: var(--brown-mid); border: 1px solid var(--cream-dark);">
-        Your request has been approved! Please settle your payment below, then wait for your appointment to be confirmed.
+        <?= $noPaymentRequired
+            ? 'Your request has been approved! No payment is required. The Parish Office will confirm your appointment.'
+            : 'Your request has been approved! Please settle your payment below, then wait for your appointment to be confirmed.' ?>
       </div>
     <?php elseif ($appointment['status_name'] === 'Payment Verified'): ?>
       <div class="alert alert-success">
@@ -498,6 +507,8 @@ if (!$isAjax) {
           update();
         })();
         </script>
+      <?php elseif (!$payment && $noPaymentRequired): ?>
+        <p class="text-muted">No payment is required (No Fees).</p>
       <?php elseif (!$payment): ?>
         <p class="text-muted">Payment will be available once your appointment is approved.</p>
       <?php endif; ?>
@@ -508,7 +519,9 @@ if (!$isAjax) {
       $requirementsList = !empty($appointment['requirements_snapshot']) ? (json_decode($appointment['requirements_snapshot'], true) ?: []) : parseRequirementsList($appointment['requirements']);
       $documentsByLabel = [];
       $extraDocuments = [];
+      $precanaCertificateDeferred = precanaCertificateDeferred($appointment);
       foreach ($documents as $d) {
+          if ($precanaCertificateDeferred && precanaIsCertificateLabel($d['requirement_label'])) continue; // own card below
           if ($d['requirement_label'] && in_array($d['requirement_label'], $requirementsList, true)) {
               $documentsByLabel[$d['requirement_label']][] = $d;
           } else {
@@ -595,6 +608,17 @@ if (!$isAjax) {
           <?php else: ?>
             <p style="margin:0;">Your updated requirements were submitted. The parish office will review them and email you if anything else is needed.</p>
           <?php endif; ?>
+        </div>
+      <?php endif; ?>
+
+      <?php if ($precanaCertificateDeferred):
+        // Parish Pre-Cana: the certificate comes after the seminar and is needed before confirmation.
+        $precanaCertificate = precanaCertificateStatus($id);
+        $canUploadCertificate = precanaCertificateOpen($appointment) && in_array($precanaCertificate['status'], ['missing', 'rejected'], true); ?>
+        <h4 style="margin-top:16px;"><?= e(PRECANA_CERTIFICATE_LABEL) ?></h4>
+        <p class="helper-text" style="margin-top:-4px;">Upload it after you attend your Pre-Cana seminar. It is not needed for approval, but the Parish Office needs it before your Wedding is confirmed.</p>
+        <div class="supporting-document-card-list">
+          <?php renderSupportingDocumentCards([PRECANA_CERTIFICATE_LABEL], $precanaCertificate['document'] ? [PRECANA_CERTIFICATE_LABEL => $precanaCertificate['document']] : [], 'appointment', $id, $canUploadCertificate); ?>
         </div>
       <?php endif; ?>
 
