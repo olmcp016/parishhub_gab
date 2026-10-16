@@ -1,14 +1,13 @@
 <?php
 /**
  * "Thank You for Your Generosity!" dialog, shown once after a verified online
- * (PayMongo) donation — on My Donations / Donate to Our Parish after a normal
- * return, or on Services when the donor pressed Back after paying.
+ * (PayMongo) donation, on the Services page (the only donation page) — after a
+ * normal return, or when the donor pressed Back after paying.
  *
  * Expects $donationThankYou from pullDonationThankYou() (verifiedOnlineDonation():
  * amount, allocation, guest_reference), read from the database — never from the
- * URL. Nothing is rendered when it is empty. Optional $donationThankYouDoneUrl:
- * where Done goes (otherwise Done just closes the dialog). Nothing here touches
- * a payment record.
+ * URL. Nothing is rendered when it is empty. Done, ✕ and Esc only close the
+ * dialog (the donor stays on Services); nothing here touches a payment record.
  */
 if (empty($donationThankYou)) return;
 ?>
@@ -76,7 +75,7 @@ if (empty($donationThankYou)) return;
       <p class="helper-text" style="margin-top:-6px;">Save this reference code to check your donation on the Check Status page.</p>
     <?php endif; ?>
 
-    <button type="button" class="btn btn-primary btn-block" id="donationThankYouDone"<?= !empty($donationThankYouDoneUrl) ? ' data-done-url="' . e($donationThankYouDoneUrl) . '"' : ' data-donation-thanks-close' ?>>Done</button>
+    <button type="button" class="btn btn-primary btn-block" id="donationThankYouDone" data-donation-thanks-close>Done</button>
   </div>
 </dialog>
 <script>
@@ -88,15 +87,10 @@ if (empty($donationThankYou)) return;
   // Focus Done without scrolling it into view: on short screens the dialog opens at the top (check + heading).
   done.focus({ preventScroll: true });
   dialog.querySelector('.donation-thanks').scrollTop = 0;
-  // ✕ and Esc only close the dialog. Done does too — or, when the page set a
-  // destination (My Donations -> Services), goes there with a plain GET.
-  // None of them touches a payment.
+  // Done / ✕ / Esc only close the dialog — the donor stays on Services; no request, no payment change.
   dialog.querySelectorAll('[data-donation-thanks-close]').forEach(function (btn) {
     btn.addEventListener('click', function () { dialog.close(); });
   });
-  if (done.dataset.doneUrl) {
-    done.addEventListener('click', function () { window.location.assign(done.dataset.doneUrl); });
-  }
 
   var copyBtn = document.getElementById('donationThankYouCopy');
   if (!copyBtn) return;

@@ -8,20 +8,14 @@ require_once __DIR__ . '/../includes/funeral-schedule.php';
 require_once __DIR__ . '/../includes/paymongo.php';
 $identity = requireParishionerOrGuest();
 
-// Donor pressed Back/Cancel on PayMongo's donation checkout (donate.php's
-// cancel_url): record the cancellation and say so on this page.
-if (isset($_GET['paymongo_cancelled'])) {
-  $cancelledAppointmentId = (int) ($_GET['appointment_id'] ?? 0);
-  $cancelledDonation = handleCancelledDonationCheckout($cancelledAppointmentId);
-  if ($cancelledDonation && $cancelledDonation['status'] === 'verified') {
-    // Paid after all (Back pressed after paying): the one-time Thank You, on a clean URL.
-    rememberDonationThankYou($cancelledAppointmentId);
-    redirect(url('parishioner/services.php'));
-  }
-  // flash.php shows only success/error; a cancellation uses the ⚠ (error) style.
-  if ($cancelledDonation) flash($cancelledDonation['status'] === 'cancelled' ? 'error' : 'success', $cancelledDonation['message']);
+// Services is the only donation page. A donor back from PayMongo (donate.php's
+// success_url or cancel_url) is handled here, then sent to the clean URL, where
+// the Thank You (verified) or a one-time note shows; a refresh repeats nothing.
+if (isset($_GET['paymongo_return']) || isset($_GET['paymongo_cancelled'])) {
+  finishDonationReturn((int) ($_GET['appointment_id'] ?? 0), isset($_GET['paymongo_cancelled']));
 }
 $donationThankYou = pullDonationThankYou(); // set by a verified donation return just before this page loaded
+$donationReturnNotice = $donationThankYou ? null : pullDonationReturnNotice();
 
 // "Back to Booking Form" from a draft's Supporting Documents step: reopen the
 // form for that draft (access-checked) so re-submitting updates it in place.
@@ -42,7 +36,9 @@ try {
 }
 $donationEnabled = db()->query("SELECT setting_value FROM settings WHERE setting_key = 'donation_enabled'")->fetchColumn() !== '0';
 
-// Donation modal (same markup as donations.php, opened in place from this page).
+// Donation modal: Services is the only donation page. Links open it directly:
+// ?donate=1, or ?project_id=N ("Donate to This Project" — preselected only if
+// that project is active; donate.php re-checks it).
 $isGuest = $identity['is_guest'];
 $accountName = '';
 if (!$isGuest) {
@@ -53,6 +49,7 @@ if (!$isGuest) {
 }
 $projects = db()->query('SELECT project_id, project_name FROM projects WHERE is_active = TRUE ORDER BY project_name')->fetchAll();
 $preselectedProjectId = (int) ($_GET['project_id'] ?? 0) ?: null;
+$autoOpenDonate = !$donationThankYou && (isset($_GET['donate']) || $preselectedProjectId);
 
 $priests =db()->query("SELECT * FROM priests WHERE status = 'active'")->fetchAll();
 $blockedRows = db()->query('SELECT calendar_date, notes FROM calendar WHERE is_blocked = 1')->fetchAll();
@@ -106,6 +103,12 @@ $hidePageHeading = true; // the nav bar already names this page
 include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start.php' : 'dash-start.php');
 ?>
+
+<?php if ($donationReturnNotice): // after a donation return without a Thank You (pending, failed, ...) ?>
+  <div class="alert" role="status" style="background: var(--cream); color: var(--brown-mid); border: 1px solid var(--cream-dark); margin-bottom:16px;">
+    <?= in_array($donationReturnNotice['status'], ['failed', 'cancelled'], true) ? '⚠' : '⏳' ?> <?= e($donationReturnNotice['message']) ?>
+  </div>
+<?php endif; ?>
 
 <?php if ($identity['is_guest']): ?>
   <div class="alert"
@@ -943,6 +946,9 @@ document.addEventListener('DOMContentLoaded', function () {
   payLaterRadio.addEventListener('change', toggleMethodUI);
   toggleMethodUI();
   attachInlineValidation(document.getElementById('donateForm'));
+  <?php if ($autoOpenDonate && $donationEnabled): // ?donate=1 / ?project_id=N ("Donate to This Project", Dashboard, My Donations) ?>
+  openDonateModal();
+  <?php endif; ?>
 
   document.getElementById('donateForm').addEventListener('submit', function (e) {
     e.preventDefault();

@@ -1,8 +1,8 @@
 <?php
 /**
  * Donation form: where the gift goes, the amount, and a read-only preview.
- * Shared by the donation modal on parishioner/services.php and
- * parishioner/donations.php (both post to parishioner/donate.php).
+ * Used by the donation modal on parishioner/services.php (the only donation
+ * form; it posts to parishioner/donate.php).
  *
  * ONE donation = ONE allocation: a General Parish Donation (one of
  * DONATION_PURPOSES) OR one active Ongoing Project — never both. Only the

@@ -5,7 +5,7 @@ require_once __DIR__ . '/../includes/paymongo.php';
 $identity = requireParishionerOrGuest();
 
 /**
- * The donation form now lives in a modal on My Donations (parishioner/donations.php),
+ * The donation form lives in a modal on the Services page (parishioner/services.php),
  * submitted via fetch() (hidden "ajax=1" field), same pattern as book.php. GET
  * requests just redirect there — no standalone donate page anymore. Also
  * reachable by a logged-out guest (see requireParishionerOrGuest()) — the
@@ -22,11 +22,11 @@ function donateRespondError(bool $isAjax, string $message): void
         exit;
     }
     flash('error', $message);
-    redirect(url('parishioner/donations.php'));
+    redirect(url('parishioner/services.php'));
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    redirect(url('parishioner/donations.php'));
+    redirect(url('parishioner/services.php'));
 }
 
 verifyCsrf();
@@ -127,10 +127,10 @@ try {
         // Real-time PayMongo checkout — the browser gets redirected to
         // PayMongo's own hosted payment page (required by the provider for
         // card/e-wallet entry; card numbers never touch our server). The
-        // donor lands back on My Donations, which reconciles the result. Cancel
-        // (PayMongo's Back button) returns to the Services page, which records
-        // the cancellation (handleCancelledDonationCheckout()).
-        $successUrl = absoluteUrl('parishioner/donations.php') . '?paymongo_return=1&appointment_id=' . $appointmentId;
+        // donor lands back on the Services page, which reconciles the result
+        // (finishDonationReturn(): Thank You when verified). Cancel (PayMongo's
+        // Back button) also returns there (handleCancelledDonationCheckout()).
+        $successUrl = absoluteUrl('parishioner/services.php') . '?paymongo_return=1&appointment_id=' . $appointmentId;
         $cancelUrl = absoluteUrl('parishioner/services.php') . '?paymongo_cancelled=1&appointment_id=' . $appointmentId;
         $checkout = paymongoCreateCheckoutSession($amount, 'Donation — ' . $allocationName, $successUrl, $cancelUrl, $donorEmail);
 

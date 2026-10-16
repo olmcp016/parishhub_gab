@@ -41,7 +41,7 @@ include __DIR__ . '/../includes/dash-start.php';
         </div>
         <p style="font-size:14px; margin:4px 0;"><strong class="text-gold"><?= money($raised) ?></strong> raised of <?= money($target) ?> <span class="text-muted">(<?= $progress ?>%)</span></p>
         <p style="font-size:13px; margin:4px 0; color:var(--brown-mid);">Remaining: <?= money($remaining) ?> · <?= (int) $p['donor_count'] ?> donation(s) so far</p>
-        <a href="<?= url('parishioner/donations.php?project_id=' . $p['project_id']) ?>" class="btn btn-primary btn-block mt-2">Donate to This Project</a>
+        <a href="<?= url('parishioner/services.php?project_id=' . $p['project_id']) ?>" class="btn btn-primary btn-block mt-2">Donate to This Project</a>
       </div>
     <?php endforeach; ?>
   </div>

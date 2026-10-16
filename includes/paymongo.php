@@ -216,3 +216,116 @@ function handleCancelledDonationCheckout(int $appointmentId): ?array
     unset($_SESSION['donation_checkout'][$appointmentId]);
     return ['status' => 'cancelled', 'message' => 'You cancelled the donation payment before it completed. No charge was made — you can try again anytime.'];
 }
+
+/**
+ * A donor came back through a donation checkout's success_url. The redirect is
+ * NOT proof of payment: the checkout session is always re-checked with PayMongo
+ * (secret key) before payment_status changes. Idempotent:
+ * verifyPaymentAndIssueReceipt() / markPaymentUnsuccessful() only act on a
+ * still-pending payment, so a repeat visit is harmless.
+ *
+ * Only the browser that started this checkout (its per-donation marker) or the
+ * signed-in parishioner who owns it learns how it went; anyone else (an edited
+ * link, a lost session) gets a neutral note, though the payment is still
+ * reconciled. A verified, authorized return sets the one-time Thank You
+ * (rememberDonationThankYou()) and clears the marker.
+ *
+ * @return array{status: string, message: string, thank_you: bool}|null  null when
+ *         the id is not an online Donation payment
+ */
+function handleDonationCheckoutReturn(int $appointmentId): ?array
+{
+    $stmt = db()->prepare(
+        "SELECT p.payment_id, p.payment_status, p.method_id, t.gateway_transaction_id
+         FROM payments p
+         JOIN transactions t ON t.payment_id = p.payment_id AND t.gateway = 'paymongo'
+         JOIN appointments a ON a.appointment_id = p.appointment_id
+         JOIN services s ON s.service_id = a.service_id AND s.category = 'Donation'
+         WHERE p.appointment_id = ?
+         ORDER BY p.payment_id DESC LIMIT 1"
+    );
+    $stmt->execute([$appointmentId]);
+    $payment = $stmt->fetch();
+    if (!$payment) return null;
+    $authorized = canViewGuestReference($appointmentId); // checked before the marker is cleared
+
+    if ($payment['payment_status'] === 'verified') {
+        // Already reconciled (e.g. the webhook got there first, or a repeat visit).
+        $status = 'verified';
+        $message = 'Thank you! Your donation has been received and verified.';
+    } else {
+        $session = paymongoGetCheckoutSession((string) $payment['gateway_transaction_id']);
+        $localStatus = $session['ok'] ? paymongoStatusToLocal($session['status']) : 'pending';
+        db()->prepare("UPDATE transactions SET status = ?, raw_response = ? WHERE payment_id = ?")
+            ->execute([$session['ok'] ? $session['status'] : 'unknown', json_encode($session['raw'] ?? []), $payment['payment_id']]);
+
+        if ($localStatus === 'verified') {
+            $result = verifyPaymentAndIssueReceipt((int) $payment['payment_id'], null, $payment['gateway_transaction_id']);
+            if ($result['ok']) {
+                $status = 'verified';
+                $message = 'Thank you! Your donation has been received and verified — a receipt has been issued.';
+            } else {
+                // PayMongo confirmed the payment but our bookkeeping step failed (e.g. a
+                // race with the webhook): never tell the donor it failed — they were
+                // charged. Left pending for staff to reconcile if needed.
+                error_log("PayMongo payment {$payment['payment_id']} confirmed but verifyPaymentAndIssueReceipt failed: {$result['message']}");
+                $status = 'pending';
+                $message = "Your payment was received by PayMongo. We're finishing up on our end — this will show as verified shortly; contact us if it doesn't within a day.";
+            }
+        } elseif ($localStatus === 'failed' || $localStatus === 'cancelled') {
+            markPaymentUnsuccessful((int) $payment['payment_id'], $localStatus);
+            $status = $localStatus;
+            $message = $localStatus === 'cancelled'
+                ? 'The payment was cancelled. No charge was made — you can try again anytime.'
+                : 'The payment did not go through. No charge was made — please try again or choose a different method.';
+        } else {
+            $status = 'pending';
+            $message = "We're still waiting for PayMongo to confirm this payment. If you completed it, it will update automatically shortly.";
+        }
+    }
+
+    if (!$authorized) {
+        return ['status' => 'neutral', 'message' => 'If you completed a donation, it is being confirmed. Use the reference code from your confirmation on the Check Status page to see its status.', 'thank_you' => false];
+    }
+    if ($status === 'verified' && (int) $payment['method_id'] === 7) {
+        unset($_SESSION['donation_checkout'][$appointmentId]);
+        rememberDonationThankYou($appointmentId);
+        return ['status' => 'verified', 'message' => $message, 'thank_you' => true];
+    }
+    return ['status' => $status, 'message' => $message, 'thank_you' => false];
+}
+
+/** One-time note for the Services page after a donation return that shows no Thank You (pending, failed, ...). */
+function rememberDonationReturnNotice(string $status, string $message): void
+{
+    $_SESSION['donation_return_notice'] = ['status' => $status, 'message' => $message];
+}
+
+function pullDonationReturnNotice(): ?array
+{
+    $notice = $_SESSION['donation_return_notice'] ?? null;
+    unset($_SESSION['donation_return_notice']);
+    return is_array($notice) ? $notice : null;
+}
+
+/**
+ * Handles a donation return/cancel on the URL it arrived at, then sends the
+ * donor to the clean Services page (the only donation page): the Thank You or a
+ * one-time note is shown there, and a refresh repeats nothing.
+ */
+function finishDonationReturn(int $appointmentId, bool $cancelled): void
+{
+    if ($cancelled) {
+        $result = handleCancelledDonationCheckout($appointmentId);
+        if ($result && $result['status'] === 'verified') {
+            rememberDonationThankYou($appointmentId); // paid after all
+        } elseif ($result) {
+            if ($result['status'] === 'cancelled') flash('error', $result['message']);
+            else rememberDonationReturnNotice($result['status'], $result['message']);
+        }
+    } else {
+        $result = handleDonationCheckoutReturn($appointmentId);
+        if ($result && !$result['thank_you']) rememberDonationReturnNotice($result['status'], $result['message']);
+    }
+    redirect(url('parishioner/services.php'));
+}
