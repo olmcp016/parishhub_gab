@@ -7,8 +7,8 @@ $parishionerId = $identity['parishioner_id'];
 $isGuest = $identity['is_guest'];
 
 /**
- * My Donations — a signed-in parishioner's donation history. Donations are made
- * on the Services page (its donation modal is the only donation form).
+ * My Donations — a signed-in parishioner's donation history. Donate Now opens
+ * the shared donation modal (includes/donation-modal.php) on this page.
  *
  * PayMongo checkouts started before the return URLs moved to Services still come
  * back here: they are handled the same way (includes/paymongo.php) and the donor
@@ -50,7 +50,17 @@ $stmt->execute();
 $donations = $stmt->fetchAll();
 
 $donationEnabled = db()->query("SELECT setting_value FROM settings WHERE setting_key = 'donation_enabled'")->fetchColumn() !== '0';
-$donateUrl = url('parishioner/services.php') . '?donate=1'; // the donation form on Services
+// Donate Now opens the shared donation modal right here (includes/donation-modal.php);
+// the donor picks General or a project. PayMongo returns to Services.
+if ($donationEnabled) {
+    $stmt = db()->prepare('SELECT firstname, lastname FROM users WHERE user_id = ?');
+    $stmt->execute([$identity['user_id']]);
+    $u = $stmt->fetch();
+    $accountName = $u ? trim($u['firstname'] . ' ' . $u['lastname']) : '';
+    $projects = db()->query('SELECT project_id, project_name FROM projects WHERE is_active = TRUE ORDER BY project_name')->fetchAll();
+    $preselectedProjectId = null;
+    $autoOpenDonate = false;
+}
 
 $active = 'donations';
 $pageTitle = 'My Donations';
@@ -62,7 +72,7 @@ include __DIR__ . '/../includes/dash-start.php';
   <div class="card-header">
     <h3>My Donations</h3>
     <?php if ($donationEnabled): ?>
-      <a href="<?= e($donateUrl) ?>" class="btn btn-primary btn-sm">🤲 Donate Now</a>
+      <button type="button" class="btn btn-primary btn-sm" onclick="openDonateModal()">🤲 Donate Now</button>
     <?php endif; ?>
   </div>
 
@@ -71,7 +81,7 @@ include __DIR__ . '/../includes/dash-start.php';
       <div class="icon">🤲</div>
       <p>You haven't made any donations yet.</p>
       <?php if ($donationEnabled): ?>
-        <a href="<?= e($donateUrl) ?>" class="btn btn-primary btn-sm">Donate to Our Parish</a>
+        <button type="button" class="btn btn-primary btn-sm" onclick="openDonateModal()">Donate to Our Parish</button>
       <?php endif; ?>
     </div>
   <?php else: ?>
@@ -96,6 +106,18 @@ include __DIR__ . '/../includes/dash-start.php';
   <?php endif; ?>
 </div>
 
+<?php if ($donationEnabled): ?>
+  <?php include __DIR__ . '/../includes/donation-modal.php'; ?>
+  <script>
+  // Done on a successful Cash / Pay Later confirmation (the only time that
+  // screen shows) reloads the history once, so the new pending donation
+  // appears; it is on the first page (newest first). A plain GET, so nothing
+  // is submitted again. ✕, Esc and closing an unfinished form do not reload.
+  document.querySelector('#donateConfirmView .btn-primary').addEventListener('click', function () {
+    window.location.href = <?= json_encode(url('parishioner/donations.php')) ?>;
+  });
+  </script>
+<?php endif; ?>
 <?php include __DIR__ . '/../includes/detail-modal.php'; ?>
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
