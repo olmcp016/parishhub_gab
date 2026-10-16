@@ -44,7 +44,6 @@ if (!$isGuest) {
   $u = $stmt->fetch();
   if ($u) $accountName = trim($u['firstname'] . ' ' . $u['lastname']);
 }
-$purposes = ['Church Maintenance', 'Charity', 'Mass / Parish Activities', 'Other / Not Specified'];
 $projects = db()->query('SELECT project_id, project_name FROM projects WHERE is_active = TRUE ORDER BY project_name')->fetchAll();
 $preselectedProjectId = (int) ($_GET['project_id'] ?? 0) ?: null;
 
@@ -855,31 +854,7 @@ $noFeesLabel = fn(float $amount): string => $amount > 0 ? money($amount) : 'No F
         </div>
         <?php endif; ?>
 
-        <div class="form-group">
-          <label>Donation Amount</label>
-          <input type="number" name="amount" min="1" step="0.01" value="0" class="amount-no-spinner" onfocus="if(this.value==='0') this.value='';" onblur="if(this.value==='') this.value='0';" required>
-        </div>
-
-        <div class="form-group">
-          <label>Purpose of Donation</label>
-          <select name="purpose">
-            <?php foreach ($purposes as $p): ?>
-              <option value="<?= e($p) ?>"><?= e($p) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-
-        <?php if (!empty($projects)): ?>
-        <div class="form-group">
-          <label>Support an Ongoing Project</label>
-          <select name="project_id" id="donateProjectSelect">
-            <option value="">Not tied to a specific project</option>
-            <?php foreach ($projects as $proj): ?>
-              <option value="<?= $proj['project_id'] ?>" <?= $preselectedProjectId == $proj['project_id'] ? 'selected' : '' ?>><?= e($proj['project_name']) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <?php endif; ?>
+        <?php include __DIR__ . '/../includes/donation-allocation-fields.php'; // where the gift goes, amount, preview ?>
 
         <div class="form-group">
           <label>How would you like to pay?</label>

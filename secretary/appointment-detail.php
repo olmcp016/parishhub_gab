@@ -671,7 +671,7 @@ $priestUnavailability = [];
 $stmt = db()->prepare('SELECT * FROM mass_intentions WHERE appointment_id = ?');
 $stmt->execute([$id]);
 $intention = $stmt->fetch() ?: null;
-$stmt = db()->prepare('SELECT * FROM donations WHERE appointment_id = ?');
+$stmt = db()->prepare('SELECT d.*, pr.project_name FROM donations d LEFT JOIN projects pr ON pr.project_id = d.project_id WHERE d.appointment_id = ?');
 $stmt->execute([$id]);
 $donation = $stmt->fetch() ?: null;
 $stmt = db()->prepare("SELECT * FROM uploaded_documents WHERE appointment_id = ? AND superseded_by IS NULL AND (document_source IS NULL OR document_source <> 'generated') ORDER BY uploaded_at DESC, document_id DESC");
@@ -900,7 +900,7 @@ if (!$isAjax) {
       <h4>Donation Details</h4>
       <p><strong>Donor:</strong> <?= e($donation['donor_name'] ?: 'Anonymous') ?></p>
       <?php if ($donation['donor_email']): ?><p><strong>Email:</strong> <?= e($donation['donor_email']) ?></p><?php endif; ?>
-      <p><strong>Purpose:</strong> <?= e($donation['purpose']) ?></p>
+      <p><strong>Allocation:</strong> <?= e(donationAllocationLabel($donation)) ?></p>
       <?php if ($donation['message']): ?><p><strong>Message:</strong> <?= e($donation['message']) ?></p><?php endif; ?>
     <?php endif; ?>
 

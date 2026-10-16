@@ -103,10 +103,11 @@ if (!$isGuest) {
     $donationsPagination = paginate((int) $stmt->fetchColumn(), 10);
 
     $stmt = db()->prepare(
-        "SELECT a.appointment_id, a.created_at, d.purpose, d.message, p.amount, p.payment_status, pm.method_name
+        "SELECT a.appointment_id, a.created_at, d.purpose, d.project_id, pr.project_name, d.message, p.amount, p.payment_status, pm.method_name
          FROM appointments a
          JOIN services s ON a.service_id = s.service_id
          JOIN donations d ON d.appointment_id = a.appointment_id
+         LEFT JOIN projects pr ON pr.project_id = d.project_id
          LEFT JOIN payments p ON p.appointment_id = a.appointment_id
          LEFT JOIN payment_methods pm ON p.method_id = pm.method_id
          WHERE a.parishioner_id = ? AND s.category = 'Donation'
@@ -120,7 +121,6 @@ if (!$isGuest) {
 }
 
 $donationEnabled = db()->query("SELECT setting_value FROM settings WHERE setting_key = 'donation_enabled'")->fetchColumn() !== '0';
-$purposes = ['Church Maintenance', 'Charity', 'Mass / Parish Activities', 'Other / Not Specified'];
 $projects = db()->query('SELECT project_id, project_name FROM projects WHERE is_active = TRUE ORDER BY project_name')->fetchAll();
 $preselectedProjectId = (int) ($_GET['project_id'] ?? 0) ?: null;
 $autoOpenModal = isset($_GET['donate']) || $preselectedProjectId;
@@ -166,12 +166,12 @@ include __DIR__ . '/../includes/' . ($isGuest ? 'public-shell-start.php' : 'dash
     <?php else: ?>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Date</th><th>Purpose</th><th>Amount</th><th>Method</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Date</th><th>Allocation</th><th>Amount</th><th>Method</th><th>Status</th><th></th></tr></thead>
           <tbody>
             <?php foreach ($donations as $d): ?>
               <tr>
                 <td><?= formatDate($d['created_at']) ?></td>
-                <td><?= e($d['purpose']) ?></td>
+                <td><?= e(donationAllocationLabel($d)) ?></td>
                 <td><?= money((float) $d['amount']) ?></td>
                 <td><?= e($d['method_name'] ?? '—') ?></td>
                 <td><?php if ($d['payment_status']): ?><span class="badge badge-<?= e($d['payment_status']) ?>"><?= e($d['payment_status']) ?></span><?php else: ?><span class="text-muted">—</span><?php endif; ?></td>
@@ -224,31 +224,7 @@ include __DIR__ . '/../includes/' . ($isGuest ? 'public-shell-start.php' : 'dash
         </div>
         <?php endif; ?>
 
-        <div class="form-group">
-          <label>Donation Amount</label>
-          <input type="number" name="amount" min="1" step="0.01" value="0" class="amount-no-spinner" onfocus="if(this.value==='0') this.value='';" onblur="if(this.value==='') this.value='0';" required>
-        </div>
-
-        <div class="form-group">
-          <label>Purpose of Donation</label>
-          <select name="purpose">
-            <?php foreach ($purposes as $p): ?>
-              <option value="<?= e($p) ?>"><?= e($p) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-
-        <?php if (!empty($projects)): ?>
-        <div class="form-group">
-          <label>Support an Ongoing Project</label>
-          <select name="project_id" id="donateProjectSelect">
-            <option value="">Not tied to a specific project</option>
-            <?php foreach ($projects as $proj): ?>
-              <option value="<?= $proj['project_id'] ?>" <?= $preselectedProjectId == $proj['project_id'] ? 'selected' : '' ?>><?= e($proj['project_name']) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <?php endif; ?>
+        <?php include __DIR__ . '/../includes/donation-allocation-fields.php'; // where the gift goes, amount, preview ?>
 
         <div class="form-group">
           <label>How would you like to pay?</label>

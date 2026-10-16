@@ -25,6 +25,15 @@ $payment = $stmt->fetch();
 if (!$payment || !$payment['receipt_number']) {
     die("Receipt not found or payment not verified.");
 }
+
+// Donations: where the gift went (general purpose or one ongoing project).
+$donationAllocation = null;
+if ($payment['category'] === 'Donation') {
+    $stmt = db()->prepare('SELECT d.purpose, d.project_id, pr.project_name FROM donations d LEFT JOIN projects pr ON pr.project_id = d.project_id WHERE d.appointment_id = ?');
+    $stmt->execute([$payment['appointment_id']]);
+    $donationRow = $stmt->fetch();
+    if ($donationRow) $donationAllocation = donationAllocationLabel($donationRow);
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -164,7 +173,13 @@ if (!$payment || !$payment['receipt_number']) {
         <span class="label">Description</span>
         <span class="value"><?= e($payment['service_name']) ?></span>
       </div>
-      
+      <?php if ($donationAllocation): ?>
+      <div class="row">
+        <span class="label">Allocation</span>
+        <span class="value"><?= e($donationAllocation) ?></span>
+      </div>
+      <?php endif; ?>
+
       <div class="row total">
         <span>Total Amount</span>
         <span><?= money((float)$payment['amount']) ?></span>

@@ -47,7 +47,6 @@ if (!$donationServiceId) {
     donateRespondError($isAjax, 'Online donations are currently unavailable. Please check back later.');
 }
 
-$purposes = ['Church Maintenance', 'Charity', 'Mass / Parish Activities', 'Other / Not Specified'];
 const PAYMONGO_METHOD_ID = 7;
 const CASH_METHOD_ID = 1;
 
@@ -55,13 +54,48 @@ $donorName = trim($_POST['donor_name'] ?? '') ?: null;
 $donorEmail = trim($_POST['donor_email'] ?? '') ?: null;
 $guestReference = $isGuest ? generateGuestReference() : null;
 $amount = (float) ($_POST['amount'] ?? 0);
-$purpose = in_array($_POST['purpose'] ?? '', $purposes, true) ? $_POST['purpose'] : $purposes[0];
 $message = trim($_POST['message'] ?? '') ?: null;
-$projectId = (int) ($_POST['project_id'] ?? 0) ?: null;
 $payOnline = ($_POST['pay_online'] ?? '') === '1';
 $methodId = $payOnline ? PAYMONGO_METHOD_ID : CASH_METHOD_ID;
 
-if ($amount <= 0) {
+// ONE donation = ONE allocation (includes/donation-allocation-fields.php):
+// a General Parish Donation (a listed purpose, no project) OR one active
+// Ongoing Project (purpose DONATION_PROJECT_PURPOSE). Checked before anything
+// is saved; an invalid choice is refused, never replaced with a default.
+$allocationType = (string) ($_POST['allocation_type'] ?? '');
+$postedPurpose = trim((string) ($_POST['purpose'] ?? ''));
+$postedProject = trim((string) ($_POST['project_id'] ?? ''));
+$projectId = null;
+if ($allocationType === 'general') {
+    if ($postedProject !== '') {
+        donateRespondError($isAjax, 'Please choose either a general purpose or one ongoing project, not both.');
+    }
+    if (!in_array($postedPurpose, DONATION_PURPOSES, true)) {
+        donateRespondError($isAjax, 'Please choose a purpose for your donation.');
+    }
+    $purpose = $postedPurpose;
+    $allocationName = $purpose;
+} elseif ($allocationType === 'project') {
+    if ($postedPurpose !== '') {
+        donateRespondError($isAjax, 'Please choose either a general purpose or one ongoing project, not both.');
+    }
+    if (!ctype_digit($postedProject) || (int) $postedProject < 1) {
+        donateRespondError($isAjax, 'Please choose an ongoing project.');
+    }
+    $projectStmt = db()->prepare('SELECT project_name FROM projects WHERE project_id = ? AND is_active = TRUE');
+    $projectStmt->execute([(int) $postedProject]);
+    $projectName = $projectStmt->fetchColumn();
+    if ($projectName === false) {
+        donateRespondError($isAjax, 'That project is no longer accepting donations. Please choose another project or a General Parish Donation.');
+    }
+    $projectId = (int) $postedProject;
+    $purpose = DONATION_PROJECT_PURPOSE;
+    $allocationName = (string) $projectName;
+} else {
+    donateRespondError($isAjax, 'Please choose where your donation should go.');
+}
+
+if (!is_finite($amount) || $amount <= 0) {
     donateRespondError($isAjax, 'Please enter a valid donation amount.');
 }
 $pdo = db();
@@ -98,7 +132,7 @@ try {
         // the cancellation (handleCancelledDonationCheckout()).
         $successUrl = absoluteUrl('parishioner/donations.php') . '?paymongo_return=1&appointment_id=' . $appointmentId;
         $cancelUrl = absoluteUrl('parishioner/services.php') . '?paymongo_cancelled=1&appointment_id=' . $appointmentId;
-        $checkout = paymongoCreateCheckoutSession($amount, 'Donation — ' . $purpose, $successUrl, $cancelUrl, $donorEmail);
+        $checkout = paymongoCreateCheckoutSession($amount, 'Donation — ' . $allocationName, $successUrl, $cancelUrl, $donorEmail);
 
         if (!$checkout['ok']) {
             $pdo->rollBack();

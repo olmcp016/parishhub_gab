@@ -604,6 +604,36 @@ function currentWeekBounds(): array
     return ['monday' => $monday, 'sunday' => $sunday];
 }
 
+/**
+ * Donation allocation: ONE donation = ONE destination. A general donation
+ * stores one of DONATION_PURPOSES and no project; a project donation stores
+ * purpose DONATION_PROJECT_PURPOSE and the project_id. (Older records may
+ * carry both a purpose and a project; they are shown as recorded.)
+ */
+const DONATION_PURPOSES = ['Church Maintenance', 'Charity', 'Mass / Parish Activities', 'Other / Not Specified'];
+const DONATION_PROJECT_PURPOSE = 'Ongoing Project';
+
+/**
+ * Where a donation went, for display. Expects the donation's `purpose`,
+ * `project_id` and (LEFT JOINed) `project_name`. Never rewrites anything:
+ *   general                 "Church Maintenance"
+ *   project                 "Ongoing Project — Parish Hall Renovation"
+ *   project since deleted   "Ongoing Project (project no longer available)"
+ *   older, both recorded    "Church Maintenance · Project: Parish Hall Renovation"
+ */
+function donationAllocationLabel(array $donation): string
+{
+    $purpose = trim((string) ($donation['purpose'] ?? ''));
+    $projectName = trim((string) ($donation['project_name'] ?? ''));
+    if ($purpose === DONATION_PROJECT_PURPOSE) {
+        return $projectName !== '' ? DONATION_PROJECT_PURPOSE . ' — ' . $projectName : DONATION_PROJECT_PURPOSE . ' (project no longer available)';
+    }
+    if ($projectName !== '') {
+        return ($purpose !== '' ? $purpose . ' · ' : '') . 'Project: ' . $projectName;
+    }
+    return $purpose !== '' ? $purpose : 'Not specified';
+}
+
 /** The title of the current week's auto-generated donor announcement, and a helper to recognize it. */
 function weeklyDonorAnnouncementTitle(): string
 {
@@ -640,11 +670,12 @@ function getCurrentWeekDonors(): array
     // date, or a payment verified after midnight Manila time but before the
     // UTC day rolls over would still look like it belongs to the prior week.
     $stmt = db()->prepare(
-        "SELECT d.donor_name, d.purpose, p.amount, p.verified_at
+        "SELECT d.donor_name, d.purpose, d.project_id, pr.project_name, p.amount, p.verified_at
          FROM payments p
          JOIN appointments a ON p.appointment_id = a.appointment_id
          JOIN services s ON a.service_id = s.service_id
          JOIN donations d ON d.appointment_id = a.appointment_id
+         LEFT JOIN projects pr ON pr.project_id = d.project_id
          WHERE s.category = 'Donation' AND p.payment_status = 'verified'
            AND DATE(p.verified_at AT TIME ZONE 'Asia/Manila') BETWEEN ? AND ?
          ORDER BY p.verified_at DESC"

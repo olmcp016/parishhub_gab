@@ -157,12 +157,12 @@ include __DIR__ . '/../includes/dash-start.php';
   <div class="modal-body">
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Donor</th><th>Purpose</th><th>Amount</th><th>Date</th></tr></thead>
+        <thead><tr><th>Donor</th><th>Allocation</th><th>Amount</th><th>Date</th></tr></thead>
         <tbody>
           <?php foreach ($weekDonors as $d): ?>
             <tr>
               <td><?= e($d['donor_name'] ?: 'Anonymous') ?></td>
-              <td><?= e($d['purpose']) ?></td>
+              <td><?= e(donationAllocationLabel($d)) ?></td>
               <td><?= money((float) $d['amount']) ?></td>
               <td><?= formatDate($d['verified_at']) ?></td>
             </tr>

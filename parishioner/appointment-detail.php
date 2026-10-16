@@ -259,7 +259,7 @@ $stmt = db()->prepare('SELECT * FROM mass_intentions WHERE appointment_id = ?');
 $stmt->execute([$id]);
 $intention = $stmt->fetch() ?: null;
 
-$stmt = db()->prepare('SELECT * FROM donations WHERE appointment_id = ?');
+$stmt = db()->prepare('SELECT d.*, pr.project_name FROM donations d LEFT JOIN projects pr ON pr.project_id = d.project_id WHERE d.appointment_id = ?');
 $stmt->execute([$id]);
 $donation = $stmt->fetch() ?: null;
 
@@ -423,7 +423,7 @@ if (!$isAjax) {
       <hr style="border-color: var(--cream-dark); margin: 18px 0;">
       <h4>Donation Details</h4>
       <p><strong>Donor:</strong> <?= e($donation['donor_name'] ?: 'Anonymous') ?></p>
-      <p><strong>Purpose:</strong> <?= e($donation['purpose']) ?></p>
+      <p><strong>Allocation:</strong> <?= e(donationAllocationLabel($donation)) ?></p>
       <?php if ($donation['message']): ?><p><strong>Message:</strong> <?= e($donation['message']) ?></p><?php endif; ?>
     <?php endif; ?>
 

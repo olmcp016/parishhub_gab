@@ -4,7 +4,8 @@ require_once __DIR__ . '/../includes/functions.php';
 requireRole('Treasurer', 'Admin');
 
 $userId = currentUser()['user_id'];
-$purposes = ['Church Maintenance', 'Charity', 'Mass / Parish Activities', 'Other / Not Specified'];
+// Staff-recorded donations are General Parish Donations only (one of the shared purposes, no project).
+$purposes = DONATION_PURPOSES;
 $methods = [1 => 'Cash', 2 => 'GCash', 3 => 'Maya', 4 => 'Bank Transfer', 5 => 'Credit/Debit Card', 6 => 'PayPal'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'toggle_donations') {
@@ -21,7 +22,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'manua
 
     $amount = (float) ($_POST['amount'] ?? 0);
     $methodId = (int) ($_POST['method_id'] ?? 0);
-    $purpose = in_array($_POST['purpose'] ?? '', $purposes, true) ? $_POST['purpose'] : $purposes[0];
+    $purpose = (string) ($_POST['purpose'] ?? '');
+    if (!in_array($purpose, $purposes, true)) {
+        flash('error', 'Please choose a purpose for this donation.');
+        redirect(url('treasurer/donations.php'));
+    }
     $donorName = trim($_POST['donor_name'] ?? '') ?: null;
     $donorEmail = trim($_POST['donor_email'] ?? '') ?: null;
     $reference = trim($_POST['reference_number'] ?? '') ?: null;
@@ -134,22 +139,23 @@ $parishioners = db()->query(
 $statusFilter = $_GET['status'] ?? '';
 $search = $_GET['search'] ?? '';
 
-$sql = "SELECT a.appointment_id, a.created_at, d.donor_name, d.donor_email, d.purpose, d.message,
+$sql = "SELECT a.appointment_id, a.created_at, d.donor_name, d.donor_email, d.purpose, d.project_id, pr.project_name, d.message,
                p.amount, p.payment_status, p.payment_id, pm.method_name
         FROM appointments a
         JOIN services s ON a.service_id = s.service_id
         JOIN donations d ON d.appointment_id = a.appointment_id
+        LEFT JOIN projects pr ON pr.project_id = d.project_id
         LEFT JOIN payments p ON p.appointment_id = a.appointment_id
         LEFT JOIN payment_methods pm ON p.method_id = pm.method_id
         WHERE s.category = 'Donation'";
 $params = [];
 if ($statusFilter) { $sql .= ' AND p.payment_status = ?'; $params[] = $statusFilter; }
 if ($search) {
-    $sql .= ' AND (d.donor_name LIKE ? OR d.donor_email LIKE ? OR d.purpose LIKE ?)';
-    $lk = likeSafe($search); $params[] = $lk; $params[] = $lk; $params[] = $lk;
+    $sql .= ' AND (d.donor_name LIKE ? OR d.donor_email LIKE ? OR d.purpose LIKE ? OR pr.project_name LIKE ?)';
+    $lk = likeSafe($search); $params[] = $lk; $params[] = $lk; $params[] = $lk; $params[] = $lk;
 }
 $countSql = str_replace(
-    'SELECT a.appointment_id, a.created_at, d.donor_name, d.donor_email, d.purpose, d.message,
+    'SELECT a.appointment_id, a.created_at, d.donor_name, d.donor_email, d.purpose, d.project_id, pr.project_name, d.message,
                p.amount, p.payment_status, p.payment_id, pm.method_name',
     'SELECT COUNT(*)',
     $sql
@@ -289,19 +295,19 @@ include __DIR__ . '/../includes/dash-start.php';
         <option value="cancelled" <?= $statusFilter==='cancelled'?'selected':'' ?>>Cancelled</option>
       </select>
     </div>
-    <div class="form-group" style="flex: 3 1 300px; margin-bottom:0;"><label>Search</label><input type="text" name="search" value="<?= e($search) ?>" placeholder="Donor name, email, or purpose"></div>
+    <div class="form-group" style="flex: 3 1 300px; margin-bottom:0;"><label>Search</label><input type="text" name="search" value="<?= e($search) ?>" placeholder="Donor name, email, purpose, or project"></div>
     <div class="form-group" style="flex: 0 0 auto; margin-bottom:0;"><button class="btn btn-primary" style="height:47.5px; padding: 0 24px;">Search</button></div>
   </form>
 
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Date</th><th>Donor</th><th>Purpose</th><th>Amount</th><th>Payment Method</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>Date</th><th>Donor</th><th>Allocation</th><th>Amount</th><th>Payment Method</th><th>Status</th><th></th></tr></thead>
       <tbody>
         <?php foreach ($donations as $d): ?>
           <tr>
             <td><?= formatDate($d['created_at']) ?></td>
             <td><?= e($d['donor_name'] ?: 'Anonymous') ?></td>
-            <td><?= e($d['purpose']) ?></td>
+            <td><?= e(donationAllocationLabel($d)) ?></td>
             <td><?= money((float) $d['amount']) ?></td>
             <td><?= e($d['method_name'] ?? '—') ?></td>
             <td><?php if ($d['payment_status']): ?><span class="badge badge-<?= e($d['payment_status']) ?>"><?= e($d['payment_status']) ?></span><?php else: ?><span class="text-muted">—</span><?php endif; ?></td>

@@ -96,7 +96,7 @@ if ($searched) {
         $stmt->execute([$appointment['appointment_id']]);
         $intention = $stmt->fetch() ?: null;
 
-        $stmt = db()->prepare('SELECT * FROM donations WHERE appointment_id = ?');
+        $stmt = db()->prepare('SELECT d.*, pr.project_name FROM donations d LEFT JOIN projects pr ON pr.project_id = d.project_id WHERE d.appointment_id = ?');
         $stmt->execute([$appointment['appointment_id']]);
         $donation = $stmt->fetch() ?: null;
 
@@ -336,7 +336,7 @@ include __DIR__ . '/includes/header.php';
       <?php if (!empty($donation)): ?>
         <hr style="border-color: var(--cream-dark); margin: 18px 0;">
         <h4>Donation Details</h4>
-        <p><strong>Purpose:</strong> <?= e($donation['purpose']) ?></p>
+        <p><strong>Allocation:</strong> <?= e(donationAllocationLabel($donation)) ?></p>
       <?php endif; ?>
 
       <?php if (!empty($payment)): ?>
