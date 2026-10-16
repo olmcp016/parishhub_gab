@@ -29,19 +29,30 @@ $paymongoResultStatus = null; // 'verified' | 'pending' | 'failed' | 'cancelled'
 
 if (isset($_GET['paymongo_return']) || isset($_GET['paymongo_cancelled'])) {
     $returnAppointmentId = (int) ($_GET['appointment_id'] ?? 0);
+    // Donations only (other services have their own return pages).
     $stmt = db()->prepare(
-        "SELECT p.payment_id, p.payment_status, t.gateway_transaction_id, a.guest_reference
+        "SELECT p.payment_id, p.payment_status, p.method_id, t.gateway_transaction_id, a.guest_reference
          FROM payments p
          JOIN transactions t ON t.payment_id = p.payment_id AND t.gateway = 'paymongo'
          JOIN appointments a ON a.appointment_id = p.appointment_id
+         JOIN services s ON s.service_id = a.service_id AND s.category = 'Donation'
          WHERE p.appointment_id = ?
          ORDER BY p.payment_id DESC LIMIT 1"
     );
     $stmt->execute([$returnAppointmentId]);
     $paymentRow = $stmt->fetch();
+    // Only the browser that started this checkout (its per-donation marker) or the
+    // signed-in parishioner who owns it may see how it went. Checked before the
+    // marker is cleared below.
+    $returnAuthorized = $paymentRow && canViewGuestReference($returnAppointmentId);
 
     // Checkouts started before cancel_url moved to the Services page still return here.
     $cancelled = isset($_GET['paymongo_cancelled']) ? handleCancelledDonationCheckout($returnAppointmentId) : null;
+    if ($cancelled && $cancelled['status'] === 'verified') {
+        // Paid after all: the same one-time Thank You as a normal return.
+        rememberDonationThankYou($returnAppointmentId);
+        redirect(url('parishioner/donations.php'));
+    }
     if ($cancelled) {
         $paymongoResultStatus = $cancelled['status'];
         $paymongoResultMessage = $cancelled['message'];
@@ -85,8 +96,22 @@ if (isset($_GET['paymongo_return']) || isset($_GET['paymongo_cancelled'])) {
                 $paymongoResultMessage = "We're still waiting for PayMongo to confirm this payment. If you completed it, it will update automatically shortly — check back on this page.";
             }
         }
+        if ($paymongoResultStatus === 'verified' && $returnAuthorized && (int) $paymentRow['method_id'] === 7) {
+            // Handled: this checkout's marker is done; show the Thank You once, on a
+            // clean URL (a refresh neither re-checks PayMongo nor reopens it).
+            unset($_SESSION['donation_checkout'][$returnAppointmentId]);
+            rememberDonationThankYou($returnAppointmentId);
+            redirect(url('parishioner/donations.php'));
+        }
+        if (!$returnAuthorized) {
+            // An edited link, someone else's donation, or a lost session: the payment
+            // was still reconciled above, but nothing about it is shown here.
+            $paymongoResultStatus = 'neutral';
+            $paymongoResultMessage = 'If you completed a donation, it is being confirmed. Use the reference code from your confirmation on the Check Status page to see its status.';
+        }
     }
 }
+$donationThankYou = pullDonationThankYou(); // set by a verified return just before this page loaded
 
 // Guests share one placeholder parishioner_id, so a personal history list
 // would leak every OTHER guest's donations too — skip it entirely for
@@ -362,5 +387,6 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 
 <?php include __DIR__ . '/../includes/detail-modal.php'; ?>
+<?php include __DIR__ . '/../includes/donation-thank-you-modal.php'; // after a verified online donation, once ?>
 <?php include __DIR__ . '/../includes/' . ($isGuest ? 'public-shell-end.php' : 'dash-end.php'); ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

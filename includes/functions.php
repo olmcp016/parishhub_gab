@@ -634,6 +634,49 @@ function donationAllocationLabel(array $donation): string
     return $purpose !== '' ? $purpose : 'Not specified';
 }
 
+/**
+ * Thank You after a verified online (PayMongo) donation: the return handler
+ * stores only the appointment id, once, for this browser session, then
+ * redirects to a clean URL; the page pulls it (clearing it) and re-reads every
+ * detail from the database. So a refresh never reopens it and nothing shown
+ * comes from the URL.
+ */
+function rememberDonationThankYou(int $appointmentId): void
+{
+    $_SESSION['donation_thank_you'] = $appointmentId;
+}
+
+/** The verified donation to thank the donor for, once; null when there is none (or it is no longer verified). */
+function pullDonationThankYou(): ?array
+{
+    $appointmentId = (int) ($_SESSION['donation_thank_you'] ?? 0);
+    unset($_SESSION['donation_thank_you']);
+    return $appointmentId > 0 ? verifiedOnlineDonation($appointmentId) : null;
+}
+
+/**
+ * A Donation whose PayMongo payment is verified, with its allocation label;
+ * null for anything else (not a donation, not online, not verified).
+ */
+function verifiedOnlineDonation(int $appointmentId): ?array
+{
+    $stmt = db()->prepare(
+        "SELECT a.appointment_id, a.guest_reference, p.amount, d.purpose, d.project_id, pr.project_name
+         FROM appointments a
+         JOIN services s ON s.service_id = a.service_id AND s.category = 'Donation'
+         JOIN donations d ON d.appointment_id = a.appointment_id
+         LEFT JOIN projects pr ON pr.project_id = d.project_id
+         JOIN payments p ON p.appointment_id = a.appointment_id
+         WHERE a.appointment_id = ? AND p.payment_status = 'verified' AND p.method_id = 7
+         ORDER BY p.payment_id DESC LIMIT 1"
+    );
+    $stmt->execute([$appointmentId]);
+    $row = $stmt->fetch();
+    if (!$row) return null;
+    $row['allocation'] = donationAllocationLabel($row);
+    return $row;
+}
+
 /** The title of the current week's auto-generated donor announcement, and a helper to recognize it. */
 function weeklyDonorAnnouncementTitle(): string
 {

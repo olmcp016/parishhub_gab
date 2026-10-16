@@ -11,10 +11,17 @@ $identity = requireParishionerOrGuest();
 // Donor pressed Back/Cancel on PayMongo's donation checkout (donate.php's
 // cancel_url): record the cancellation and say so on this page.
 if (isset($_GET['paymongo_cancelled'])) {
-  $cancelledDonation = handleCancelledDonationCheckout((int) ($_GET['appointment_id'] ?? 0));
+  $cancelledAppointmentId = (int) ($_GET['appointment_id'] ?? 0);
+  $cancelledDonation = handleCancelledDonationCheckout($cancelledAppointmentId);
+  if ($cancelledDonation && $cancelledDonation['status'] === 'verified') {
+    // Paid after all (Back pressed after paying): the one-time Thank You, on a clean URL.
+    rememberDonationThankYou($cancelledAppointmentId);
+    redirect(url('parishioner/services.php'));
+  }
   // flash.php shows only success/error; a cancellation uses the ⚠ (error) style.
   if ($cancelledDonation) flash($cancelledDonation['status'] === 'cancelled' ? 'error' : 'success', $cancelledDonation['message']);
 }
+$donationThankYou = pullDonationThankYou(); // set by a verified donation return just before this page loaded
 
 // "Back to Booking Form" from a draft's Supporting Documents step: reopen the
 // form for that draft (access-checked) so re-submitting updates it in place.
@@ -2305,5 +2312,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
 </script>
 
+<?php include __DIR__ . '/../includes/donation-thank-you-modal.php'; // after a verified online donation, once ?>
 <?php include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-end.php' : 'dash-end.php'); ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
