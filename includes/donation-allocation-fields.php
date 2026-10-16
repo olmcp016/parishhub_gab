@@ -1,8 +1,8 @@
 <?php
 /**
  * Donation form: where the gift goes, the amount, and a read-only preview.
- * Used by the donation modal on parishioner/services.php (the only donation
- * form; it posts to parishioner/donate.php).
+ * Used by the shared donation modal (includes/donation-modal.php, on Services
+ * and Ongoing Projects — the only donation form; it posts to parishioner/donate.php).
  *
  * ONE donation = ONE allocation: a General Parish Donation (one of
  * DONATION_PURPOSES) OR one active Ongoing Project — never both. Only the
@@ -117,5 +117,24 @@ $__hasProjects = !empty($__activeProjectIds);
   var initialProject = projectSelect.value;
   updateAllocation();
   if (initialProject && selectedType() === 'project') { projectSelect.value = initialProject; updatePreview(); }
+
+  // For the donation modal (includes/donation-modal.php).
+  window.donationAllocation = {
+    // After form.reset(), which fires no change events.
+    refresh: updateAllocation,
+    // "Donate to This Project" on Ongoing Projects: that project, only if it is
+    // one of the active projects listed here; otherwise the donor picks one.
+    selectProject: function (projectId) {
+      var projectRadio = form.querySelector('input[name="allocation_type"][value="project"]');
+      if (!projectRadio || projectRadio.disabled) return;
+      projectRadio.checked = true;
+      updateAllocation();
+      var wanted = String(parseInt(projectId, 10));
+      var listed = Array.prototype.some.call(projectSelect.options, function (o) { return o.value !== '' && o.value === wanted; });
+      projectSelect.value = listed ? wanted : '';
+      if (listed && typeof clearFieldError === 'function') { clearFieldError(projectSelect); radios.forEach(clearFieldError); }
+      updatePreview();
+    }
+  };
 })();
 </script>

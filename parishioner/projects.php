@@ -16,6 +16,20 @@ $projects = db()->query(
      FROM projects pr WHERE pr.is_active = TRUE ORDER BY pr.created_at DESC"
 )->fetchAll();
 
+// "Donate to This Project" opens the shared donation modal right here
+// (includes/donation-modal.php), on that project; PayMongo returns to Services.
+$donationEnabled = db()->query("SELECT setting_value FROM settings WHERE setting_key = 'donation_enabled'")->fetchColumn() !== '0';
+if ($donationEnabled) {
+    $isGuest = false;
+    $stmt = db()->prepare('SELECT firstname, lastname FROM users WHERE user_id = ?');
+    $stmt->execute([currentUser()['user_id']]);
+    $u = $stmt->fetch();
+    $accountName = $u ? trim($u['firstname'] . ' ' . $u['lastname']) : '';
+    // The modal lists $projects: the same active projects shown on this page.
+    $preselectedProjectId = null; // chosen per button, in openDonateModal()
+    $autoOpenDonate = false;
+}
+
 $active = 'projects';
 $pageTitle = 'Ongoing Projects';
 include __DIR__ . '/../includes/header.php';
@@ -41,10 +55,18 @@ include __DIR__ . '/../includes/dash-start.php';
         </div>
         <p style="font-size:14px; margin:4px 0;"><strong class="text-gold"><?= money($raised) ?></strong> raised of <?= money($target) ?> <span class="text-muted">(<?= $progress ?>%)</span></p>
         <p style="font-size:13px; margin:4px 0; color:var(--brown-mid);">Remaining: <?= money($remaining) ?> · <?= (int) $p['donor_count'] ?> donation(s) so far</p>
-        <a href="<?= url('parishioner/services.php?project_id=' . $p['project_id']) ?>" class="btn btn-primary btn-block mt-2">Donate to This Project</a>
+        <?php if ($donationEnabled): ?>
+          <button type="button" class="btn btn-primary btn-block mt-2" onclick="openDonateModal(<?= (int) $p['project_id'] ?>)">Donate to This Project</button>
+        <?php else: ?>
+          <p class="helper-text mt-2" style="text-align:center;">Online donations are currently paused.</p>
+        <?php endif; ?>
       </div>
     <?php endforeach; ?>
   </div>
+<?php endif; ?>
+
+<?php if ($donationEnabled && !empty($projects)): ?>
+  <?php include __DIR__ . '/../includes/donation-modal.php'; ?>
 <?php endif; ?>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
