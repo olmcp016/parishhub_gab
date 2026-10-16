@@ -130,7 +130,7 @@ include __DIR__ . '/includes/header.php';
 ?>
 <?php include __DIR__ . '/includes/public-nav.php'; ?>
 
-<div style="max-width:700px; margin:0 auto; padding: 28px 20px 60px;">
+<div style="max-width:700px; margin:0 auto; padding: 100px 20px 60px;">
   <?php include __DIR__ . '/includes/flash.php'; ?>
   <h1 style="margin:0 0 8px;">Check Your Status</h1>
   <p class="text-muted" style="margin-bottom:24px;">Look up a guest booking, Mass Intention, or donation using the reference code from your confirmation screen.</p>
