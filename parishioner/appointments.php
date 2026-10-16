@@ -10,6 +10,21 @@ $parishionerId = $stmt->fetchColumn();
 
 // Set when a booking just landed here (see rememberBookingThankYou()); the dialog opens once.
 $thankYouReference = pullBookingThankYou();
+// Its details for the dialog — only if the reference is one of THIS parishioner's
+// own bookings; otherwise the dialog shows the code alone.
+$thankYouBooking = null;
+if ($thankYouReference && $parishionerId) {
+    $stmt = db()->prepare(
+        "SELECT a.appointment_id, s.service_name, s.category, st.status_name
+         FROM appointments a
+         JOIN services s ON a.service_id = s.service_id
+         JOIN appointment_status st ON a.status_id = st.status_id
+         WHERE a.guest_reference = ? AND a.parishioner_id = ? AND s.category != 'Donation'
+         ORDER BY a.appointment_id DESC LIMIT 1"
+    );
+    $stmt->execute([$thankYouReference, $parishionerId]);
+    $thankYouBooking = $stmt->fetch() ?: null;
+}
 
 $statusFilter = $_GET['status'] ?? '';
 
@@ -127,7 +142,7 @@ include __DIR__ . '/../includes/dash-start.php';
 </div>
 
 
-$thankYouIsGuest = false; include __DIR__ . "/../includes/thank-you-modal.php";
+<?php $thankYouIsGuest = false; include __DIR__ . '/../includes/thank-you-modal.php'; ?>
 <?php include __DIR__ . '/../includes/detail-modal.php'; ?>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
