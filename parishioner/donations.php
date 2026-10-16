@@ -112,6 +112,7 @@ if (isset($_GET['paymongo_return']) || isset($_GET['paymongo_cancelled'])) {
     }
 }
 $donationThankYou = pullDonationThankYou(); // set by a verified return just before this page loaded
+$donationThankYouDoneUrl = url('parishioner/services.php'); // Done -> back to Services (the donation form does not reopen)
 
 // Guests share one placeholder parishioner_id, so a personal history list
 // would leak every OTHER guest's donations too — skip it entirely for
