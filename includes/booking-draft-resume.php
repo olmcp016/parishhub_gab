@@ -33,6 +33,9 @@ function loadResumableBookingDraft(string $type, int $id): ?array
             'sponsor_count' => null, 'wedding_sponsor_count' => null,
             'remarks' => $d['remarks'] ?? null,
             'date_of_death' => $d['dateOfDeath'] ?? null,
+            // Preferred burial / Funeral Mass schedule (one schedule).
+            'preferred_burial_date' => $d['preferredBurialDate'] ?? null,
+            'preferred_burial_time' => !empty($d['preferredBurialTime']) ? substr((string) $d['preferredBurialTime'], 0, 5) : null,
         ];
     }
 

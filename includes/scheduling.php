@@ -10,8 +10,9 @@
  *       matchesRegularSlot()/regularSlotsForService()) or Special (a free
  *       date/time, still checked against Mass times, priest availability,
  *       and other bookings)
- *   - Funeral Mass    : earliest allowed date = date of death + 9 days
- *                       (the 9-day mourning period), fixed 1:00 PM
+ *   - Funeral Mass    : the family's preferred date (after the date of death,
+ *                       not in the past) and time (30-minute steps); the
+ *                       Secretary confirms the final schedule
  *   - Mass Intention  : must land on an actual daily/Sunday Mass time slot
  *   - Staff day off   : every Monday from 12:00 PM onward, and all day Tuesday
  *                       — no appointments may be booked in this window
@@ -605,24 +606,26 @@ function validateBooking(
             break;
 
         case 'Funeral':
-            if (!$dateOfDeath) {
-                $result = [
-                    'valid' => false,
-                    'message' => 'Please provide the date of death so we can schedule the funeral Mass after the 9-day mourning period.',
-                    'forcedTime' => null,
-                ];
+            // Burial and Funeral Mass are one schedule. No waiting period and no
+            // fixed time: any date after the date of death (past dates/times and
+            // the staff day-off are already refused above), in 30-minute steps.
+            // The same rule applies to the family's preferred schedule and to the
+            // Secretary's confirmation / rescheduling.
+            $deathDate = (string) $dateOfDeath;
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $deathDate)
+                || !checkdate((int) substr($deathDate, 5, 2), (int) substr($deathDate, 8, 2), (int) substr($deathDate, 0, 4))) {
+                $result = ['valid' => false, 'message' => 'Please provide a valid date of death first.', 'forcedTime' => null];
                 break;
             }
-            $earliest = date('Y-m-d', strtotime($dateOfDeath . ' +9 days'));
-            if ($date < $earliest) {
-                $result = [
-                    'valid' => false,
-                    'message' => "Funeral Masses take place after the 9-day mourning period. The earliest available date based on the date of death is $earliest, at 1:00 PM.",
-                    'forcedTime' => null,
-                ];
+            if ($date <= $deathDate) {
+                $result = ['valid' => false, 'message' => 'The burial / Funeral Mass date must be after the date of death.', 'forcedTime' => null];
                 break;
             }
-            $result = ['valid' => true, 'message' => '', 'forcedTime' => '13:00:00'];
+            if (!preg_match('/:(00|30)$/', $time5)) {
+                $result = ['valid' => false, 'message' => 'Please choose a burial / Funeral Mass time in 30-minute intervals (for example 9:00 or 9:30).', 'forcedTime' => null];
+                break;
+            }
+            $result = ['valid' => true, 'message' => '', 'forcedTime' => null];
             break;
 
         case 'Mass Intention':
@@ -674,7 +677,8 @@ function schedulingPolicyText(string $category, ?int $serviceId = null): string
         case 'Blessing':
             return 'Propose a custom date and time for the blessing. Availability is checked automatically, and a priest who is saying a Mass at that time is shown as unavailable.';
         case 'Funeral':
-            return '';
+            // Shown in the booking form's notice box and on the About page.
+            return 'Your preferred burial and Funeral Mass date and time are subject to Parish Office confirmation. The final schedule will depend on priest availability and the review of your documents.';
         case 'Mass Intention':
             return '<strong>Mass Intention times:</strong>'
                 . '<ul>'

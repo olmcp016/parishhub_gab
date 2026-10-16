@@ -3,6 +3,7 @@ require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/funeral-draft.php';
 require_once __DIR__ . '/includes/funeral-forms.php';
+require_once __DIR__ . '/includes/funeral-schedule.php';
 require_once __DIR__ . '/includes/generated-form-workflow.php';
 require_once __DIR__ . '/includes/requirements-review.php';
 
@@ -20,9 +21,11 @@ if ($isDraft) {
     $draft = funeralDraftLoad($draftId, $user);
     if (!$draft) { http_response_code(403); exit('Funeral booking draft not found, expired, or access denied.'); }
     
+    // Not saved yet: prefill the burial date/time from the family's preferred
+    // burial / Funeral Mass schedule (a draft has no confirmed schedule yet).
     $data = funeralKatinAwanNormalizeData($draft['katin_awan_payload'] ?: [
-        'kanus_a_ilubong' => (string) ($draft['date'] ?? ''),
-        'oras_sa_lubong' => substr((string) ($draft['finalTime'] ?? ''), 0, 5),
+        'kanus_a_ilubong' => (string) (($draft['date'] ?? '') ?: ($draft['preferredBurialDate'] ?? '')),
+        'oras_sa_lubong' => substr((string) (($draft['finalTime'] ?? '') ?: ($draft['preferredBurialTime'] ?? '')), 0, 5),
         'responde' => trim((string) ($draft['guest_name'] ?? ''))
     ]);
     $form = null;
@@ -101,11 +104,15 @@ if ($isDraft) {
     $formQuery = $pdo->prepare('SELECT f.*, d.review_status FROM generated_forms f LEFT JOIN uploaded_documents d ON d.document_id = f.document_id WHERE f.service_category = \'Funeral\' AND f.appointment_id = ? AND f.form_type = ?');
     $formQuery->execute([$appointmentId, $type]);
     $form = $formQuery->fetch() ?: null;
+    // Not saved yet: prefill from the confirmed schedule, otherwise the family's
+    // preferred one. A saved form is never overwritten — see $scheduleMismatch.
+    $hasConfirmedSchedule = !empty($appointment['appointment_date']) && !empty($appointment['appointment_time']);
     $data = $form ? funeralKatinAwanNormalizeData(json_decode($form['form_data'], true) ?: []) : funeralKatinAwanNormalizeData([
-        'kanus_a_ilubong' => (string) ($appointment['appointment_date'] ?? ''),
-        'oras_sa_lubong' => substr((string) ($appointment['appointment_time'] ?? ''), 0, 5),
+        'kanus_a_ilubong' => (string) ($hasConfirmedSchedule ? $appointment['appointment_date'] : ($appointment['preferred_burial_date'] ?? '')),
+        'oras_sa_lubong' => substr((string) ($hasConfirmedSchedule ? $appointment['appointment_time'] : ($appointment['preferred_burial_time'] ?? '')), 0, 5),
         'responde' => trim((string) ($appointment['guest_name'] ?? '')),
     ]);
+    $scheduleMismatch = $form ? funeralKatinAwanScheduleMismatch($appointment, json_decode($form['form_data'], true) ?: []) : null;
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         verifyCsrf();
@@ -209,6 +216,8 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
   <?php if ($error): ?><div class="alert" style="background:var(--danger-bg); color:var(--danger); border:1px solid #f5c2c2;"><?= e($error) ?></div><?php endif; ?>
   <?php if (!empty($previewDocumentId)): ?><div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">The form was generated. If the PDF did not open automatically, <a href="<?= url('document.php?id=' . $previewDocumentId) ?>" target="_blank" rel="noopener"><strong>View Generated Form</strong></a>.</div><?php endif; ?>
   <?php if (!empty($form) && $form['status'] === 'rejected' && $form['rejection_reason']): ?><div class="alert" style="background:var(--danger-bg); color:var(--danger);"><strong>Secretary requested revisions:</strong> <?= e($form['rejection_reason']) ?></div><?php endif; ?>
+  <?php if (!empty($scheduleMismatch)) renderFuneralKatinAwanMismatchAlert($scheduleMismatch,
+      $form['status'] === 'rejected' ? 'requested' : (($form['review_status'] ?? '') === 'approved' ? 'wait' : 'editable'), $appointment); ?>
 
   <form method="POST" id="funeralGeneratedForm" data-general-error="Please complete all required fields before continuing.">
     <?= csrfField() ?>

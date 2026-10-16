@@ -16,6 +16,7 @@ require_once __DIR__ . '/../includes/service-fees.php';
 require_once __DIR__ . '/../includes/wedding-draft.php';
 require_once __DIR__ . '/../includes/funeral-forms.php';
 require_once __DIR__ . '/../includes/booking-draft-resume.php';
+require_once __DIR__ . '/../includes/funeral-schedule.php';
 require_once __DIR__ . '/../includes/secretary-notifications.php';
 $identity = requireParishionerOrGuest();
 $userId = $identity['user_id'];
@@ -144,9 +145,9 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         $time = null;
     }
 
-    // Funeral has no schedule, but its date of death must be a real date that
-    // has already passed (audit M-04). A future date would skip the mourning
-    // period check entirely.
+    // Funeral has no final schedule at booking, but its date of death must be a
+    // real date that has already passed (audit M-04); the preferred burial /
+    // Funeral Mass date is checked against it below.
     if ($category === 'Funeral') {
         $deathOk = $dateOfDeath !== null
             && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateOfDeath)
@@ -155,6 +156,14 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         if (!$deathOk) {
             bookRespondError($isAjax, 'Please enter a valid date of death that is not in the future.', url('parishioner/services.php'));
         }
+    }
+    // Funeral: the family's preferred burial / Funeral Mass schedule (one schedule),
+    // checked with the same rules the Secretary uses. It stays a request: the final
+    // schedule (appointment_date/time) is set only when the Secretary confirms it.
+    $preferredBurial = null;
+    if ($category === 'Funeral' && funeralPreferredScheduleAvailable()) {
+        $preferredBurial = funeralPreferredScheduleCheck($dateOfDeath, $_POST['preferred_burial_date'] ?? null, $_POST['preferred_burial_time'] ?? null, $serviceId);
+        if (!$preferredBurial['valid']) bookRespondError($isAjax, $preferredBurial['message'], url('parishioner/services.php'));
     }
 
     $usesScheduleToggle = in_array($category, SCHEDULE_TOGGLE_CATEGORIES, true);
@@ -299,7 +308,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         }
     }
 
-    // ---- Enforce the parish's fixed scheduling rules (Regular/Special, Mass conflicts, staff day-off, funeral mourning period, ...) ----
+    // ---- Enforce the parish's fixed scheduling rules (Regular/Special, Mass conflicts, staff day-off, ...) ----
     $finalTime = $time;
     if (!$isNoScheduleCategory) {
         $check = validateBooking($category, $date, $time, $dateOfDeath, $scheduleTypeToSave, $serviceId);
@@ -453,6 +462,8 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
             'contactPhone' => $contactPhone,
             'locationAddress' => $locationAddress,
             'dateOfDeath' => $dateOfDeath,
+            'preferredBurialDate' => $preferredBurial['date'] ?? null,
+            'preferredBurialTime' => $preferredBurial['time'] ?? null,
             'requirementsSnapshot' => $requirementsSnapshot,
             'uploaded_keys' => [],
             'katin_awan_payload' => null,

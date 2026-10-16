@@ -8,6 +8,7 @@ require_once __DIR__ . '/../includes/document-validation.php';
 require_once __DIR__ . '/../includes/supporting-documents.php';
 require_once __DIR__ . '/../includes/generated-form-workflow.php';
 require_once __DIR__ . '/../includes/requirements-review.php';
+require_once __DIR__ . '/../includes/funeral-schedule.php';
 requireRole('Parishioner');
 
 $userId = currentUser()['user_id'];
@@ -363,8 +364,9 @@ if (!$isAjax) {
       <?php endif; ?>
     </p>
     <?php if ($appointment['category'] === 'Wedding'): ?><?php renderPrecanaSummary($appointment); ?><?php endif; ?>
-    <?php if ($appointment['category'] === 'Funeral' && $appointment['date_of_death']): ?>
-      <p><strong>Date of Death:</strong> <?= formatDate($appointment['date_of_death']) ?></p>
+    <?php if ($appointment['category'] === 'Funeral'): // burial and Funeral Mass are one schedule ?>
+      <?php if ($appointment['date_of_death']): ?><p><strong>Date of Death:</strong> <?= formatDate($appointment['date_of_death']) ?></p><?php endif; ?>
+      <?php renderFuneralScheduleSummary($appointment); ?>
     <?php endif; ?>
     <?php if ($appointment['remarks']): ?><p><strong>Remarks:</strong> <?= e($appointment['remarks']) ?></p><?php endif; ?>
     <?php if (!empty($appointment['requester_name'])): ?>
@@ -566,6 +568,9 @@ if (!$isAjax) {
                 $stateForm = $gf ?: (!empty($matches) ? ['status' => 'generated', 'document_id' => $matches[0]['document_id']] : null);
                 $state = generatedFormWorkflowState($stateForm, $matches[0] ?? null, false);
                 $funeralApproved = $state['code'] === 'approved';
+                // Editable while pending, and after approval when the Parish Office asked for an update (schedule changed).
+                $katinEditable = !$funeralApproved && (((int) $appointment['status_id'] === 1 && ($canUpload || $state['code'] === 'draft' || $state['code'] === 'needs_revision'))
+                    || (in_array((int) $appointment['status_id'], [2, 4], true) && $state['code'] === 'needs_revision'));
             ?>
             <div class="generated-form-item" style="margin-top: 16px;">
               <div class="generated-form-header">
@@ -573,9 +578,11 @@ if (!$isAjax) {
                 <span class="generated-form-status">Status: <?= generatedFormStatusBadge($state) ?></span>
                 <div class="text-muted" style="margin-top:4px; font-size:.9rem;"><?= e($state['description']) ?></div>
                 <?php if (!empty($gf['rejection_reason'])): ?><div class="text-muted" style="margin-top:4px; font-size:.9rem;">Secretary's note: <?= e($gf['rejection_reason']) ?></div><?php endif; ?>
+                <?php $katinMismatch = $gf ? funeralKatinAwanScheduleMismatch($appointment, json_decode((string) ($gf['form_data'] ?? ''), true) ?: []) : null; ?>
+                <?php if ($katinMismatch) renderFuneralKatinAwanMismatchAlert($katinMismatch, $state['code'] === 'needs_revision' ? 'requested' : ($katinEditable ? 'editable' : 'wait'), $appointment, ' margin:8px 0 0;'); ?>
               </div>
               <div class="generated-form-actions">
-                <?php if (!$funeralApproved && (int) $appointment['status_id'] === 1 && ($canUpload || $state['code'] === 'draft' || $state['code'] === 'needs_revision')): ?>
+                <?php if ($katinEditable): ?>
                   <a href="<?= url('funeral-form.php?appointment_id=' . (int) $appointment['appointment_id']) ?>" class="btn btn-outline btn-sm"><?= e(generatedFormWorkflowActionLabel($state)) ?></a>
                 <?php endif; ?>
                 <?php if (!empty($matches)): foreach ($matches as $d): ?>

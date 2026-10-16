@@ -9,6 +9,7 @@ require_once __DIR__ . '/../includes/baptism-forms.php';
 require_once __DIR__ . '/../includes/appointment-workflow.php';
 require_once __DIR__ . '/../includes/generated-form-workflow.php';
 require_once __DIR__ . '/../includes/requirements-review.php';
+require_once __DIR__ . '/../includes/funeral-schedule.php';
 requireRole('Secretary', 'Admin');
 
 $id = (int) ($_GET['id'] ?? 0);
@@ -52,15 +53,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $currentStatusId = (int) $actionAppointment['status_id'];
 
-    // Documents are reviewed while the appointment is pending. The one exception:
-    // the Pre-Cana Seminar Certificate of a parish seminar arrives after the
-    // seminar, so it is reviewed until the Wedding is confirmed (includes/precana.php).
-    $documentReviewOpen = static function (int $documentId) use ($id, $currentStatusId): bool {
+    // Documents are reviewed while the appointment is pending. Two exceptions, until
+    // the appointment is confirmed: the Pre-Cana Seminar Certificate of a parish
+    // seminar (it arrives after the seminar — includes/precana.php), and a Funeral's
+    // Katin-awan sa Paglubong form corrected after its schedule changed.
+    $documentReviewOpen = static function (int $documentId) use ($id, $currentStatusId, $actionAppointment): bool {
         if ($currentStatusId === 1) return true;
-        if (!in_array($currentStatusId, [2, 4], true) || !precanaForAppointment($id)) return false;
-        $label = db()->prepare('SELECT requirement_label FROM uploaded_documents WHERE document_id = ? AND appointment_id = ?');
-        $label->execute([$documentId, $id]);
-        return precanaIsCertificateLabel((string) $label->fetchColumn());
+        if (!in_array($currentStatusId, [2, 4], true)) return false;
+        $doc = db()->prepare('SELECT requirement_label, generated_form_type FROM uploaded_documents WHERE document_id = ? AND appointment_id = ?');
+        $doc->execute([$documentId, $id]);
+        $docRow = $doc->fetch() ?: [];
+        if (($actionAppointment['category'] ?? '') === 'Funeral' && ($docRow['generated_form_type'] ?? '') === 'katin_awan_paglubong') return true;
+        return precanaForAppointment($id) && precanaIsCertificateLabel((string) ($docRow['requirement_label'] ?? ''));
     };
 
     if ($action === 'verify_document') {
@@ -290,7 +294,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // auto-cancelled as unpaid.) A Wedding still waiting on its Pre-Cana
             // conditions stays Approved — no payment needed — and is confirmed later.
             $noPaymentNeeded = appointmentNoPaymentRequired($lockedAppointment);
-            $ceremonyBlockers = $noPaymentNeeded ? precanaCeremonyBlockers($lockedAppointment) : [];
+            $ceremonyBlockers = $noPaymentNeeded ? appointmentConfirmationBlockers($lockedAppointment) : [];
             $confirmNow = $noPaymentNeeded && !$ceremonyBlockers;
             $update = $pdo->prepare($confirmNow
                 ? 'UPDATE appointments
@@ -323,7 +327,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             respondAjaxOrRedirect($isAjax, true, 'Appointment approved and confirmed. No payment is required (' . ($isFuneralApproval ? 'PSS Giver — No Fees' : 'verified total: No Fees') . '). ' . $approvalNotice, $redirectUrl);
         }
         if ($noPaymentNeeded) {
-            logActivity($userId, "Approved appointment #$id (no fees; awaiting Pre-Cana conditions before confirmation)", 'Appointments');
+            logActivity($userId, "Approved appointment #$id (no fees; awaiting " . ($lockedAppointment['category'] === 'Funeral' ? 'the confirmed burial / Funeral Mass schedule' : 'Pre-Cana conditions') . ' before confirmation)', 'Appointments');
             $approvalNotice = appointmentApprovedNoticeSummary(notifyAppointmentApproved($id, (int) $userId));
             respondAjaxOrRedirect($isAjax, true, 'Appointment approved. No payment is required. Confirm it once these are done: ' . implode(' ', $ceremonyBlockers) . ' ' . $approvalNotice, $redirectUrl);
         }
@@ -420,9 +424,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $apptInfo = $stmt->fetch();
         $category = $apptInfo['category'];
 
+        // Funeral: the final burial / Funeral Mass schedule needs both a date and a time.
+        if ($category === 'Funeral' && (!$newDate || !$newTime)) {
+            respondAjaxOrRedirect($isAjax, false, 'Please choose both the burial / Funeral Mass date and time.', $redirectUrl);
+        }
         $check = validateBooking($category, $newDate, $newTime, $apptInfo['date_of_death'], $apptInfo['schedule_type'], (int) $apptInfo['service_id']);
         if (!$check['valid']) {
             respondAjaxOrRedirect($isAjax, false, $check['message'], $redirectUrl);
+        }
+        // Funeral: the final schedule depends on priest availability, so an assigned
+        // priest must be free at the new date and time.
+        if ($category === 'Funeral') {
+            $funeralPriest = db()->prepare('SELECT priest_id FROM appointments WHERE appointment_id = ?');
+            $funeralPriest->execute([$id]);
+            $funeralPriestId = (int) $funeralPriest->fetchColumn();
+            if ($funeralPriestId > 0) {
+                $priestCheck = priestIsAvailable($funeralPriestId, $newDate, $check['forcedTime'] ?? $newTime, $id);
+                if (!$priestCheck['available']) respondAjaxOrRedirect($isAjax, false, $priestCheck['reason'], $redirectUrl);
+            }
         }
         // The Wedding Ceremony may not move to or before its Pre-Cana seminar (a separate schedule).
         $reschedulePrecana = $category === 'Wedding' ? precanaForAppointment($id) : null;
@@ -440,11 +459,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         logActivity($userId, "Rescheduled appointment #$id", 'Appointments');
 
-        // Confirmation / First Communion are booked without a date; tell the
-        // parishioner once the office sets the final schedule. Guests see it on
-        // their booking status page instead (they have no account to notify).
+        // Confirmation / First Communion / Funeral are booked without a final date;
+        // tell the parishioner once the office sets the final schedule. Guests see
+        // it on their booking status page instead (they have no account to notify).
         $scheduleMessage = 'Schedule updated.';
-        if (in_array($category, ['Confirmation', 'First Communion'], true)) {
+        if (in_array($category, ['Confirmation', 'First Communion', 'Funeral'], true)) {
             try {
                 $recipient = db()->prepare(
                     "SELECT u.user_id, a.guest_name FROM appointments a
@@ -467,6 +486,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $scheduleMessage = 'Schedule updated, but the parishioner could not be notified. Please contact them directly.';
             }
         }
+        // Funeral: never auto-edit a saved Katin-awan form; point out a differing burial date/time.
+        if ($category === 'Funeral') {
+            require_once __DIR__ . '/../includes/funeral-schedule.php';
+            $katinStmt = db()->prepare("SELECT form_data FROM generated_forms WHERE service_category = 'Funeral' AND appointment_id = ? AND form_type = 'katin_awan_paglubong'");
+            $katinStmt->execute([$id]);
+            $katinData = $katinStmt->fetchColumn();
+            $mismatch = $katinData ? funeralKatinAwanScheduleMismatch(['appointment_date' => $newDate, 'appointment_time' => $finalTime], json_decode((string) $katinData, true) ?: []) : null;
+            if ($mismatch) $scheduleMessage .= ' Note: the Katin-awan sa Paglubong form still shows a different burial date/time — use "Request Katin-awan Update" if it needs correcting.';
+        }
         respondAjaxOrRedirect($isAjax, true, $scheduleMessage, $redirectUrl);
     } elseif ($action === 'confirm') {
         $confirmStmt = db()->prepare('SELECT a.*, s.category FROM appointments a JOIN services s ON s.service_id = a.service_id WHERE a.appointment_id = ?');
@@ -478,7 +506,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             respondAjaxOrRedirect($isAjax, false, 'Only a payment-verified appointment can be confirmed.', $redirectUrl);
         }
         // Ready for ceremony: a Wedding with a parish Pre-Cana seminar needs its conditions met first.
-        $confirmBlockers = precanaCeremonyBlockers($confirmAppointment);
+        $confirmBlockers = appointmentConfirmationBlockers($confirmAppointment);
         if ($confirmBlockers) {
             respondAjaxOrRedirect($isAjax, false, 'Cannot confirm yet: ' . implode(' ', $confirmBlockers), $redirectUrl);
         }
@@ -548,6 +576,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         respondAjaxOrRedirect($isAjax, true, ($isConfirm
             ? 'Special Pre-Cana schedule confirmed: ' . $when . '. '
             : 'New Special Pre-Cana schedule proposed: ' . $when . '. It stays Office-Proposed — Not Yet Confirmed until you confirm it. ') . $emailNotice, $redirectUrl);
+    } elseif ($action === 'request_katin_awan_update') {
+        // The confirmed burial / Funeral Mass schedule differs from the date/time in the
+        // saved Katin-awan sa Paglubong form: mark the form "Needs Revision" through the
+        // regular review workflow so the family updates it. Their answers are never
+        // changed here.
+        require_once __DIR__ . '/../includes/funeral-schedule.php';
+        $funeralStmt = db()->prepare('SELECT a.*, s.category FROM appointments a JOIN services s ON s.service_id = a.service_id WHERE a.appointment_id = ?');
+        $funeralStmt->execute([$id]);
+        $funeralRow = $funeralStmt->fetch() ?: [];
+        $katinStmt = db()->prepare("SELECT form_data, document_id FROM generated_forms WHERE service_category = 'Funeral' AND appointment_id = ? AND form_type = 'katin_awan_paglubong'");
+        $katinStmt->execute([$id]);
+        $katin = $katinStmt->fetch() ?: null;
+        $mismatch = $katin ? funeralKatinAwanScheduleMismatch($funeralRow, json_decode((string) $katin['form_data'], true) ?: []) : null;
+        if (($funeralRow['category'] ?? '') !== 'Funeral' || !in_array($currentStatusId, [1, 2, 4], true) || !$mismatch) {
+            respondAjaxOrRedirect($isAjax, false, 'There is no burial schedule difference to correct in the Katin-awan sa Paglubong form.', $redirectUrl);
+        }
+        $confirmedWhen = date('F j, Y', strtotime((string) $funeralRow['appointment_date'])) . ' at ' . date('g:i A', strtotime((string) $funeralRow['appointment_time']));
+        $reason = "The burial / Funeral Mass schedule was confirmed as $confirmedWhen. Please update KANUS-A ILUBONG and ORAS in this form, then generate it again.";
+        $pdo = db();
+        $pdo->beginTransaction();
+        try {
+            if (!empty($katin['document_id'])) {
+                $pdo->prepare("UPDATE uploaded_documents SET review_status = 'rejected', verified = FALSE, rejection_reason = ?, reviewed_by = ?, reviewed_at = NOW() WHERE document_id = ? AND appointment_id = ? AND superseded_by IS NULL")
+                    ->execute([$reason, $userId, (int) $katin['document_id'], $id]);
+            }
+            $pdo->prepare("UPDATE generated_forms SET status = 'rejected', rejection_reason = ?, updated_at = CURRENT_TIMESTAMP WHERE service_category = 'Funeral' AND appointment_id = ? AND form_type = 'katin_awan_paglubong'")
+                ->execute([$reason, $id]);
+            $recipient = $pdo->prepare("SELECT u.user_id FROM appointments a JOIN parishioners p ON p.parishioner_id = a.parishioner_id JOIN users u ON u.user_id = p.user_id WHERE a.appointment_id = ? AND COALESCE(a.guest_name, '') = ''");
+            $recipient->execute([$id]);
+            if ($recipientId = $recipient->fetchColumn()) {
+                $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Requirement Needs Revision', ?)")
+                    ->execute([(int) $recipientId, "Please update the Katin-awan sa Paglubong form for appointment #$id: $reason"]);
+            }
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('Katin-awan update request failed: ' . $e->getMessage());
+            respondAjaxOrRedirect($isAjax, false, 'The update request could not be saved. Please try again.', $redirectUrl);
+        }
+        logActivity($userId, "Requested a Katin-awan sa Paglubong update for appointment #$id (schedule changed)", 'Appointments');
+        requirementsReviewAfterSecretaryDecision($id);
+        // Pending appointments: it goes out with the regular "Send Revision Request" email.
+        $updateNotice = $currentStatusId === 1
+            ? 'Send the revision request to email the applicant.'
+            : funeralFormUpdateEmailNotice(sendFuneralFormUpdateEmail($id, $reason, (int) $userId));
+        respondAjaxOrRedirect($isAjax, true, 'Katin-awan sa Paglubong marked "Needs Revision" so the family updates the burial date and time. ' . $updateNotice, $redirectUrl);
     } elseif ($action === 'complete') {
         if ($currentStatusId !== 5) {
             respondAjaxOrRedirect($isAjax, false, 'Only a confirmed appointment can be completed.', $redirectUrl);
@@ -610,7 +684,7 @@ $certificateReviewOpen = precanaCertificateOpen($appointment);
 $canReviewDoc = static fn(array $d): bool => (int) $appointment['status_id'] === 1
     || ($certificateReviewOpen && precanaIsCertificateLabel($d['requirement_label'] ?? ''));
 // Ready for ceremony: what still blocks confirming (Pre-Cana schedule + certificate).
-$ceremonyBlockers = precanaCeremonyBlockers($appointment);
+$ceremonyBlockers = appointmentConfirmationBlockers($appointment);
 $noPaymentRequired = appointmentNoPaymentRequired($appointment);
 
 // Each priest's upcoming schedule and declared unavailability, so the
@@ -772,8 +846,27 @@ if (!$isAjax) {
         </section>
       <?php endif; ?>
     <?php endif; ?>
-    <?php if ($appointment['category'] === 'Funeral' && $appointment['date_of_death']): ?>
-      <p><strong>Date of Death:</strong> <?= formatDate($appointment['date_of_death']) ?> <span class="text-muted">(9-day mourning period ends <?= formatDate(date('Y-m-d', strtotime($appointment['date_of_death'] . ' +9 days'))) ?>)</span></p>
+    <?php if ($appointment['category'] === 'Funeral'): // burial and Funeral Mass are one schedule ?>
+      <?php if ($appointment['date_of_death']): ?><p><strong>Date of Death:</strong> <?= formatDate($appointment['date_of_death']) ?></p><?php endif; ?>
+      <?php renderFuneralScheduleSummary($appointment); ?>
+      <?php
+        $katinStmt = db()->prepare("SELECT form_data FROM generated_forms WHERE service_category = 'Funeral' AND appointment_id = ? AND form_type = 'katin_awan_paglubong'");
+        $katinStmt->execute([$id]);
+        $katinData = $katinStmt->fetchColumn();
+        $katinMismatch = $katinData ? funeralKatinAwanScheduleMismatch($appointment, json_decode((string) $katinData, true) ?: []) : null;
+      ?>
+      <?php if ($katinMismatch): ?>
+        <div class="approval-blockers" role="status">
+          <strong>Katin-awan sa Paglubong differs from the confirmed schedule:</strong> <?= e($katinMismatch) ?>
+          <?php if (in_array((int) $appointment['status_id'], [1, 2, 4], true)): ?>
+            <form method="POST" action="<?= e($redirectUrl) ?>" style="margin-top:8px;">
+              <?= csrfField() ?><input type="hidden" name="action" value="request_katin_awan_update">
+              <button type="submit" class="btn btn-outline btn-sm">Request Katin-awan Update</button>
+              <span class="helper-text">Marks the form "Needs Revision" so the family corrects it (their answers are not changed).</span>
+            </form>
+          <?php endif; ?>
+        </div>
+      <?php endif; ?>
     <?php endif; ?>
     <?php if (!in_array($appointment['category'], ['Mass Intention', 'Donation'], true) && $appointment['requirements']): ?>
       <p><strong>Required Documents:</strong> <?= e($appointment['requirements']) ?></p>
@@ -978,7 +1071,7 @@ if (!$isAjax) {
                   </td>
                   <td data-label="Actions">
                     <div class="review-actions">
-                    <?php if ($gf['document_id'] && $formStatus === 'pending_review' && (int) $appointment['status_id'] === 1): ?>
+                    <?php if ($gf['document_id'] && $formStatus === 'pending_review' && ((int) $appointment['status_id'] === 1 || ($appointment['category'] === 'Funeral' && in_array((int) $appointment['status_id'], [2, 4], true)))): ?>
                       <form method="POST" action="<?= e($redirectUrl) ?>" class="review-approve-form">
                         <?= csrfField() ?><input type="hidden" name="action" value="verify_document"><input type="hidden" name="document_id" value="<?= $gf['document_id'] ?>">
                         <button type="submit" class="btn btn-success btn-sm">Approve</button>
@@ -988,7 +1081,7 @@ if (!$isAjax) {
                     </div>
                   </td>
                 </tr>
-                <?php if ($gf['document_id'] && $formStatus === 'pending_review' && (int) $appointment['status_id'] === 1): ?>
+                <?php if ($gf['document_id'] && $formStatus === 'pending_review' && ((int) $appointment['status_id'] === 1 || ($appointment['category'] === 'Funeral' && in_array((int) $appointment['status_id'], [2, 4], true)))): ?>
                   <tr id="rejectFormRow_<?= $gf['document_id'] ?>" class="review-rejection-row" hidden>
                     <td colspan="3">
                       <form id="rejectForm_<?= $gf['document_id'] ?>" class="review-rejection-form" method="POST" action="<?= e($redirectUrl) ?>">
@@ -1224,18 +1317,38 @@ if (!$isAjax) {
     <?php if (!in_array($appointment['category'], ['Mass Intention', 'Donation'], true) && in_array((int) $appointment['status_id'], [1, 2, 4, 5], true)): ?>
     <div class="card">
       <div class="card-header"><h3>Reschedule</h3></div>
+      <?php
+        // Funeral: one-click confirmation of the family's preferred schedule, through
+        // this same Reschedule action (same rules, conflict and priest checks).
+        $isFuneralSchedule = $appointment['category'] === 'Funeral';
+        $funeralPreferredOpen = $isFuneralSchedule && !empty($appointment['preferred_burial_date']) && !empty($appointment['preferred_burial_time'])
+            && (substr((string) $appointment['appointment_date'], 0, 10) !== substr((string) $appointment['preferred_burial_date'], 0, 10)
+                || substr((string) $appointment['appointment_time'], 0, 5) !== substr((string) $appointment['preferred_burial_time'], 0, 5));
+      ?>
+      <?php if ($funeralPreferredOpen): ?>
+        <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>" class="mb-3">
+          <?= csrfField() ?>
+          <input type="hidden" name="action" value="reschedule">
+          <input type="hidden" name="appointment_date" value="<?= e(substr((string) $appointment['preferred_burial_date'], 0, 10)) ?>">
+          <input type="hidden" name="appointment_time" value="<?= e(substr((string) $appointment['preferred_burial_time'], 0, 5)) ?>">
+          <button type="submit" class="btn btn-success btn-block">✔ Confirm Preferred Schedule</button>
+          <p class="helper-text" style="margin:6px 0 0;">Sets the burial / Funeral Mass to the family's preferred <?= e(funeralScheduleDisplay($appointment)['preferred_date']) ?> at <?= e(funeralScheduleDisplay($appointment)['preferred_time']) ?>. Or choose another date and time below.</p>
+        </form>
+      <?php endif; ?>
       <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>">
         <?= csrfField() ?>
         <input type="hidden" name="action" value="reschedule">
         <div class="form-group">
-          <label>New Date</label>
-          <input type="date" name="appointment_date" required>
+          <label><?= $isFuneralSchedule ? 'Burial / Funeral Mass Date' : 'New Date' ?></label>
+          <input type="date" name="appointment_date" required<?= $isFuneralSchedule ? ' min="' . e(date('Y-m-d')) . '"' : '' ?>>
         </div>
         <div class="form-group">
-          <label>New Time</label>
-          <input type="time" name="appointment_time" required>
+          <label><?= $isFuneralSchedule ? 'Burial / Funeral Mass Time' : 'New Time' ?></label>
+          <input type="time" name="appointment_time" required<?= $isFuneralSchedule ? ' step="1800"' : '' ?>>
         </div>
-        <p class="helper-text">Fixed-schedule services (Baptism, Wedding, Funeral) will still be checked against parish scheduling rules.</p>
+        <p class="helper-text"><?= $isFuneralSchedule
+            ? 'After the date of death, 30-minute steps, outside the staff day off; the assigned priest must be available.'
+            : 'Fixed-schedule services (Baptism, Wedding, Funeral) will still be checked against parish scheduling rules.' ?></p>
         <button type="submit" class="btn btn-outline btn-block">Move Schedule</button>
       </form>
     </div>

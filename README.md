@@ -95,7 +95,7 @@ PARISHHUB enforces the parish's actual scheduling policy in code, not just as a 
 | **Baptism** | 1st and 3rd Saturday of the month only, fixed at 9:00 AM |
 | **Wedding** | 4th Saturday of the month only, fixed at 8:00 AM |
 | **Confirmation** | No fixed rule — depends on the Bishop's availability; the office coordinates the exact date directly |
-| **Funeral Mass** | Must fall on or after the 9-day mourning period from the date of death; fixed at 1:00 PM |
+| **Funeral Mass** | Burial and Funeral Mass are one schedule. The family gives a preferred date (after the date of death, not in the past) and time (30-minute steps); the Secretary confirms it or sets another valid date/time |
 | **House Blessing** | No fixed rule — arranged directly between the parishioner and the priest |
 | **Mass Intention** | Must land on an actual Mass time: daily 6:00 AM (5:15 PM on Wednesdays), or Sunday 6:00 AM / 9:00 AM / 4:30 PM |
 | **Staff day off** | Every Monday from 12:00 PM onward, and all day Tuesday — no bookings accepted in this window, for any service |

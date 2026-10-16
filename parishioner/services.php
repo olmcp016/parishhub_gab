@@ -4,6 +4,7 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/scheduling.php';
 require_once __DIR__ . '/../includes/wedding-draft.php';
 require_once __DIR__ . '/../includes/booking-draft-resume.php';
+require_once __DIR__ . '/../includes/funeral-schedule.php';
 require_once __DIR__ . '/../includes/paymongo.php';
 $identity = requireParishionerOrGuest();
 
@@ -88,6 +89,9 @@ $scheduleToggleCategories = ['Baptism', 'Wedding'];
 // columns exist. Regular sessions are calculated here (second Saturdays,
 // 8:00 AM); the form only offers the ones before the chosen wedding date.
 $precanaEnabled = precanaAvailable();
+// Funeral preferred burial / Funeral Mass schedule (includes/funeral-schedule.php):
+// shown once database/migration_funeral_preferred_burial.sql has been run.
+$funeralScheduleEnabled = funeralPreferredScheduleAvailable();
 $precanaSessions = $precanaEnabled ? precanaRegularSessions(null, 18) : [];
 
 $active = 'services';
@@ -313,20 +317,32 @@ $noFeesLabel = fn(float $amount): string => $amount > 0 ? money($amount) : 'No F
         <style>
           /* JS sets #dateTimeRow to display:flex (overriding .form-row's grid),
              so split the two halves evenly with flex-basis 0 */
-          #dateTimeRow {
+          #dateTimeRow,
+          #funeralScheduleRow {
             display: flex;
             gap: 16px;
             align-items: flex-start;
           }
 
-          #dateTimeRow>.form-group {
+          #dateTimeRow>.form-group,
+          #funeralScheduleRow>.form-group {
             flex: 1 1 0;
             min-width: 0;
             margin-bottom: 0;
           }
 
+          #funeralScheduleRow { margin-bottom: 16px; }
+
+          /* Funeral preferred schedule: side by side on desktop, stacked on phones. */
+          @media (max-width: 600px) {
+            #funeralScheduleRow { flex-direction: column; gap: 12px; }
+            #funeralScheduleRow>.form-group { width: 100%; }
+          }
+
           #dateTimeRow input[type="date"],
           #dateTimeRow input[type="time"],
+          #funeralScheduleRow input[type="date"],
+          #funeralScheduleRow input[type="time"],
           #dateTimeRow select,
           #priestSelect {
             width: 100%;
@@ -481,8 +497,20 @@ $noFeesLabel = fn(float $amount): string => $amount > 0 ? money($amount) : 'No F
           style="display:none; background: var(--cream); padding: 14px; border-radius: 8px;">
           <label>Date of Death</label>
           <input type="date" name="date_of_death" id="dateOfDeathInput" data-past max="<?= date('Y-m-d') ?>">
-          <p class="helper-text" id="earliestFuneralHint"></p>
         </div>
+
+        <?php if ($funeralScheduleEnabled): // Funeral only — same two-column layout as Baptism's Special date/time ?>
+        <div class="form-row" id="funeralScheduleRow" style="display:none;">
+          <div class="form-group">
+            <label for="funeralPreferredDateInput">Preferred Burial / Funeral Mass Date</label>
+            <input type="date" name="preferred_burial_date" id="funeralPreferredDateInput" min="<?= date('Y-m-d') ?>" disabled>
+          </div>
+          <div class="form-group">
+            <label for="funeralPreferredTimeInput">Preferred Burial / Funeral Mass Time</label>
+            <input type="time" name="preferred_burial_time" id="funeralPreferredTimeInput" step="1800" disabled>
+          </div>
+        </div>
+        <?php endif; ?>
 
         <div class="form-group" id="scheduleTypeGroup"
           style="display:none; background: var(--cream); padding: 14px; border-radius: 8px;">
@@ -1184,6 +1212,7 @@ document.addEventListener('DOMContentLoaded', function () {
     );
     amount.setCustomValidity(isMass && !(parseFloat(amount.value) > 0) ? 'Offering amount must be greater than ₱0.' : '');
     precanaBeforeCheck();
+    funeralScheduleBeforeCheck();
   }
 
   /**
@@ -1248,7 +1277,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (dateInput.value) dateInput.dispatchEvent(new Event('change'));
     var firstName = document.getElementById('guestFirstNameInput');
     if (firstName) firstName.dispatchEvent(new Event('input'));
-    updateEarliestFuneralHint();
+    updateFuneralScheduleUI();
     refreshAvailability();
     return true;
   }
@@ -1273,6 +1302,9 @@ document.addEventListener('DOMContentLoaded', function () {
         'weddingSponsorCountInput' => $resumeDraft['wedding_sponsor_count'] !== null ? (string) $resumeDraft['wedding_sponsor_count'] : null,
         'remarksInput' => $resumeDraft['remarks'],
         'dateOfDeathInput' => $resumeDraft['date_of_death'],
+        // Funeral preferred burial / Funeral Mass schedule.
+        'funeralPreferredDateInput' => $resumeDraft['preferred_burial_date'] ?? null,
+        'funeralPreferredTimeInput' => $resumeDraft['preferred_burial_time'] ?? null,
         // Pre-Cana seminar: Regular keeps its session, Special its preferred date/time.
         'precanaSessionSelect' => ($resumeDraft['precana_type'] ?? null) === 'Regular' ? $resumeDraft['precana_date'] : null,
         'precanaDateInput' => ($resumeDraft['precana_type'] ?? null) === 'Special' ? $resumeDraft['precana_date'] : null,
@@ -1545,12 +1577,9 @@ document.addEventListener('DOMContentLoaded', function () {
       priestGroup.style.display = 'none';
       priestSelect.disabled = true;
 
-      // Confirmation / First Communion: their note (no date/time to pick) is shown in the
-      // policy box at the top of the form, above Guest Information — not repeated here.
-      if (category === 'Funeral') {
-        specialMsgBox.style.display = 'block';
-        specialMsgBox.textContent = "Funeral schedule will be arranged by the parish office after reviewing your documents.";
-      }
+      // Confirmation / First Communion / Funeral: their note is shown in the policy box
+      // at the top of the form, above Guest Information — not repeated here. Funeral's
+      // preferred date/time has its own row under Date of Death (updateFuneralScheduleUI).
     } else if (isMassIntention) {
       massGroup.style.display = 'block';
       massHidden.disabled = false;
@@ -1570,7 +1599,7 @@ document.addEventListener('DOMContentLoaded', function () {
       updateOccupiedTimesHint();
     }
 
-    updateEarliestFuneralHint();
+    updateFuneralScheduleUI();
     refreshAvailability();
   }
 
@@ -2114,20 +2143,50 @@ document.addEventListener('DOMContentLoaded', function () {
     refreshAvailability();
   }
 
-  function updateEarliestFuneralHint() {
+  /**
+   * Funeral: the family's preferred burial / Funeral Mass date and time (one
+   * schedule). Shown, enabled and required for Funeral only; the date picker
+   * starts after the date of death (and never before today). The Parish Office
+   * confirms the final schedule.
+   */
+  function updateFuneralScheduleUI() {
+    var row = document.getElementById('funeralScheduleRow');
+    if (!row) return;
     var select = document.getElementById('serviceSelect');
-    var category = select.options[select.selectedIndex]?.dataset.category || '';
-    var hint = document.getElementById('earliestFuneralHint');
-    var dodInput = document.getElementById('dateOfDeathInput');
-    var dateInput = document.getElementById('appointmentDateInput');
+    var isFuneral = (select.options[select.selectedIndex]?.dataset.category || '') === 'Funeral';
+    var dateInput = document.getElementById('funeralPreferredDateInput');
+    var timeInput = document.getElementById('funeralPreferredTimeInput');
+    row.style.display = isFuneral ? 'flex' : 'none';
+    [dateInput, timeInput].forEach(function (el) { el.disabled = !isFuneral; el.required = isFuneral; });
+    var deathDate = document.getElementById('dateOfDeathInput').value;
+    var dayAfterDeath = deathDate ? addDaysJS(deathDate, 1) : '';
+    dateInput.min = dayAfterDeath && dayAfterDeath > todayStr() ? dayAfterDeath : todayStr();
+  }
 
-    if (category !== 'Funeral' || !dodInput.value) {
-      hint.textContent = '';
-      return;
+  /** Funeral preferred schedule rules the browser cannot express with attributes (the server re-checks). */
+  function funeralScheduleBeforeCheck() {
+    var row = document.getElementById('funeralScheduleRow');
+    if (!row) return;
+    var dateInput = document.getElementById('funeralPreferredDateInput');
+    var timeInput = document.getElementById('funeralPreferredTimeInput');
+    dateInput.setCustomValidity('');
+    timeInput.setCustomValidity('');
+    if (row.style.display === 'none') return;
+    var deathDate = document.getElementById('dateOfDeathInput').value;
+    var date = dateInput.value;
+    var time = timeInput.value;
+    var now = new Date();
+    var nowTime = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+    if (date) {
+      if (date < todayStr()) dateInput.setCustomValidity('The preferred date cannot be in the past.');
+      else if (deathDate && date <= deathDate) dateInput.setCustomValidity('The preferred burial / Funeral Mass date must be after the date of death.');
+      else if (new Date(date + 'T00:00:00').getDay() === 2) dateInput.setCustomValidity('The parish office is closed all day Tuesday (staff day off). Please choose another date.');
     }
-    var earliest = addDaysJS(dodInput.value, 9);
-    hint.textContent = 'Earliest available funeral Mass date: ' + earliest + ' (9-day mourning period), fixed at 1:00 PM.';
-    dateInput.min = earliest;
+    if (time) {
+      if (!/:(00|30)$/.test(time)) timeInput.setCustomValidity('Please choose a time in 30-minute intervals (for example 9:00 or 9:30).');
+      else if (date && new Date(date + 'T00:00:00').getDay() === 1 && time >= '12:00') timeInput.setCustomValidity('The parish office is closed every Monday afternoon (staff day off). Please choose a morning time or another date.');
+      else if (date && date === todayStr() && time <= nowTime) timeInput.setCustomValidity('Please choose a time that is still ahead.');
+    }
   }
 
   document.addEventListener('DOMContentLoaded', function () {
@@ -2137,7 +2196,7 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('scheduleTypeSpecial').addEventListener('change', toggleServiceUI);
     document.getElementById('priestSelect').addEventListener('change', refreshAvailability);
     document.getElementById('dateOfDeathInput').addEventListener('change', function () {
-      updateEarliestFuneralHint();
+      updateFuneralScheduleUI();
       refreshAvailability();
     });
     document.getElementById('appointmentDateInput').addEventListener('change', function () {

@@ -132,6 +132,24 @@ function appointmentGeneratedFormReviewRows(PDO $pdo, int $appointmentId, string
 }
 
 /**
+ * What must be in place before an appointment is Confirmed (ready for the
+ * service): a Wedding's Pre-Cana conditions, and a Funeral's final burial /
+ * Funeral Mass schedule — the family's preferred schedule is only a request
+ * until the Secretary confirms or reschedules it. Applies to every path to
+ * Confirmed, including the no-fee (₱0) shortcut.
+ *
+ * @return string[]
+ */
+function appointmentConfirmationBlockers(array $appointment): array
+{
+    $blockers = precanaCeremonyBlockers($appointment);
+    if (($appointment['category'] ?? '') === 'Funeral' && (empty($appointment['appointment_date']) || empty($appointment['appointment_time']))) {
+        $blockers[] = 'Schedule: confirm the burial / Funeral Mass date and time first (Reschedule → Confirm Preferred Schedule, or choose another time).';
+    }
+    return $blockers;
+}
+
+/**
  * @return array{can_approve: bool, blocking_reasons: string[], requirements: string[], generated_forms: array}
  */
 function appointmentApprovalEligibility(array $appointment): array

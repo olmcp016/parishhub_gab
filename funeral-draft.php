@@ -6,6 +6,7 @@ require_once __DIR__ . '/includes/document-validation.php';
 require_once __DIR__ . '/includes/supporting-documents.php';
 require_once __DIR__ . '/includes/funeral-draft.php';
 require_once __DIR__ . '/includes/funeral-forms.php';
+require_once __DIR__ . '/includes/funeral-schedule.php';
 require_once __DIR__ . '/includes/generated-form-workflow.php';
 require_once __DIR__ . '/includes/secretary-notifications.php';
 
@@ -62,6 +63,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submi
         redirect(url('funeral-draft.php?draft_id=' . $draftId));
     }
 
+    // Preferred burial / Funeral Mass schedule: checked again (time has passed since
+    // the booking step). Saved as the family's request only; appointment_date/time
+    // stay empty until the Secretary confirms the final schedule.
+    $preferredBurialValues = [];
+    if (funeralPreferredScheduleAvailable()) {
+        $preferredBurial = funeralPreferredScheduleCheck($draft['dateOfDeath'] ?? null, $draft['preferredBurialDate'] ?? null, $draft['preferredBurialTime'] ?? null, (int) $draft['service_id']);
+        if (!$preferredBurial['valid']) {
+            flash('error', 'Preferred burial / Funeral Mass schedule: ' . $preferredBurial['message'] . ' Use Back to Booking Form to choose another date or time.');
+            redirect(url('funeral-draft.php?draft_id=' . $draftId));
+        }
+        $preferredBurialValues = [$preferredBurial['date'], $preferredBurial['time']];
+    }
+
     try {
         $appointmentParishionerId = !empty($draft['is_guest']) ? guestParishionerId() : (int) ($draft['parishioner_id'] ?? 0);
         if ($appointmentParishionerId < 1) throw new RuntimeException('Appointment owner could not be resolved.');
@@ -70,10 +84,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submi
         $pdo->beginTransaction();
         
         $stmt = $pdo->prepare(
-            "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, date_of_death, pss_claim, pss_classification, guest_name, guest_email, guest_phone, guest_reference, contact_phone, location_address, requirements_snapshot)
-             VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING appointment_id"
+            "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, date_of_death, pss_claim, pss_classification, guest_name, guest_email, guest_phone, guest_reference, contact_phone, location_address, requirements_snapshot"
+            . ($preferredBurialValues ? ', preferred_burial_date, preferred_burial_time' : '')
+            . ") VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?" . ($preferredBurialValues ? ', ?, ?' : '') . ") RETURNING appointment_id"
         );
-        $stmt->execute([
+        $stmt->execute(array_merge([
             $appointmentParishionerId,
             $draft['service_id'],
             $draft['priest_id'],
@@ -90,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submi
             $draft['contactPhone'],
             $draft['locationAddress'],
             $draft['requirementsSnapshot']
-        ]);
+        ], $preferredBurialValues));
         $appointmentId = (int) $stmt->fetchColumn();
         if ($appointmentId < 1) throw new RuntimeException('Funeral appointment could not be created.');
 

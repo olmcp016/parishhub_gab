@@ -6,6 +6,7 @@ require_once __DIR__ . '/includes/baptism-forms.php';
 require_once __DIR__ . '/includes/supporting-documents.php';
 require_once __DIR__ . '/includes/generated-form-workflow.php';
 require_once __DIR__ . '/includes/requirements-review.php';
+require_once __DIR__ . '/includes/funeral-schedule.php';
 
 /**
  * Public, no-account status lookup for a guest booking/Mass Intention/
@@ -217,6 +218,8 @@ include __DIR__ . '/includes/header.php';
           $gf = $gfQuery->fetch() ?: null;
           $state = generatedFormWorkflowState($gf, $gf, false);
           $funeralApproved = $state['code'] === 'approved';
+          // Editable while pending, and after approval when the Parish Office asked for an update (schedule changed).
+          $katinEditable = !$funeralApproved && ((int) $appointment['status_id'] === 1 || (in_array((int) $appointment['status_id'], [2, 4], true) && $state['code'] === 'needs_revision'));
         ?>
         <hr style="border-color:var(--cream-dark); margin:18px 0;"><h4>Funeral Form</h4>
         <div class="generated-form-item">
@@ -225,9 +228,11 @@ include __DIR__ . '/includes/header.php';
             <span class="generated-form-status">Status: <?= generatedFormStatusBadge($state) ?></span>
             <div class="text-muted" style="margin-top:4px; font-size:.9rem;"><?= e($state['description']) ?></div>
             <?php if ($gf && $gf['rejection_reason']): ?><div class="text-muted" style="margin-top:4px; font-size:0.9rem;">Reason: <?= e($gf['rejection_reason']) ?></div><?php endif; ?>
+            <?php $katinMismatch = $gf ? funeralKatinAwanScheduleMismatch($appointment, json_decode((string) ($gf['form_data'] ?? ''), true) ?: []) : null; ?>
+            <?php if ($katinMismatch) renderFuneralKatinAwanMismatchAlert($katinMismatch, $state['code'] === 'needs_revision' ? 'requested' : ($katinEditable ? 'editable' : 'wait'), $appointment, ' margin:8px 0 0;'); ?>
           </div>
           <div class="generated-form-actions">
-            <?php if (!$funeralApproved && (int) $appointment['status_id'] === 1): ?><a class="btn btn-outline btn-sm" href="<?= url('funeral-form.php?appointment_id=' . (int) $appointment['appointment_id']) ?>"><?= e(generatedFormWorkflowActionLabel($state)) ?></a><?php endif; ?>
+            <?php if ($katinEditable): ?><a class="btn btn-outline btn-sm" href="<?= url('funeral-form.php?appointment_id=' . (int) $appointment['appointment_id']) ?>"><?= e(generatedFormWorkflowActionLabel($state)) ?></a><?php endif; ?>
             <?php if ($gf && $gf['document_id']): ?>
               <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>">View Generated Form</a>
               <a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . (int) $gf['document_id'] . '&download=1') ?>">Download PDF</a>
@@ -236,6 +241,10 @@ include __DIR__ . '/includes/header.php';
         </div>
       <?php endif; ?>
       <p><strong>Date:</strong> <?= formatDate($appointment['appointment_date']) ?><?= $appointment['appointment_time'] ? ' at ' . date('g:i A', strtotime($appointment['appointment_time'])) : ' (To be scheduled)' ?></p>
+      <?php if ($appointment['category'] === 'Funeral'): // burial and Funeral Mass are one schedule ?>
+        <?php if (!empty($appointment['date_of_death'])): ?><p><strong>Date of Death:</strong> <?= formatDate($appointment['date_of_death']) ?></p><?php endif; ?>
+        <?php renderFuneralScheduleSummary($appointment); ?>
+      <?php endif; ?>
       <?php if ($appointment['category'] !== 'Donation'): ?>
         <p><strong>Priest:</strong> <?= e($appointment['priest_name'] ?? 'Not yet assigned') ?></p>
         <p><strong>Fee:</strong>
