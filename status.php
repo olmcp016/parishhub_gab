@@ -27,6 +27,13 @@ $searched = $reference !== '';
 $appointment = null;
 $notFound = false;
 $lookupError = null;
+// Filled in only when a booking is found (below); empty otherwise, so the page
+// also works before a reference is entered or when nothing matches.
+$payment = null;
+$documents = [];
+$generatedForms = [];
+$intention = null;
+$donation = null;
 
 if ($searched) {
     $code = strtoupper($reference);
