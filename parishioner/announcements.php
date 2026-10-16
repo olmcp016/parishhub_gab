@@ -27,6 +27,7 @@ $weekDonors = getCurrentWeekDonors();
 
 $active = 'announcements';
 $pageTitle = 'Announcements';
+$hidePageHeading = true; // the nav bar already names this page
 include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/' . (usesParishionerShell() ? 'dash-start.php' : 'public-shell-start.php');
 ?>
