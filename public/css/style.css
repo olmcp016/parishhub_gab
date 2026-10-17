@@ -1343,23 +1343,6 @@ dialog.modal::backdrop { background: rgba(36, 22, 17, 0.55); }
   .print-only { display: block !important; }
 }
 
-/* ---------- Secretary Reports (secretary/reports.php) ---------- */
-.report-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0 16px; align-items: end; }
-.report-filters [hidden] { display: none !important; }
-.report-filter-actions { display: flex; gap: 8px; }
-.report-scope { font-size: 13px; margin: 4px 0 0; }
-.report-note { font-size: 12.5px; margin: 10px 0 0; }
-.report-card-note { font-size: 12px; margin-top: 6px; }
-.report-subhead { font-family: var(--font-heading); color: var(--brown-darkest); margin: 18px 0 10px; }
-.report-basis { font-family: var(--font-body, inherit); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; background: var(--cream-dark, #f3ead8); color: var(--brown-mid); white-space: nowrap; }
-.report-total td { font-weight: 700; border-top: 2px solid var(--gold); }
-.report-print-head h2 { font-family: var(--font-heading); color: var(--brown-darkest); margin: 0 0 4px; border-bottom: 2px solid var(--gold); padding-bottom: 6px; }
-.report-print-head p { margin: 2px 0; font-size: 12px; }
-@media print {
-  .report-col-action { display: none !important; }
-  .report-print-head { margin-bottom: 14px; }
-}
-
 /* ---------- Wedding Pre-Cana seminar (booking modal + detail pages) ---------- */
 .precana-group { background: var(--cream); padding: 14px; border-radius: 8px; }
 .precana-heading { text-transform: uppercase; letter-spacing: .06em; font-size: 12px; color: var(--brown-mid); }
