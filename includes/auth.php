@@ -292,13 +292,13 @@ function getFlash(): array
 
 /**
  * Where a finished booking lands, with the Thank You dialog open: Check Status
- * for guests, My Appointments for logged-in parishioners. The reference code
- * travels in the session, not the URL, so the status lookup form is not
- * pre-filled and the code is shown once.
+ * for guests, Services for logged-in parishioners (so they can book another
+ * service right away). The reference code travels in the session, not the
+ * URL, so the status lookup form is not pre-filled and the code is shown once.
  */
 function bookingReturnUrl(bool $isGuest): string
 {
-    return url($isGuest ? 'status.php' : 'parishioner/appointments.php');
+    return url($isGuest ? 'status.php' : 'parishioner/services.php');
 }
 
 function rememberBookingThankYou(string $reference): void
@@ -312,6 +312,29 @@ function pullBookingThankYou(): ?string
     $reference = $_SESSION['booking_thank_you'] ?? null;
     unset($_SESSION['booking_thank_you']);
     return $reference ? (string) $reference : null;
+}
+
+/**
+ * The booking behind a Thank You reference, for the parishioner Thank You
+ * dialog — only when it is one of THIS parishioner's own bookings (never a
+ * donation), with its current status from the database. Null otherwise, and
+ * then the dialog shows the code alone.
+ *
+ * @return array{appointment_id: int, service_name: string, category: string, status_name: string}|null
+ */
+function parishionerBookingThankYou(?string $reference, ?int $parishionerId): ?array
+{
+    if (!$reference || !$parishionerId) return null;
+    $stmt = db()->prepare(
+        "SELECT a.appointment_id, s.service_name, s.category, st.status_name
+         FROM appointments a
+         JOIN services s ON a.service_id = s.service_id
+         JOIN appointment_status st ON a.status_id = st.status_id
+         WHERE a.guest_reference = ? AND a.parishioner_id = ? AND s.category != 'Donation'
+         ORDER BY a.appointment_id DESC LIMIT 1"
+    );
+    $stmt->execute([$reference, $parishionerId]);
+    return $stmt->fetch() ?: null;
 }
 
 function e(?string $value): string

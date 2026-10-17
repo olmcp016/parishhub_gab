@@ -8,22 +8,19 @@ $stmt = db()->prepare('SELECT parishioner_id FROM parishioners WHERE user_id = ?
 $stmt->execute([$userId]);
 $parishionerId = $stmt->fetchColumn();
 
-// Set when a booking just landed here (see rememberBookingThankYou()); the dialog opens once.
-$thankYouReference = pullBookingThankYou();
-// Its details for the dialog — only if the reference is one of THIS parishioner's
-// own bookings; otherwise the dialog shows the code alone.
-$thankYouBooking = null;
-if ($thankYouReference && $parishionerId) {
+// ?open=N (View My Booking in the booking Thank You on Services): open that
+// appointment's View Details once — only if it is one of THIS parishioner's own
+// bookings (never a donation). Loaded by id, so it works from any page of the list.
+$openAppointment = null;
+$openId = (int) ($_GET['open'] ?? 0);
+if ($openId > 0 && $parishionerId) {
     $stmt = db()->prepare(
-        "SELECT a.appointment_id, s.service_name, s.category, st.status_name
-         FROM appointments a
-         JOIN services s ON a.service_id = s.service_id
-         JOIN appointment_status st ON a.status_id = st.status_id
-         WHERE a.guest_reference = ? AND a.parishioner_id = ? AND s.category != 'Donation'
-         ORDER BY a.appointment_id DESC LIMIT 1"
+        "SELECT a.appointment_id, s.service_name
+         FROM appointments a JOIN services s ON a.service_id = s.service_id
+         WHERE a.appointment_id = ? AND a.parishioner_id = ? AND s.category != 'Donation'"
     );
-    $stmt->execute([$thankYouReference, $parishionerId]);
-    $thankYouBooking = $stmt->fetch() ?: null;
+    $stmt->execute([$openId, $parishionerId]);
+    $openAppointment = $stmt->fetch() ?: null;
 }
 
 $statusFilter = $_GET['status'] ?? '';
@@ -142,8 +139,20 @@ include __DIR__ . '/../includes/dash-start.php';
 </div>
 
 
-<?php $thankYouIsGuest = false; include __DIR__ . '/../includes/thank-you-modal.php'; ?>
 <?php include __DIR__ . '/../includes/detail-modal.php'; ?>
+<?php if ($openAppointment): $openUrl = url('parishioner/appointment-detail.php?id=' . (int) $openAppointment['appointment_id']); ?>
+  <a href="<?= $openUrl ?>" class="js-view-modal" id="openAppointmentLink" data-url="<?= $openUrl ?>" data-title="<?= e($openAppointment['service_name'] . ' — #' . (int) $openAppointment['appointment_id']) ?>" hidden></a>
+  <script>
+  // Runs after detail-modal.js has set up its View handler (registered earlier):
+  // opens that appointment once, then drops ?open= so a refresh does not reopen it.
+  document.addEventListener('DOMContentLoaded', function () {
+    document.getElementById('openAppointmentLink').click();
+    var u = new URL(window.location.href);
+    u.searchParams.delete('open');
+    window.history.replaceState(null, '', u.pathname + u.search + u.hash);
+  });
+  </script>
+<?php endif; ?>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

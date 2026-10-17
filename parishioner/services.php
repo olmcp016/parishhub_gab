@@ -16,6 +16,15 @@ if (isset($_GET['paymongo_return']) || isset($_GET['paymongo_cancelled'])) {
 }
 $donationThankYou = pullDonationThankYou(); // set by a verified donation return just before this page loaded
 $donationReturnNotice = $donationThankYou ? null : pullDonationReturnNotice();
+// A parishioner's finished booking lands here (bookingReturnUrl()): its Thank
+// You opens once. A donation Thank You goes first; the booking one then stays
+// in the session for the next visit. Guests see theirs on Check Status.
+$thankYouReference = null;
+$thankYouBooking = null;
+if (!$identity['is_guest'] && !$donationThankYou) {
+  $thankYouReference = pullBookingThankYou();
+  $thankYouBooking = parishionerBookingThankYou($thankYouReference, (int) $identity['parishioner_id']);
+}
 
 // "Back to Booking Form" from a draft's Supporting Documents step: reopen the
 // form for that draft (access-checked) so re-submitting updates it in place.
@@ -49,7 +58,7 @@ if (!$isGuest) {
 }
 $projects = db()->query('SELECT project_id, project_name FROM projects WHERE is_active = TRUE ORDER BY project_name')->fetchAll();
 $preselectedProjectId = (int) ($_GET['project_id'] ?? 0) ?: null;
-$autoOpenDonate = $donationEnabled && !$donationThankYou && (isset($_GET['donate']) || $preselectedProjectId);
+$autoOpenDonate = $donationEnabled && !$donationThankYou && !$thankYouReference && (isset($_GET['donate']) || $preselectedProjectId);
 
 $priests =db()->query("SELECT * FROM priests WHERE status = 'active'")->fetchAll();
 $blockedRows = db()->query('SELECT calendar_date, notes FROM calendar WHERE is_blocked = 1')->fetchAll();
@@ -2147,5 +2156,6 @@ $noFeesLabel = fn(float $amount): string => $amount > 0 ? money($amount) : 'No F
 </script>
 
 <?php include __DIR__ . '/../includes/donation-thank-you-modal.php'; // after a verified online donation, once ?>
+<?php $thankYouIsGuest = false; include __DIR__ . '/../includes/thank-you-modal.php'; // after a parishioner's booking, once (never with the donation one) ?>
 <?php include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-end.php' : 'dash-end.php'); ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

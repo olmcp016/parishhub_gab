@@ -1,7 +1,8 @@
 <?php
 /**
  * "Thank You for Your Booking!" dialog, opened on arrival after a submission.
- * Include it on the page a booking lands on. Expects:
+ * Include it on the page a booking lands on (Check Status for guests,
+ * parishioner/services.php for parishioners). Expects:
  *   $thankYouReference  the reference code (nothing is rendered when empty)
  *   $thankYouIsGuest    true for guests (Check Status page), false for parishioners
  *   $thankYouBooking    parishioners only: that booking (appointment_id,
@@ -26,6 +27,7 @@ if ($thankYouBooking) {
             ? 'Your offering was received. You can track your Mass Intention in My Appointments.'
             : 'Our Cashier will verify your payment. Once it is verified, your Mass Intention is confirmed. You can track its progress in My Appointments.');
     $thankYouDetailUrl = url('parishioner/appointment-detail.php?id=' . (int) $thankYouBooking['appointment_id']);
+    $thankYouOpenUrl = url('parishioner/appointments.php?open=' . (int) $thankYouBooking['appointment_id']);
 }
 ?>
 <!-- ===================== Thank You (after a booking) ===================== -->
@@ -58,7 +60,7 @@ if ($thankYouBooking) {
 
     <div class="flex gap-3" style="justify-content:center; flex-wrap:wrap;">
       <?php if ($thankYouBooking): ?>
-        <a href="<?= $thankYouDetailUrl ?>" class="btn btn-outline js-view-modal" id="thankYouView" data-url="<?= $thankYouDetailUrl ?>" data-title="<?= e($thankYouBooking['service_name'] . ' — #' . (int) $thankYouBooking['appointment_id']) ?>">View My Booking</a>
+        <a href="<?= $thankYouDetailUrl ?>" class="btn btn-outline" id="thankYouView" data-open-url="<?= $thankYouOpenUrl ?>">View My Booking</a>
       <?php endif; ?>
       <button type="button" class="btn btn-primary" data-thank-you-close>Done</button>
     </div>
@@ -91,11 +93,15 @@ if ($thankYouBooking) {
     btn.addEventListener('click', function () { dialog.close(); });
   });
 
-  // View My Booking: close this dialog first; the page's View Details modal
-  // (detail-modal.js, .js-view-modal) then opens that appointment. Without
-  // JavaScript it is a plain link to the appointment page.
+  // View My Booking: close this dialog and go to My Appointments, which opens
+  // this appointment's View Details (parishioner/appointments.php?open=N).
+  // Without JavaScript it is a plain link to the appointment page.
   var viewLink = document.getElementById('thankYouView');
-  if (viewLink) viewLink.addEventListener('click', function () { dialog.close(); });
+  if (viewLink) viewLink.addEventListener('click', function (e) {
+    e.preventDefault();
+    dialog.close();
+    window.location.href = viewLink.dataset.openUrl;
+  });
 
   var copyBtn = document.getElementById('thankYouCopy');
   var copiedNote = document.getElementById('thankYouCopied');
