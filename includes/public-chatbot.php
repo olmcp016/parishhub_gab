@@ -125,7 +125,9 @@ $__pchatBuild = static function (bool $isParishioner) use ($__pchatPhone, $__pch
         // Requirements — the booking form's own lists (parishioner/services.php renderRequirementsPreview()).
         $documents = [];
         $afterSeminar = [];
-        foreach ($category === 'Wedding' ? weddingRequiredDocumentsFromCatalog($s['requirements']) : parseRequirementsList($s['requirements']) as $label) {
+        // parseRequirementsList() is what weddingRequiredDocumentsFromCatalog() returns for Weddings too
+        // (that helper lives in wedding-draft.php, which public pages do not load).
+        foreach (parseRequirementsList($s['requirements']) as $label) {
             if ($label === 'Katin-awan sa Paglubong') continue; // a form, filled in online
             if ($category === 'Wedding' && $precana && precanaIsCertificateLabel($label)) { $afterSeminar[] = $label; continue; }
             $documents[] = $label;
