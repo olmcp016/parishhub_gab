@@ -320,13 +320,15 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     }
 
     // ---- Re-check that this exact service+date+time hasn't just been taken by someone else ----
-    if (!$isMassIntention && !$isNoScheduleCategory && serviceSlotIsBooked($serviceId, $date, $finalTime)) {
+    // (A Regular Wedding/Baptism at its fixed time is a shared parish schedule: other
+    // Regular bookings never occupy it, only a Special one does. Special stays exclusive.)
+    if (!$isMassIntention && !$isNoScheduleCategory && serviceSlotIsBooked($serviceId, $date, $finalTime, null, $scheduleTypeToSave)) {
         bookRespondError($isAjax, 'That exact date and time was just booked by someone else for this service. Please choose another slot.', url('parishioner/services.php'));
     }
 
     // ---- Re-check priest availability right before saving (race-condition guard) ----
     if ($priestId) {
-        $availability = priestIsAvailable((int) $priestId, $date, $finalTime);
+        $availability = priestIsAvailable((int) $priestId, $date, $finalTime, null, $serviceId, $scheduleTypeToSave);
         if (!$availability['available']) {
             bookRespondError($isAjax, $availability['reason'], url('parishioner/services.php'));
         }
@@ -564,19 +566,21 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         // transaction-scoped advisory locks on the slot and on the priest's day,
         // then check again while holding them. Keys must match api/update_event.php.
         if (!$isMassIntention && !$isNoScheduleCategory && $date) {
+            // Time as H:i, so a Regular (08:00:00) and a Special (08:00) booking of the
+            // same slot take the same lock. Same key as the Baptism/Wedding final submit.
             $pdo->prepare('SELECT pg_advisory_xact_lock(hashtext(?))')
-                ->execute(['slot:' . $serviceId . ':' . $date . ':' . $finalTime]);
+                ->execute(['slot:' . $serviceId . ':' . $date . ':' . substr((string) $finalTime, 0, 5)]);
         }
         if ($priestId) {
             $pdo->prepare('SELECT pg_advisory_xact_lock(hashtext(?))')
                 ->execute(['priest:' . (int) $priestId . ':' . $date]);
         }
-        if (!$isMassIntention && !$isNoScheduleCategory && serviceSlotIsBooked($serviceId, $date, $finalTime)) {
+        if (!$isMassIntention && !$isNoScheduleCategory && serviceSlotIsBooked($serviceId, $date, $finalTime, null, $scheduleTypeToSave)) {
             $pdo->rollBack();
             bookRespondError($isAjax, 'That exact date and time was just booked by someone else for this service. Please choose another slot.', url('parishioner/services.php'));
         }
         if ($priestId) {
-            $lockedAvailability = priestIsAvailable((int) $priestId, $date, $finalTime);
+            $lockedAvailability = priestIsAvailable((int) $priestId, $date, $finalTime, null, $serviceId, $scheduleTypeToSave);
             if (!$lockedAvailability['available']) {
                 $pdo->rollBack();
                 bookRespondError($isAjax, $lockedAvailability['reason'], url('parishioner/services.php'));

@@ -63,8 +63,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $finalizationStage = 'validate_generated_forms';
         $finalizationStage = 'validate_schedule';
         $schedule = validateBooking('Wedding', $locked['appointment_date'], $locked['appointment_time'], null, $locked['schedule_type'], (int) $locked['service_id']);
-        if (!$schedule['valid']) throw new RuntimeException($schedule['message']);
+        if (!$schedule['valid']) throw new RuntimeException($schedule['message'] . ' Use Back to Booking Form to choose another schedule.');
         $finalTime = $schedule['forcedTime'] ?: $locked['appointment_time'];
+        // Re-checked now, under the same locks as book.php: a shared Regular schedule
+        // stays open to other couples; a Special booking or a priest conflict is refused.
+        $finalizationStage = 'validate_slot';
+        $conflict = lockedBookingConflict($pdo, (int) $locked['service_id'], $locked['appointment_date'], $finalTime, $locked['priest_id'] ? (int) $locked['priest_id'] : null, $locked['schedule_type']);
+        if ($conflict !== null) throw new RuntimeException($conflict . ' Use Back to Booking Form to choose another schedule or priest. Your documents and forms are kept.');
         // Pre-Cana seminar: re-checked against the Wedding date, and copied as chosen
         // (a Special preferred schedule stays pending until the Parish Office confirms it).
         $finalizationStage = 'validate_precana';
@@ -111,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $rolledBack ? 'yes' : 'no',
             preg_replace('/\s+/', ' ', $e->getMessage())
         ));
-        flash('error', $finalizationStage === 'validate_precana' ? $e->getMessage() : 'The Wedding booking could not be submitted.'); redirect(url('wedding-draft.php?draft_id=' . $draftId));
+        flash('error', in_array($finalizationStage, ['validate_precana', 'validate_schedule', 'validate_slot'], true) ? $e->getMessage() : 'The Wedding booking could not be submitted.'); redirect(url('wedding-draft.php?draft_id=' . $draftId));
     }
 }
 

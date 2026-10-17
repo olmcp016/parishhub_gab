@@ -182,17 +182,38 @@ function massIntentionSlotsFor(string $date): array
 }
 
 /**
+ * A shared Regular schedule: Regular Weddings and Baptisms are parish
+ * ceremonies held at their fixed date and time, so any number of couples or
+ * children may book the same configured Regular slot (no limit). True only for
+ * a Regular booking at one of the service's configured service_schedules times.
+ */
+function isSharedRegularSlot(?int $serviceId, string $date, string $time, ?string $scheduleType): bool
+{
+    return $scheduleType === 'Regular' && $serviceId
+        && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) && preg_match('/^\d{2}:\d{2}/', $time)
+        && matchesRegularSlot($serviceId, $date, $time)['valid'];
+}
+
+/**
  * True if a non-cancelled/non-rejected appointment already occupies this
  * exact service+date+time. Closes a gap the priest-only conflict check
  * misses: two parishioners could otherwise both land on the same fixed
- * Regular slot (e.g. the same Baptism Saturday) if neither picks a priest.
+ * slot if neither picks a priest.
+ *
+ * $scheduleType 'Regular' at a configured Regular slot: the slot is shared, so
+ * other Regular bookings of this service do not occupy it — only a Special
+ * booking at that exact time does. Special (or no type given): exclusive, as
+ * before — any booking occupies it, including a Regular group.
  */
-function serviceSlotIsBooked(int $serviceId, string $date, string $time, ?int $excludeAppointmentId = null): bool
+function serviceSlotIsBooked(int $serviceId, string $date, string $time, ?int $excludeAppointmentId = null, ?string $scheduleType = null): bool
 {
     $time5 = substr($time, 0, 5);
     $sql = "SELECT COUNT(*) FROM appointments
             WHERE service_id = ? AND appointment_date = ? AND appointment_time = ?
               AND status_id NOT IN (3, 7)";
+    if (isSharedRegularSlot($serviceId, $date, $time5, $scheduleType)) {
+        $sql .= " AND COALESCE(schedule_type, '') <> 'Regular'";
+    }
     $params = [$serviceId, $date, $time5];
     if ($excludeAppointmentId !== null) {
         $sql .= ' AND appointment_id != ?';
@@ -329,7 +350,7 @@ function regularSlotsForService(int $serviceId, int $count = 8): array
             if (in_array($dateStr, $blockedDates, true)) continue;
             if (isStaffDayOff($dateStr, $time5)) continue;
             if (in_array($time5, massTimesFor($dateStr), true)) continue;
-            if (serviceSlotIsBooked($serviceId, $dateStr, $time5)) continue;
+            if (serviceSlotIsBooked($serviceId, $dateStr, $time5, null, 'Regular')) continue; // shared: only a Special booking occupies it
 
             $slots[] = [
                 'date' => $dateStr,
@@ -389,7 +410,7 @@ function regularAvailableDatesInMonth(int $serviceId, string $yearMonth): array
             $time5 = substr($r['slot_time'], 0, 5);
             if (isStaffDayOff($dateStr, $time5)) continue;
             if (in_array($time5, massTimesFor($dateStr), true)) continue;
-            if (serviceSlotIsBooked($serviceId, $dateStr, $time5)) continue;
+            if (serviceSlotIsBooked($serviceId, $dateStr, $time5, null, 'Regular')) continue; // shared: only a Special booking occupies it
 
             $available[$dateStr] = $time5;
             break; // one fixed slot per date is all the UI needs
@@ -431,7 +452,14 @@ function regularNextAvailableMonth(int $serviceId, string $fromYearMonth, int $m
  * This is the single source of truth, replacing the duplicated conflict
  * queries that used to live in book.php and secretary/appointment-detail.php.
  */
-function priestIsAvailable(int $priestId, string $date, string $time, ?int $excludeAppointmentId = null): array
+/**
+ * $serviceId / $scheduleType: the booking being checked. For a Regular booking at a
+ * configured Regular slot (a shared parish ceremony), the priest's other Regular
+ * bookings of that same service at that same date and time are the same ceremony,
+ * not a conflict. Everything else still blocks: other services, Special bookings,
+ * Masses/events, marked unavailability, an inactive priest.
+ */
+function priestIsAvailable(int $priestId, string $date, string $time, ?int $excludeAppointmentId = null, ?int $serviceId = null, ?string $scheduleType = null): array
 {
     $time5 = substr($time, 0, 5);
 
@@ -490,6 +518,10 @@ function priestIsAvailable(int $priestId, string $date, string $time, ?int $excl
         $sql .= ' AND a.appointment_id != ?';
         $params[] = $excludeAppointmentId;
     }
+    if (isSharedRegularSlot($serviceId, $date, $time5, $scheduleType)) {
+        $sql .= " AND NOT (a.service_id = ? AND COALESCE(a.schedule_type, '') = 'Regular')";
+        $params[] = $serviceId;
+    }
     $stmt = db()->prepare($sql);
     $stmt->execute($params);
     $conflict = $stmt->fetch();
@@ -504,16 +536,47 @@ function priestIsAvailable(int $priestId, string $date, string $time, ?int $excl
 }
 
 /**
+ * For a booking's final save, inside the caller's open transaction: takes the
+ * same advisory locks as parishioner/book.php (the slot, then the priest's day)
+ * and re-checks both while holding them, so two simultaneous submissions cannot
+ * both pass. A shared Regular schedule stays shareable; a Special booking, or a
+ * genuine priest conflict, is refused. Returns the reason, or null when free.
+ */
+function lockedBookingConflict(PDO $pdo, int $serviceId, ?string $date, ?string $time, ?int $priestId, ?string $scheduleType): ?string
+{
+    if (empty($date) || empty($time)) return null;
+    $time5 = substr($time, 0, 5);
+    $pdo->prepare('SELECT pg_advisory_xact_lock(hashtext(?))')->execute(['slot:' . $serviceId . ':' . $date . ':' . $time5]);
+    if ($priestId) {
+        $pdo->prepare('SELECT pg_advisory_xact_lock(hashtext(?))')->execute(['priest:' . $priestId . ':' . $date]);
+    }
+    // Same blocked-date rule book.php applies (holidays etc. set by the Parish Office after the draft was made).
+    $blocked = $pdo->prepare('SELECT 1 FROM calendar WHERE calendar_date = ? AND is_blocked = 1');
+    $blocked->execute([$date]);
+    if ($blocked->fetchColumn()) {
+        return 'The selected date is not available for booking anymore.';
+    }
+    if (serviceSlotIsBooked($serviceId, $date, $time5, null, $scheduleType)) {
+        return 'That date and time is no longer available — it was just booked for this service.';
+    }
+    if ($priestId) {
+        $availability = priestIsAvailable($priestId, $date, $time5, null, $serviceId, $scheduleType);
+        if (!$availability['available']) return (string) $availability['reason'];
+    }
+    return null;
+}
+
+/**
  * Active priests with an availability verdict for the given date/time,
  * for populating the booking modal's priest dropdown. On-leave and inactive
  * priests remain attached to existing appointments but cannot receive new ones.
  */
-function availablePriestsFor(string $date, string $time, ?int $excludeAppointmentId = null): array
+function availablePriestsFor(string $date, string $time, ?int $excludeAppointmentId = null, ?int $serviceId = null, ?string $scheduleType = null): array
 {
     $priests = db()->query("SELECT priest_id, title, full_name FROM priests WHERE status = 'active' ORDER BY full_name")->fetchAll();
     $result = [];
     foreach ($priests as $p) {
-        $check = priestIsAvailable((int) $p['priest_id'], $date, $time, $excludeAppointmentId);
+        $check = priestIsAvailable((int) $p['priest_id'], $date, $time, $excludeAppointmentId, $serviceId, $scheduleType);
         $result[] = [
             'priest_id' => (int) $p['priest_id'],
             'label' => $p['title'] . ' ' . $p['full_name'],

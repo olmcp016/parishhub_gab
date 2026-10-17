@@ -617,6 +617,7 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
             style="display:none; margin-top:8px; background: var(--cream); border-radius: 8px; padding: 10px 12px;">
             <strong>Time:</strong> <span id="regularFixedTimeText"></span> <span class="text-muted">(fixed for this
               schedule)</span>
+            <p class="helper-text" style="margin: 4px 0 0;">Shared parish schedule — other families may also be scheduled at the same date and time.</p>
           </div>
           <input type="hidden" name="appointment_date" id="regularDateInput" disabled>
           <input type="hidden" name="appointment_time" id="regularTimeInput" disabled>

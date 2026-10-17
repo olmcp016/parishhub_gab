@@ -65,7 +65,8 @@ if ($category !== '' && $date !== '' && $time !== '') {
 
     if ($check['valid'] && $serviceId && $category !== 'Mass Intention') {
         $effectiveTime = $check['forcedTime'] ?? $time;
-        if (serviceSlotIsBooked($serviceId, $date, $effectiveTime, $excludeAppointmentId)) {
+        // Regular Wedding/Baptism at its fixed time is shared (any number of bookings); Special stays exclusive.
+        if (serviceSlotIsBooked($serviceId, $date, $effectiveTime, $excludeAppointmentId, $scheduleType ?: null)) {
             $response['valid'] = false;
             $response['message'] = 'That exact date and time is already booked for this service. Please choose another slot.';
         }
@@ -73,7 +74,7 @@ if ($category !== '' && $date !== '' && $time !== '') {
 }
 
 if ($date !== '' && $time !== '' && $category !== 'Mass Intention') {
-    $response['available_priests'] = availablePriestsFor($date, $time, $excludeAppointmentId);
+    $response['available_priests'] = availablePriestsFor($date, $response['forced_time'] ?? $time, $excludeAppointmentId, $serviceId, $scheduleType ?: null);
 }
 
 echo json_encode($response);

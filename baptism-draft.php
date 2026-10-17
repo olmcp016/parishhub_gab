@@ -73,7 +73,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($missing) throw new RuntimeException('Please complete: ' . implode(', ', $missing) . '.');
         $baptismFinalizationStage = 'validate_schedule';
         $check = validateBooking('Baptism', $locked['appointment_date'], $locked['appointment_time'], null, $locked['schedule_type'], (int) $locked['service_id']);
-        if (!$check['valid']) throw new RuntimeException($check['message']);
+        if (!$check['valid']) throw new RuntimeException($check['message'] . ' Use Back to Booking Form to choose another schedule.');
+        // Re-checked now, under the same locks as book.php: a shared Regular schedule
+        // stays open to other families; a Special booking or a priest conflict is refused.
+        $baptismFinalizationStage = 'validate_slot';
+        $conflict = lockedBookingConflict($pdo, (int) $locked['service_id'], $locked['appointment_date'], $check['forcedTime'] ?: $locked['appointment_time'], $locked['priest_id'] ? (int) $locked['priest_id'] : null, $locked['schedule_type']);
+        if ($conflict !== null) throw new RuntimeException($conflict . ' Use Back to Booking Form to choose another schedule or priest. Your documents and forms are kept.');
         $baptismFinalizationStage = 'resolve_appointment_owner';
         $appointmentParishionerId = !empty($locked['parishioner_id'])
             ? (int) $locked['parishioner_id']
@@ -128,7 +133,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $e->getFile(),
             $e->getLine()
         ));
-        flash('error', 'The Baptism booking could not be submitted.');
+        // A schedule problem says what happened (and how to fix it); anything else stays generic.
+        flash('error', in_array($baptismFinalizationStage, ['validate_schedule', 'validate_slot'], true) ? $e->getMessage() : 'The Baptism booking could not be submitted.');
         redirect(url('baptism-draft.php?draft_id=' . $id));
     }
 }

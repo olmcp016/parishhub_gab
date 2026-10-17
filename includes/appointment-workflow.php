@@ -175,11 +175,14 @@ function appointmentApprovalEligibility(array $appointment): array
         if (!$priestValid) {
             $addBlocking('Please assign a priest before approving this appointment.');
         } elseif (!empty($appointment['appointment_date']) && !empty($appointment['appointment_time'])) {
+            // A shared Regular Wedding/Baptism group may all have the same priest.
             $availability = priestIsAvailable(
                 $priestId,
                 (string) $appointment['appointment_date'],
                 (string) $appointment['appointment_time'],
-                $appointmentId > 0 ? $appointmentId : null
+                $appointmentId > 0 ? $appointmentId : null,
+                isset($appointment['service_id']) ? (int) $appointment['service_id'] : null,
+                $appointment['schedule_type'] ?? null
             );
             if (!$availability['available']) {
                 $addBlocking('The assigned priest is no longer available for this appointment. Please reassign the priest.');

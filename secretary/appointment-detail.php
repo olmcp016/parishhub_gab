@@ -380,13 +380,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $stmt = db()->prepare(
-            "SELECT appointment_date, appointment_time FROM appointments WHERE appointment_id = ?"
+            "SELECT appointment_date, appointment_time, service_id, schedule_type FROM appointments WHERE appointment_id = ?"
         );
         $stmt->execute([$id]);
         $slot = $stmt->fetch();
 
         if (!empty($slot['appointment_date']) && !empty($slot['appointment_time'])) {
-            $availability = priestIsAvailable((int) $priestId, $slot['appointment_date'], $slot['appointment_time'], $id);
+            // One priest may serve every booking of a shared Regular Wedding/Baptism schedule.
+            $availability = priestIsAvailable((int) $priestId, $slot['appointment_date'], $slot['appointment_time'], $id, (int) $slot['service_id'], $slot['schedule_type']);
             if (!$availability['available']) {
                 respondAjaxOrRedirect($isAjax, false, $availability['reason'], $redirectUrl);
             }
@@ -448,7 +449,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($reschedulePrecana && !empty($reschedulePrecana['precana_date']) && $newDate && $newDate <= $reschedulePrecana['precana_date']) {
             respondAjaxOrRedirect($isAjax, false, 'The Wedding Ceremony must stay after its Pre-Cana seminar (' . formatDate($reschedulePrecana['precana_date']) . '). Change the Pre-Cana schedule first, or choose a later wedding date.', $redirectUrl);
         }
-        if (serviceSlotIsBooked((int) $apptInfo['service_id'], $newDate, $check['forcedTime'] ?? $newTime, $id)) {
+        // Moving into a shared Regular Wedding/Baptism schedule is allowed; a Special-held time is not.
+        if (serviceSlotIsBooked((int) $apptInfo['service_id'], $newDate, $check['forcedTime'] ?? $newTime, $id, $apptInfo['schedule_type'])) {
             respondAjaxOrRedirect($isAjax, false, 'That exact date and time is already booked for this service. Please choose another slot.', $redirectUrl);
         }
         $finalTime = $check['forcedTime'] ?? $newTime;
