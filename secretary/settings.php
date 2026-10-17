@@ -126,20 +126,39 @@ include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/dash-start.php';
 ?>
 
-<div class="card" style="max-width: 640px;">
-  <div class="card-header"><h3>Profile &amp; Account Settings</h3></div>
-  <form method="POST" action="<?= url('secretary/settings.php') ?>" enctype="multipart/form-data" id="secretaryProfileForm">
-    <?= csrfField() ?><input type="hidden" name="action" value="profile">
-    <div class="profile-photo-editor">
-      <?php if ($photoUrl): ?><img class="profile-photo-preview" src="<?= e($photoUrl) ?>" alt="Profile photo">
-      <?php else: ?><div class="profile-photo-preview profile-initials-avatar"><?= e($initials ?: 'S') ?></div><?php endif; ?>
-      <div><label for="profilePhoto">Profile Photo</label><input type="file" name="profile_photo" id="profilePhoto" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"><p class="helper-text">JPG, PNG, or WEBP up to 2 MB.</p><?php if ($photoUrl): ?><button type="button" class="btn btn-outline btn-sm" id="removeProfilePhoto">Remove Photo</button><?php endif; ?></div>
+<!-- Same layout as the Cashier's Account Settings (treasurer/settings.php). -->
+<div class="card">
+  <div class="card-header"><h3>Account Settings</h3></div>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 32px;">
+
+    <div>
+      <h4 style="margin-top: 0; margin-bottom: 20px; color: var(--text-muted, #555);">Profile Information</h4>
+      <form method="POST" action="<?= url('secretary/settings.php') ?>" enctype="multipart/form-data" id="secretaryProfileForm">
+        <?= csrfField() ?><input type="hidden" name="action" value="profile">
+        <div class="profile-photo-editor">
+          <?php if ($photoUrl): ?><img class="profile-photo-preview" src="<?= e($photoUrl) ?>" alt="Profile photo">
+          <?php else: ?><div class="profile-photo-preview profile-initials-avatar"><?= e($initials ?: 'S') ?></div><?php endif; ?>
+          <div><label for="profilePhoto">Profile Photo</label><input type="file" name="profile_photo" id="profilePhoto" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"><p class="helper-text">JPG, PNG, or WEBP up to 2 MB.</p><?php if ($photoUrl): ?><button type="button" class="btn btn-outline btn-sm" id="removeProfilePhoto">Remove Photo</button><?php endif; ?></div>
+        </div>
+        <div class="form-group"><label>Full Name</label><input type="text" name="full_name" value="<?= e(trim(($profile['firstname'] ?? '') . ' ' . ($profile['lastname'] ?? ''))) ?>" required></div>
+        <div class="form-group"><label>Email Address</label><input type="email" name="email" value="<?= e($profile['email'] ?? '') ?>" required></div>
+        <div class="form-group"><label>Contact Number</label><input type="tel" name="phone" id="secretaryPhone" inputmode="numeric" maxlength="11" autocomplete="tel" value="<?= e($profile['phone'] ?? '') ?>"></div>
+        <button type="submit" class="btn btn-primary">Save Profile Changes</button>
+      </form>
     </div>
-    <div class="form-group"><label>Full Name</label><input type="text" name="full_name" value="<?= e(trim(($profile['firstname'] ?? '') . ' ' . ($profile['lastname'] ?? ''))) ?>" required></div>
-    <div class="form-group"><label>Email Address</label><input type="email" name="email" value="<?= e($profile['email'] ?? '') ?>" required></div>
-    <div class="form-group"><label>Contact Number</label><input type="tel" name="phone" inputmode="numeric" value="<?= e($profile['phone'] ?? '') ?>"></div>
-    <button type="submit" class="btn btn-primary">Save Profile Changes</button>
-  </form>
+
+    <div>
+      <h4 style="margin-top: 0; margin-bottom: 20px; color: var(--text-muted, #555);">Change Password</h4>
+      <form method="POST" action="<?= url('secretary/settings.php') ?>">
+        <?= csrfField() ?><input type="hidden" name="action" value="password">
+        <div class="form-group"><label>Current Password *</label><input type="password" name="current_password" required autocomplete="current-password"></div>
+        <div class="form-group"><label>New Password *</label><input type="password" name="new_password" required minlength="8" autocomplete="new-password"></div>
+        <div class="form-group"><label>Confirm New Password *</label><input type="password" name="confirm_password" required minlength="8" autocomplete="new-password"></div>
+        <button type="submit" class="btn btn-primary">Update Password</button>
+      </form>
+    </div>
+
+  </div>
 </div>
 
 <dialog class="modal" id="removeProfileModal" aria-labelledby="removeProfileTitle"><div class="modal-head"><h3 id="removeProfileTitle">Remove Profile Photo?</h3><button type="button" class="modal-close" id="closeRemoveProfile">✕</button></div><div class="modal-body"><p>Your current profile photo will be removed. Your initials will be shown instead.</p><form method="POST" action="<?= url('secretary/settings.php') ?>"><?= csrfField() ?><input type="hidden" name="action" value="remove_photo"><div class="flex gap-3" style="justify-content:flex-end;"><button type="button" class="btn btn-outline" id="cancelRemoveProfile">Cancel</button><button type="submit" class="btn btn-danger">Remove Photo</button></div></form></div></dialog>
@@ -165,18 +184,29 @@ include __DIR__ . '/../includes/dash-start.php';
   document.getElementById('closeRemoveProfile').addEventListener('click', function () { modal.close(); });
   document.getElementById('cancelRemoveProfile').addEventListener('click', function () { modal.close(); });
 })();
-</script>
 
-<div class="card" style="max-width: 640px;">
-  <div class="card-header"><h3>Change Password</h3></div>
-  <form method="POST" action="<?= url('secretary/settings.php') ?>">
-    <?= csrfField() ?><input type="hidden" name="action" value="password">
-    <div class="form-group"><label>Current Password *</label><input type="password" name="current_password" required autocomplete="current-password"></div>
-    <div class="form-group"><label>New Password *</label><input type="password" name="new_password" required minlength="8" autocomplete="new-password"></div>
-    <div class="form-group"><label>Confirm New Password *</label><input type="password" name="confirm_password" required minlength="8" autocomplete="new-password"></div>
-    <button type="submit" class="btn btn-primary">Change Password</button>
-  </form>
-</div>
+// Contact Number: digits only, 11 max, 09 + 9 digits — same as the Cashier's settings.
+(function () {
+  var form = document.getElementById('secretaryProfileForm'), phone = document.getElementById('secretaryPhone');
+  if (!form || !phone) return;
+  var MSG = 'Please enter a valid 11-digit contact number starting with 09.';
+  function isValid() { return phone.value === '' || /^09\d{9}$/.test(phone.value); }
+  function sanitize() { var v = phone.value.replace(/\D/g, '').slice(0, 11); if (v !== phone.value) phone.value = v; }
+  phone.addEventListener('beforeinput', function (e) { if (e.data && /\D/.test(e.data) && e.inputType !== 'insertFromPaste') e.preventDefault(); });
+  phone.addEventListener('paste', function (e) {
+    var t = e.clipboardData || window.clipboardData; if (!t) return;
+    e.preventDefault();
+    var digits = t.getData('text').replace(/\D/g, ''), s = phone.selectionStart, en = phone.selectionEnd, v = phone.value;
+    phone.value = (v.slice(0, s) + digits + v.slice(en)).slice(0, 11);
+    var pos = Math.min(s + digits.length, 11); phone.setSelectionRange(pos, pos);
+    phone.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  phone.addEventListener('input', sanitize);
+  function check() { sanitize(); phone.setCustomValidity(isValid() ? '' : MSG); }
+  if (typeof attachInlineValidation === 'function') attachInlineValidation(form, { beforeCheck: check });
+  else form.addEventListener('submit', function (e) { check(); if (!isValid()) { e.preventDefault(); phone.reportValidity(); } });
+})();
+</script>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
