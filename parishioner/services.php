@@ -222,6 +222,10 @@ $thankYouIsGuest = false; include __DIR__ . '/../includes/thank-you-modal.php'; 
 
 </div>
 
+<?php
+// Service fee tables: a ₱0.00 fee is "No Fees" (it is not a voluntary offering); amounts come from service_fee_rules.
+$noFeesLabel = fn(float $amount): string => $amount > 0 ? money($amount) : 'No Fees';
+?>
 <?php foreach (['Baptism', 'Wedding'] as $feeCategory): ?>
   <?php if (!empty($feeRulesByCategory[$feeCategory])): ?>
     <?php $feeService = array_values(array_filter($services, fn($x) => $x['category'] === $feeCategory))[0] ?? null; ?>
@@ -249,24 +253,24 @@ $thankYouIsGuest = false; include __DIR__ . '/../includes/thank-you-modal.php'; 
                   <?php if ($pssRule && $nonRule): ?>
                     <tr>
                       <td>Base Fee</td>
-                      <td><?= feeLabel((float) $pssRule['base_fee']) ?></td>
-                      <td><?= feeLabel((float) $nonRule['base_fee']) ?></td>
+                      <td><?= $noFeesLabel((float) $pssRule['base_fee']) ?></td>
+                      <td><?= $noFeesLabel((float) $nonRule['base_fee']) ?></td>
                     </tr>
                     <tr>
                       <td>Priest Stipend</td>
-                      <td><?= feeLabel((float) $pssRule['priest_stipend']) ?></td>
-                      <td><?= feeLabel((float) $nonRule['priest_stipend']) ?></td>
+                      <td><?= $noFeesLabel((float) $pssRule['priest_stipend']) ?></td>
+                      <td><?= $noFeesLabel((float) $nonRule['priest_stipend']) ?></td>
                     </tr>
                     <tr>
                       <td>Additional Sponsor</td>
                       <?php // The same included-sponsor counts the server charges with (service_fee_rules). ?>
                       <td><span style="font-size:0.85em;color:var(--gray-dark);">(No fees up to
                           <?= (int) $pssRule['included_sponsors'] ?>
-                          sponsors)</span><br><?= feeLabel((float) $pssRule['additional_sponsor_fee']) ?> per additional sponsor
+                          sponsors)</span><br><?= $noFeesLabel((float) $pssRule['additional_sponsor_fee']) ?> per additional sponsor
                       </td>
                       <td><span style="font-size:0.85em;color:var(--gray-dark);">(No fees up to
                           <?= (int) $nonRule['included_sponsors'] ?>
-                          sponsors)</span><br><?= feeLabel((float) $nonRule['additional_sponsor_fee']) ?> per additional sponsor
+                          sponsors)</span><br><?= $noFeesLabel((float) $nonRule['additional_sponsor_fee']) ?> per additional sponsor
                       </td>
                     </tr>
                   <?php endif; ?>
@@ -283,7 +287,6 @@ $thankYouIsGuest = false; include __DIR__ . '/../includes/thank-you-modal.php'; 
 // Funeral Mass: one fee table (no Regular/Special schedules), same modal design as Wedding/Baptism.
 $funeralFeeRules = [];
 foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_classification']] = $r;
-$noFeesLabel = fn(float $amount): string => $amount > 0 ? money($amount) : 'No Fees';
 ?>
 <?php if (isset($funeralFeeRules['pss'], $funeralFeeRules['non_pss'])): ?>
   <dialog class="modal" id="fees-funeral">
