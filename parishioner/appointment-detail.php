@@ -9,6 +9,7 @@ require_once __DIR__ . '/../includes/supporting-documents.php';
 require_once __DIR__ . '/../includes/generated-form-workflow.php';
 require_once __DIR__ . '/../includes/requirements-review.php';
 require_once __DIR__ . '/../includes/funeral-schedule.php';
+require_once __DIR__ . '/../includes/service-fees.php'; // appointmentNoPaymentRequired(), NO_PAYMENT_REQUIRED_LABEL
 requireRole('Parishioner');
 
 $userId = currentUser()['user_id'];
@@ -259,8 +260,8 @@ $hasAuthoritativeFee = is_array($feeSnapshot)
     && array_key_exists('total', $feeSnapshot)
     && is_numeric($feeSnapshot['total']);
 $authoritativeFee = $hasAuthoritativeFee ? (float) $feeSnapshot['total'] : null;
-// A verified ₱0 Wedding/Funeral has no payment step (the Parish Office confirms it directly).
-$noPaymentRequired = $hasAuthoritativeFee && $authoritativeFee <= 0 && in_array($appointment['category'], ['Wedding', 'Funeral'], true);
+// A verified ₱0 Baptism/Wedding/Funeral has no payment step (the Parish Office confirms it directly).
+$noPaymentRequired = appointmentNoPaymentRequired($appointment);
 
 $stmt = db()->prepare('SELECT * FROM mass_intentions WHERE appointment_id = ?');
 $stmt->execute([$id]);
@@ -364,7 +365,7 @@ if (!$isAjax) {
     <?php endif; ?>
     <p><strong>Fee:</strong>
       <?php if ($appointment['pss_classification'] === 'pending_verification'): ?>Fee pending PSS verification
-      <?php elseif ($hasAuthoritativeFee): ?><?= (in_array($appointment['category'], ['Funeral', 'Wedding'], true) && $authoritativeFee <= 0) ? 'No Fees' : money($authoritativeFee) ?>
+      <?php elseif ($hasAuthoritativeFee): ?><?= feeTotalNeedsNoPayment($appointment['category'], $authoritativeFee) ? NO_PAYMENT_REQUIRED_LABEL : money($authoritativeFee) ?>
       <?php else: ?><?= feeLabel((float) $appointment['fee']) ?><?php endif; ?>
       <?php if ($hasAuthoritativeFee && array_key_exists('precana_fee', $feeSnapshot)): ?>
         <br><span class="text-muted" style="font-size:13px;">Includes Pre-Cana Seminar (<?= e((string) ($feeSnapshot['precana_type'] ?? '')) ?>): <?= (float) $feeSnapshot['precana_fee'] > 0 ? money((float) $feeSnapshot['precana_fee']) : 'No Fees' ?></span>
@@ -517,7 +518,7 @@ if (!$isAjax) {
         })();
         </script>
       <?php elseif (!$payment && $noPaymentRequired): ?>
-        <p class="text-muted">No payment is required (No Fees).</p>
+        <p class="text-muted"><?= NO_PAYMENT_REQUIRED_LABEL ?>.</p>
       <?php elseif (!$payment): ?>
         <p class="text-muted">Payment will be available once your appointment is approved.</p>
       <?php endif; ?>

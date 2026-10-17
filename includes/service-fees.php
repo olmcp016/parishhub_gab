@@ -31,15 +31,27 @@ function calculateServiceFee(string $category, ?string $scheduleType, string $cl
     return $calculation;
 }
 
+/** Services priced by service_fee_rules whose verified total can be ₱0 — then there is no payment step. */
+const NO_PAYMENT_CATEGORIES = ['Baptism', 'Wedding', 'Funeral'];
+/** How a ₱0 total is shown to parishioners, guests and staff. */
+const NO_PAYMENT_REQUIRED_LABEL = '₱0.00 — No Payment Required';
+
+/** True when this service's total is ₱0 (or less): nothing to pay — no Cash, no PayMongo, no receipt. */
+function feeTotalNeedsNoPayment(string $category, ?float $total): bool
+{
+    return in_array($category, NO_PAYMENT_CATEGORIES, true) && $total !== null && $total <= 0;
+}
+
 /**
- * Weddings and Funerals whose verified fee is ₱0 have no payment step: the
- * appointment goes straight on to confirmation instead of waiting for a ₱0
- * payment. Never true before the PSS classification is verified.
+ * Baptisms, Weddings and Funerals whose verified (frozen) fee is ₱0 have no
+ * payment step: the appointment goes straight on to confirmation instead of
+ * waiting for a ₱0 payment, and is never auto-cancelled as unpaid. Never true
+ * before the PSS classification is verified.
  */
 function appointmentNoPaymentRequired(array $appointment): bool
 {
-    if (!in_array($appointment['category'] ?? '', ['Wedding', 'Funeral'], true)) return false;
     if (!in_array($appointment['pss_classification'] ?? '', ['pss', 'non_pss'], true)) return false;
     $snapshot = json_decode((string) ($appointment['fee_snapshot'] ?? ''), true);
-    return is_array($snapshot) && isset($snapshot['total']) && is_numeric($snapshot['total']) && (float) $snapshot['total'] <= 0;
+    if (!is_array($snapshot) || !isset($snapshot['total']) || !is_numeric($snapshot['total'])) return false;
+    return feeTotalNeedsNoPayment((string) ($appointment['category'] ?? ''), (float) $snapshot['total']);
 }

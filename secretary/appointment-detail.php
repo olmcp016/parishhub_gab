@@ -322,14 +322,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         require_once __DIR__ . '/../includes/appointment-approval.php';
         if ($confirmNow) {
             $isFuneralApproval = $lockedAppointment['category'] === 'Funeral';
-            logActivity($userId, "Approved and confirmed appointment #$id (" . ($isFuneralApproval ? 'PSS Giver Funeral Mass' : 'verified total ₱0') . ', no fees)', 'Appointments');
+            logActivity($userId, "Approved and confirmed appointment #$id (" . ($isFuneralApproval ? 'PSS Giver Funeral Mass' : 'verified total ₱0') . ', no payment required)', 'Appointments');
             $approvalNotice = appointmentApprovedNoticeSummary(notifyAppointmentApproved($id, (int) $userId));
-            respondAjaxOrRedirect($isAjax, true, 'Appointment approved and confirmed. No payment is required (' . ($isFuneralApproval ? 'PSS Giver — No Fees' : 'verified total: No Fees') . '). ' . $approvalNotice, $redirectUrl);
+            respondAjaxOrRedirect($isAjax, true, 'Appointment approved and confirmed. ' . NO_PAYMENT_REQUIRED_LABEL . ' (verified total). ' . $approvalNotice, $redirectUrl);
         }
         if ($noPaymentNeeded) {
-            logActivity($userId, "Approved appointment #$id (no fees; awaiting " . ($lockedAppointment['category'] === 'Funeral' ? 'the confirmed burial / Funeral Mass schedule' : 'Pre-Cana conditions') . ' before confirmation)', 'Appointments');
+            logActivity($userId, "Approved appointment #$id (no payment required; awaiting " . ($lockedAppointment['category'] === 'Funeral' ? 'the confirmed burial / Funeral Mass schedule' : 'Pre-Cana conditions') . ' before confirmation)', 'Appointments');
             $approvalNotice = appointmentApprovedNoticeSummary(notifyAppointmentApproved($id, (int) $userId));
-            respondAjaxOrRedirect($isAjax, true, 'Appointment approved. No payment is required. Confirm it once these are done: ' . implode(' ', $ceremonyBlockers) . ' ' . $approvalNotice, $redirectUrl);
+            respondAjaxOrRedirect($isAjax, true, 'Appointment approved. ' . NO_PAYMENT_REQUIRED_LABEL . '. Confirm it once these are done: ' . implode(' ', $ceremonyBlockers) . ' ' . $approvalNotice, $redirectUrl);
         }
         logActivity($userId, "Approved appointment #$id", 'Appointments');
         $approvalNotice = appointmentApprovedNoticeSummary(notifyAppointmentApproved($id, (int) $userId));
@@ -735,14 +735,16 @@ if (!$isAjax) {
     <?php endif; ?>
     <p><strong>Date:</strong> <?= formatDate($appointment['appointment_date']) ?><?= $appointment['appointment_time'] ? ' at ' . date('g:i A', strtotime($appointment['appointment_time'])) : ' (To be scheduled)' ?></p>
     <?php
-      // Funeral Mass shows "No Fees" for zero amounts (PSS Giver), not "Voluntary Offering".
+      // Fee-rule services (Baptism, Wedding, Funeral Mass) show "No Fees" for a ₱0
+      // line (e.g. PSS Giver), not "Voluntary Offering"; a ₱0 total is "₱0.00 — No Payment Required".
       $isFuneral = $appointment['category'] === 'Funeral';
-      // Weddings likewise: a ₱0 Wedding fee (e.g. Regular PSS) is "No Fees".
-      $feeText = fn(float $amount): string => (($isFuneral || $appointment['category'] === 'Wedding') && $amount <= 0) ? 'No Fees' : feeLabel($amount);
+      $isFeeRuleService = in_array($appointment['category'], NO_PAYMENT_CATEGORIES, true);
+      $feeText = fn(float $amount): string => ($isFeeRuleService && $amount <= 0) ? 'No Fees' : feeLabel($amount);
+      $totalText = fn(float $amount): string => feeTotalNeedsNoPayment($appointment['category'], $amount) ? NO_PAYMENT_REQUIRED_LABEL : feeLabel($amount);
     ?>
     <p><strong>Fee:</strong>
       <?php if ($appointment['pss_classification'] === 'pending_verification'): ?>Fee pending PSS verification
-      <?php elseif (!empty($appointment['fee_snapshot'])): ?><?= $feeText((float) (json_decode($appointment['fee_snapshot'], true)['total'] ?? 0)) ?>
+      <?php elseif (!empty($appointment['fee_snapshot'])): ?><?= $totalText((float) (json_decode($appointment['fee_snapshot'], true)['total'] ?? 0)) ?>
       <?php else: ?><?= feeLabel((float) $appointment['fee']) ?><?php endif; ?>
     </p>
     <?php if (in_array($appointment['category'], ['Baptism', 'Wedding', 'Funeral'], true)): ?>
@@ -754,9 +756,9 @@ if (!$isAjax) {
           <strong>Fee Calculation</strong><br>
           <?= $isFuneral ? 'Funeral Mass Service Fee' : 'Base Fee' ?>: <?= $feeText((float) ($feeSnapshot['base_fee'] ?? 0)) ?><br>
           Priest Stipend: <?= $feeText((float) ($feeSnapshot['priest_stipend'] ?? 0)) ?><br>
-          <?php if (!$isFuneral): ?>Additional Sponsor Fee: <?= feeLabel((float) ($feeSnapshot['additional_sponsor_fee'] ?? 0)) ?><br><?php endif; ?>
+          <?php if (!$isFuneral): ?>Additional Sponsor Fee: <?= $feeText((float) ($feeSnapshot['additional_sponsor_fee'] ?? 0)) ?><br><?php endif; ?>
           <?php if (array_key_exists('precana_fee', $feeSnapshot)): ?>Pre-Cana Seminar (<?= e((string) ($feeSnapshot['precana_type'] ?? '')) ?>): <?= (float) $feeSnapshot['precana_fee'] > 0 ? money((float) $feeSnapshot['precana_fee']) : 'No Fees' ?><br><?php endif; ?>
-          <strong>Total<?= $isFuneral ? ' Payment' : '' ?>: <?= $feeText((float) ($feeSnapshot['total'] ?? 0)) ?></strong>
+          <strong>Total<?= $isFuneral ? ' Payment' : '' ?>: <?= $totalText((float) ($feeSnapshot['total'] ?? 0)) ?></strong>
         </div>
       <?php endif; ?>
       <?php if ($appointment['pss_classification'] === 'pending_verification' && in_array((int) $appointment['status_id'], [1, 2], true)): ?>
@@ -1194,7 +1196,7 @@ if (!$isAjax) {
       <?php elseif ($appointment['status_name'] === 'Payment Verified' && in_array($appointment['category'], ['Mass Intention', 'Donation'], true)): ?>
         <p class="text-muted">This request is being finalized by the Cashier — no action needed here.</p>
       <?php elseif ($appointment['status_name'] === 'Payment Verified' || ($appointment['status_name'] === 'Approved' && $noPaymentRequired)): ?>
-        <?php if ($appointment['status_name'] === 'Approved'): ?><p class="helper-text" style="margin-top:0;">No payment is required (verified total: No Fees).</p><?php endif; ?>
+        <?php if ($appointment['status_name'] === 'Approved'): ?><p class="helper-text" style="margin-top:0;">No payment is required (verified total: <?= NO_PAYMENT_REQUIRED_LABEL ?>).</p><?php endif; ?>
         <?php if ($ceremonyBlockers): ?>
           <div class="approval-blockers" role="status">
             <strong>Not ready for ceremony yet:</strong>

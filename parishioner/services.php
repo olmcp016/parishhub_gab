@@ -259,12 +259,13 @@ $thankYouIsGuest = false; include __DIR__ . '/../includes/thank-you-modal.php'; 
                     </tr>
                     <tr>
                       <td>Additional Sponsor</td>
+                      <?php // The same included-sponsor counts the server charges with (service_fee_rules). ?>
                       <td><span style="font-size:0.85em;color:var(--gray-dark);">(No fees up to
-                          <?= $feeCategory === 'Wedding' ? 2 : (int) $pssRule['included_sponsors'] ?>
+                          <?= (int) $pssRule['included_sponsors'] ?>
                           sponsors)</span><br><?= feeLabel((float) $pssRule['additional_sponsor_fee']) ?> per additional sponsor
                       </td>
                       <td><span style="font-size:0.85em;color:var(--gray-dark);">(No fees up to
-                          <?= $feeCategory === 'Wedding' ? 2 : (int) $nonRule['included_sponsors'] ?>
+                          <?= (int) $nonRule['included_sponsors'] ?>
                           sponsors)</span><br><?= feeLabel((float) $nonRule['additional_sponsor_fee']) ?> per additional sponsor
                       </td>
                     </tr>
@@ -576,7 +577,14 @@ $noFeesLabel = fn(float $amount): string => $amount > 0 ? money($amount) : 'No F
           <label>Number of Individual Sponsors</label><input type="number"
             class="numeric-no-spinner numeric-zero-friendly" name="wedding_sponsor_count" id="weddingSponsorCountInput"
             min="0" max="200" step="1" value="0">
-          <p class="helper-text">The first 2 sponsors are included; each additional individual sponsor is ₱100.</p>
+          <?php
+            // From the Wedding fee rules the server charges with (PSS Giver rows; Regular and Special can differ).
+            $weddingSponsorRule = [];
+            foreach ($feeRulesByCategory['Wedding'] ?? [] as $r) if ($r['pss_classification'] === 'pss') $weddingSponsorRule[$r['schedule_type']] = $r;
+          ?>
+          <?php if (isset($weddingSponsorRule['Regular'], $weddingSponsorRule['Special'])): ?>
+            <p class="helper-text">Regular schedule: the first <?= (int) $weddingSponsorRule['Regular']['included_sponsors'] ?> individual sponsors are included. Special schedule: the first <?= (int) $weddingSponsorRule['Special']['included_sponsors'] ?>. Each additional individual sponsor is <?= money((float) $weddingSponsorRule['Regular']['additional_sponsor_fee']) ?>.</p>
+          <?php endif; ?>
         </div>
         <div id="regularSlotGroup" class="form-group" style="display:none;">
           <label>Preferred Date</label>

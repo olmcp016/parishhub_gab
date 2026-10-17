@@ -7,6 +7,7 @@ require_once __DIR__ . '/includes/supporting-documents.php';
 require_once __DIR__ . '/includes/generated-form-workflow.php';
 require_once __DIR__ . '/includes/requirements-review.php';
 require_once __DIR__ . '/includes/funeral-schedule.php';
+require_once __DIR__ . '/includes/service-fees.php'; // feeTotalNeedsNoPayment(), NO_PAYMENT_REQUIRED_LABEL
 
 /**
  * Public, no-account status lookup for a guest booking/Mass Intention/
@@ -256,7 +257,7 @@ include __DIR__ . '/includes/header.php';
         <p><strong>Priest:</strong> <?= e($appointment['priest_name'] ?? 'Not yet assigned') ?></p>
         <p><strong>Fee:</strong>
           <?php if ($appointment['pss_classification'] === 'pending_verification'): ?>Fee pending PSS verification
-          <?php elseif ($appointmentSnapshot): ?><?= in_array($appointment['category'], ['Funeral', 'Wedding'], true) && $displayFee <= 0 ? 'No Fees' : feeLabel($displayFee) ?>
+          <?php elseif ($appointmentSnapshot): ?><?= feeTotalNeedsNoPayment($appointment['category'], $displayFee) ? NO_PAYMENT_REQUIRED_LABEL : feeLabel($displayFee) ?>
           <?php else: ?><?= feeLabel((float) $appointment['fee']) ?><?php endif; ?>
           <?php if (array_key_exists('precana_fee', $appointmentSnapshot)): ?>
             <br><span class="text-muted" style="font-size:13px;">Includes Pre-Cana Seminar (<?= e((string) ($appointmentSnapshot['precana_type'] ?? '')) ?>): <?= (float) $appointmentSnapshot['precana_fee'] > 0 ? money((float) $appointmentSnapshot['precana_fee']) : 'No Fees' ?></span>

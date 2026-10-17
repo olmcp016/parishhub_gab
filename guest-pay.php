@@ -82,12 +82,15 @@ if ($variableCategory && $appointment['pss_classification'] !== null) {
     $amount = (float) $appointment['fee'];
 }
 
-// A verified ₱0 total (PSS Giver Funeral Mass, or a Wedding whose fees come to
-// ₱0): No Fees, so no payment transaction is ever started.
-if (in_array($appointment['category'], ['Funeral', 'Wedding'], true) && $amount <= 0) {
-    flash('success', $appointment['category'] === 'Funeral'
-        ? 'No payment is required for this Funeral Mass (PSS Giver — No Fees).'
-        : 'No payment is required for this Wedding (No Fees). The Parish Office will confirm your appointment.');
+// Nothing to pay (a verified ₱0 Baptism, Wedding or Funeral Mass, or any ₱0
+// total): no payment record of any kind — Cash, manual or PayMongo — is ever created.
+if ($amount <= 0) {
+    if (feeTotalNeedsNoPayment($appointment['category'], $amount)) {
+        flash('success', 'No payment is required for this ' . ($appointment['category'] === 'Funeral' ? 'Funeral Mass' : $appointment['category'])
+            . ' (' . NO_PAYMENT_REQUIRED_LABEL . '). The Parish Office will confirm your appointment.');
+    } else {
+        flash('error', 'There is nothing to pay for this appointment.');
+    }
     redirect($statusUrl);
 }
 

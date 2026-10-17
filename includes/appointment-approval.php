@@ -3,7 +3,7 @@
  * PARISHHUB — telling the applicant their appointment was approved.
  *
  * Called by secretary/appointment-detail.php ONLY after the approval
- * (Pending -> Approved, or Pending -> Confirmed for a no-fee PSS Funeral) has
+ * (Pending -> Approved, or Pending -> Confirmed for a verified ₱0 Baptism, Wedding or Funeral) has
  * been committed. Never throws: a failed email or notification never undoes
  * the approval, it is only logged (email_logs / activity_logs / error_log)
  * and reported to the Secretary.
@@ -57,7 +57,7 @@ function approvedAppointmentAmountDue(array $a): ?float
 function approvedAppointmentPaymentHtml(array $a, bool $isGuest): string
 {
     if ((int) $a['status_id'] === 5) {
-        return '<strong>Payment:</strong> No payment is required for this appointment (PSS Giver — No Fees). Your appointment is confirmed.';
+        return '<strong>Payment:</strong> No payment is required for this appointment (' . NO_PAYMENT_REQUIRED_LABEL . '). Your appointment is confirmed.';
     }
     $latest = db()->prepare('SELECT payment_status FROM payments WHERE appointment_id = ? ORDER BY payment_id DESC LIMIT 1');
     $latest->execute([(int) $a['appointment_id']]);
@@ -66,8 +66,8 @@ function approvedAppointmentPaymentHtml(array $a, bool $isGuest): string
     if ($paymentStatus === 'pending') return '<strong>Payment:</strong> Your payment has been submitted and is awaiting verification by the parish cashier.';
 
     $amount = approvedAppointmentAmountDue($a);
-    if ($amount !== null && $amount <= 0 && in_array($a['category'], ['Wedding', 'Funeral'], true)) {
-        return '<strong>Payment:</strong> No payment is required for this appointment (No Fees). The Parish Office will confirm your appointment.';
+    if (feeTotalNeedsNoPayment($a['category'], $amount)) {
+        return '<strong>Payment:</strong> No payment is required for this appointment (' . NO_PAYMENT_REQUIRED_LABEL . '). The Parish Office will confirm your appointment.';
     }
     $where = $isGuest
         ? 'through your ParishHub booking page (button below) or at the parish office'
