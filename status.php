@@ -140,8 +140,9 @@ include __DIR__ . '/includes/header.php';
 
 <div style="max-width:700px; margin:0 auto; padding: 100px 20px 60px;">
   <?php include __DIR__ . '/includes/flash.php'; ?>
-  <h1 style="margin:0 0 8px;">Check Your Status</h1>
-  <p class="text-muted" style="margin-bottom:24px;">Look up a guest booking, Mass Intention, or donation using the reference code from your confirmation screen.</p>
+  <?php // The nav bar already names this page: the heading stays for screen readers only (same as public-shell-start.php). ?>
+  <h1 style="position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;">Check Your Status</h1>
+  <p class="text-muted" style="margin:0 0 24px;">Look up a guest booking, Mass Intention, or donation using the reference code from your confirmation screen.</p>
 
   <div class="card">
     <form method="GET" action="<?= url('status.php') ?>">
