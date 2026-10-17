@@ -9,9 +9,15 @@ $__bellFeedUrl = $__bellRole === 'Parishioner' ? url('parishioner/notifications-
 $__unread = 0;
 if ($__showBell) {
     try {
-        $bellStmt = db()->prepare('SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = FALSE');
-        $bellStmt->execute([(int) $__user['user_id']]);
-        $__unread = (int) $bellStmt->fetchColumn();
+        if ($__bellRole === 'Parishioner') {
+            // Same filter as the bell feed and View All (routine notifications are not counted).
+            require_once __DIR__ . '/secretary-notifications.php';
+            $__unread = parishionerUnreadNotificationCount(parishionerVisibleNotifications((int) $__user['user_id']));
+        } else {
+            $bellStmt = db()->prepare('SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = FALSE');
+            $bellStmt->execute([(int) $__user['user_id']]);
+            $__unread = (int) $bellStmt->fetchColumn();
+        }
     } catch (Throwable $e) { /* bell just starts at 0 */ }
 }
 ?>

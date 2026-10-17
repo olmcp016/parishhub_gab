@@ -571,10 +571,14 @@ function verifyPaymentAndIssueReceipt(int $paymentId, ?int $verifiedByUserId, st
         $stmt->execute([$payment['parishioner_id']]);
         $puid = $stmt->fetchColumn();
 
-        $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'payment', 'Payment Verified', ?)")
-            ->execute([$puid, "Your payment (Ref: {$payment['reference_number']}) has been verified. Official Receipt $receiptNumber issued. Your appointment is awaiting confirmation."]);
-
         $isDonation = $payment['category'] === 'Donation';
+        // Donations keep their Payment Verified notification. Any other booking hears it
+        // from Appointment Confirmed (the status trigger): right now for a Mass Intention,
+        // once the Parish Office confirms for the rest — no duplicate in between.
+        if ($isDonation) {
+            $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'payment', 'Payment Verified', ?)")
+                ->execute([$puid, "Your payment (Ref: {$payment['reference_number']}) has been verified. Official Receipt $receiptNumber issued. Your appointment is awaiting confirmation."]);
+        }
 
         $pdo->commit();
         if ($isDonation) {

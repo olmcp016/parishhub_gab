@@ -78,39 +78,57 @@ function approvedAppointmentPaymentHtml(array $a, bool $isGuest): string
         . ($amount === null ? ' The Parish Office will confirm the amount due.' : '');
 }
 
-/** "Your appointment for Baptism has been approved." (+ "#id" when notifications cannot store the link). */
-function appointmentApprovedNotificationMessage(array $a): string
+/**
+ * The approval notification's type and text, from what the approval actually did:
+ *   - Confirmed (verified ₱0)        -> Appointment Confirmed, no payment required;
+ *   - Approved, payment required     -> Appointment Approved, proceed to payment;
+ *   - Approved, ₱0 but held for Pre-Cana -> hidden type (nothing to pay, not confirmed yet).
+ * "#id" is added when notifications cannot store the link (the bell reads it from the text).
+ *
+ * @return array{title:string, message:string}
+ */
+function appointmentApprovedNotification(array $a): array
 {
-    return notificationsHaveAppointmentLink()
-        ? "Your appointment for {$a['service_name']} has been approved."
-        : "Your appointment #{$a['appointment_id']} for {$a['service_name']} has been approved.";
+    $ref = notificationsHaveAppointmentLink() ? '' : ' #' . (int) $a['appointment_id'];
+    if ((int) $a['status_id'] === 5) {
+        return ['title' => NOTIFY_APPOINTMENT_CONFIRMED, 'message' => "Your appointment$ref has been confirmed. No payment is required."];
+    }
+    if (appointmentNoPaymentRequired($a)) {
+        return ['title' => NOTIFY_APPROVED_NO_PAYMENT, 'message' => "Your appointment$ref has been approved. No payment is required; it will be confirmed once the Pre-Cana requirements are complete."];
+    }
+    return ['title' => NOTIFY_APPOINTMENT_APPROVED, 'message' => "Your appointment$ref has been approved. Please proceed to payment."];
 }
 
-/** Website notification for a registered parishioner (guests have no account). @return bool created/updated */
+/**
+ * Website notification for a registered parishioner (guests have no account).
+ * @return bool true when a notification the parishioner sees was created/updated
+ */
 function notifyParishionerAppointmentApproved(array $a): bool
 {
     if (requirementsReviewIsGuest($a) || empty($a['user_id'])) return false;
     try {
         $userId = (int) $a['user_id'];
         $id = (int) $a['appointment_id'];
-        $message = appointmentApprovedNotificationMessage($a);
+        $notice = appointmentApprovedNotification($a);
         $link = notificationsHaveAppointmentLink();
-        // Row the status trigger may have just inserted for this same change ("Your appointment #12 has been approved…").
-        $existing = db()->prepare("SELECT notification_id FROM notifications WHERE user_id = ? AND title IN ('Appointment Approved', 'Appointment Confirmed') AND message LIKE ? ORDER BY notification_id DESC LIMIT 1");
-        $existing->execute([$userId, "Your appointment #$id %"]);
+        // Row the status trigger may have just inserted for this same change ("Your appointment #12 has been approved…"
+        // or "Your appointment #12 is confirmed…"): corrected in place, never a second one.
+        $existing = db()->prepare('SELECT notification_id FROM notifications WHERE user_id = ? AND title IN (?, ?) AND message LIKE ? ORDER BY notification_id DESC LIMIT 1');
+        $existing->execute([$userId, NOTIFY_APPOINTMENT_APPROVED, NOTIFY_APPOINTMENT_CONFIRMED, "Your appointment #$id %"]);
         $notificationId = $existing->fetchColumn();
+        $hidden = $notice['title'] === NOTIFY_APPROVED_NO_PAYMENT;
         if ($notificationId) {
             db()->prepare($link
-                ? "UPDATE notifications SET title = 'Appointment Approved', message = ?, appointment_id = ? WHERE notification_id = ?"
-                : "UPDATE notifications SET title = 'Appointment Approved', message = ? WHERE notification_id = ?")
-                ->execute($link ? [$message, $id, (int) $notificationId] : [$message, (int) $notificationId]);
-        } else {
+                ? 'UPDATE notifications SET title = ?, message = ?, appointment_id = ? WHERE notification_id = ?'
+                : 'UPDATE notifications SET title = ?, message = ? WHERE notification_id = ?')
+                ->execute($link ? [$notice['title'], $notice['message'], $id, (int) $notificationId] : [$notice['title'], $notice['message'], (int) $notificationId]);
+        } elseif (!$hidden) {
             db()->prepare($link
-                ? "INSERT INTO notifications (user_id, type, category, title, message, appointment_id) VALUES (?, 'website', 'appointment', 'Appointment Approved', ?, ?)"
-                : "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Appointment Approved', ?)")
-                ->execute($link ? [$userId, $message, $id] : [$userId, $message]);
+                ? "INSERT INTO notifications (user_id, type, category, title, message, appointment_id) VALUES (?, 'website', 'appointment', ?, ?, ?)"
+                : "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', ?, ?)")
+                ->execute($link ? [$userId, $notice['title'], $notice['message'], $id] : [$userId, $notice['title'], $notice['message']]);
         }
-        return true;
+        return !$hidden;
     } catch (Throwable $e) {
         error_log("Approval notification for appointment #{$a['appointment_id']} failed: " . $e->getMessage());
         return false;

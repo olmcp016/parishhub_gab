@@ -142,8 +142,7 @@ try {
         $newId = (int) $pdo->lastInsertId();
         $oldId = $activeDocument['document_id'] ?? null;
         if ($oldId) $pdo->prepare('UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ?')->execute([$newId, $oldId]);
-        $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Documents Updated', ?)")
-            ->execute([(int) $user['user_id'], "Your requirement replacement for appointment #$contextId has been submitted and remains under review."]);
+        // No bell notification to the uploader for their own replacement (the page confirms it); the Secretary is still told.
         $secretaries = uploadNotifiesSecretary($contextId) ? $pdo->query("SELECT user_id FROM users u JOIN roles r ON r.role_id = u.role_id WHERE r.role_name IN ('Secretary', 'Admin') AND u.status = 'active'")->fetchAll(PDO::FETCH_COLUMN) : [];
         $notify = $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Documents Updated', ?)");
         foreach ($secretaries as $secretaryId) {

@@ -167,10 +167,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // parishioners; guests see it on their booking status page).
             $isGuestBooking = trim((string) ($recipientRow['guest_name'] ?? '')) !== '';
             if ($parishionerUserId && (!requirementsReviewAvailable() || ($currentStatusId !== 1 && !$isGuestBooking))) {
-                $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Requirement Needs Revision', ?)")
-                    ->execute([(int) $parishionerUserId, $choice === 'Others'
-                        ? "The requirement '$documentLabel' for appointment #$id needs correction. Reason: $reason"
-                        : "Your submitted $itemKind '$documentLabel' for appointment #$id was rejected due to " . strtolower($reason) . ($itemKind === 'form' ? '. Please correct the form and generate it again.' : '. Please upload a corrected copy.')]);
+                // One Needs Revision notification per appointment while it is unread, not one per rejected item.
+                notifyParishionerNeedsRevision((int) $parishionerUserId, $id, $choice === 'Others'
+                    ? "The requirement '$documentLabel' for appointment #$id needs correction. Reason: $reason"
+                    : "Your submitted $itemKind '$documentLabel' for appointment #$id was rejected due to " . strtolower($reason) . ($itemKind === 'form' ? '. Please correct the form and generate it again.' : '. Please upload a corrected copy.'));
             }
             $pdo->commit();
         } catch (Throwable $e) {
@@ -608,8 +608,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $recipient = $pdo->prepare("SELECT u.user_id FROM appointments a JOIN parishioners p ON p.parishioner_id = a.parishioner_id JOIN users u ON u.user_id = p.user_id WHERE a.appointment_id = ? AND COALESCE(a.guest_name, '') = ''");
             $recipient->execute([$id]);
             if ($recipientId = $recipient->fetchColumn()) {
-                $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Requirement Needs Revision', ?)")
-                    ->execute([(int) $recipientId, "Please update the Katin-awan sa Paglubong form for appointment #$id: $reason"]);
+                notifyParishionerNeedsRevision((int) $recipientId, $id, "Please update the Katin-awan sa Paglubong form for appointment #$id: $reason");
             }
             $pdo->commit();
         } catch (Throwable $e) {

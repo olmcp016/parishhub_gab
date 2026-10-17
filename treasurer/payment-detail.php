@@ -65,8 +65,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
         );
         $stmt->execute([$apptId]);
         $puid = $stmt->fetchColumn();
-        db()->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Payment Confirmed', ?)")
-            ->execute([$puid, "Your payment for appointment #$apptId has been confirmed. Thank you!"]);
+        // A Mass Intention already has its Appointment Confirmed notification from the
+        // status trigger ("Your appointment #12 is confirmed…"): no second one. Donations unchanged.
+        $alreadyConfirmed = false;
+        if ($toConfirm['category'] === 'Mass Intention') {
+            $confirmedStmt = db()->prepare("SELECT 1 FROM notifications WHERE user_id = ? AND title = 'Appointment Confirmed' AND message LIKE ?");
+            $confirmedStmt->execute([$puid, "Your appointment #$apptId %"]);
+            $alreadyConfirmed = (bool) $confirmedStmt->fetchColumn();
+        }
+        if (!$alreadyConfirmed) {
+            db()->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Payment Confirmed', ?)")
+                ->execute([$puid, "Your payment for appointment #$apptId has been confirmed. Thank you!"]);
+        }
         logActivity($userId, "Confirmed payment for appointment #$apptId", 'Payments');
         if ($isModalRequest) {
             header('Content-Type: application/json');

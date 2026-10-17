@@ -1,20 +1,15 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/secretary-notifications.php';
 requireRole('Parishioner');
 
 $userId = currentUser()['user_id'];
 
-$stmt = db()->prepare('SELECT COUNT(*) FROM notifications WHERE user_id = ?');
-$stmt->execute([$userId]);
-$pagination = paginate((int) $stmt->fetchColumn(), 10);
-
-$stmt = db()->prepare('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?');
-$stmt->bindValue(1, $userId);
-$stmt->bindValue(2, $pagination['limit'], PDO::PARAM_INT);
-$stmt->bindValue(3, $pagination['offset'], PDO::PARAM_INT);
-$stmt->execute();
-$notifications = $stmt->fetchAll();
+// Same filter as the bell and its unread count (routine notifications are hidden, never deleted).
+$visibleNotifications = parishionerVisibleNotifications((int) $userId);
+$pagination = paginate(count($visibleNotifications), 10);
+$notifications = array_slice($visibleNotifications, $pagination['offset'], $pagination['limit']);
 
 db()->prepare('UPDATE notifications SET is_read = TRUE WHERE user_id = ?')->execute([$userId]);
 

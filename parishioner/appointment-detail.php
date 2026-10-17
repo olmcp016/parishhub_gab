@@ -195,8 +195,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $uploaded++;
                 }
 
-                $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Documents Updated', ?)")
-                    ->execute([$userId, "Your updated documents for appointment #$id have been submitted and remain under review."]);
+                // No bell notification to the parishioner for their own upload (the page confirms it); the Secretary is still told.
                 $secretaries = $pdo->query("SELECT user_id FROM users u JOIN roles r ON r.role_id = u.role_id WHERE r.role_name IN ('Secretary', 'Admin') AND u.status = 'active'")->fetchAll(PDO::FETCH_COLUMN);
                 $notify = $pdo->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Documents Updated', ?)");
                 foreach ($secretaries as $secretaryId) {

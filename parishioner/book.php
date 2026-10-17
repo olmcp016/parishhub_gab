@@ -676,24 +676,16 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
 
         // Guests have no account to receive an in-app notification —
         // their reference code (shown on confirmation) is how they check
-        // status instead.
-        if (!$isGuest) {
-            if ($isMassIntention) {
-                // Online payments are announced once PayMongo confirms them
-                // (see parishioner/mass-intention-return.php); a manual
-                // payment is on record right now, awaiting the Cashier.
-                if (!$payOnline) {
-                    $stmt = $pdo->prepare(
-                        "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Mass Intention Submitted', ?)"
-                    );
-                    $stmt->execute([$userId, "Your Mass Intention (#$appointmentId) and payment were submitted. Our Cashier will verify your payment; once approved, your intention is confirmed."]);
-                }
-            } else {
-                $stmt = $pdo->prepare(
-                    "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Appointment Submitted', ?)"
-                );
-                $stmt->execute([$userId, "Your appointment request (#$appointmentId) has been submitted and is pending review. Our secretary will check your requirements next."]);
-            }
+        // status instead. A submitted appointment gets no bell notification
+        // (the Thank You dialog already says so); the bell starts at approval.
+        if (!$isGuest && $isMassIntention && !$payOnline) {
+            // Online payments are announced by the Appointment Confirmed
+            // notification once PayMongo confirms them; a manual payment is
+            // on record right now, awaiting the Cashier.
+            $stmt = $pdo->prepare(
+                "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Mass Intention Submitted', ?)"
+            );
+            $stmt->execute([$userId, "Your Mass Intention (#$appointmentId) and payment were submitted. Our Cashier will verify your payment; once approved, your intention is confirmed."]);
         }
 
         if ($isMassIntention) $massIntentionStage = 'commit';

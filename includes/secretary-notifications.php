@@ -10,6 +10,21 @@
  */
 require_once __DIR__ . '/functions.php';
 
+/*
+ * Parishioner notification types. The notifications table has no type column,
+ * so the title is the type: create and filter only with these constants.
+ */
+const NOTIFY_APPOINTMENT_APPROVED = 'Appointment Approved';      // payment required
+const NOTIFY_APPOINTMENT_CONFIRMED = 'Appointment Confirmed';
+const NOTIFY_NEEDS_REVISION = 'Needs Revision';
+const NOTIFY_NEEDS_REVISION_OLD = 'Requirement Needs Revision'; // earlier title, still shown
+const NOTIFY_APPROVED_NO_PAYMENT = 'Appointment Approved (No Payment Due)'; // ₱0 Wedding held for Pre-Cana: hidden
+const NOTIFY_PAYMENT_VERIFIED = 'Payment Verified';
+const NOTIFY_PAYMENT_CONFIRMED = 'Payment Confirmed';
+const NOTIFY_MASS_INTENTION_SUBMITTED = 'Mass Intention Submitted';
+/** Routine Parishioner notifications: never shown in the bell, its count or View All (old rows stay in the table). */
+const PARISHIONER_HIDDEN_NOTIFICATIONS = ['Appointment Submitted', 'Documents Updated', 'Appointment Completed', 'Pre-Cana Schedule Confirmed', NOTIFY_APPROVED_NO_PAYMENT];
+
 function notificationsHaveAppointmentLink(): bool
 {
     static $available = null;
@@ -164,8 +179,82 @@ function markSecretaryNotificationRead(int $notificationId, int $userId): void
 }
 
 /**
+ * The Parishioner's notifications that are shown, newest first — the one filter
+ * behind the bell, its unread count (topbar + feed) and View All, so all three
+ * always agree. Hidden rows are never deleted, only left out:
+ *   - routine types (PARISHIONER_HIDDEN_NOTIFICATIONS);
+ *   - Payment Verified for anything but a Donation (its "Ref:" matched to this
+ *     parishioner's own payments; a row that cannot be matched stays shown);
+ *   - a Mass Intention's Submitted / Payment Confirmed once it has its own
+ *     Appointment Confirmed notification (that one says it all).
+ * Each row gets 'link_appointment_id': the appointment it is about, if this
+ * parishioner owns it (null otherwise).
+ */
+function parishionerVisibleNotifications(int $userId): array
+{
+    $link = notificationsHaveAppointmentLink();
+    $stmt = db()->prepare('SELECT notification_id, title, message, is_read, created_at' . ($link ? ', appointment_id' : '') . ' FROM notifications WHERE user_id = ? ORDER BY created_at DESC, notification_id DESC');
+    $stmt->execute([$userId]);
+    $rows = $stmt->fetchAll();
+    if (!$rows) return [];
+
+    $own = db()->prepare(
+        'SELECT a.appointment_id, s.category, pay.reference_number
+         FROM appointments a
+         JOIN parishioners p ON p.parishioner_id = a.parishioner_id
+         JOIN services s ON s.service_id = a.service_id
+         LEFT JOIN payments pay ON pay.appointment_id = a.appointment_id
+         WHERE p.user_id = ?'
+    );
+    $own->execute([$userId]);
+    $categoryOf = [];
+    $categoryByReference = [];
+    foreach ($own->fetchAll() as $o) {
+        $categoryOf[(int) $o['appointment_id']] = (string) $o['category'];
+        if (trim((string) $o['reference_number']) !== '') $categoryByReference[trim((string) $o['reference_number'])][] = (string) $o['category'];
+    }
+
+    $confirmed = [];
+    foreach ($rows as &$n) {
+        $appointmentId = $link && !empty($n['appointment_id']) ? (int) $n['appointment_id'] : notificationAppointmentFromText((string) $n['message']);
+        $n['link_appointment_id'] = $appointmentId && isset($categoryOf[$appointmentId]) ? $appointmentId : null;
+        // For sorting out duplicates only (never a link): "Your Mass Intention (#12) …".
+        $n['about_appointment_id'] = $n['link_appointment_id']
+            ?? (preg_match('/\(#(\d+)\)/', (string) $n['message'], $m) && isset($categoryOf[(int) $m[1]]) ? (int) $m[1] : null);
+        if ($n['title'] === NOTIFY_APPOINTMENT_CONFIRMED && $n['about_appointment_id']) $confirmed[$n['about_appointment_id']] = true;
+    }
+    unset($n);
+
+    return array_values(array_filter($rows, static function (array $n) use ($categoryOf, $categoryByReference, $confirmed): bool {
+        $title = (string) $n['title'];
+        if (in_array($title, PARISHIONER_HIDDEN_NOTIFICATIONS, true)) return false;
+        $about = $n['about_appointment_id'];
+        if ($title === NOTIFY_PAYMENT_VERIFIED) {
+            $categories = $about ? [$categoryOf[$about]] : (preg_match('/\(Ref: ([^)]+)\)/', (string) $n['message'], $m) ? ($categoryByReference[trim($m[1])] ?? []) : []);
+            return !$categories || in_array('Donation', $categories, true);
+        }
+        if ($title === NOTIFY_MASS_INTENTION_SUBMITTED || $title === NOTIFY_PAYMENT_CONFIRMED) {
+            return !($about && ($categoryOf[$about] ?? '') === 'Mass Intention' && isset($confirmed[$about]));
+        }
+        return true;
+    }));
+}
+
+/** Unread count of the notifications parishionerVisibleNotifications() shows. */
+function parishionerUnreadNotificationCount(array $visible): int
+{
+    return count(array_filter($visible, static fn(array $n): bool => !notificationIsRead($n['is_read'])));
+}
+
+function notificationIsRead($value): bool
+{
+    return in_array($value, [true, 1, '1', 't', 'true'], true);
+}
+
+/**
  * Unread count + latest notifications for a Parishioner's bell (same shape as
- * secretaryNotificationFeed()). Only this user's rows. An appointment
+ * secretaryNotificationFeed()). Only this user's rows, filtered by
+ * parishionerVisibleNotifications() before the limit. An appointment
  * notification links to the parishioner's own appointment page (which marks it
  * read once the appointment has loaded); anything else — or an appointment this
  * parishioner does not own — links to the full Notifications page. Never to a
@@ -173,36 +262,59 @@ function markSecretaryNotificationRead(int $notificationId, int $userId): void
  */
 function parishionerNotificationFeed(int $userId, int $limit = 10): array
 {
-    $count = db()->prepare('SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = FALSE');
-    $count->execute([$userId]);
-    $link = notificationsHaveAppointmentLink();
-    $stmt = db()->prepare('SELECT notification_id, title, message, is_read, created_at' . ($link ? ', appointment_id' : '') . ' FROM notifications WHERE user_id = ? ORDER BY created_at DESC, notification_id DESC LIMIT ?');
-    $stmt->bindValue(1, $userId, PDO::PARAM_INT);
-    $stmt->bindValue(2, $limit, PDO::PARAM_INT);
-    $stmt->execute();
-    $owns = db()->prepare(
-        'SELECT 1 FROM appointments a JOIN parishioners p ON p.parishioner_id = a.parishioner_id WHERE a.appointment_id = ? AND p.user_id = ?'
-    );
+    $visible = parishionerVisibleNotifications($userId);
     $items = [];
-    foreach ($stmt->fetchAll() as $n) {
-        $appointmentId = $link && !empty($n['appointment_id']) ? (int) $n['appointment_id'] : notificationAppointmentFromText((string) $n['message']);
-        if ($appointmentId) {
-            $owns->execute([$appointmentId, $userId]);
-            if (!$owns->fetchColumn()) $appointmentId = null;
-        }
+    foreach (array_slice($visible, 0, $limit) as $n) {
         $id = (int) $n['notification_id'];
         $items[] = [
             'id' => $id,
             'title' => (string) $n['title'],
             'message' => (string) $n['message'],
             'time' => formatDateTime($n['created_at']),
-            'is_read' => in_array($n['is_read'], [true, 1, '1', 't', 'true'], true),
-            'url' => $appointmentId
-                ? url('parishioner/appointment-detail.php?id=' . $appointmentId . '&notification=' . $id)
+            'is_read' => notificationIsRead($n['is_read']),
+            'url' => $n['link_appointment_id']
+                ? url('parishioner/appointment-detail.php?id=' . $n['link_appointment_id'] . '&notification=' . $id)
                 : url('parishioner/notifications.php'),
         ];
     }
-    return ['unread' => (int) $count->fetchColumn(), 'items' => $items];
+    return ['unread' => parishionerUnreadNotificationCount($visible), 'items' => $items];
+}
+
+/**
+ * "Needs Revision" for a registered parishioner: one notification per open
+ * request, not one per rejected item. An unread one for this appointment is
+ * refreshed (new text, moved to the top) instead of adding another; with
+ * $sameRequest (the earlier request is still unresolved) the latest one is
+ * refreshed even if already read. Otherwise — a new revision cycle — a new row.
+ * Never throws.
+ */
+function notifyParishionerNeedsRevision(int $userId, int $appointmentId, string $message, bool $sameRequest = false): void
+{
+    try {
+        $link = notificationsHaveAppointmentLink();
+        $stmt = db()->prepare('SELECT notification_id, message, is_read' . ($link ? ', appointment_id' : '') . ' FROM notifications WHERE user_id = ? AND title IN (?, ?) ORDER BY notification_id DESC');
+        $stmt->execute([$userId, NOTIFY_NEEDS_REVISION, NOTIFY_NEEDS_REVISION_OLD]);
+        $existingId = null;
+        foreach ($stmt->fetchAll() as $n) {
+            $about = $link && !empty($n['appointment_id']) ? (int) $n['appointment_id'] : notificationAppointmentFromText((string) $n['message']);
+            if ($about !== $appointmentId) continue;
+            if ($sameRequest || !notificationIsRead($n['is_read'])) $existingId = (int) $n['notification_id'];
+            break; // only the latest one for this appointment counts
+        }
+        if ($existingId) {
+            db()->prepare($link
+                ? 'UPDATE notifications SET title = ?, message = ?, is_read = FALSE, created_at = CURRENT_TIMESTAMP, appointment_id = ? WHERE notification_id = ?'
+                : 'UPDATE notifications SET title = ?, message = ?, is_read = FALSE, created_at = CURRENT_TIMESTAMP WHERE notification_id = ?')
+                ->execute($link ? [NOTIFY_NEEDS_REVISION, $message, $appointmentId, $existingId] : [NOTIFY_NEEDS_REVISION, $message, $existingId]);
+        } else {
+            db()->prepare($link
+                ? "INSERT INTO notifications (user_id, type, category, title, message, appointment_id) VALUES (?, 'website', 'appointment', ?, ?, ?)"
+                : "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', ?, ?)")
+                ->execute($link ? [$userId, NOTIFY_NEEDS_REVISION, $message, $appointmentId] : [$userId, NOTIFY_NEEDS_REVISION, $message]);
+        }
+    } catch (Throwable $e) {
+        error_log("Needs Revision notification for appointment #$appointmentId failed: " . $e->getMessage());
+    }
 }
 
 /** Marks one of this user's own notifications read (a forged id for anyone else's matches nothing). */

@@ -188,7 +188,7 @@ function requirementsReviewAppointment(int $appointmentId, bool $lock = false): 
 {
     $stmt = db()->prepare(
         'SELECT a.appointment_id, a.status_id, a.guest_name, a.guest_email, a.guest_reference, a.requirements_review_status, a.revision_requested_at,
-                s.service_name, s.category, u.email AS user_email, u.firstname, u.lastname
+                s.service_name, s.category, u.user_id, u.email AS user_email, u.firstname, u.lastname
          FROM appointments a
          JOIN services s ON s.service_id = a.service_id
          LEFT JOIN parishioners p ON p.parishioner_id = a.parishioner_id
@@ -244,6 +244,14 @@ function sendRevisionRequest(int $appointmentId, int $secretaryUserId): array
     logActivity($secretaryUserId, "Sent a revision request for appointment #$appointmentId", 'Appointments');
 
     $isGuest = requirementsReviewIsGuest($appointment);
+    // Registered parishioner: one bell notification for this request (guests get the email only).
+    // A request sent while the previous one is still Awaiting Revision refreshes that notification.
+    if (!$isGuest && !empty($appointment['user_id'])) {
+        notifyParishionerNeedsRevision((int) $appointment['user_id'], $appointmentId,
+            "Your {$appointment['service_name']} booking (Reference: " . requirementsReviewReference($appointment) . ') needs revision. '
+            . 'Open your appointment, correct each item marked Needs Revision, then click Submit Updated Requirements.',
+            ($appointment['requirements_review_status'] ?? null) === 'awaiting_revision');
+    }
     $toEmail = trim((string) ($isGuest ? $appointment['guest_email'] : $appointment['user_email']));
     if ($toEmail === '' || !filter_var($toEmail, FILTER_VALIDATE_EMAIL)) {
         return ['ok' => true, 'message' => 'Revision request saved (Awaiting Revision), but there is no email address on this booking. Please contact the applicant by phone.'];

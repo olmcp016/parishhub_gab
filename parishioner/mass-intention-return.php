@@ -50,15 +50,8 @@ if ($row) {
         if ($localStatus === 'verified') {
             $result = verifyPaymentAndIssueReceipt($paymentId, null, $row['gateway_transaction_id']);
             if ($result['ok']) {
+                // Verified = Confirmed: the parishioner's bell gets Appointment Confirmed (status trigger), nothing more.
                 $outcome = 'paid';
-                if ($row['parishioner_id']) {
-                    $stmt = db()->prepare('SELECT u.user_id FROM parishioners par JOIN users u ON par.user_id = u.user_id WHERE par.parishioner_id = ? AND u.email != ?');
-                    $stmt->execute([$row['parishioner_id'], 'guest@parishhub.internal']);
-                    if ($uid = $stmt->fetchColumn()) {
-                        db()->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Mass Intention Submitted', ?)")
-                            ->execute([$uid, "Your Mass Intention (#$appointmentId) and payment were received. Our Cashier will confirm it shortly."]);
-                    }
-                }
             } else {
                 error_log("Mass Intention payment $paymentId confirmed by PayMongo but verification failed: {$result['message']}");
                 $outcome = 'pending';
