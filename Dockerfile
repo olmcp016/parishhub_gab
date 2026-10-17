@@ -6,6 +6,12 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 RUN apt-get update && apt-get install -y libpq-dev unzip \
     && docker-php-ext-install pdo pdo_pgsql
 
+# Production PHP errors: never shown to visitors, always logged. The image ships
+# no php.ini, and PHP's built-in default displays errors on the page. With no
+# error_log set, PHP running in Apache logs to Apache's ErrorLog, which this
+# image sends to the container's stderr (Render's logs).
+RUN printf "display_errors=Off\ndisplay_startup_errors=Off\nlog_errors=On\n" > "$PHP_INI_DIR/conf.d/zz-production-errors.ini"
+
 # Enable Apache rewrite module
 RUN a2enmod rewrite
 
