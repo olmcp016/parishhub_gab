@@ -37,7 +37,7 @@ function renderParishCalendar(elId, options) {
       backgroundColor: '#c99b2f',
       borderColor: '#a5791f',
       textColor: '#241611',
-      extendedProps: { kind: 'event', eventId: ev.id || null }
+      extendedProps: { kind: 'event', eventId: ev.id || null, details: ev.details || null }
     };
   });
 
@@ -99,6 +99,13 @@ function renderParishCalendar(elId, options) {
     // in sync with the calendar's actual rendered height.
     datesSet: function (info) {
       if (typeof options.datesSet === 'function') options.datesSet(info);
+    },
+
+    // FullCalendar already makes events focusable and opens them with Enter/Space through
+    // eventClick below; this only announces the ones the page can open as buttons.
+    eventDidMount: function (info) {
+      var handlers = { event: options.onEventClick, mass: options.onMassClick, appointment: options.onAppointmentClick };
+      if (typeof handlers[info.event.extendedProps.kind] === 'function') info.el.setAttribute('role', 'button');
     },
 
     eventClick: function (info) {

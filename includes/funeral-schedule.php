@@ -150,12 +150,12 @@ function renderFuneralScheduleSummary(array $row): void
     $s = funeralScheduleDisplay($row);
     ?>
     <div class="funeral-schedule-summary">
-      <p><strong>Preferred Burial / Funeral Mass Date:</strong> <?= e($s['preferred_date']) ?></p>
-      <p><strong>Preferred Burial / Funeral Mass Time:</strong> <?= e($s['preferred_time']) ?></p>
+      <p><strong>Preferred Burial Date:</strong> <?= e($s['preferred_date']) ?></p>
+      <p><strong>Preferred Burial Time:</strong> <?= e($s['preferred_time']) ?></p>
       <?php if ($s['confirmed']): ?>
-        <p><strong>Confirmed Burial / Funeral Mass Schedule:</strong> <span class="badge badge-approved"><?= e($s['confirmed']) ?></span></p>
+        <p><strong>Confirmed Burial Schedule:</strong> <span class="badge badge-approved"><?= e($s['confirmed']) ?></span></p>
       <?php else: ?>
-        <p><strong>Confirmed Burial / Funeral Mass Schedule:</strong> <span class="badge badge-pending">Not yet confirmed</span>
+        <p><strong>Confirmed Burial Schedule:</strong> <span class="badge badge-pending">Not yet confirmed</span>
           <?php if ($s['has_preferred']): ?><br><span class="text-muted" style="font-size:13px;">Preferred Schedule — Awaiting Parish Office Confirmation</span><?php endif; ?></p>
       <?php endif; ?>
     </div>

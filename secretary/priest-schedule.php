@@ -23,15 +23,17 @@ if (!$priest) {
     exit;
 }
 
+// Confirmed (5) only. Pending / Approved / Payment Verified bookings still block the priest
+// in the booking and assignment conflict checks; this list is not an availability view.
 $stmt = db()->prepare(
     "SELECT a.appointment_date, a.appointment_time, s.service_name
      FROM appointments a
      JOIN services s ON s.service_id = a.service_id
      WHERE a.priest_id = ?
-       AND a.status_id NOT IN (3, 7)
+       AND a.status_id = 5
        AND (a.appointment_date > CURRENT_DATE
             OR (a.appointment_date = CURRENT_DATE AND a.appointment_time >= CURRENT_TIME))
-     ORDER BY a.appointment_date ASC, a.appointment_time ASC
+     ORDER BY a.appointment_date ASC, a.appointment_time ASC, a.appointment_id ASC
      LIMIT ? OFFSET ?"
 );
 $stmt->bindValue(1, $priestId, PDO::PARAM_INT);

@@ -338,8 +338,9 @@
           .then(function (data) {
             if (requestId !== activeScheduleRequest || !scheduleModal.open) return;
             if (!data.success) throw new Error(data.message || 'Unable to load schedule.');
-            var html = '<div class="priest-schedule-identity"><strong>' + escapeHtml(data.priest.full_name) + '</strong><span>' + escapeHtml(data.priest.title || 'Priest') + '</span></div><h4 class="priest-schedule-heading">Upcoming Appointments' + (data.appointments.length ? ' (' + data.appointments.length + ')' : '') + '</h4>';
-            if (!data.appointments.length && offset === 0) html += '<div class="priest-schedule-empty"><strong>No upcoming appointments</strong><span>This priest currently has no upcoming appointments scheduled.</span></div>';
+            var html = '<div class="priest-schedule-identity"><strong>' + escapeHtml(data.priest.full_name) + '</strong><span>' + escapeHtml(data.priest.title || 'Priest') + '</span></div><h4 class="priest-schedule-heading">Upcoming Confirmed Appointments' + (data.appointments.length ? ' (' + data.appointments.length + ')' : '') + '</h4>' +
+              '<p class="helper-text" style="margin:0 0 8px;">Only confirmed appointments are listed. Pending, approved, and payment-verified bookings are not shown here but still reserve this priest\'s time.</p>';
+            if (!data.appointments.length && offset === 0) html += '<div class="priest-schedule-empty"><strong>No upcoming confirmed appointments</strong><span>This does not mean the priest is free — unconfirmed bookings may still reserve this priest\'s time.</span></div>';
             html += renderScheduleAppointments(data.appointments);
             if (data.has_more) html += '<button type="button" class="btn btn-outline btn-block js-load-more-priest-schedule">Load More</button>';
             body.innerHTML = html;

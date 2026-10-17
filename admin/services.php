@@ -3,6 +3,9 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 requireRole('Admin');
 
+/** Categories an Admin can add a service under (the options of the Add New Service form). */
+const ADMIN_SERVICE_CATEGORIES = ['Mass Intention', 'Wedding', 'Baptism', 'Funeral', 'Blessing', 'Confirmation', 'First Communion', 'Wake', 'Anointing'];
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifyCsrf();
     $action = $_POST['action'] ?? 'add';
@@ -21,12 +24,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(url('admin/services.php'));
     }
 
+    // Add: the same checks as the Secretary's Manage Services page, with the categories this form offers.
+    $serviceName = trim((string) ($_POST['service_name'] ?? ''));
+    $category = (string) ($_POST['category'] ?? '');
+    $fee = is_numeric($_POST['fee'] ?? '') ? (float) $_POST['fee'] : null;
+    $duration = (int) ($_POST['duration_minutes'] ?? 0) ?: 60;
+    if ($serviceName === '' || !in_array($category, ADMIN_SERVICE_CATEGORIES, true) || $fee === null || $fee < 0 || $duration < 1) {
+        flash('error', 'Please enter a service name, choose a category, and enter a valid fee (0 or more).');
+        redirect(url('admin/services.php?add=1'));
+    }
     db()->prepare(
         "INSERT INTO services (service_name, category, description, fee, requirements, duration_minutes) VALUES (?, ?, ?, ?, ?, ?)"
     )->execute([
-        $_POST['service_name'], $_POST['category'], $_POST['description'] ?: null,
-        $_POST['fee'], $_POST['requirements'] ?: null, $_POST['duration_minutes'] ?: 60,
+        $serviceName, $category, trim((string) ($_POST['description'] ?? '')) ?: null,
+        $fee, trim((string) ($_POST['requirements'] ?? '')) ?: null, $duration,
     ]);
+    logActivity(currentUser()['user_id'], "Added service: $serviceName", 'Services');
     flash('success', 'Service added.');
     redirect(url('admin/services.php'));
 }
@@ -39,36 +52,57 @@ include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/dash-start.php';
 ?>
 
+<?php $addFormOpen = isset($_GET['add']); // reopened after a validation error ?>
 <div class="card">
-  <div class="card-header"><h3>Add New Service</h3></div>
-  <form method="POST" action="<?= url('admin/services.php') ?>">
+  <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+    <h3 style="margin:0;">Add New Service</h3>
+    <button type="button" class="btn btn-outline btn-sm" id="addServiceToggle" aria-expanded="<?= $addFormOpen ? 'true' : 'false' ?>" aria-controls="addServiceForm" style="display:inline-flex; align-items:center; gap:6px;">
+      <i data-lucide="<?= $addFormOpen ? 'chevron-up' : 'plus' ?>" id="addServiceToggleIcon" style="width:16px; height:16px;"></i>
+      <span id="addServiceToggleText"><?= $addFormOpen ? 'Hide Form' : 'Add New Service' ?></span>
+    </button>
+  </div>
+  <form method="POST" action="<?= url('admin/services.php') ?>" id="addServiceForm" <?= $addFormOpen ? '' : 'hidden' ?>>
     <?= csrfField() ?>
     <div class="form-row">
-      <div class="form-group"><label>Service Name</label><input type="text" name="service_name" required></div>
+      <div class="form-group"><label for="addServiceName">Service Name</label><input type="text" name="service_name" id="addServiceName" required></div>
       <div class="form-group">
-        <label>Category</label>
-        <select name="category" required>
-          <option>Mass Intention</option>
-          <option>Wedding</option>
-          <option>Baptism</option>
-          <option>Funeral</option>
-          <option>Blessing</option>
-          <option>Confirmation</option>
-          <option>First Communion</option>
-          <option>Wake</option>
-          <option>Anointing</option>
+        <label for="addServiceCategory">Category</label>
+        <select name="category" id="addServiceCategory" required>
+          <?php foreach (ADMIN_SERVICE_CATEGORIES as $categoryOption): ?><option><?= e($categoryOption) ?></option><?php endforeach; ?>
         </select>
       </div>
     </div>
-    <div class="form-group"><label>Description</label><textarea name="description" rows="2"></textarea></div>
+    <div class="form-group"><label for="addServiceDescription">Description</label><textarea name="description" id="addServiceDescription" rows="2"></textarea></div>
     <div class="form-row">
-      <div class="form-group"><label>Fee (₱)</label><input type="number" name="fee" step="0.01" required></div>
-      <div class="form-group"><label>Duration (minutes)</label><input type="number" name="duration_minutes" value="60"></div>
+      <div class="form-group"><label for="addServiceFee">Fee (₱)</label><input type="number" name="fee" id="addServiceFee" step="0.01" min="0" required></div>
+      <div class="form-group"><label for="addServiceDuration">Duration (minutes)</label><input type="number" name="duration_minutes" id="addServiceDuration" min="1" value="60"></div>
     </div>
-    <div class="form-group"><label>Requirements</label><input type="text" name="requirements" placeholder="Comma-separated list"></div>
+    <div class="form-group"><label for="addServiceRequirements">Requirements</label><input type="text" name="requirements" id="addServiceRequirements" placeholder="Comma-separated list"></div>
     <button type="submit" class="btn btn-primary">Add Service</button>
   </form>
 </div>
+<script>
+// Add New Service: collapsed until the toggle is used (a native button, so Enter/Space work too).
+(function () {
+  var toggle = document.getElementById('addServiceToggle'), form = document.getElementById('addServiceForm');
+  if (!toggle || !form) return;
+  toggle.addEventListener('click', function () {
+    var open = form.hidden;
+    form.hidden = !open;
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    document.getElementById('addServiceToggleText').textContent = open ? 'Hide Form' : 'Add New Service';
+    var icon = toggle.querySelector('[data-lucide], svg');
+    if (icon) {
+      var fresh = document.createElement('i');
+      fresh.setAttribute('data-lucide', open ? 'chevron-up' : 'plus');
+      fresh.style.width = fresh.style.height = '16px';
+      icon.replaceWith(fresh);
+      if (window.lucide) lucide.createIcons();
+    }
+    if (open) document.getElementById('addServiceName').focus();
+  });
+})();
+</script>
 
 <div class="card">
   <div class="card-header"><h3>All Services</h3></div>

@@ -190,7 +190,9 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     // Hidden until database/migration_precana.sql has been run.
     $precana = null;
     if ($category === 'Wedding' && precanaAvailable()) {
-        $precana = precanaValidate($_POST['precana_type'] ?? null, $_POST['precana_regular_date'] ?? null, $_POST['precana_date'] ?? null, $_POST['precana_time'] ?? null, $date ?: null);
+        // Text only: a modified request sending e.g. an array gets the normal "choose a session" message, not an error.
+        $precanaField = static fn(string $key): ?string => is_string($_POST[$key] ?? null) ? $_POST[$key] : null;
+        $precana = precanaValidate($precanaField('precana_type'), $precanaField('precana_regular_date'), $precanaField('precana_date'), $precanaField('precana_time'), $date ?: null);
         if (!$precana['valid']) bookRespondError($isAjax, $precana['message'], url('parishioner/services.php'));
     }
     $pssClassification = $usesFeeRules ? 'pending_verification' : null;

@@ -1342,11 +1342,11 @@ if (!$isAjax) {
         <?= csrfField() ?>
         <input type="hidden" name="action" value="reschedule">
         <div class="form-group">
-          <label><?= $isFuneralSchedule ? 'Burial / Funeral Mass Date' : 'New Date' ?></label>
+          <label><?= $isFuneralSchedule ? 'Burial Date' : 'New Date' ?></label>
           <input type="date" name="appointment_date" required<?= $isFuneralSchedule ? ' min="' . e(date('Y-m-d')) . '"' : '' ?>>
         </div>
         <div class="form-group">
-          <label><?= $isFuneralSchedule ? 'Burial / Funeral Mass Time' : 'New Time' ?></label>
+          <label><?= $isFuneralSchedule ? 'Burial Time' : 'New Time' ?></label>
           <input type="time" name="appointment_time" required<?= $isFuneralSchedule ? ' step="1800"' : '' ?>>
         </div>
         <p class="helper-text"><?= $isFuneralSchedule

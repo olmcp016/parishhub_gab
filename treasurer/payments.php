@@ -4,10 +4,16 @@ require_once __DIR__ . '/../includes/functions.php';
 requireRole('Treasurer', 'Admin');
 
 $userId = currentUser()['user_id'];
+// Methods a payment can be recorded with at the office (PayPal is not offered; PayMongo is online-only).
+$manualMethods = [1 => 'Cash', 2 => 'GCash', 3 => 'Maya', 4 => 'Bank Transfer', 5 => 'Credit/Debit Card'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'manual') {
     verifyCsrf();
     $appointmentId = (int) $_POST['appointment_id'];
+    if (!isset($manualMethods[(int) ($_POST['method_id'] ?? 0)])) {
+        flash('error', 'Please choose a payment method.');
+        redirect(url('treasurer/payments.php'));
+    }
     // Generated references must be unique, since staff verification now rejects
     // reused references (audit H-06). A timestamp alone can collide.
     $ref = trim($_POST['reference_number'] ?? '') ?: ('CASH-' . strtoupper(bin2hex(random_bytes(6))));
@@ -130,12 +136,9 @@ include __DIR__ . '/../includes/dash-start.php';
       <div class="form-group" style="flex: 1 1 150px; margin-bottom:0;">
         <label>Method</label>
         <select name="method_id" required>
-          <option value="1">Cash</option>
-          <option value="2">GCash</option>
-          <option value="3">Maya</option>
-          <option value="4">Bank Transfer</option>
-          <option value="5">Credit/Debit Card</option>
-          <option value="6">PayPal</option>
+          <?php foreach ($manualMethods as $methodId => $methodName): ?>
+            <option value="<?= $methodId ?>"><?= e($methodName) ?></option>
+          <?php endforeach; ?>
         </select>
       </div>
       <div class="form-group" style="flex: 1 1 180px; margin-bottom:0;"><label>Reference # (optional)</label><input type="text" name="reference_number"></div>
@@ -154,9 +157,9 @@ include __DIR__ . '/../includes/dash-start.php';
         <option value="">All</option>
         <option value="pending" <?= $statusFilter==='pending'?'selected':'' ?>>Pending</option>
         <option value="verified" <?= $statusFilter==='verified'?'selected':'' ?>>Verified</option>
-        <option value="failed" <?= $statusFilter==='failed'?'selected':'' ?>>Failed</option>
-        <option value="refunded" <?= $statusFilter==='refunded'?'selected':'' ?>>Refunded</option>
         <option value="cancelled" <?= $statusFilter==='cancelled'?'selected':'' ?>>Cancelled</option>
+        <?php // Failed / Refunded are not offered as filters; the records stay, and an old link that filters by them still shows which filter is on. ?>
+        <?php if (in_array($statusFilter, ['failed', 'refunded'], true)): ?><option value="<?= e($statusFilter) ?>" selected><?= e(ucfirst($statusFilter)) ?></option><?php endif; ?>
       </select>
     </div>
     <div class="form-group" style="flex: 1 1 140px; margin-bottom:0;">
@@ -164,7 +167,10 @@ include __DIR__ . '/../includes/dash-start.php';
       <select name="method_id" onchange="this.form.submit()">
         <option value="">All Methods</option>
         <?php foreach ($paymentMethods as $m): ?>
-          <option value="<?= $m['method_id'] ?>" <?= (string)$methodFilter===(string)$m['method_id']?'selected':'' ?>><?= e($m['method_name']) ?></option>
+          <?php $isSelected = (string) $methodFilter === (string) $m['method_id']; ?>
+          <?php // PayPal is not a supported method: hidden from the filter (its records stay; an old link filtering by it still shows it). ?>
+          <?php if (strcasecmp(trim((string) $m['method_name']), 'PayPal') === 0 && !$isSelected) continue; ?>
+          <option value="<?= $m['method_id'] ?>" <?= $isSelected ? 'selected' : '' ?>><?= e($m['method_name']) ?></option>
         <?php endforeach; ?>
       </select>
     </div>

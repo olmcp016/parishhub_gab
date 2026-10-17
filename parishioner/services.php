@@ -534,11 +534,11 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
         <?php if ($funeralScheduleEnabled): // Funeral only — same two-column layout as Baptism's Special date/time ?>
         <div class="form-row" id="funeralScheduleRow" style="display:none;">
           <div class="form-group">
-            <label for="funeralPreferredDateInput">Preferred Burial / Funeral Mass Date</label>
+            <label for="funeralPreferredDateInput">Preferred Burial Date</label>
             <input type="date" name="preferred_burial_date" id="funeralPreferredDateInput" min="<?= date('Y-m-d') ?>" disabled>
           </div>
           <div class="form-group">
-            <label for="funeralPreferredTimeInput">Preferred Burial / Funeral Mass Time</label>
+            <label for="funeralPreferredTimeInput">Preferred Burial Time</label>
             <input type="time" name="preferred_burial_time" id="funeralPreferredTimeInput" step="1800" disabled>
           </div>
         </div>
@@ -557,17 +557,17 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
           </label>
         </div>
 
+        <?php // Baptism/Wedding keep the PSS claim here; for a Funeral, toggleServiceUI() shows this same block right under Select Service. ?>
+        <span id="feeClassificationHome" hidden></span>
         <div id="feeClassificationGroup" class="form-group"
           style="display:none; background: var(--cream); padding: 14px; border-radius: 8px;">
-          <label>PSS Classification Claim</label>
+          <label for="pssClaimInput">PSS Classification Claim</label>
           <select name="pss_claim" id="pssClaimInput">
             <option value="">-- Select --</option>
             <option value="pss">PSS Giver (subject to verification)</option>
             <option value="non_pss">Non-PSS Giver</option>
           </select>
-          <?php if (isset($funeralFeeRules['pss'], $funeralFeeRules['non_pss'])): ?>
-            <div id="funeralFeeBreakdown" style="display:none; margin-top:10px;"></div>
-          <?php endif; ?>
+          <?php // No fee total here: the Secretary verifies the classification first, and the verified fee is shown on the appointment. ?>
           <p class="helper-text">The parish Secretary verifies this classification before the final fee is charged.</p>
         </div>
         <div id="sponsorCountGroup" class="form-group"
@@ -678,8 +678,34 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
             </label>
           </div>
           <div id="precanaRegularFields" class="precana-fields" style="display:none;">
-            <label for="precanaSessionSelect">Regular Seminar Session</label>
-            <select name="precana_regular_date" id="precanaSessionSelect" disabled></select>
+            <label id="precanaDpLabel">Regular Seminar Date</label>
+            <?php // Same mini calendar as the Regular Wedding/Baptism date; only the server's seminar sessions can be picked. ?>
+            <div class="mini-dp" id="precanaMiniDp">
+              <div class="mini-dp-field" id="precanaDpField" tabindex="0" role="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="precanaDpPopup" aria-labelledby="precanaDpLabel precanaDpFieldText">
+                <span id="precanaDpFieldText" class="mini-dp-placeholder">Select a seminar date</span>
+                <i data-lucide="calendar" style="width:16px; height:16px;"></i>
+              </div>
+              <div class="mini-dp-popup" id="precanaDpPopup" role="dialog" aria-label="Choose a Regular Pre-Cana seminar date" style="display:none;">
+                <div class="mini-dp-header">
+                  <button type="button" class="mini-dp-nav" id="precanaDpPrev" aria-label="Previous month">‹</button>
+                  <span class="mini-dp-title" id="precanaDpTitle" aria-live="polite"></span>
+                  <button type="button" class="mini-dp-nav" id="precanaDpNext" aria-label="Next month">›</button>
+                </div>
+                <div class="mini-dp-weekdays" aria-hidden="true">
+                  <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+                </div>
+                <div class="mini-dp-grid" id="precanaDpGrid"></div>
+                <p class="helper-text" style="margin: 6px 2px 0;">Highlighted dates are the Regular Pre-Cana seminars (second Saturday, 8:00 AM).</p>
+                <div class="mini-dp-footer">
+                  <a href="#" id="precanaDpClear">Clear</a>
+                  <a href="#" id="precanaDpClose">Close</a>
+                </div>
+              </div>
+            </div>
+            <div id="precanaFixedTimeBox" class="precana-fixed-time" style="display:none;">
+              <strong>Time:</strong> 8:00 AM <span class="text-muted">(fixed for the Regular Pre-Cana seminar)</span>
+            </div>
+            <input type="hidden" name="precana_regular_date" id="precanaSessionSelect" disabled>
             <p class="helper-text" id="precanaRegularHint"></p>
           </div>
           <div id="precanaSpecialFields" class="precana-fields" style="display:none;">
@@ -695,7 +721,6 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
             </div>
             <p class="precana-notice">Your preferred Pre-Cana schedule is subject to Parish Office approval.</p>
           </div>
-          <div id="precanaSummary" class="precana-summary" style="display:none;"></div>
           <p class="helper-text" style="margin-bottom:0;">The Pre-Cana Seminar Certificate is not needed to submit this booking — upload it after you attend the seminar.</p>
         </div>
         <?php endif; ?>
@@ -889,15 +914,6 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     return free && !free.disabled ? free.value : '';
   }
 
-  function precanaLongDate(iso) {
-    return new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  }
-
-  function precanaTime12(hhmm) {
-    var parts = hhmm.split(':'); var h = parseInt(parts[0], 10);
-    return ((h % 12) || 12) + ':' + parts[1] + ' ' + (h < 12 ? 'AM' : 'PM');
-  }
-
   function selectedPrecanaType() {
     var regular = document.getElementById('precanaTypeRegular');
     var special = document.getElementById('precanaTypeSpecial');
@@ -920,29 +936,21 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
 
     var regularBox = document.getElementById('precanaRegularFields');
     var specialBox = document.getElementById('precanaSpecialFields');
-    var sessionSelect = document.getElementById('precanaSessionSelect');
+    var sessionInput = document.getElementById('precanaSessionSelect');
     var dateInput = document.getElementById('precanaDateInput');
     var timeInput = document.getElementById('precanaTimeInput');
     regularBox.style.display = type === 'Regular' ? 'block' : 'none';
     specialBox.style.display = type === 'Special' ? 'block' : 'none';
-    sessionSelect.disabled = type !== 'Regular';
-    sessionSelect.required = type === 'Regular';
+    sessionInput.disabled = type !== 'Regular'; // only the chosen type's fields are submitted
     dateInput.disabled = timeInput.disabled = type !== 'Special';
     dateInput.required = timeInput.required = type === 'Special';
+    if (type !== 'Regular') closePrecanaDp();
 
-    // Regular: rebuild the session list for the current wedding date, keeping a still-valid choice.
-    var chosen = sessionSelect.value;
-    var sessions = PRECANA.sessions.filter(function (s) { return !wedding || s.date < wedding; });
-    sessionSelect.innerHTML = '';
-    var placeholder = document.createElement('option');
-    placeholder.value = ''; placeholder.textContent = sessions.length ? 'Select a seminar session' : 'No session available';
-    sessionSelect.appendChild(placeholder);
-    sessions.forEach(function (s) {
-      var option = document.createElement('option');
-      option.value = s.date; option.textContent = s.label;
-      sessionSelect.appendChild(option);
-    });
-    if (sessions.some(function (s) { return s.date === chosen; })) sessionSelect.value = chosen;
+    // Regular: only the server's sessions before the wedding date can stay chosen.
+    var sessions = precanaAvailableSessions();
+    if (sessionInput.value && !sessions.some(function (s) { return s.date === sessionInput.value; })) sessionInput.value = '';
+    syncPrecanaDpField();
+    if (document.getElementById('precanaDpPopup').style.display !== 'none') renderPrecanaDpGrid();
     document.getElementById('precanaRegularHint').textContent = !wedding
       ? 'Choose your Wedding Ceremony date first — only seminar sessions before it can be selected.'
       : (sessions.length
@@ -956,29 +964,125 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     } else {
       dateInput.removeAttribute('max');
     }
+  }
 
-    // Live summary of the chosen seminar (no hardcoded dates).
-    var summary = document.getElementById('precanaSummary');
-    var rows = [];
-    if (type === 'Regular' && sessionSelect.value) {
-      rows = [['Schedule', precanaLongDate(sessionSelect.value)], ['Time', '8:00 AM'], ['Fee', 'No Fees']];
-    } else if (type === 'Special' && dateInput.value) {
-      rows = [['Preferred Schedule', precanaLongDate(dateInput.value)], ['Time', timeInput.value ? precanaTime12(timeInput.value) : '—'],
-        ['Fee', PRECANA.specialFee], ['Status', 'Preferred Schedule — Awaiting Parish Office Confirmation']];
+  /**
+   * Regular Pre-Cana calendar: the same mini calendar as the Regular
+   * Wedding/Baptism date. Only PRECANA.sessions (calculated on the server:
+   * second Saturdays, 8:00 AM, not past, not blocked) before the wedding date
+   * are selectable; the chosen date goes into the hidden precana_regular_date
+   * field exactly as the old dropdown sent it, and book.php re-checks it with
+   * precanaValidate().
+   */
+  var precanaViewYear = null, precanaViewMonth = 0; // month 0-11
+  // "Choose a seminar date" is shown once the person tries to submit, not the moment Regular is picked.
+  var precanaShowMissingDate = false;
+  window.addEventListener('submit', function (e) { if (e.target && e.target.id === 'bookForm') precanaShowMissingDate = true; }, true);
+
+  function precanaAvailableSessions() {
+    var wedding = weddingCeremonyDate();
+    return PRECANA.sessions.filter(function (s) { return !wedding || s.date < wedding; });
+  }
+
+  function precanaSessionFor(date) {
+    return PRECANA.sessions.filter(function (s) { return s.date === date; })[0] || null;
+  }
+
+  /** The field shows the chosen session (or the placeholder) and the fixed time. */
+  function syncPrecanaDpField() {
+    var value = document.getElementById('precanaSessionSelect').value;
+    var text = document.getElementById('precanaDpFieldText');
+    var session = value ? precanaSessionFor(value) : null;
+    text.textContent = session ? session.label : 'Select a seminar date';
+    text.className = session ? '' : 'mini-dp-placeholder';
+    document.getElementById('precanaFixedTimeBox').style.display = session ? 'block' : 'none';
+  }
+
+  function precanaMonthKey(year, month) { return year + '-' + String(month + 1).padStart(2, '0'); }
+
+  /** First/last month that has a selectable session (navigation stays inside them). */
+  function precanaMonthRange() {
+    var sessions = precanaAvailableSessions();
+    if (!sessions.length) return null;
+    return { first: sessions[0].date.slice(0, 7), last: sessions[sessions.length - 1].date.slice(0, 7) };
+  }
+
+  function renderPrecanaDpGrid() {
+    var grid = document.getElementById('precanaDpGrid');
+    var sessions = precanaAvailableSessions();
+    var available = {};
+    sessions.forEach(function (s) { available[s.date] = s; });
+    var selected = document.getElementById('precanaSessionSelect').value;
+    var range = precanaMonthRange();
+    if (precanaViewYear === null) {
+      var start = (selected && available[selected] ? selected : (sessions[0] ? sessions[0].date : todayStr())).split('-');
+      precanaViewYear = parseInt(start[0], 10); precanaViewMonth = parseInt(start[1], 10) - 1;
     }
-    summary.innerHTML = '';
-    if (rows.length) {
-      var heading = document.createElement('strong');
-      heading.textContent = type + ' Pre-Cana Seminar';
-      summary.appendChild(heading);
-      rows.forEach(function (row) {
-        var line = document.createElement('div');
-        var label = document.createElement('span'); label.textContent = row[0] + ': ';
-        var value = document.createElement('span'); value.textContent = row[1];
-        line.appendChild(label); line.appendChild(value); summary.appendChild(line);
-      });
+    var key = precanaMonthKey(precanaViewYear, precanaViewMonth);
+    document.getElementById('precanaDpTitle').textContent = MONTH_NAMES[precanaViewMonth] + ' ' + precanaViewYear;
+    document.getElementById('precanaDpPrev').disabled = !range || key <= range.first;
+    document.getElementById('precanaDpNext').disabled = !range || key >= range.last;
+
+    var startWeekday = new Date(precanaViewYear, precanaViewMonth, 1).getDay();
+    var daysInMonth = new Date(precanaViewYear, precanaViewMonth + 1, 0).getDate();
+    var today = todayStr();
+    grid.textContent = '';
+    for (var i = 0; i < 42; i++) {
+      var day = i - startWeekday + 1;
+      if (day < 1 || day > daysInMonth) {
+        var blank = document.createElement('span');
+        blank.className = 'mini-dp-day mini-dp-outside';
+        blank.setAttribute('aria-hidden', 'true');
+        grid.appendChild(blank);
+        continue;
+      }
+      var dateStr = key + '-' + String(day).padStart(2, '0');
+      var session = available[dateStr];
+      var cell = document.createElement(session ? 'button' : 'span');
+      cell.className = 'mini-dp-day' + (session ? ' mini-dp-available' : ' mini-dp-disabled')
+        + (dateStr === selected ? ' mini-dp-selected' : '') + (dateStr === today ? ' mini-dp-today' : '');
+      cell.textContent = day;
+      if (session) {
+        cell.type = 'button';
+        cell.dataset.date = dateStr;
+        cell.setAttribute('aria-label', session.label + (dateStr === selected ? ' (selected)' : ''));
+        if (dateStr === selected) cell.setAttribute('aria-pressed', 'true');
+      } else {
+        cell.setAttribute('aria-disabled', 'true');
+      }
+      grid.appendChild(cell);
     }
-    summary.style.display = rows.length ? 'block' : 'none';
+  }
+
+  function openPrecanaDp() {
+    precanaViewYear = null; // start at the chosen session, else the first available one
+    renderPrecanaDpGrid();
+    var popup = document.getElementById('precanaDpPopup');
+    popup.style.display = 'block';
+    document.getElementById('precanaDpField').setAttribute('aria-expanded', 'true');
+    if (popup.scrollIntoView) popup.scrollIntoView({ block: 'nearest' }); // fully visible inside the booking dialog
+    var focusTarget = document.querySelector('#precanaDpGrid .mini-dp-selected') || document.querySelector('#precanaDpGrid button') || document.getElementById('precanaDpClose');
+    if (focusTarget) focusTarget.focus();
+  }
+
+  function closePrecanaDp(returnFocus) {
+    var popup = document.getElementById('precanaDpPopup');
+    if (!popup || popup.style.display === 'none') return;
+    popup.style.display = 'none';
+    document.getElementById('precanaDpField').setAttribute('aria-expanded', 'false');
+    if (returnFocus) document.getElementById('precanaDpField').focus();
+  }
+
+  function selectPrecanaSession(date) {
+    if (!precanaAvailableSessions().some(function (s) { return s.date === date; })) return; // only listed sessions
+    document.getElementById('precanaSessionSelect').value = date;
+    syncPrecanaDpField();
+    closePrecanaDp(true);
+    // A missing-session message on the Regular option clears as soon as one is picked.
+    var regularRadio = document.getElementById('precanaTypeRegular');
+    precanaBeforeCheck();
+    if (!regularRadio.validationMessage && typeof clearFieldError === 'function') clearFieldError(regularRadio);
+    saveBookingSnapshotFromForm();
   }
 
   /** Inline messages for the rules the browser cannot express with attributes. */
@@ -986,17 +1090,18 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     var group = document.getElementById('precanaGroup');
     if (!group) return;
     var regularRadio = document.getElementById('precanaTypeRegular');
-    var sessionSelect = document.getElementById('precanaSessionSelect');
+    var sessionInput = document.getElementById('precanaSessionSelect');
     var dateInput = document.getElementById('precanaDateInput');
     var timeInput = document.getElementById('precanaTimeInput');
-    [regularRadio, sessionSelect, dateInput, timeInput].forEach(function (el) { el.setCustomValidity(''); });
+    [regularRadio, dateInput, timeInput].forEach(function (el) { el.setCustomValidity(''); });
     if (group.style.display === 'none') return;
     var type = selectedPrecanaType();
     var wedding = weddingCeremonyDate();
     if (!type) { regularRadio.setCustomValidity('Please choose a Pre-Cana Seminar Type.'); return; }
-    if (type === 'Regular' && !sessionSelect.value) {
-      sessionSelect.setCustomValidity(sessionSelect.options.length > 1
-        ? 'Please choose a Regular Pre-Cana session.'
+    // The calendar's value is a hidden field, so its message is shown on the Regular option, right above the calendar.
+    if (type === 'Regular' && !sessionInput.value && precanaShowMissingDate) {
+      regularRadio.setCustomValidity(precanaAvailableSessions().length
+        ? 'Please choose a Regular Pre-Cana seminar date on the calendar.'
         : 'No Regular Pre-Cana seminar is available before your wedding date. Please contact the Parish Office or choose Special Pre-Cana.');
     }
     if (type === 'Special') {
@@ -1012,6 +1117,43 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     form.addEventListener('input', updatePrecanaUI);
     // The Regular wedding calendar sets its hidden date without a change event.
     form.addEventListener('click', function () { setTimeout(updatePrecanaUI, 0); });
+
+    // Regular Pre-Cana calendar (mouse and keyboard).
+    var field = document.getElementById('precanaDpField');
+    if (!field) return;
+    field.addEventListener('click', function () {
+      if (document.getElementById('precanaDpPopup').style.display === 'none') openPrecanaDp(); else closePrecanaDp(false);
+    });
+    field.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') { e.preventDefault(); openPrecanaDp(); }
+    });
+    document.getElementById('precanaDpPopup').addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closePrecanaDp(true); }
+    });
+    document.getElementById('precanaDpPrev').addEventListener('click', function () {
+      precanaViewMonth--; if (precanaViewMonth < 0) { precanaViewMonth = 11; precanaViewYear--; }
+      renderPrecanaDpGrid();
+    });
+    document.getElementById('precanaDpNext').addEventListener('click', function () {
+      precanaViewMonth++; if (precanaViewMonth > 11) { precanaViewMonth = 0; precanaViewYear++; }
+      renderPrecanaDpGrid();
+    });
+    document.getElementById('precanaDpGrid').addEventListener('click', function (e) {
+      var day = e.target.closest('button.mini-dp-day[data-date]');
+      if (day) selectPrecanaSession(day.dataset.date);
+    });
+    document.getElementById('precanaDpClear').addEventListener('click', function (e) {
+      e.preventDefault();
+      document.getElementById('precanaSessionSelect').value = '';
+      syncPrecanaDpField();
+      renderPrecanaDpGrid();
+      saveBookingSnapshotFromForm();
+    });
+    document.getElementById('precanaDpClose').addEventListener('click', function (e) { e.preventDefault(); closePrecanaDp(true); });
+    document.addEventListener('click', function (e) {
+      var wrap = document.getElementById('precanaMiniDp');
+      if (wrap && !wrap.contains(e.target)) closePrecanaDp(false);
+    });
   });
 
   function openBookModal(serviceId) {
@@ -1092,8 +1234,9 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
         return;
       }
       if (!el.id || el.type === 'file' || el.type === 'password') return;
-      // Hidden fields are derived from other inputs, except the Mass time, which must survive the date reload.
-      if (el.type === 'hidden' && el.id !== 'massTimeInput') return;
+      // Hidden fields are derived from other inputs, except the Mass time (must survive the date reload)
+      // and the Regular Pre-Cana date chosen on its calendar.
+      if (el.type === 'hidden' && el.id !== 'massTimeInput' && el.id !== 'precanaSessionSelect') return;
       values[el.id] = el.value;
     });
     return { serviceId: document.getElementById('serviceSelect').value, values: values, radios: radios };
@@ -1230,28 +1373,19 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
   }
 
   /**
-   * Funeral Mass: show the fee breakdown for the selected PSS claim, from the
-   * same service_fee_rules the server uses (final fee is set after the
-   * Secretary verifies the classification).
+   * Funeral only: the PSS Classification Claim sits right under Select Service.
+   * Baptism and Wedding keep it in its usual place (#feeClassificationHome).
+   * It is one block (one pss_claim field), only moved, never duplicated.
    */
-  var FUNERAL_FEES = <?= json_encode(array_map(fn($r) => ['base' => (float) $r['base_fee'], 'stipend' => (float) $r['priest_stipend']], $funeralFeeRules)) ?>;
-  function updateFuneralFeeBreakdown() {
-    var box = document.getElementById('funeralFeeBreakdown');
-    if (!box) return;
-    var opt = document.getElementById('serviceSelect').selectedOptions[0];
-    var claim = document.getElementById('pssClaimInput').value;
-    var rule = FUNERAL_FEES[claim];
-    if (!opt || opt.dataset.category !== 'Funeral' || !rule) { box.style.display = 'none'; return; }
-    function label(n) { return n > 0 ? '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'No Fees'; }
-    box.innerHTML = '';
-    [['Funeral Mass Service Fee', rule.base], ['Priest Stipend', rule.stipend], ['Total Payment', rule.base + rule.stipend]].forEach(function (row, i) {
-      var line = document.createElement('div');
-      line.style.cssText = 'display:flex; justify-content:space-between; font-size:13.5px;' + (i === 2 ? ' font-weight:700; border-top:1px solid var(--cream-dark); margin-top:4px; padding-top:4px;' : '');
-      var name = document.createElement('span'); name.textContent = row[0];
-      var value = document.createElement('span'); value.textContent = label(row[1]);
-      line.appendChild(name); line.appendChild(value); box.appendChild(line);
-    });
-    box.style.display = 'block';
+  function placeFeeClassification(category) {
+    var group = document.getElementById('feeClassificationGroup');
+    var serviceGroup = document.getElementById('serviceSelect').closest('.form-group');
+    if (category === 'Funeral') {
+      if (serviceGroup.nextElementSibling !== group) serviceGroup.insertAdjacentElement('afterend', group);
+    } else {
+      var home = document.getElementById('feeClassificationHome');
+      if (home.nextElementSibling !== group) home.insertAdjacentElement('afterend', group);
+    }
   }
 
   function toggleServiceUI() {
@@ -1266,7 +1400,7 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     var needsClassification = ['Baptism', 'Wedding', 'Funeral'].indexOf(category) !== -1;
     document.getElementById('feeClassificationGroup').style.display = needsClassification ? 'block' : 'none';
     document.getElementById('pssClaimInput').required = needsClassification;
-    updateFuneralFeeBreakdown();
+    placeFeeClassification(category);
     document.getElementById('sponsorCountGroup').style.display = category === 'Baptism' ? 'block' : 'none';
     document.getElementById('weddingSponsorCountGroup').style.display = category === 'Wedding' ? 'block' : 'none';
     document.getElementById('sponsorCountInput').required = category === 'Baptism';
@@ -2043,7 +2177,6 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
 
   document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('serviceSelect').addEventListener('change', toggleServiceUI);
-    document.getElementById('pssClaimInput').addEventListener('change', updateFuneralFeeBreakdown);
     document.getElementById('scheduleTypeRegular').addEventListener('change', toggleServiceUI);
     document.getElementById('scheduleTypeSpecial').addEventListener('change', toggleServiceUI);
     document.getElementById('priestSelect').addEventListener('change', refreshAvailability);

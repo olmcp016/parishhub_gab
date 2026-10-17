@@ -1541,6 +1541,14 @@ textarea.field-invalid { border-color: var(--danger); background: var(--danger-b
 .mini-dp-footer { display: flex; justify-content: space-between; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--cream-dark); }
 .mini-dp-footer a { font-size: 12.5px; font-weight: 600; color: var(--gold-dark); text-decoration: none; }
 .mini-dp-footer a:hover { text-decoration: underline; }
+/* Day cells that are real buttons (Regular Pre-Cana calendar): same look, keyboard-focusable. */
+button.mini-dp-day { border: 0; padding: 0; margin: 0; background: transparent; font: inherit; font-size: 13px; width: 100%; }
+button.mini-dp-day:focus-visible, .mini-dp-nav:focus-visible, .mini-dp-field:focus-visible { outline: 2px solid var(--gold-dark); outline-offset: 2px; }
+.mini-dp-available { background: var(--cream); font-weight: 700; color: var(--brown-darkest); box-shadow: inset 0 0 0 1.5px var(--gold); }
+.mini-dp-nav:disabled { opacity: .35; cursor: not-allowed; background: none; }
+.pagination-page-label { margin: 14px 0 0; font-size: 13px; font-weight: 600; color: var(--brown-mid); }
+.precana-fixed-time { margin-top: 8px; background: var(--cream); border-radius: 8px; padding: 10px 12px; font-size: 14px; }
+@media (max-width: 480px) { #precanaDpPopup { width: min(280px, calc(100vw - 64px)); } }
 input.amount-no-spinner::-webkit-outer-spin-button,
 input.amount-no-spinner::-webkit-inner-spin-button {
   -webkit-appearance: none;
@@ -1582,29 +1590,35 @@ input.amount-no-spinner {
   .location-picker-filters .location-filter { min-width:calc(50% - 4px); }
 }
 
+/* Generated forms (Wedding / Baptism / Funeral Forms) and Supporting Documents share one
+   readable scale: same card, title, help text and button sizes. */
 .generated-form-item {
-  padding: 16px;
+  padding: 16px 18px;
   border: 1px solid var(--cream-dark);
-  border-radius: 8px;
-  margin-bottom: 16px;
+  border-radius: 10px;
+  margin-bottom: 14px;
   background: #fff;
 }
-.generated-form-action-helper { margin:14px 0 10px; color:var(--brown-mid); font-size:.9rem; line-height:1.5; }
-.generated-form-guide-translation { color:var(--text-muted,#666); font-size:.88em; font-weight:400; }
+.generated-form-action-helper { margin:14px 0 10px; color:var(--brown-mid); font-size:.95rem; line-height:1.55; }
+.generated-form-guide-translation { color:var(--text-muted,#666); font-size:.9em; font-weight:400; }
 .generated-form-header {
   margin-bottom: 12px;
 }
 .generated-form-title {
+  font-family: var(--font-body);
   font-weight: 700;
   font-size: 1.05rem;
+  line-height: 1.35;
   margin-bottom: 4px;
-  color: var(--brown);
+  color: var(--brown-darkest);
   display: block;
 }
 .generated-form-status {
-  font-size: 0.9rem;
-  color: var(--text-muted);
+  font-size: .95rem;
+  font-weight: 600;
+  color: var(--brown-mid);
 }
+.generated-form-header .text-muted { line-height: 1.55; }
 .generated-form-actions {
   display: flex;
   gap: 8px;
@@ -1613,20 +1627,26 @@ input.amount-no-spinner {
 }
 /* Supporting-document upload cards */
 .supporting-document-grid { display:grid; gap:14px; }
-.supporting-document-card { border:1px solid var(--cream-dark); border-radius:10px; padding:16px; background:rgba(255,255,255,.55); }
+.supporting-document-card { border:1px solid var(--cream-dark); border-radius:10px; padding:16px 18px; background:#fff; }
 .supporting-document-card-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
-.supporting-document-card h3 { margin:0; font-size:1rem; color:var(--brown-dark); }
-.supporting-document-requirement { color:var(--danger); font-size:.78rem; font-weight:700; white-space:nowrap; }
+.supporting-document-card h3 { margin:0; font-family:var(--font-body); font-size:1.05rem; font-weight:700; line-height:1.35; color:var(--brown-darkest); }
+.supporting-document-requirement { color:var(--danger); font-size:.85rem; font-weight:700; white-space:nowrap; }
 .supporting-document-requirement.is-optional { color:var(--brown-mid); white-space:normal; text-align:right; }
-.supporting-document-help { margin:7px 0 12px; color:var(--text-muted,#666); font-size:.82rem; }
-.supporting-document-status { display:flex; align-items:center; flex-wrap:wrap; gap:8px; min-width:0; min-height:32px; margin-bottom:10px; }
+.supporting-document-help { margin:8px 0 12px; color:var(--brown-mid); font-size:.92rem; line-height:1.6; }
+.supporting-document-status { display:flex; align-items:center; flex-wrap:wrap; gap:8px; min-width:0; min-height:32px; margin-bottom:10px; font-size:.95rem; }
 .supporting-document-success { color:var(--success,#267a43); font-weight:700; }
 .supporting-document-status .supporting-document-error { margin-top:0; font-weight:700; }
-.supporting-document-filename { flex:1 1 18rem; min-width:0; overflow-wrap:anywhere; color:var(--text-muted,#555); }
-.supporting-document-empty { color:var(--text-muted,#777); font-size:.9rem; }
+.supporting-document-filename { flex:1 1 18rem; min-width:0; overflow-wrap:anywhere; color:var(--brown-mid); }
+.supporting-document-empty { color:var(--brown-muted,#777); font-size:.95rem; }
 .supporting-document-picker { cursor:pointer; display:inline-flex; margin-top:2px; }
 .supporting-document-picker input:disabled { cursor:wait; }
-.supporting-document-progress { display:flex; align-items:center; gap:10px; margin-top:10px; color:var(--brown-mid); font-size:.85rem; }
+.supporting-document-progress { display:flex; align-items:center; gap:10px; margin-top:10px; color:var(--brown-mid); font-size:.92rem; }
+/* Shown only while a file uploads (the script removes [hidden]); display:flex above must not override it. */
+.supporting-document-progress[hidden] { display:none; }
 .supporting-document-progress progress { width:150px; height:8px; accent-color:var(--gold,#b8904a); }
-.supporting-document-error { margin-top:10px; color:var(--danger,#a33); font-size:.85rem; }
+.supporting-document-error { margin-top:10px; color:var(--danger,#a33); font-size:.92rem; }
+/* Same button size and lettering in both sections (the upload picker is a <label>, which is otherwise uppercase). */
+.generated-form-actions .btn, .supporting-document-picker.btn {
+  padding: 8px 16px; font-size: 13px; text-transform: none; letter-spacing: normal; margin-bottom: 0;
+}
 .baptism-submit-blockers { margin:0 0 16px; padding-left:22px; color:var(--brown-mid); }

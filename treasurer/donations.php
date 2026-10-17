@@ -6,7 +6,8 @@ requireRole('Treasurer', 'Admin');
 $userId = currentUser()['user_id'];
 // Staff-recorded donations are General Parish Donations only (one of the shared purposes, no project).
 $purposes = DONATION_PURPOSES;
-$methods = [1 => 'Cash', 2 => 'GCash', 3 => 'Maya', 4 => 'Bank Transfer', 5 => 'Credit/Debit Card', 6 => 'PayPal'];
+// Methods a donation can be recorded with at the office (PayPal is not offered).
+$methods = [1 => 'Cash', 2 => 'GCash', 3 => 'Maya', 4 => 'Bank Transfer', 5 => 'Credit/Debit Card'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'toggle_donations') {
     verifyCsrf();
@@ -290,9 +291,9 @@ include __DIR__ . '/../includes/dash-start.php';
         <option value="">All</option>
         <option value="pending" <?= $statusFilter==='pending'?'selected':'' ?>>Pending</option>
         <option value="verified" <?= $statusFilter==='verified'?'selected':'' ?>>Verified</option>
-        <option value="failed" <?= $statusFilter==='failed'?'selected':'' ?>>Failed</option>
-        <option value="refunded" <?= $statusFilter==='refunded'?'selected':'' ?>>Refunded</option>
         <option value="cancelled" <?= $statusFilter==='cancelled'?'selected':'' ?>>Cancelled</option>
+        <?php // Failed / Refunded are not offered as filters; the records stay, and an old link that filters by them still shows which filter is on. ?>
+        <?php if (in_array($statusFilter, ['failed', 'refunded'], true)): ?><option value="<?= e($statusFilter) ?>" selected><?= e(ucfirst($statusFilter)) ?></option><?php endif; ?>
       </select>
     </div>
     <div class="form-group" style="flex: 3 1 300px; margin-bottom:0;"><label>Search</label><input type="text" name="search" value="<?= e($search) ?>" placeholder="Donor name, email, purpose, or project"></div>

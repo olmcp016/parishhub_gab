@@ -41,7 +41,17 @@ foreach ($allEvents as $ev) {
     $ev['title'] = (string) ($ev['title'] ?? '');
     $existingRealMasses[$ev['event_date'] . '_' . strtolower(trim($ev['title']))] = true;
     if (!preg_match('/\bmass\b/i', $ev['title'])) { // whole word, so "Christmas Party" stays an event
-        $calendarEvents[] = ['date' => $ev['event_date'], 'title' => $ev['title']];
+        // Parish events (gold) open their details too: the same public event information the
+        // parish calendar already shows, nothing about anyone's appointment.
+        $eventTime = $ev['event_time'] ? substr($ev['event_time'], 0, 5) : '';
+        $calendarEvents[] = ['date' => $ev['event_date'], 'title' => $ev['title'], 'details' => [
+            'title' => $ev['title'],
+            'date' => formatDate($ev['event_date']),
+            'time' => $eventTime ? $timeLabel($eventTime) : 'Whole day',
+            'priest' => $priestLabel($ev['priest_title'], $ev['priest_name']) ?? 'Not assigned',
+            'location' => trim((string) ($ev['location_name'] ?? '')) ?: (trim((string) ($ev['location'] ?? '')) ?: null),
+            'description' => trim((string) ($ev['description'] ?? '')) ?: null,
+        ]];
         continue;
     }
     $priest = $priestLabel($ev['priest_title'], $ev['priest_name']);
@@ -101,12 +111,13 @@ for ($massDay = clone $massStart; $massDay <= $massEnd; $massDay->modify('+1 day
     }
 }
 
-// This priest's approved appointments: approved by the Secretary (2) and still
-// active as they move on through payment (4 Payment Verified, 5 Confirmed).
-// Pending (1), rejected (3), completed (6), cancelled (7), and other priests'
-// appointments are excluded.
+// This priest's CONFIRMED appointments only (status 5). Pending (1), Approved (2),
+// Payment Verified (4) — which still reserve the priest's time for booking —,
+// rejected (3), completed (6), cancelled (7), and other priests' appointments
+// are not shown here.
 $myAppointments = [];
 $calendarAppointments = [];
+$upcomingPagination = paginate(0, 10);
 if ($priestId) {
     $stmt = db()->prepare(
         "SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.guest_name, a.location_address,
@@ -118,7 +129,7 @@ if ($priestId) {
          JOIN priests p ON a.priest_id = p.priest_id
          LEFT JOIN parishioners par ON a.parishioner_id = par.parishioner_id
          LEFT JOIN users u ON par.user_id = u.user_id
-         WHERE a.priest_id = ? AND a.status_id IN (2, 4, 5)
+         WHERE a.priest_id = ? AND a.status_id = 5
          ORDER BY a.appointment_date, a.appointment_time, a.appointment_id"
     );
     $stmt->execute([$priestId]);
@@ -151,8 +162,12 @@ if ($priestId) {
                 'location' => $appointmentLocation($a),
             ],
         ];
-        if ($a['appointment_date'] >= $today && count($myAppointments) < 20) $myAppointments[] = $a + ['parishioner_name' => $name ?: '—'];
+        // Upcoming list (paged below): today onward, already in date/time order.
+        if ($a['appointment_date'] >= $today) $myAppointments[] = $a + ['parishioner_name' => $name ?: '—'];
     }
+    // 10 per page, in the same date → time → id order as the query (no duplicates or gaps between pages).
+    $upcomingPagination = paginate(count($myAppointments), 10);
+    $myAppointments = array_slice($myAppointments, $upcomingPagination['offset'], $upcomingPagination['limit']);
 }
 
 $jsonFlags = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP;
@@ -171,7 +186,7 @@ include __DIR__ . '/../includes/dash-start.php';
     <div class="pcal-scroll"><div id="parishCalendar"></div></div>
     <div class="pcal-legend">
       <span><i class="pcal-dot pcal-dot-today"></i> Today</span>
-      <span><i class="pcal-dot" style="background:#2457a6;"></i> Approved Appointment / Your Mass</span>
+      <span><i class="pcal-dot" style="background:#2457a6;"></i> Confirmed Appointment / Your Mass</span>
       <span><i class="pcal-dot" style="background:#2d7a46;"></i> Other Mass</span>
       <span><i class="pcal-dot pcal-dot-event"></i> Event</span>
       <span><i class="pcal-dot pcal-dot-blocked"></i> Unavailable</span>
@@ -179,10 +194,11 @@ include __DIR__ . '/../includes/dash-start.php';
     <p class="helper-text mt-2">View-only — scheduling changes are handled by the parish office.</p>
   </div>
 
-  <div class="card">
+  <div class="card" id="upcomingAppointments">
     <div class="card-header"><h3>Your Upcoming Appointments</h3></div>
+    <p class="helper-text" style="margin-top:-6px;">Confirmed appointments only. Bookings still pending, approved, or awaiting payment confirmation are not listed here, but they may already reserve your time — this is not a list of when you are free.</p>
     <?php if (empty($myAppointments)): ?>
-      <p class="text-muted">No upcoming approved appointments assigned to you.</p>
+      <div class="empty-state"><div class="icon">📅</div><p>No upcoming confirmed appointments assigned to you.</p></div>
     <?php else: ?>
       <div class="table-wrap">
         <table>
@@ -200,6 +216,10 @@ include __DIR__ . '/../includes/dash-start.php';
           </tbody>
         </table>
       </div>
+      <?php if ($upcomingPagination['totalPages'] > 1): ?>
+        <p class="pagination-page-label" aria-live="polite">Page <?= (int) $upcomingPagination['page'] ?> of <?= (int) $upcomingPagination['totalPages'] ?></p>
+      <?php endif; ?>
+      <?= renderPagination($upcomingPagination, url('priest/calendar.php')) ?>
     <?php endif; ?>
   </div>
 </div>
@@ -242,6 +262,18 @@ document.addEventListener('DOMContentLoaded', function () {
     dayMaxEvents: 4,
     eventOrder: 'time,title',
     onDateClick: function () { /* view-only — no booking/blocking from here */ },
+    onEventClick: function (fcEvent) {
+      var d = fcEvent.extendedProps.details;
+      if (!d) return;
+      showDetails('Event Details', [
+        ['Event', d.title],
+        ['Date', d.date],
+        ['Time', d.time],
+        ['Priest', d.priest],
+        ['Location', d.location],
+        ['Details', d.description]
+      ]);
+    },
     onMassClick: function (fcEvent) {
       var d = fcEvent.extendedProps.details;
       if (!d) return;
@@ -269,6 +301,8 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   modal.addEventListener('click', function (e) { if (e.target === modal) modal.close(); });
+  // Coming from a page link of the Upcoming Appointments list: show that list, not the top of the page.
+  if (/[?&]page=\d+/.test(window.location.search)) document.getElementById('upcomingAppointments').scrollIntoView({ block: 'start' });
 });
 </script>
 
@@ -280,6 +314,8 @@ document.addEventListener('DOMContentLoaded', function () {
    own card. If there still isn't room for all seven days, the calendar scrolls
    sideways instead of squeezing or hiding the Saturday column. */
 .pcal-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+/* When a page link scrolls to the Upcoming list, keep its heading clear of the sticky top bar. */
+#upcomingAppointments { scroll-margin-top: 96px; }
 #parishCalendar { min-width: 540px; }
 /* Event labels wrap inside their day cell instead of spilling out of it. */
 #parishCalendar .fc-daygrid-event { white-space: normal; overflow: hidden; }

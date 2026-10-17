@@ -11,11 +11,12 @@ $todayCount = 0;
 $weekCount = 0;
 $upcoming = [];
 if ($priestId) {
-    $stmt = db()->prepare("SELECT COUNT(*) FROM appointments WHERE priest_id = ? AND appointment_date = ? AND status_id NOT IN (3, 7)");
+    // Confirmed (5) only. Pending / Approved / Payment Verified bookings still reserve the priest's time (booking rules unchanged).
+    $stmt = db()->prepare("SELECT COUNT(*) FROM appointments WHERE priest_id = ? AND appointment_date = ? AND status_id = 5");
     $stmt->execute([$priestId, $today]);
     $todayCount = (int) $stmt->fetchColumn();
 
-    $stmt = db()->prepare("SELECT COUNT(*) FROM appointments WHERE priest_id = ? AND appointment_date >= ? AND appointment_date < ? AND status_id NOT IN (3, 7)");
+    $stmt = db()->prepare("SELECT COUNT(*) FROM appointments WHERE priest_id = ? AND appointment_date >= ? AND appointment_date < ? AND status_id = 5");
     $stmt->execute([$priestId, $today, date('Y-m-d', strtotime('+7 days'))]);
     $weekCount = (int) $stmt->fetchColumn();
 
@@ -27,8 +28,8 @@ if ($priestId) {
          JOIN appointment_status st ON a.status_id = st.status_id
          LEFT JOIN parishioners par ON a.parishioner_id = par.parishioner_id
          LEFT JOIN users u ON par.user_id = u.user_id
-         WHERE a.priest_id = ? AND a.appointment_date >= ? AND a.status_id NOT IN (3, 7)
-         ORDER BY a.appointment_date, a.appointment_time LIMIT 10"
+         WHERE a.priest_id = ? AND a.appointment_date >= ? AND a.status_id = 5
+         ORDER BY a.appointment_date, a.appointment_time, a.appointment_id LIMIT 10"
     );
     $stmt->execute([$priestId, $today]);
     $upcoming = $stmt->fetchAll();
@@ -47,8 +48,8 @@ include __DIR__ . '/../includes/dash-start.php';
 <?php else: ?>
 
 <div class="stat-grid">
-  <div class="stat-card"><div class="stat-label">Today's Appointments</div><div class="stat-value"><?= $todayCount ?></div></div>
-  <div class="stat-card"><div class="stat-label">This Week</div><div class="stat-value"><?= $weekCount ?></div></div>
+  <div class="stat-card"><div class="stat-label">Today's Confirmed Appointments</div><div class="stat-value"><?= $todayCount ?></div></div>
+  <div class="stat-card"><div class="stat-label">Confirmed This Week</div><div class="stat-value"><?= $weekCount ?></div></div>
 </div>
 
 <div class="card">
@@ -56,8 +57,9 @@ include __DIR__ . '/../includes/dash-start.php';
     <h3>Your Upcoming Schedule</h3>
     <a href="<?= url('priest/calendar.php') ?>" class="btn btn-outline btn-sm">View Calendar</a>
   </div>
+  <p class="helper-text" style="margin-top:-6px;">Confirmed appointments only. Bookings still pending, approved, or awaiting payment confirmation are not listed, but they may already reserve your time — this is not a list of when you are free.</p>
   <?php if (empty($upcoming)): ?>
-    <div class="empty-state"><div class="icon">📅</div><p>No upcoming appointments assigned to you.</p></div>
+    <div class="empty-state"><div class="icon">📅</div><p>No upcoming confirmed appointments assigned to you.</p></div>
   <?php else: ?>
     <div class="table-wrap">
       <table>
@@ -66,7 +68,7 @@ include __DIR__ . '/../includes/dash-start.php';
           <?php foreach ($upcoming as $a): ?>
             <tr>
               <td><?= formatDate($a['appointment_date']) ?></td>
-              <td><?= date('g:i A', strtotime($a['appointment_time'])) ?></td>
+              <td><?= $a['appointment_time'] ? date('g:i A', strtotime($a['appointment_time'])) : '—' ?></td>
               <td><?= e($a['service_name']) ?></td>
               <td><?= e($a['parishioner_name'] ?: '—') ?></td>
               <td><span class="badge badge-<?= badgeClass($a['status_name']) ?>"><?= e($a['status_name']) ?></span></td>

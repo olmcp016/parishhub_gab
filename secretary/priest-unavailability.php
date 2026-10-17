@@ -13,7 +13,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $priestId = (int) $_POST['priest_id'];
         $startTime = $_POST['start_time'] ?: null;
         $endTime = $_POST['end_time'] ?: null;
-        $reason = trim($_POST['reason'] ?? '') ?: null;
+        $reason = trim((string) ($_POST['reason'] ?? ''));
+        // Staff need to know why a priest is unavailable, so a reason is required.
+        if ($reason === '') {
+            flash('error', 'Please enter the reason the priest is unavailable (for example: Retreat, Vacation, Fixed Schedule).');
+            redirect(url('secretary/priest-unavailability.php'));
+        }
+        if (mb_strlen($reason) > 255) {
+            flash('error', 'Please keep the reason to 255 characters or fewer.');
+            redirect(url('secretary/priest-unavailability.php'));
+        }
 
         $singleDate = $_POST['unavailable_date'] ?? '';
         $dateOk = preg_match('/^\d{4}-\d{2}-\d{2}$/', $singleDate) && strtotime($singleDate) !== false;
@@ -108,8 +117,8 @@ foreach ($priests as $p) {
     $stmt = db()->prepare(
         "SELECT a.appointment_id, a.appointment_date, a.appointment_time, s.service_name
          FROM appointments a JOIN services s ON a.service_id = s.service_id
-         WHERE a.priest_id = ? AND a.status_id NOT IN (3, 7) AND a.appointment_date >= ?
-         ORDER BY a.appointment_date, a.appointment_time LIMIT 10"
+         WHERE a.priest_id = ? AND a.status_id = 5 AND a.appointment_date >= ?
+         ORDER BY a.appointment_date, a.appointment_time, a.appointment_id LIMIT 10"
     );
     $stmt->execute([$p['priest_id'], $today]);
     $appts = $stmt->fetchAll();
@@ -168,8 +177,9 @@ include __DIR__ . '/../includes/dash-start.php';
       <input type="time" name="end_time">
     </div>
     <div class="form-group">
-      <label>Reason (optional)</label>
-      <input type="text" name="reason" placeholder="e.g. Fixed Schedule, Retreat, Vacation">
+      <label for="unavailabilityReason">Reason <span style="color:var(--danger);" aria-hidden="true">*</span></label>
+      <input type="text" name="reason" id="unavailabilityReason" placeholder="e.g. Fixed Schedule, Retreat, Vacation" required maxlength="255" pattern=".*\S.*"
+        oninvalid="this.setCustomValidity('Please enter the reason the priest is unavailable.')" oninput="this.setCustomValidity('')">
     </div>
     <div class="form-group">
       <label><input type="checkbox" name="repeat_weekly" value="1" style="width:auto; display:inline-block;" onchange="document.getElementById('repeatUntilGroup').style.display=this.checked?'block':'none'"> Repeat weekly</label>
@@ -232,8 +242,10 @@ include __DIR__ . '/../includes/dash-start.php';
     var p = data[btn.dataset.priestId];
     if (!p) return;
     document.getElementById('priestScheduleModalTitle').textContent = p.name;
+    // Confirmed appointments only; the note keeps this from reading as "the priest is free".
     document.getElementById('priestScheduleModalBody').innerHTML =
-      section('Upcoming Appointments (next 10)', p.appointments, 'No upcoming appointments.', false) +
+      section('Upcoming Confirmed Appointments (next 10)', p.appointments, 'No upcoming confirmed appointments.', false) +
+      '<p class="helper-text" style="margin:6px 0 0;">Only confirmed appointments are listed. Pending, approved, and payment-verified bookings are not shown here but still reserve this priest\'s time.</p>' +
       section('Unavailability (next 10)', p.unavailability, 'No upcoming unavailability entries.', true);
     document.getElementById('priestScheduleModal').showModal();
   });
