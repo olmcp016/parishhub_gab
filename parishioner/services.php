@@ -112,6 +112,15 @@ $hidePageHeading = true; // the nav bar already names this page
 include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-start.php' : 'dash-start.php');
 ?>
+<?php
+// The Thank You dialogs come first, before the page content and its slow scripts
+// (FullCalendar from a CDN, the booking form's code): each opens itself as soon
+// as it is read, so after a booking or donation the dialog is already up when the
+// page first appears, instead of popping in after everything else has loaded.
+// Only one of them is ever shown (a donation Thank You goes first, see above).
+include __DIR__ . '/../includes/donation-thank-you-modal.php'; // after a verified online donation, once
+$thankYouIsGuest = false; include __DIR__ . '/../includes/thank-you-modal.php'; // after a parishioner's booking, once
+?>
 
 <?php if ($donationReturnNotice): // after a donation return without a Thank You (pending, failed, ...) ?>
   <div class="alert" role="status" style="background: var(--cream); color: var(--brown-mid); border: 1px solid var(--cream-dark); margin-bottom:16px;">
@@ -1258,7 +1267,8 @@ $noFeesLabel = fn(float $amount): string => $amount > 0 ? money($amount) : 'No F
     } else {
       previewBox.style.display = 'none';
     }
-    document.getElementById('bookSubmitBtn').textContent = submitButtonLabel();
+    var bookSubmitBtn = document.getElementById('bookSubmitBtn');
+    if (bookSubmitBtn.getAttribute('aria-busy') !== 'true') bookSubmitBtn.textContent = submitButtonLabel(); // keep "Submitting…" while sending
     // Synchronous first, so a restored Pre-Cana session finds its option; again
     // once this function has set up the wedding date fields.
     updatePrecanaUI();
@@ -1664,10 +1674,14 @@ $noFeesLabel = fn(float $amount): string => $amount > 0 ? money($amount) : 'No F
     var effective = getEffectiveDateTime(category);
     var msgBox = document.getElementById('availabilityMsg');
     var submitBtn = document.getElementById('bookSubmitBtn');
+    // Never re-enable the button while a booking is being submitted ("Submitting…").
+    function setSubmitBlocked(blocked) {
+      if (submitBtn.getAttribute('aria-busy') !== 'true') submitBtn.disabled = blocked;
+    }
 
     if (!effective.date || !effective.time) {
       msgBox.style.display = 'none';
-      submitBtn.disabled = false;
+      setSubmitBlocked(false);
       return;
     }
 
@@ -1692,10 +1706,10 @@ $noFeesLabel = fn(float $amount): string => $amount > 0 ? money($amount) : 'No F
         if (data.valid === false) {
           msgBox.textContent = '⚠ ' + data.message;
           msgBox.style.display = 'block';
-          submitBtn.disabled = true;
+          setSubmitBlocked(true);
         } else {
           msgBox.style.display = 'none';
-          submitBtn.disabled = false;
+          setSubmitBlocked(false);
         }
         rebuildPriestOptions(data.available_priests || []);
       })
@@ -2059,8 +2073,32 @@ $noFeesLabel = fn(float $amount): string => $amount > 0 ? money($amount) : 'No F
     // Inline errors under each field (required, phone, date and age rules, Mass slot/offering).
     attachInlineValidation(document.getElementById('bookForm'), { beforeCheck: bookingBeforeCheck });
 
+    // Submit Booking: one request at a time. The button shows one steady
+    // "Submitting…" with a spinner (same size) from the click until the next
+    // page has loaded — the server's redirect to Services, a draft's
+    // requirements step, or PayMongo. An invalid form never gets here: the
+    // inline validation (capture phase) stops it first, so the button stays enabled.
+    var bookSubmitting = false;
+    function setBookSubmitting(on) {
+      var btn = document.getElementById('bookSubmitBtn');
+      bookSubmitting = on;
+      btn.disabled = on;
+      if (on) {
+        btn.style.minWidth = btn.offsetWidth + 'px';
+        btn.setAttribute('aria-busy', 'true');
+        btn.innerHTML = '<span class="btn-spinner" aria-hidden="true"></span><span>Submitting…</span>';
+      } else {
+        btn.removeAttribute('aria-busy');
+        btn.style.minWidth = '';
+        btn.textContent = submitButtonLabel();
+      }
+    }
+    // Back from PayMongo or a draft page (page restored from the browser's cache): usable again.
+    window.addEventListener('pageshow', function (e) { if (e.persisted && bookSubmitting) setBookSubmitting(false); });
+
     document.getElementById('bookForm').addEventListener('submit', function (e) {
       e.preventDefault();
+      if (bookSubmitting) return; // a second click / Enter while the first request is still on its way
       var submitBtn = document.getElementById('bookSubmitBtn');
       var errorBox = document.getElementById('bookFormError');
       errorBox.style.display = 'none';
@@ -2071,8 +2109,7 @@ $noFeesLabel = fn(float $amount): string => $amount > 0 ? money($amount) : 'No F
       var serviceSelect = document.getElementById('serviceSelect');
       var category = serviceSelect.options[serviceSelect.selectedIndex]?.dataset.category || '';
 
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Submitting...';
+      setBookSubmitting(true);
 
       var formData = new FormData(e.target);
       fetch('<?= url('parishioner/book.php') ?>', { method: 'POST', body: formData })
@@ -2081,14 +2118,13 @@ $noFeesLabel = fn(float $amount): string => $amount > 0 ? money($amount) : 'No F
           if (data.success && data.redirect) {
             // Submitted: nothing left to restore if the person comes back to this page.
             if (data.thank_you) writeBookingSnapshot(null);
-            // PayMongo's hosted checkout (provider-required redirect) — the
-            // Mass Intention only counts once that payment is actually completed.
-            submitBtn.textContent = data.thank_you ? 'Redirecting…' : 'Redirecting to secure payment…';
+            // Saved (Services shows the Thank You), a draft's requirements step, or
+            // PayMongo's hosted checkout (a Mass Intention only counts once paid).
+            // The button keeps "Submitting…" until that page loads.
             window.location.href = data.redirect;
             return;
           }
-          submitBtn.disabled = false;
-          submitBtn.textContent = submitButtonLabel();
+          setBookSubmitting(false);
           if (data.success) {
             if (data.redirect) {
               window.location.href = data.redirect;
@@ -2122,10 +2158,15 @@ $noFeesLabel = fn(float $amount): string => $amount > 0 ? money($amount) : 'No F
           }
         })
         .catch(function () {
-          submitBtn.disabled = false;
-          submitBtn.textContent = submitButtonLabel();
-          errorBox.textContent = 'Something went wrong submitting your request. Please try again.';
+          // No clear answer (connection dropped, or an unexpected reply): the
+          // request may still have been saved, so don't just say "try again".
+          setBookSubmitting(false);
+          // If it was saved, its Thank You is waiting: on Check Status (guests) or here on Services.
+          errorBox.textContent = <?= json_encode($identity['is_guest']
+            ? 'We could not confirm whether your request was received. Before submitting again, please open Check Status: if it went through, your Thank You and reference code will appear there.'
+            : 'We could not confirm whether your request was received. Before submitting again, please reload this page or check My Appointments: if it went through, your Thank You and reference code will appear.') ?>;
           errorBox.style.display = 'block';
+          errorBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         });
     });
   });
@@ -2155,7 +2196,5 @@ $noFeesLabel = fn(float $amount): string => $amount > 0 ? money($amount) : 'No F
 
 </script>
 
-<?php include __DIR__ . '/../includes/donation-thank-you-modal.php'; // after a verified online donation, once ?>
-<?php $thankYouIsGuest = false; include __DIR__ . '/../includes/thank-you-modal.php'; // after a parishioner's booking, once (never with the donation one) ?>
 <?php include __DIR__ . '/../includes/' . ($identity['is_guest'] ? 'public-shell-end.php' : 'dash-end.php'); ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

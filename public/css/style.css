@@ -370,6 +370,12 @@ img { max-width: 100%; }
 .btn-success { background: var(--success); color: #fff; }
 .btn-danger { background: var(--danger); color: #fff; }
 .btn:disabled { opacity: .55; cursor: not-allowed; }
+/* "Submitting…" state (booking submits): small spinner beside the label; the
+   button keeps its colour and size, so nothing dims or jumps while it waits. */
+.btn[aria-busy="true"], .btn[aria-busy="true"]:disabled { opacity: 1; cursor: progress; transform: none; }
+.btn-spinner { flex-shrink: 0; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: btnSpin .7s linear infinite; }
+@keyframes btnSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .btn-spinner { animation: none; } }
 .btn-sm { padding: 6px 14px; font-size: 12px; border-radius: 8px; }
 .btn-block { width: 100%; }
 

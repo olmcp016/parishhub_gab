@@ -162,10 +162,32 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
       </div>
     </div>
   <?php endforeach; ?>
-  <form method="POST">
+  <form method="POST" id="finalSubmitForm">
     <?= csrfField() ?>
     <?php if (!$canSubmit): ?><p class="helper-text">Save all required documents and complete all Wedding forms before submitting the appointment request.</p><?php endif; ?>
     <button class="btn btn-primary" type="submit" <?= $canSubmit ? '' : 'disabled' ?>>Submit Appointment Request</button>
   </form>
 </div>
+<script>
+// Final submit: one request only. "Submitting…" + spinner (same size) until the
+// next page loads; the button is disabled just after the browser has read the form.
+(function () {
+  var form = document.getElementById('finalSubmitForm'), btn = form && form.querySelector('button[type="submit"]');
+  if (!btn) return;
+  var label = btn.innerHTML;
+  form.addEventListener('submit', function (e) {
+    if (e.defaultPrevented) return; // stopped by validation: nothing changes
+    if (form.dataset.submitting === '1') { e.preventDefault(); return; }
+    form.dataset.submitting = '1';
+    btn.style.minWidth = btn.offsetWidth + 'px';
+    btn.setAttribute('aria-busy', 'true');
+    btn.innerHTML = '<span class="btn-spinner" aria-hidden="true"></span><span>Submitting…</span>';
+    setTimeout(function () { btn.disabled = true; }, 0);
+  });
+  window.addEventListener('pageshow', function (e) { // Back to this page from the browser's cache: usable again
+    if (!e.persisted || form.dataset.submitting !== '1') return;
+    form.dataset.submitting = ''; btn.disabled = false; btn.removeAttribute('aria-busy'); btn.style.minWidth = ''; btn.innerHTML = label;
+  });
+})();
+</script>
 <?php include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-end.php' : 'dash-end.php'); include __DIR__ . '/includes/footer.php';
