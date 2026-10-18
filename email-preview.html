@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ParishHub — Email Templates Preview</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #e8e1cf;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    .preview-header {
+      background: #2a2113;
+      color: #f7f4ea;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+    }
+    .preview-header h2 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+      color: #c9a84c;
+      letter-spacing: 0.5px;
+    }
+    .preview-controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .tab-btn {
+      background: rgba(255,255,255,0.08);
+      color: #f7f4ea;
+      border: 1px solid rgba(201, 168, 76, 0.4);
+      padding: 7px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .tab-btn:hover {
+      background: rgba(201, 168, 76, 0.2);
+    }
+    .tab-btn.active {
+      background: #c9a84c;
+      color: #2a2113;
+      border-color: #c9a84c;
+      font-weight: 700;
+    }
+    .email-container {
+      padding: 30px 16px 60px;
+      display: flex;
+      justify-content: center;
+    }
+    .email-view {
+      display: none;
+      width: 100%;
+      max-width: 560px;
+    }
+    .email-view.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="preview-header">
+    <h2>📧 ParishHub Email Template Live Preview</h2>
+    <div class="preview-controls">
+      <button type="button" class="tab-btn active" onclick="switchEmail('revision')">1. Needs Revision (Row 14)</button>
+      <button type="button" class="tab-btn" onclick="switchEmail('approved')">2. Appointment Approved</button>
+      <button type="button" class="tab-btn" onclick="switchEmail('verify')">3. Verify Email</button>
+      <button type="button" class="tab-btn" onclick="switchEmail('reset')">4. Password Reset</button>
+    </div>
+  </div>
+
+  <div class="email-container">
+
+    <!-- ==========================================
+         TEMPLATE 1: Needs Revision (Row 14)
+         ========================================== -->
+    <div id="email-revision" class="email-view active">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0e9d6;padding:40px 16px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.08);">
+        <tr><td align="center">
+          <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+            <!-- Header -->
+            <tr><td align="center" style="background:#3b2f1e;border-radius:10px 10px 0 0;padding:32px 32px 28px;">
+              <img src="https://parishhub-qqg2.onrender.com/public/img/logo.png" onerror="this.src='public/img/logo.png'" alt="Parish Logo" width="60" style="display:block; max-width:60px; margin:0 auto 16px;">
+              <p style="margin:0 0 4px;font-size:11px;letter-spacing:3px;color:#c9a84c;text-transform:uppercase;font-family:Georgia,serif;">Official Correspondence</p>
+              <h1 style="margin:0;font-size:28px;color:#f5edda;font-family:Georgia,serif;letter-spacing:2px;">PARISHHUB</h1>
+              <p style="margin:6px 0 0;font-size:12px;color:#b8a07a;font-family:Georgia,serif;">Our Lady of Mt. Carmel Parish Service Portal</p>
+            </td></tr>
+            <!-- Divider -->
+            <tr><td style="background:#c9a84c;height:3px;font-size:0;line-height:0;">&nbsp;</td></tr>
+            <!-- Body -->
+            <tr><td style="background:#fff;padding:36px 40px;border-left:1px solid #e2d8c4;border-right:1px solid #e2d8c4;">
+              <h2 style="margin:0 0 20px;font-size:18px;color:#3b2f1e;font-family:Georgia,serif;border-bottom:1px solid #e8dfc8;padding-bottom:14px;">Your Requirements Need Revision</h2>
+              <div style="font-size:15px;line-height:1.8;color:#3a2e22;font-family:Georgia,serif;">
+                <p>Peace be with you, <strong>Maria Santos</strong>.</p>
+                <p>The Parish Office has reviewed the requirements for your booking <strong>PH-20261018-W9X2</strong> (Wedding). Before your appointment can proceed, please correct and replace the following items:</p>
+                <ul style="padding-left:20px; margin:14px 0 18px;">
+                  <li style="margin-bottom:10px;">
+                    <strong>PSA Birth Certificate (Bride)</strong><br>
+                    <span style="color:#b74040; font-size:13.5px;">Reason: Incomplete Documents</span> — <em>The uploaded photocopy is truncated. Please upload a clear and full-page copy.</em>
+                  </li>
+                  <li style="margin-bottom:10px;">
+                    <strong>Certificate of No Marriage (CENOMAR)</strong><br>
+                    <span style="color:#b74040; font-size:13.5px;">Reason: Missing Information</span> — <em>Document validity has exceeded 6 months. Please provide a recently issued copy.</em>
+                  </li>
+                </ul>
+                <p>Once you have replaced these documents, click <strong>"Submit Updated Requirements"</strong> on your status page so the Secretary can review them again.</p>
+              </div>
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin:32px 0;">
+                <tr><td align="center">
+                  <a href="#" style="background:#7a5c1e; color:#fff; text-decoration:none; padding:14px 36px; border-radius:6px; font-family:Georgia,serif; font-size:15px; font-weight:600; letter-spacing:0.5px; display:inline-block;">Open My Booking</a>
+                </td></tr>
+              </table>
+              <p style="margin:24px 0 0;font-size:13px;color:#7a6a54;border-top:1px solid #e8dfc8;padding-top:18px;font-family:Georgia,serif;">
+                If you did not request this, please disregard this message. For concerns, contact the parish office directly.
+              </p>
+            </td></tr>
+            <!-- Footer -->
+            <tr><td style="background:#f7f2e8;border-radius:0 0 10px 10px;border:1px solid #e2d8c4;border-top:none;padding:18px 32px;text-align:center;">
+              <p style="margin:0 0 4px;font-size:11px;color:#7a6a54;font-family:Georgia,serif;">
+                &copy; 2026 &nbsp;&middot;&nbsp; PARISHHUB &nbsp;&middot;&nbsp; Our Lady of Mt. Carmel Parish
+              </p>
+              <p style="margin:0;font-size:11px;color:#9a8b72;font-family:Georgia,serif;">This is an automated message. Please do not reply directly to this email.</p>
+            </td></tr>
+          </table>
+        </td></tr>
+      </table>
+    </div>
+
+    <!-- ==========================================
+         TEMPLATE 2: Appointment Approved
+         ========================================== -->
+    <div id="email-approved" class="email-view">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0e9d6;padding:40px 16px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.08);">
+        <tr><td align="center">
+          <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+            <!-- Header -->
+            <tr><td align="center" style="background:#3b2f1e;border-radius:10px 10px 0 0;padding:32px 32px 28px;">
+              <img src="https://parishhub-qqg2.onrender.com/public/img/logo.png" onerror="this.src='public/img/logo.png'" alt="Parish Logo" width="60" style="display:block; max-width:60px; margin:0 auto 16px;">
+              <p style="margin:0 0 4px;font-size:11px;letter-spacing:3px;color:#c9a84c;text-transform:uppercase;font-family:Georgia,serif;">Official Correspondence</p>
+              <h1 style="margin:0;font-size:28px;color:#f5edda;font-family:Georgia,serif;letter-spacing:2px;">PARISHHUB</h1>
+              <p style="margin:6px 0 0;font-size:12px;color:#b8a07a;font-family:Georgia,serif;">Our Lady of Mt. Carmel Parish Service Portal</p>
+            </td></tr>
+            <!-- Divider -->
+            <tr><td style="background:#c9a84c;height:3px;font-size:0;line-height:0;">&nbsp;</td></tr>
+            <!-- Body -->
+            <tr><td style="background:#fff;padding:36px 40px;border-left:1px solid #e2d8c4;border-right:1px solid #e2d8c4;">
+              <h2 style="margin:0 0 20px;font-size:18px;color:#3b2f1e;font-family:Georgia,serif;border-bottom:1px solid #e8dfc8;padding-bottom:14px;">Your Appointment Has Been Approved</h2>
+              <div style="font-size:15px;line-height:1.8;color:#3a2e22;font-family:Georgia,serif;">
+                <p>Peace be with you, <strong>Juan Dela Cruz</strong>.</p>
+                <p>We are pleased to inform you that your appointment request for <strong>Baptism</strong> has been reviewed and approved by the Parish Office.</p>
+                <div style="background:#fcf9f2; border:1px solid #e8dfc8; border-radius:8px; padding:16px 20px; margin:20px 0;">
+                  <p style="margin:0 0 6px;"><strong>Booking Reference:</strong> PH-20261018-B4K1</p>
+                  <p style="margin:0 0 6px;"><strong>Scheduled Date:</strong> Saturday, November 7, 2026</p>
+                  <p style="margin:0 0 6px;"><strong>Scheduled Time:</strong> 9:00 AM</p>
+                  <p style="margin:0 0 6px;"><strong>Assigned Priest:</strong> Rev. Fr. Jose Santos</p>
+                  <p style="margin:0;"><strong>Fee Due:</strong> ₱1,000.00</p>
+                </div>
+                <p>Please complete your payment online via PayMongo (GCash, Maya, Card) or pay at the parish office to finalize your confirmation.</p>
+              </div>
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin:32px 0;">
+                <tr><td align="center">
+                  <a href="#" style="background:#7a5c1e; color:#fff; text-decoration:none; padding:14px 36px; border-radius:6px; font-family:Georgia,serif; font-size:15px; font-weight:600; letter-spacing:0.5px; display:inline-block;">View Booking &amp; Pay Online</a>
+                </td></tr>
+              </table>
+              <p style="margin:24px 0 0;font-size:13px;color:#7a6a54;border-top:1px solid #e8dfc8;padding-top:18px;font-family:Georgia,serif;">
+                If you did not request this, please disregard this message. For concerns, contact the parish office directly.
+              </p>
+            </td></tr>
+            <!-- Footer -->
+            <tr><td style="background:#f7f2e8;border-radius:0 0 10px 10px;border:1px solid #e2d8c4;border-top:none;padding:18px 32px;text-align:center;">
+              <p style="margin:0 0 4px;font-size:11px;color:#7a6a54;font-family:Georgia,serif;">
+                &copy; 2026 &nbsp;&middot;&nbsp; PARISHHUB &nbsp;&middot;&nbsp; Our Lady of Mt. Carmel Parish
+              </p>
+              <p style="margin:0;font-size:11px;color:#9a8b72;font-family:Georgia,serif;">This is an automated message. Please do not reply directly to this email.</p>
+            </td></tr>
+          </table>
+        </td></tr>
+      </table>
+    </div>
+
+    <!-- ==========================================
+         TEMPLATE 3: Email Verification
+         ========================================== -->
+    <div id="email-verify" class="email-view">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0e9d6;padding:40px 16px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.08);">
+        <tr><td align="center">
+          <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+            <!-- Header -->
+            <tr><td align="center" style="background:#3b2f1e;border-radius:10px 10px 0 0;padding:32px 32px 28px;">
+              <img src="https://parishhub-qqg2.onrender.com/public/img/logo.png" onerror="this.src='public/img/logo.png'" alt="Parish Logo" width="60" style="display:block; max-width:60px; margin:0 auto 16px;">
+              <p style="margin:0 0 4px;font-size:11px;letter-spacing:3px;color:#c9a84c;text-transform:uppercase;font-family:Georgia,serif;">Official Correspondence</p>
+              <h1 style="margin:0;font-size:28px;color:#f5edda;font-family:Georgia,serif;letter-spacing:2px;">PARISHHUB</h1>
+              <p style="margin:6px 0 0;font-size:12px;color:#b8a07a;font-family:Georgia,serif;">Our Lady of Mt. Carmel Parish Service Portal</p>
+            </td></tr>
+            <!-- Divider -->
+            <tr><td style="background:#c9a84c;height:3px;font-size:0;line-height:0;">&nbsp;</td></tr>
+            <!-- Body -->
+            <tr><td style="background:#fff;padding:36px 40px;border-left:1px solid #e2d8c4;border-right:1px solid #e2d8c4;">
+              <h2 style="margin:0 0 20px;font-size:18px;color:#3b2f1e;font-family:Georgia,serif;border-bottom:1px solid #e8dfc8;padding-bottom:14px;">Verify Your Email Address</h2>
+              <div style="font-size:15px;line-height:1.8;color:#3a2e22;font-family:Georgia,serif;">
+                <p>Welcome to ParishHub!</p>
+                <p>Thank you for registering an account with Our Lady of Mt. Carmel Parish. Please confirm your email address by tapping the button below so you can access all parish services.</p>
+              </div>
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin:32px 0;">
+                <tr><td align="center">
+                  <a href="#" style="background:#7a5c1e; color:#fff; text-decoration:none; padding:14px 36px; border-radius:6px; font-family:Georgia,serif; font-size:15px; font-weight:600; letter-spacing:0.5px; display:inline-block;">Verify My Email</a>
+                </td></tr>
+              </table>
+              <p style="margin:24px 0 0;font-size:13px;color:#7a6a54;border-top:1px solid #e8dfc8;padding-top:18px;font-family:Georgia,serif;">
+                If you did not create an account, please disregard this message.
+              </p>
+            </td></tr>
+            <!-- Footer -->
+            <tr><td style="background:#f7f2e8;border-radius:0 0 10px 10px;border:1px solid #e2d8c4;border-top:none;padding:18px 32px;text-align:center;">
+              <p style="margin:0 0 4px;font-size:11px;color:#7a6a54;font-family:Georgia,serif;">
+                &copy; 2026 &nbsp;&middot;&nbsp; PARISHHUB &nbsp;&middot;&nbsp; Our Lady of Mt. Carmel Parish
+              </p>
+              <p style="margin:0;font-size:11px;color:#9a8b72;font-family:Georgia,serif;">This is an automated message. Please do not reply directly to this email.</p>
+            </td></tr>
+          </table>
+        </td></tr>
+      </table>
+    </div>
+
+    <!-- ==========================================
+         TEMPLATE 4: Password Reset
+         ========================================== -->
+    <div id="email-reset" class="email-view">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0e9d6;padding:40px 16px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.08);">
+        <tr><td align="center">
+          <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+            <!-- Header -->
+            <tr><td align="center" style="background:#3b2f1e;border-radius:10px 10px 0 0;padding:32px 32px 28px;">
+              <img src="https://parishhub-qqg2.onrender.com/public/img/logo.png" onerror="this.src='public/img/logo.png'" alt="Parish Logo" width="60" style="display:block; max-width:60px; margin:0 auto 16px;">
+              <p style="margin:0 0 4px;font-size:11px;letter-spacing:3px;color:#c9a84c;text-transform:uppercase;font-family:Georgia,serif;">Official Correspondence</p>
+              <h1 style="margin:0;font-size:28px;color:#f5edda;font-family:Georgia,serif;letter-spacing:2px;">PARISHHUB</h1>
+              <p style="margin:6px 0 0;font-size:12px;color:#b8a07a;font-family:Georgia,serif;">Our Lady of Mt. Carmel Parish Service Portal</p>
+            </td></tr>
+            <!-- Divider -->
+            <tr><td style="background:#c9a84c;height:3px;font-size:0;line-height:0;">&nbsp;</td></tr>
+            <!-- Body -->
+            <tr><td style="background:#fff;padding:36px 40px;border-left:1px solid #e2d8c4;border-right:1px solid #e2d8c4;">
+              <h2 style="margin:0 0 20px;font-size:18px;color:#3b2f1e;font-family:Georgia,serif;border-bottom:1px solid #e8dfc8;padding-bottom:14px;">Password Reset Code</h2>
+              <div style="font-size:15px;line-height:1.8;color:#3a2e22;font-family:Georgia,serif;">
+                <p>We received a request to reset your password. Use the verification code below to set a new password:</p>
+                <div style="text-align:center; margin:28px 0;">
+                  <span style="display:inline-block; font-size:32px; font-weight:bold; letter-spacing:8px; color:#7a5c1e; background:#f7f2e8; border:1px solid #e2d8c4; padding:12px 28px; border-radius:8px;">849201</span>
+                </div>
+                <p style="font-size:13.5px; color:#7a6a54; text-align:center;">This code is valid for 15 minutes.</p>
+              </div>
+              <p style="margin:24px 0 0;font-size:13px;color:#7a6a54;border-top:1px solid #e8dfc8;padding-top:18px;font-family:Georgia,serif;">
+                If you did not request this, please disregard this message. Your password will remain unchanged.
+              </p>
+            </td></tr>
+            <!-- Footer -->
+            <tr><td style="background:#f7f2e8;border-radius:0 0 10px 10px;border:1px solid #e2d8c4;border-top:none;padding:18px 32px;text-align:center;">
+              <p style="margin:0 0 4px;font-size:11px;color:#7a6a54;font-family:Georgia,serif;">
+                &copy; 2026 &nbsp;&middot;&nbsp; PARISHHUB &nbsp;&middot;&nbsp; Our Lady of Mt. Carmel Parish
+              </p>
+              <p style="margin:0;font-size:11px;color:#9a8b72;font-family:Georgia,serif;">This is an automated message. Please do not reply directly to this email.</p>
+            </td></tr>
+          </table>
+        </td></tr>
+      </table>
+    </div>
+
+  </div>
+
+  <script>
+    function switchEmail(type) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.email-view').forEach(v => v.classList.remove('active'));
+      
+      const targetView = document.getElementById('email-' + type);
+      if (targetView) targetView.classList.add('active');
+      
+      event.target.classList.add('active');
+    }
+  </script>
+</body>
+</html>
