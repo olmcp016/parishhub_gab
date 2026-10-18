@@ -96,9 +96,23 @@
     });
   }
 
+  /**
+   * Requirements review is still pending or incomplete if there are documents
+   * waiting for approval/rejection or unsent revision requests.
+   */
+  function hasIncompleteReview() {
+    if (!modalBody) return false;
+    return !!modalBody.querySelector('.review-approve-form, .js-open-rejection, input[name="action"][value="send_revision_request"]');
+  }
+
   function confirmLeaveUnsavedReview() {
-    return !hasUnsavedReviewAction()
-      || window.confirm('You have a rejection that has not been confirmed yet. Close this appointment without saving it?');
+    if (hasUnsavedReviewAction()) {
+      return window.confirm('You have a rejection that has not been confirmed yet. Close this appointment without saving it?');
+    }
+    if (hasIncompleteReview()) {
+      return window.confirm("You haven't finished reviewing this appointment. Close anyway?");
+    }
+    return true;
   }
 
   function closeDetailModal() {

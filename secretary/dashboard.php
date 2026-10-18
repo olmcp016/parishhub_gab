@@ -80,6 +80,14 @@ $reviewCount = fn(string $key) => $reviewEnabled ? (string) $reviewCounts[$key] 
               <?php else: ?>
                 <span class="badge badge-<?= badgeClass($a['status_name']) ?>"><?= e($a['status_name']) ?></span>
               <?php endif; ?>
+              <?php if ((int) $a['status_id'] === 1): ?>
+                <?php if (in_array($a['requirements_review_status'] ?? null, ['awaiting_revision', 'ready_for_rereview'], true)):
+                  $reviewBadge = requirementsReviewState($a['requirements_review_status'], ['rejected' => 0, 'pending' => 0, 'approved' => 0]); ?>
+                  <span class="badge badge-<?= e($reviewBadge['badge']) ?>"><?= e($reviewBadge['label']) ?></span>
+                <?php elseif ($reviewEnabled && !in_array($a['category'], ['Mass Intention', 'Donation'], true)): ?>
+                  <span class="badge badge-pending">Unreviewed</span>
+                <?php endif; ?>
+              <?php endif; ?>
             </td>
             <td><a href="<?= url('secretary/appointment-detail.php?id=' . $a['appointment_id']) ?>" class="btn btn-outline btn-sm js-view-modal" data-url="<?= url('secretary/appointment-detail.php?id=' . $a['appointment_id']) ?>" data-title="<?= e('Appointment #' . $a['appointment_id'] . ' — ' . $a['service_name']) ?>">Review</a></td>
           </tr>
