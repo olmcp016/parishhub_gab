@@ -1313,6 +1313,7 @@ dialog.modal:not([open]) { display: none; }
 dialog.modal.modal-lg { width: 680px; }
 dialog.modal.modal-xl { width: min(1200px, calc(100vw - 40px)); }
 dialog.appointment-rejection-confirm-modal { width: min(480px, calc(100vw - 40px)); }
+dialog.review-close-confirm-modal { width: min(480px, calc(100vw - 40px)); }
 dialog.modal::backdrop { background: rgba(36, 22, 17, 0.55); }
 .modal-head {
   background: var(--brown-dark); color: var(--gold-light);
@@ -1323,6 +1324,8 @@ dialog.modal::backdrop { background: rgba(36, 22, 17, 0.55); }
 .modal-close { background: none; border: none; color: var(--gold-light); opacity: .75; cursor: pointer; font-size: 20px; padding: 4px; line-height: 1; }
 .modal-close:hover { opacity: 1; }
 .modal-body { padding: 18px 20px; min-width: 0; min-height: 0; flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; }
+.review-close-confirm-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:10px; margin-top:22px; }
+@media (max-width: 480px) { .review-close-confirm-actions .btn { flex:1 1 100%; } }
 
 /* Two-column detail layout reused inside the Secretary's View/Review
    modals (Parishioners, Mass Intentions, Appointments) — stacks to one

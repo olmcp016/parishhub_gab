@@ -20,7 +20,8 @@
  * re-requests the exact same URL.
  */
 (function () {
-  var modal, modalBody, modalTitle;
+  var modal, modalBody, modalTitle, closeConfirmModal;
+  var detailTrigger = null;
   var dirty = false;
   var activeDetailRequest = 0;
   var detailAbortController = null;
@@ -31,6 +32,7 @@
     modal = document.getElementById('detailModal');
     modalBody = document.getElementById('detailModalBody');
     modalTitle = document.getElementById('detailModalTitle');
+    closeConfirmModal = document.getElementById('reviewCloseConfirmModal');
     return !!(modal && modalBody);
   }
 
@@ -58,8 +60,9 @@
     if (rejectModal && rejectModal.open) rejectModal.close();
   }
 
-  function openDetailModal(url, title) {
+  function openDetailModal(url, title, trigger) {
     if (!refs()) return;
+    detailTrigger = trigger || null;
     closeChildModals();
     activeDetailRequest += 1;
     var requestId = activeDetailRequest;
@@ -107,18 +110,13 @@
   }
 
   function confirmLeaveUnsavedReview() {
-    if (hasUnsavedReviewAction()) {
-      return window.confirm('You have a rejection that has not been confirmed yet. Close this appointment without saving it?');
-    }
-    if (hasIncompleteReview()) {
-      return window.confirm("You haven't finished reviewing this appointment. Close anyway?");
-    }
-    return true;
+    return hasUnsavedReviewAction() || hasIncompleteReview();
   }
 
-  function closeDetailModal() {
+  function finishCloseDetailModal() {
     if (!refs()) return;
-    if (!confirmLeaveUnsavedReview()) return;
+    var trigger = detailTrigger;
+    detailTrigger = null;
     activeDetailRequest += 1;
     if (detailAbortController) detailAbortController.abort();
     detailAbortController = null;
@@ -128,7 +126,25 @@
     if (dirty) {
       dirty = false;
       window.location.reload();
+      return;
     }
+    if (trigger && document.contains(trigger) && typeof trigger.focus === 'function') trigger.focus();
+  }
+
+  function showCloseConfirmation() {
+    if (!closeConfirmModal || closeConfirmModal.open) return;
+    closeConfirmModal.showModal();
+    var continueButton = document.getElementById('reviewContinueBtn');
+    if (continueButton) continueButton.focus();
+  }
+
+  function closeDetailModal() {
+    if (!refs()) return;
+    if (confirmLeaveUnsavedReview()) {
+      showCloseConfirmation();
+      return;
+    }
+    finishCloseDetailModal();
   }
 
   /** Error line inside a Requirements Review rejection form, just above its buttons; '' hides it. */
@@ -161,10 +177,35 @@
   document.addEventListener('DOMContentLoaded', function () {
     refs();
 
+    if (closeConfirmModal) {
+      var continueButton = document.getElementById('reviewContinueBtn');
+      var closeAnywayButton = document.getElementById('reviewCloseAnywayBtn');
+      var closeConfirmX = document.getElementById('reviewCloseConfirmX');
+      var continueReviewing = function () {
+        if (closeConfirmModal.open) closeConfirmModal.close();
+        var detailCloseButton = document.querySelector('.detail-modal-close');
+        if (detailCloseButton) detailCloseButton.focus();
+      };
+      if (continueButton) continueButton.addEventListener('click', continueReviewing);
+      if (closeConfirmX) closeConfirmX.addEventListener('click', continueReviewing);
+      if (closeAnywayButton) closeAnywayButton.addEventListener('click', function () {
+        if (closeConfirmModal.open) closeConfirmModal.close();
+        finishCloseDetailModal();
+      });
+      closeConfirmModal.addEventListener('cancel', function (e) {
+        e.preventDefault();
+        continueReviewing();
+      });
+      closeConfirmModal.addEventListener('click', function (e) {
+        if (e.target === closeConfirmModal) continueReviewing();
+      });
+    }
+
     if (modal) {
       modal.addEventListener('cancel', function (e) {
-        if (!confirmLeaveUnsavedReview()) {
+        if (confirmLeaveUnsavedReview()) {
           e.preventDefault();
+          showCloseConfirmation();
           return;
         }
         activeDetailRequest += 1;
@@ -183,7 +224,7 @@
       var viewLink = e.target.closest('.js-view-modal');
       if (viewLink) {
         e.preventDefault();
-        openDetailModal(viewLink.dataset.url || viewLink.href, viewLink.dataset.title || '');
+        openDetailModal(viewLink.dataset.url || viewLink.href, viewLink.dataset.title || '', viewLink);
         return;
       }
       if (e.target.closest('.detail-modal-close')) {
@@ -425,25 +466,9 @@
     function formatScheduleDate(value) { var parts = String(value).split('-'); return parts.length === 3 ? new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).toLocaleDateString(undefined, { year:'numeric', month:'long', day:'numeric' }) : escapeHtml(value); }
     function formatScheduleTime(value) { var parts = String(value).split(':'); if (parts.length < 2) return escapeHtml(value); var h = Number(parts[0]); var m = parts[1]; return String((h + 11) % 12 + 1) + ':' + m + ' ' + (h >= 12 ? 'PM' : 'AM'); }
 
-    // Esc key closes natively via the dialog's "cancel" event — still
-    // needs the same dirty-reload follow-up as any other close path.
-    if (modal) {
-      modal.addEventListener('cancel', function (e) {
-        if (!confirmLeaveUnsavedReview()) { e.preventDefault(); return; }
-        activeDetailRequest += 1;
-        if (detailAbortController) detailAbortController.abort();
-        detailAbortController = null;
-        closeChildModals();
-        modalBody.replaceChildren();
-        setTimeout(function () {
-          if (dirty) { dirty = false; window.location.reload(); }
-        }, 0);
-      });
-    }
-
     if (!modal) return;
     modal.addEventListener('submit', function (e) {
-      if (e.defaultPrevented) return; // an inline onsubmit (e.g. a confirm() the user cancelled) already handled this
+      if (e.defaultPrevented) return;
       var form = e.target;
       if (!(form instanceof HTMLFormElement)) return;
       // Opt-out for a form that needs a REAL top-level navigation — e.g. an
