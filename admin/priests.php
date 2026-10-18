@@ -202,8 +202,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $newStatus = $operation === 'activate' ? 'active' : 'inactive';
             db()->prepare('UPDATE users SET status = ? WHERE user_id = ?')->execute([$newStatus, (int) $account['user_id']]);
-            $logMsg = ucfirst($operation) . "d Priest portal access for {$account['title']} {$account['full_name']}" . ($reason !== '' ? " (Reason: $reason)" : '');
-            logActivity(currentUser()['user_id'], $logMsg, 'Priests');
+            $actor = currentUser();
+            $actorRole = $actor['role_name'] ?? 'User';
+            $actorName = trim(($actor['firstname'] ?? '') . ' ' . ($actor['lastname'] ?? ''));
+            $logMsg = ucfirst($operation) . "d Priest portal access for {$account['title']} {$account['full_name']} by {$actorRole} {$actorName}" . ($reason !== '' ? " (Reason: $reason)" : '');
+            logActivity((int) $actor['user_id'], $logMsg, 'Priests');
             flash('success', $operation === 'activate' ? 'Priest portal access reactivated.' : 'Priest portal access deactivated.');
         } else {
             $tempPassword = bin2hex(random_bytes(5));

@@ -104,7 +104,7 @@ function renderAppointmentsTable(array $appointments, bool $isSecretaryViewer): 
                   <?php if (in_array($a['requirements_review_status'] ?? null, ['awaiting_revision', 'ready_for_rereview'], true)):
                     $reviewBadge = requirementsReviewState($a['requirements_review_status'], ['rejected' => 0, 'pending' => 0, 'approved' => 0]); ?>
                     <span class="badge badge-<?= e($reviewBadge['badge']) ?>"><?= e($reviewBadge['label']) ?></span>
-                  <?php elseif (requirementsReviewAvailable() && !in_array($a['category'], ['Mass Intention', 'Donation'], true)): ?>
+                  <?php elseif (!in_array($a['category'], ['Mass Intention', 'Donation'], true)): ?>
                     <span class="badge badge-pending">Unreviewed</span>
                   <?php endif; ?>
                 <?php elseif ((int) $a['status_id'] === 2 && !empty($a['appointment_date']) && $a['appointment_date'] < date('Y-m-d')): ?>

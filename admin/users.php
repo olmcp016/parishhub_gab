@@ -350,9 +350,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect(url('admin/users.php') . '?tab=priests');
         }
         if ($operation === 'activate' || $operation === 'deactivate') {
+            $reason = trim((string) ($_POST['deactivate_reason'] ?? ''));
+            if ($operation === 'deactivate' && $reason === '') {
+                flash('error', 'Please provide a reason for deactivating portal access.');
+                redirect(url('admin/users.php') . '?tab=priests');
+            }
             $newStatus = $operation === 'activate' ? 'active' : 'inactive';
             db()->prepare('UPDATE users SET status = ? WHERE user_id = ?')->execute([$newStatus, (int) $account['user_id']]);
-            logActivity($adminId, ucfirst($operation) . "d Priest portal access for {$account['title']} {$account['full_name']}", 'Priests');
+            $actor = currentUser();
+            $actorRole = $actor['role_name'] ?? 'Admin';
+            $actorName = trim(($actor['firstname'] ?? '') . ' ' . ($actor['lastname'] ?? ''));
+            $logMsg = ucfirst($operation) . "d Priest portal access for {$account['title']} {$account['full_name']} by {$actorRole} {$actorName}" . ($reason !== '' ? " (Reason: $reason)" : '');
+            logActivity($adminId, $logMsg, 'Priests');
             flash('success', $operation === 'activate' ? 'Priest portal access reactivated.' : 'Priest portal access deactivated.');
         } else {
             $chars        = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
@@ -751,6 +760,28 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
 </dialog>
 
+<dialog class="modal" id="deactivatePriestModal" aria-labelledby="deactivatePriestTitle">
+  <div class="modal-head"><h3 id="deactivatePriestTitle">Deactivate Priest Portal Access</h3><button type="button" class="modal-close js-close-deactivate-modal" aria-label="Close">✕</button></div>
+  <div class="modal-body">
+    <p>Are you sure you want to deactivate portal access for <strong id="deactivatePriestName"></strong>?</p>
+    <p class="text-muted" style="margin-top:-6px; font-size:13px;">This will prevent the priest from logging into the portal until reactivated.</p>
+    <form method="POST" action="<?= url('admin/users.php') ?>" id="deactivatePriestForm">
+      <?= csrfField() ?>
+      <input type="hidden" name="action" value="priest_manage_login">
+      <input type="hidden" name="login_operation" value="deactivate">
+      <input type="hidden" name="priest_id" id="deactivatePriestId">
+      <div class="form-group">
+        <label for="deactivatePriestReason">Reason for Deactivation <span aria-hidden="true" style="color:var(--danger);">*</span></label>
+        <textarea name="deactivate_reason" id="deactivatePriestReason" rows="3" required placeholder="Please explain why portal access is being deactivated..."></textarea>
+      </div>
+      <div class="flex gap-3" style="justify-content:flex-end;">
+        <button type="button" class="btn btn-outline js-close-deactivate-modal">Cancel</button>
+        <button type="submit" class="btn btn-danger" id="deactivatePriestSubmitBtn">Confirm Deactivation</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
 <script>
 // ── Tab switching ─────────────────────────────────────────────────────────────
 (function () {
@@ -902,15 +933,51 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
+  var deactivatePriestModal = document.getElementById('deactivatePriestModal');
   document.querySelectorAll('.js-close-login-modal').forEach(function (button) {
     button.addEventListener('click', function () {
       if (createLoginModal.open) createLoginModal.close();
       if (manageLoginModal.open) manageLoginModal.close();
     });
   });
-  document.querySelectorAll('.js-login-operation').forEach(function (button) {
-    button.addEventListener('click', function () { document.getElementById('manageLoginOperation').value = button.dataset.operation; });
+  document.querySelectorAll('.js-close-deactivate-modal').forEach(function (button) {
+    button.addEventListener('click', function () {
+      if (deactivatePriestModal && deactivatePriestModal.open) deactivatePriestModal.close();
+    });
   });
+  document.querySelectorAll('.js-login-operation').forEach(function (button) {
+    button.addEventListener('click', function (e) {
+      if (button.dataset.operation === 'deactivate') {
+        e.preventDefault();
+        var priestId = document.getElementById('manageLoginPriestId').value;
+        var priestName = document.getElementById('manageLoginPriestName').textContent;
+        document.getElementById('deactivatePriestId').value = priestId;
+        document.getElementById('deactivatePriestName').textContent = priestName;
+        document.getElementById('deactivatePriestReason').value = '';
+        var submitBtn = document.getElementById('deactivatePriestSubmitBtn');
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Confirm Deactivation';
+        }
+        if (manageLoginModal.open) manageLoginModal.close();
+        if (deactivatePriestModal) {
+          deactivatePriestModal.showModal();
+          setTimeout(function () { document.getElementById('deactivatePriestReason').focus(); }, 50);
+        }
+        return;
+      }
+      document.getElementById('manageLoginOperation').value = button.dataset.operation;
+    });
+  });
+  if (document.getElementById('deactivatePriestForm')) {
+    document.getElementById('deactivatePriestForm').addEventListener('submit', function () {
+      var submitBtn = document.getElementById('deactivatePriestSubmitBtn');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Deactivating...';
+      }
+    });
+  }
   document.getElementById('createLoginForm').addEventListener('submit', function () {
     document.getElementById('createLoginSubmit').disabled  = true;
     document.getElementById('createLoginSubmit').textContent = 'Creating...';

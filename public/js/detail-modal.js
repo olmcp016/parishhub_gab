@@ -98,11 +98,12 @@
 
   /**
    * Requirements review is still pending or incomplete if there are documents
-   * waiting for approval/rejection or unsent revision requests.
+   * waiting for approval/rejection or unsent revision requests, or if the
+   * appointment itself has not been approved or rejected yet.
    */
   function hasIncompleteReview() {
     if (!modalBody) return false;
-    return !!modalBody.querySelector('.review-approve-form, .js-open-rejection, input[name="action"][value="send_revision_request"]');
+    return !!modalBody.querySelector('.review-approve-form, .js-open-rejection, input[name="action"][value="send_revision_request"], form input[name="action"][value="approve"]');
   }
 
   function confirmLeaveUnsavedReview() {
@@ -159,6 +160,24 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     refs();
+
+    if (modal) {
+      modal.addEventListener('cancel', function (e) {
+        if (!confirmLeaveUnsavedReview()) {
+          e.preventDefault();
+          return;
+        }
+        activeDetailRequest += 1;
+        if (detailAbortController) detailAbortController.abort();
+        detailAbortController = null;
+        closeChildModals();
+        modalBody.replaceChildren();
+        if (dirty) {
+          dirty = false;
+          window.location.reload();
+        }
+      });
+    }
 
     document.addEventListener('click', function (e) {
       var viewLink = e.target.closest('.js-view-modal');
