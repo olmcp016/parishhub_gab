@@ -91,7 +91,7 @@ include __DIR__ . '/../includes/dash-start.php';
 
 <div class="card" style="max-width:640px; margin:0 auto; text-align:center;">
   <div style="font-size:48px; margin-bottom:8px;"><?= $outcome === 'paid' ? '✔' : ($outcome === 'failed' ? '⚠' : '⏳') ?></div>
-  <h3><?= $outcome === 'paid' ? 'Payment Received' : ($outcome === 'failed' ? 'Payment Not Completed' : 'Payment') ?></h3>
+  <h3><?= $outcome === 'paid' ? 'PAYMENT SUCCESSFUL' : ($outcome === 'failed' ? 'Payment Not Completed' : 'Payment') ?></h3>
   <p style="color: var(--brown-mid);"><?= e($message) ?></p>
   <div class="flex gap-3" style="justify-content:center; flex-wrap:wrap; margin-top:18px;">
     <?php if ($row): ?>

@@ -755,7 +755,7 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
               </select>
             </div>
             <div class="form-group">
-              <label>Offerer Name</label>
+              <label>Name</label>
               <input type="text" name="offerer_name" id="offererNameInput" placeholder="Name">
             </div>
           </div>
