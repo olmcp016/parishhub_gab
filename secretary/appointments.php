@@ -107,6 +107,8 @@ function renderAppointmentsTable(array $appointments, bool $isSecretaryViewer): 
                   <?php elseif (requirementsReviewAvailable() && !in_array($a['category'], ['Mass Intention', 'Donation'], true)): ?>
                     <span class="badge badge-pending">Unreviewed</span>
                   <?php endif; ?>
+                <?php elseif ((int) $a['status_id'] === 2 && !empty($a['appointment_date']) && $a['appointment_date'] < date('Y-m-d')): ?>
+                  <span class="badge badge-warning" style="background:#b45309;color:#fff;">Needs Reschedule</span>
                 <?php endif; ?>
               </td>
               <td><a href="<?= url('secretary/appointment-detail.php?id=' . $a['appointment_id']) ?>" class="btn btn-outline btn-sm js-view-modal" data-url="<?= url('secretary/appointment-detail.php?id=' . $a['appointment_id']) ?>" data-title="<?= e('Appointment #' . $a['appointment_id'] . ' — ' . $a['service_name']) ?>">Review</a></td>

@@ -290,21 +290,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // A verified ₱0 total (PSS Giver Funeral Mass, or a Wedding whose fees
             // all come to ₱0) has no payment step: approve it straight to Confirmed.
-            // (Left at Approved, it would wait for a ₱0.00 payment and be
-            // auto-cancelled as unpaid.) A Wedding still waiting on its Pre-Cana
-            // conditions stays Approved — no payment needed — and is confirmed later.
+            // A Wedding still waiting on its Pre-Cana conditions stays Approved — no payment needed — and is confirmed later.
+            require_once __DIR__ . '/../includes/appointment-approval.php';
             $noPaymentNeeded = appointmentNoPaymentRequired($lockedAppointment);
             $ceremonyBlockers = $noPaymentNeeded ? appointmentConfirmationBlockers($lockedAppointment) : [];
             $confirmNow = $noPaymentNeeded && !$ceremonyBlockers;
+
+            $hasDeadlineCol = paymentDeadlineColumnAvailable();
+            $paymentDeadline = (!$confirmNow && !$noPaymentNeeded) ? appointmentPaymentDeadline($lockedAppointment) : null;
+            $deadlineSql = ($hasDeadlineCol && $paymentDeadline) ? ', payment_deadline = ?' : '';
+
             $update = $pdo->prepare($confirmNow
                 ? 'UPDATE appointments
                    SET status_id = 5, approved_by = ?, approved_at = NOW(), confirmed_by = ?, confirmed_at = NOW()
                    WHERE appointment_id = ? AND status_id = 1'
-                : 'UPDATE appointments
-                   SET status_id = 2, approved_by = ?, approved_at = NOW()
-                   WHERE appointment_id = ? AND status_id = 1'
+                : "UPDATE appointments
+                   SET status_id = 2, approved_by = ?, approved_at = NOW(){$deadlineSql}
+                   WHERE appointment_id = ? AND status_id = 1"
             );
-            $update->execute($confirmNow ? [$userId, $userId, $id] : [$userId, $id]);
+            $params = $confirmNow
+                ? [$userId, $userId, $id]
+                : ($deadlineSql ? [$userId, $paymentDeadline->format('Y-m-d H:i:sP'), $id] : [$userId, $id]);
+            $update->execute($params);
             if ($update->rowCount() !== 1) {
                 throw new RuntimeException('This appointment is no longer pending approval.');
             }
@@ -365,10 +372,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = db()->prepare("SELECT user_id FROM parishioners WHERE parishioner_id = ?");
         $stmt->execute([$parId]);
         $puid = $stmt->fetchColumn();
-        db()->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Appointment Rejected', ?)")
-            ->execute([$puid, "Your appointment #$id was not approved. Reason: $reason"]);
+        if ($puid) {
+            db()->prepare("INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Appointment Rejected', ?)")
+                ->execute([$puid, "Your appointment #$id was not approved. Reason: $reason"]);
+        }
         logActivity($userId, "Rejected appointment #$id", 'Appointments');
-        respondAjaxOrRedirect($isAjax, true, 'Appointment rejected.', $redirectUrl);
+        require_once __DIR__ . '/../includes/appointment-approval.php';
+        $rejNotice = appointmentApprovedNoticeSummary(notifyAppointmentRejected($id, $reason, (int) $userId));
+        respondAjaxOrRedirect($isAjax, true, 'Appointment rejected. ' . $rejNotice, $redirectUrl);
     } elseif ($action === 'assign_priest') {
         if (!in_array($currentStatusId, [1, 2, 4, 5], true)
             || in_array($actionAppointment['category'], ['Mass Intention', 'Donation'], true)) {
@@ -460,6 +471,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             respondAjaxOrRedirect($isAjax, false, 'The schedule was not changed. Refresh and try again.', $redirectUrl);
         }
         logActivity($userId, "Rescheduled appointment #$id", 'Appointments');
+        require_once __DIR__ . '/../includes/appointment-approval.php';
+        $rescheduleEmailNotice = appointmentApprovedNoticeSummary(notifyAppointmentRescheduled($id, $newDate, $finalTime, (int) $userId));
 
         // Confirmation / First Communion / Funeral are booked without a final date;
         // tell the parishioner once the office sets the final schedule. Guests see
@@ -497,7 +510,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $mismatch = $katinData ? funeralKatinAwanScheduleMismatch(['appointment_date' => $newDate, 'appointment_time' => $finalTime], json_decode((string) $katinData, true) ?: []) : null;
             if ($mismatch) $scheduleMessage .= ' Note: the Katin-awan sa Paglubong form still shows a different burial date/time — use "Request Katin-awan Update" if it needs correcting.';
         }
-        respondAjaxOrRedirect($isAjax, true, $scheduleMessage, $redirectUrl);
+        respondAjaxOrRedirect($isAjax, true, $scheduleMessage . ' ' . $rescheduleEmailNotice, $redirectUrl);
     } elseif ($action === 'confirm') {
         $confirmStmt = db()->prepare('SELECT a.*, s.category FROM appointments a JOIN services s ON s.service_id = a.service_id WHERE a.appointment_id = ?');
         $confirmStmt->execute([$id]);
@@ -527,7 +540,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             respondAjaxOrRedirect($isAjax, false, 'This appointment is no longer awaiting confirmation.', $redirectUrl);
         }
         logActivity($userId, "Confirmed appointment #$id", 'Appointments');
-        respondAjaxOrRedirect($isAjax, true, 'Appointment confirmed.', $redirectUrl);
+        require_once __DIR__ . '/../includes/appointment-approval.php';
+        $confirmNotice = appointmentApprovedNoticeSummary(notifyAppointmentConfirmed($id, (int) $userId));
+        respondAjaxOrRedirect($isAjax, true, 'Appointment confirmed. ' . $confirmNotice, $redirectUrl);
     } elseif ($action === 'confirm_precana' || $action === 'propose_precana') {
         // Special Pre-Cana only: confirm the schedule on file, or propose another
         // one. A proposal is NOT a confirmation: it stays "Awaiting Parish Office
@@ -726,8 +741,27 @@ if (!$isAjax) {
         <?php else: ?>
           <span class="badge badge-<?= badgeClass($appointment['status_name']) ?>"><?= e($appointment['status_name']) ?></span>
         <?php endif; ?>
+        <?php
+          require_once __DIR__ . '/../includes/appointment-approval.php';
+          $isPastDateUnpaid = (int) $appointment['status_id'] === 2
+              && !empty($appointment['appointment_date'])
+              && $appointment['appointment_date'] < date('Y-m-d')
+              && !$noPaymentRequired
+              && (empty($payment) || !in_array($payment['payment_status'] ?? '', ['pending', 'verified'], true));
+          $paymentDeadline = ((int) $appointment['status_id'] === 2 && !$noPaymentRequired)
+              ? appointmentPaymentDeadline($appointment)
+              : null;
+        ?>
+        <?php if ($isPastDateUnpaid): ?>
+          <span class="badge badge-warning" style="background:#b45309;color:#fff;">Needs Reschedule</span>
+        <?php endif; ?>
       </div>
     </div>
+    <?php if ($isPastDateUnpaid): ?>
+      <div class="alert" style="background:#fef3c7; color:#92400e; border:1px solid #fcd34d; margin:14px 0;">
+        <strong>⚠️ Scheduled Date Has Passed:</strong> This appointment was scheduled for <?= formatDate($appointment['appointment_date']) ?> and remains unpaid. Per parish policy, this booking has <strong>not</strong> been cancelled. Please coordinate with the applicant and use the <strong>Reschedule</strong> form below to assign a new date and time.
+      </div>
+    <?php endif; ?>
     <p class="appointment-reference"><strong>Booking Reference:</strong> <span><?= e($appointment['guest_reference'] ?: 'Appointment #' . (int) $appointment['appointment_id']) ?></span></p>
     <?php if ($appointment['guest_name']): ?>
       <p><strong>Guest:</strong> <?= e($appointment['guest_name']) ?> (<?= e($appointment['guest_phone']) ?><?= $appointment['guest_email'] ? ', ' . e($appointment['guest_email']) : '' ?>)</p>
@@ -735,6 +769,9 @@ if (!$isAjax) {
       <p><strong>Parishioner:</strong> <?= e($appointment['firstname']) ?> <?= e($appointment['lastname']) ?> (<?= e($appointment['email']) ?>, <?= e($appointment['phone']) ?>)</p>
     <?php endif; ?>
     <p><strong>Date:</strong> <?= formatDate($appointment['appointment_date']) ?><?= $appointment['appointment_time'] ? ' at ' . date('g:i A', strtotime($appointment['appointment_time'])) : ' (To be scheduled)' ?></p>
+    <?php if ($paymentDeadline && (int) $appointment['status_id'] === 2): ?>
+      <p><strong>Payment Deadline:</strong> <span style="color:#b45309; font-weight:600;"><?= e($paymentDeadline->format('F j, Y \a\t g:i A')) ?></span></p>
+    <?php endif; ?>
     <?php
       // Fee-rule services (Baptism, Wedding, Funeral Mass) show "No Fees" for a ₱0
       // line (e.g. PSS Giver), not "Voluntary Offering"; a ₱0 total is "₱0.00 — No Payment Required".

@@ -120,6 +120,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submi
 
         $pdo->commit();
         notifySecretariesNewBooking($appointmentId); // website notification; never throws
+        require_once __DIR__ . '/includes/appointment-approval.php';
+        notifyBookingReceived($appointmentId); // email acknowledgement; never throws
 
         funeralDraftDeletePreview($draft);
         unset($_SESSION['funeral_booking_drafts'][$draftId]);

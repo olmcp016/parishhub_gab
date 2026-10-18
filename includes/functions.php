@@ -304,6 +304,18 @@ function parseRequirementsList(?string $requirementsText): array
  */
 function autoCancelExpiredUnpaidAppointments(): void
 {
+    handlePastDateUnpaidAppointments();
+}
+
+/**
+ * Past-date unpaid check (Row 24 Update):
+ * In parish operations, approved appointments are NEVER auto-cancelled when their
+ * scheduled date passes. The priest reservation, document review, and booking record
+ * remain preserved so the Secretary or family can coordinate a Reschedule.
+ * Both the Secretary and applicant are notified that the date passed and rescheduling is needed.
+ */
+function handlePastDateUnpaidAppointments(): void
+{
     if (($_SESSION['auto_cancel_ran_on'] ?? '') === date('Y-m-d')) {
         return;
     }
@@ -311,12 +323,17 @@ function autoCancelExpiredUnpaidAppointments(): void
 
     try {
         require_once __DIR__ . '/service-fees.php'; // appointmentNoPaymentRequired()
+        require_once __DIR__ . '/secretary-notifications.php'; // notifySecretaries()
+        require_once __DIR__ . '/appointment-approval.php'; // notifyPastDateReschedule()
+
         $stmt = db()->query(
-            "SELECT a.appointment_id, u.user_id, s.service_name, s.category, a.pss_classification, a.fee_snapshot
+            "SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.guest_name, a.guest_email, a.guest_reference,
+                    par.user_id, u.email AS user_email, u.firstname, u.lastname,
+                    s.service_name, s.category, a.pss_classification, a.fee_snapshot
              FROM appointments a
              JOIN services s ON a.service_id = s.service_id
-             JOIN parishioners par ON a.parishioner_id = par.parishioner_id
-             JOIN users u ON par.user_id = u.user_id
+             LEFT JOIN parishioners par ON a.parishioner_id = par.parishioner_id
+             LEFT JOIN users u ON par.user_id = u.user_id
              WHERE a.status_id = 2
                AND a.appointment_date < CURRENT_DATE
                AND NOT EXISTS (
@@ -324,32 +341,48 @@ function autoCancelExpiredUnpaidAppointments(): void
                      WHERE p.appointment_id = a.appointment_id AND p.payment_status IN ('pending', 'verified')
                    )"
         );
-        // A verified ₱0 total (e.g. a Wedding waiting only for its Pre-Cana
-        // certificate) has nothing to pay, so it is never cancelled "for
-        // nonpayment"; it stays Approved for the Secretary to handle.
+
         $expired = array_values(array_filter($stmt->fetchAll(), static fn(array $row): bool => !appointmentNoPaymentRequired($row)));
         if (empty($expired)) {
             return;
         }
 
-        $ids = array_column($expired, 'appointment_id');
-        $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        db()->prepare(
-            "UPDATE appointments SET status_id = 7, cancelled_reason = 'Automatically cancelled — approved but never paid before the scheduled date.'
-             WHERE appointment_id IN ($placeholders)"
-        )->execute($ids);
-
+        // We DO NOT set status_id = 7. Appointments remain at status_id = 2 (Approved)
+        // so the Secretary can reschedule them directly in secretary/appointment-detail.php.
         foreach ($expired as $row) {
-            db()->prepare(
-                "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Appointment Automatically Cancelled', ?)"
-            )->execute([
-                $row['user_id'],
-                "Your appointment for {$row['service_name']} (#{$row['appointment_id']}) was automatically cancelled — it was approved but never paid before the scheduled date.",
-            ]);
-            logActivity(null, "Auto-cancelled appointment #{$row['appointment_id']} (approved but unpaid past its date)", 'Appointments');
+            $appointmentId = (int) $row['appointment_id'];
+            $isGuest = trim((string) ($row['guest_name'] ?? '')) !== '';
+            $service = (string) $row['service_name'];
+            $dateStr = formatDate($row['appointment_date']);
+
+            // 1. Notify registered parishioner in ParishHub (if not already notified for this appointment)
+            if (!$isGuest && !empty($row['user_id'])) {
+                $check = db()->prepare("SELECT 1 FROM notifications WHERE user_id = ? AND title = 'Appointment Needs Reschedule' AND message LIKE ?");
+                $check->execute([(int) $row['user_id'], "%#$appointmentId%"]);
+                if (!$check->fetchColumn()) {
+                    db()->prepare(
+                        "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Appointment Needs Reschedule', ?)"
+                    )->execute([
+                        (int) $row['user_id'],
+                        "Your appointment for $service (#$appointmentId) scheduled on $dateStr has passed without payment. Your booking has NOT been cancelled. Please contact the Parish Office to reschedule your appointment.",
+                    ]);
+                }
+            }
+
+            // 2. Notify Secretary bell
+            notifySecretaries(
+                'Appointment Needs Reschedule',
+                "Appointment #$appointmentId ($service) scheduled on $dateStr has passed while unpaid. It is kept active for rescheduling.",
+                $appointmentId
+            );
+
+            // 3. Send email notice via Brevo
+            notifyPastDateReschedule($appointmentId);
+
+            logActivity(null, "Flagged appointment #$appointmentId for reschedule (scheduled date passed without payment; kept active)", 'Appointments');
         }
     } catch (Throwable $e) {
-        error_log('autoCancelExpiredUnpaidAppointments error: ' . $e->getMessage());
+        error_log('handlePastDateUnpaidAppointments error: ' . $e->getMessage());
     }
 }
 

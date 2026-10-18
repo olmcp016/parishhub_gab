@@ -695,6 +695,10 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         logActivity($userId, ($isMassIntention ? "Submitted Mass Intention #$appointmentId with an offering of ₱" . number_format($offeringAmount, 2) : "Booked appointment #$appointmentId") . ($isGuest ? ' (guest)' : ''), 'Appointments');
         // Saved: website notification for the Secretary (skips Mass Intentions; never blocks the booking).
         notifySecretariesNewBooking((int) $appointmentId);
+        if (!$isMassIntention) {
+            require_once __DIR__ . '/../includes/appointment-approval.php';
+            notifyBookingReceived((int) $appointmentId);
+        }
 
         if ($isMassIntention && $checkoutUrl) {
             if ($isAjax) {

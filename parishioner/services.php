@@ -431,6 +431,8 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
             <p class="helper-text" style="margin-top:12px; margin-bottom:0;">We'll use your name and phone number to
               identify your request — you'll get a reference code to check its status anytime.</p>
           </div>
+        <?php else: ?>
+          <p class="helper-text" style="margin-top:-4px; margin-bottom:14px;">We'll send updates about your booking to your registered email (<strong><?= e(currentUser()['email'] ?? '') ?></strong>).</p>
         <?php endif; ?>
 
         <div class="form-group">

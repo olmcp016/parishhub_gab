@@ -115,6 +115,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $baptismFinalizationStage = 'commit';
         $pdo->commit();
         notifySecretariesNewBooking($appointmentId); // website notification; never throws
+        require_once __DIR__ . '/includes/appointment-approval.php';
+        notifyBookingReceived($appointmentId); // email acknowledgement; never throws
         rememberBookingThankYou((string) $guestReference);
         redirect(bookingReturnUrl(empty($locked['parishioner_id'])));
     } catch (Throwable $e) {

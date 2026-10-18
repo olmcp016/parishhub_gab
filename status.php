@@ -82,6 +82,9 @@ if ($searched) {
     }
     $notFound = $lookupError === null && !$appointment;
     if ($appointment) {
+        if ($contact === '') {
+            $contact = (string) ($appointment['guest_email'] ?: $appointment['guest_phone']);
+        }
         $_SESSION['guest_status_verification'] = [
             'appointment_id' => (int) $appointment['appointment_id'],
             'expires_at' => time() + 900,
@@ -249,7 +252,27 @@ include __DIR__ . '/includes/header.php';
           </div>
         </div>
       <?php endif; ?>
+      <?php
+        require_once __DIR__ . '/includes/appointment-approval.php';
+        $isPastDateUnpaid = (int) ($appointment['status_id'] ?? 0) === 2
+            && !empty($appointment['appointment_date'])
+            && $appointment['appointment_date'] < date('Y-m-d')
+            && !in_array($appointment['category'] ?? '', ['Mass Intention', 'Donation'], true)
+            && !feeTotalNeedsNoPayment($appointment['category'] ?? '', $displayFee)
+            && (empty($payment) || !in_array($payment['payment_status'] ?? '', ['pending', 'verified'], true));
+        $paymentDeadline = ((int) ($appointment['status_id'] ?? 0) === 2 && !feeTotalNeedsNoPayment($appointment['category'] ?? '', $displayFee))
+            ? appointmentPaymentDeadline($appointment)
+            : null;
+      ?>
+      <?php if ($isPastDateUnpaid): ?>
+        <div class="alert" style="background:#fef3c7; color:#92400e; border:1px solid #fcd34d; margin:14px 0;">
+          <strong>⚠️ Scheduled Date Has Passed:</strong> Your appointment was scheduled for <?= formatDate($appointment['appointment_date']) ?> and remains unpaid. Per parish policy, your booking has <strong>not</strong> been cancelled. Please contact or visit the Parish Office to coordinate a new schedule with our Parish Secretary.
+        </div>
+      <?php endif; ?>
       <p><strong>Date:</strong> <?= formatDate($appointment['appointment_date']) ?><?= $appointment['appointment_time'] ? ' at ' . date('g:i A', strtotime($appointment['appointment_time'])) : ' (To be scheduled)' ?></p>
+      <?php if ($paymentDeadline && !$isPastDateUnpaid && (int) $appointment['status_id'] === 2): ?>
+        <p><strong>Payment Deadline:</strong> <span style="color:#b45309; font-weight:600;"><?= e($paymentDeadline->format('F j, Y \a\t g:i A')) ?></span></p>
+      <?php endif; ?>
       <?php if ($appointment['category'] === 'Funeral'): // burial and Funeral Mass are one schedule ?>
         <?php if (!empty($appointment['date_of_death'])): ?><p><strong>Date of Death:</strong> <?= formatDate($appointment['date_of_death']) ?></p><?php endif; ?>
         <?php renderFuneralScheduleSummary($appointment); ?>
@@ -368,7 +391,7 @@ include __DIR__ . '/includes/header.php';
 
       <?php if ($canGuestPay): ?>
         <hr style="border-color: var(--cream-dark); margin: 18px 0;">
-        <h4>Pay Now</h4>
+        <h4 id="booking-payment">Pay Now</h4>
         <form method="POST" action="<?= url('guest-pay.php') ?>" id="guestPayForm">
           <?= csrfField() ?>
           <input type="hidden" name="appointment_id" value="<?= $appointment['appointment_id'] ?>">

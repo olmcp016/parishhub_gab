@@ -318,7 +318,26 @@ if (!$isAjax) {
       </div>
     </div>
     <p><strong>Booking Reference:</strong> <?= e($appointment['guest_reference'] ?: 'Appointment #' . (int) $appointment['appointment_id']) ?></p>
+    <?php
+      require_once __DIR__ . '/../includes/appointment-approval.php';
+      $isPastDateUnpaid = (int) $appointment['status_id'] === 2
+          && !empty($appointment['appointment_date'])
+          && $appointment['appointment_date'] < date('Y-m-d')
+          && !$noPaymentRequired
+          && (!$payment || !in_array($payment['payment_status'], ['pending', 'verified'], true));
+      $paymentDeadline = ((int) $appointment['status_id'] === 2 && !$noPaymentRequired)
+          ? appointmentPaymentDeadline($appointment)
+          : null;
+    ?>
+    <?php if ($isPastDateUnpaid): ?>
+      <div class="alert" style="background:#fef3c7; color:#92400e; border:1px solid #fcd34d; margin:14px 0;">
+        <strong>⚠️ Scheduled Date Has Passed:</strong> Your appointment was scheduled for <?= formatDate($appointment['appointment_date']) ?> and remains unpaid. Per parish policy, your booking has <strong>not</strong> been cancelled. Please contact the Parish Office to coordinate a new schedule with our Parish Secretary.
+      </div>
+    <?php endif; ?>
     <p><strong>Date:</strong> <?= formatDate($appointment['appointment_date']) ?><?= $appointment['appointment_time'] ? ' at ' . date('g:i A', strtotime($appointment['appointment_time'])) : ' (To be scheduled)' ?></p>
+    <?php if ($paymentDeadline && !$isPastDateUnpaid && (int) $appointment['status_id'] === 2): ?>
+      <p><strong>Payment Deadline:</strong> <span style="color:#b45309; font-weight:600;"><?= e($paymentDeadline->format('F j, Y \a\t g:i A')) ?></span></p>
+    <?php endif; ?>
     <p><strong>Priest:</strong> <?= e($appointment['priest_name'] ?? 'Not yet assigned') ?></p>
     <?php if ($appointment['category'] === 'Wedding'): ?>
       <hr style="border-color:var(--cream-dark); margin:18px 0;"><h4>Wedding Forms</h4>
@@ -407,9 +426,13 @@ if (!$isAjax) {
       </div>
     <?php elseif ($appointment['status_name'] === 'Approved' && !$payment): ?>
       <div class="alert" style="background: var(--cream); color: var(--brown-mid); border: 1px solid var(--cream-dark);">
-        <?= $noPaymentRequired
-            ? 'Your request has been approved! No payment is required. The Parish Office will confirm your appointment.'
-            : 'Your request has been approved! Please settle your payment below, then wait for your appointment to be confirmed.' ?>
+        <?php if ($noPaymentRequired): ?>
+          Your request has been approved! No payment is required. The Parish Office will confirm your appointment.
+        <?php elseif ($isPastDateUnpaid): ?>
+          Your scheduled appointment date has passed without payment. Your booking has not been cancelled. Please contact the Parish Office to reschedule.
+        <?php else: ?>
+          Your request has been approved! Please settle your payment below<?= $paymentDeadline ? ' on or before <strong>' . e($paymentDeadline->format('M j, Y g:i A')) . '</strong>' : '' ?>, then wait for your appointment to be confirmed.
+        <?php endif; ?>
       </div>
     <?php elseif ($appointment['status_name'] === 'Payment Verified'): ?>
       <div class="alert alert-success">
