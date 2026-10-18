@@ -430,6 +430,29 @@ include __DIR__ . '/includes/header.php';
         })();
         </script>
       <?php endif; ?>
+
+      <?php if (in_array((int) $appointment['status_id'], [2, 5], true)): ?>
+        <div style="background:#fffbeb; border:1px solid #fcd34d; border-radius:8px; padding:14px 18px; margin:20px 0 10px; font-size:13.5px; color:#92400e; line-height:1.5;">
+          <strong style="display:flex; align-items:center; gap:6px; font-size:14px; margin-bottom:6px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+            Emergency &amp; Rescheduling Advisory
+          </strong>
+          <p style="margin:0 0 10px;">
+            We understand that unforeseen emergencies and unavoidable circumstances happen. If you or your family cannot make it on your scheduled appointment date, please notify the Parish Office as soon as possible.
+            <strong>Your booking and payment will be fully honored and will not be forfeited.</strong> Our parish staff will assist you in rescheduling your service to another available date.
+          </p>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <a href="tel:<?= e(preg_replace('/[^0-9+]/', '', parishContactNumber())) ?>" class="btn btn-sm btn-outline" style="color:#92400e; border-color:#d97706; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+              Call Office: <?= e(parishContactNumber()) ?>
+            </a>
+            <a href="mailto:<?= e(parishContactEmail()) ?>?subject=<?= e(urlencode('Reschedule Request - ' . ($appointment['guest_reference'] ?: 'Appointment #' . $appointment['appointment_id']))) ?>" class="btn btn-sm btn-outline" style="color:#92400e; border-color:#d97706; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg>
+              Email Office
+            </a>
+          </div>
+        </div>
+      <?php endif; ?>
     </div>
   <?php endif; ?>
 </div>

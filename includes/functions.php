@@ -809,3 +809,30 @@ function syncWeeklyDonationAnnouncement(int $postedByUserId): void
         error_log('Weekly donation announcement sync error: ' . $e->getMessage());
     }
 }
+
+function parishContactNumber(): string
+{
+    static $phone = null;
+    if ($phone !== null) return $phone;
+    try {
+        $val = db()->query("SELECT setting_value FROM settings WHERE setting_key = 'contact_number'")->fetchColumn();
+        $phone = $val ? trim((string) $val) : '(043) 123-4567 / 0917-123-4567';
+    } catch (Throwable $e) {
+        $phone = '(043) 123-4567 / 0917-123-4567';
+    }
+    return $phone;
+}
+
+function parishContactEmail(): string
+{
+    static $email = null;
+    if ($email !== null) return $email;
+    try {
+        $val = db()->query("SELECT setting_value FROM settings WHERE setting_key = 'contact_email'")->fetchColumn();
+        $email = $val ? trim((string) $val) : 'mountcarmelparish@gmail.com';
+    } catch (Throwable $e) {
+        $email = 'mountcarmelparish@gmail.com';
+    }
+    return $email;
+}
+

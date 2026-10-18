@@ -561,6 +561,11 @@ function notifyAppointmentConfirmed(int $appointmentId, ?int $actorUserId): arra
             . '<p style="margin:0;"><strong>Status:</strong> <span style="color:#28a745; font-weight:600;">Confirmed</span></p>'
             . '</div>'
             . '<p>Please arrive at the parish church 15–30 minutes prior to your scheduled time. We look forward to celebrating this sacred service with you.</p>'
+            . '<div style="background:#fffbeb; border:1px solid #fcd34d; border-radius:8px; padding:14px 18px; margin:20px 0; font-size:13.5px; color:#92400e; line-height:1.5;">'
+            . '<strong>💡 Emergency &amp; Rescheduling Advisory:</strong><br>'
+            . 'We understand that unforeseen emergencies and unavoidable circumstances happen. If you or your family are unable to attend on your scheduled appointment date, please notify the Parish Office as soon as possible.<br><br>'
+            . '<strong>Your booking and payment will be fully honored and will not be forfeited.</strong> Our parish staff will gladly assist you in rescheduling your service to another available date.'
+            . '</div>'
             . '<p>Thank you,<br>Our Lady of Mt. Carmel Parish</p>';
 
         $subject = "ParishHub – Your Appointment Has Been Confirmed ($ref)";
