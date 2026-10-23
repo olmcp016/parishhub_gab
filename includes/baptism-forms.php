@@ -107,7 +107,8 @@ function baptismFormValidationErrors(string $type, array $data, bool $requireCom
 function baptismPdfDate(string $date): string
 {
     $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
-    return $parsed && $parsed->format('Y-m-d') === $date ? $parsed->format('F j, Y') : $date;
+    $formatted = $parsed && $parsed->format('Y-m-d') === $date ? $parsed->format('F j, Y') : $date;
+    return mb_strtoupper($formatted, 'UTF-8');
 }
 
 function baptismPdfText(string $value): string
@@ -141,6 +142,7 @@ function baptismPdfHeader(FPDF $pdf, string $title): void
     $pdf->SetFont('Times', '', 9); $pdf->SetX(48); $pdf->Cell(145, 5, 'Email address: mountcarmelbalilihan@gmail.com', 0, 1, 'C');
     $pdf->SetDrawColor(20, 92, 18); $pdf->SetLineWidth(0.8); $pdf->Line(15, 42, 195, 42);
     $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('Times', 'B', 15); $pdf->SetXY(15, 47); $pdf->Cell(180, 8, baptismPdfText($title), 0, 1, 'C');
+    $pdf->SetDrawColor(0, 0, 0); $pdf->SetLineWidth(0.3);
 }
 
 function baptismPdfField(FPDF $pdf, string $label, string $value, float $x, float $y, float $width, float $labelWidth, float $size = 9, float $valueSize = 0): void
@@ -212,8 +214,24 @@ function baptismKatinPdf(array $data): string
 
     // Full-width fields with uniform $fullLabelW so underlines start at X=66 and end at X=192
     baptismPdfField($pdf, 'DIIN:', $v('marriage_place'), 18, 119, $fullW, $fullLabelW);
-    baptismPdfField($pdf, 'SPONSORS: 1.', $v('sponsor_1'), 18, 129, $fullW, $fullLabelW);
-    baptismPdfField($pdf, '                   2.', $v('sponsor_2'), 18, 139, $fullW, $fullLabelW);
+
+    // Sponsors: 1. and 2. aligned vertically with identical underlines from X=48 to X=192
+    $pdf->SetFont('Times', 'B', 9);
+    $pdf->SetXY(18, 129);
+    $pdf->Cell(22, 6, baptismPdfText('SPONSORS:'), 0, 0);
+    $pdf->Cell(6, 6, '1.', 0, 0, 'R');
+    $pdf->Cell(2, 6, '', 0, 0);
+    $pdf->SetFont('Times', '', 11);
+    $pdf->Cell(144, 6, baptismPdfFit($pdf, $v('sponsor_1'), 142, 11), 'B', 0);
+
+    $pdf->SetFont('Times', 'B', 9);
+    $pdf->SetXY(18, 139);
+    $pdf->Cell(22, 6, '', 0, 0);
+    $pdf->Cell(6, 6, '2.', 0, 0, 'R');
+    $pdf->Cell(2, 6, '', 0, 0);
+    $pdf->SetFont('Times', '', 11);
+    $pdf->Cell(144, 6, baptismPdfFit($pdf, $v('sponsor_2'), 142, 11), 'B', 0);
+
     baptismPdfField($pdf, 'SAKOP SA KAPILYA SA:', $v('chapel'), 18, 149, $fullW, $fullLabelW);
     baptismPdfField($pdf, 'NGALAN SA CLUSTER:', $v('cluster_name'), 18, 159, $fullW, $fullLabelW);
     baptismPdfField($pdf, 'NGALAN SA BARANGAY:', $v('barangay'), 18, 169, $fullW, $fullLabelW);

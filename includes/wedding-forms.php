@@ -300,13 +300,15 @@ function weddingBirthAgeError(string $label, string $birthDate, string $weddingD
 function weddingMarriagePdfDate(string $date): string
 {
     $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
-    return $parsed && $parsed->format('Y-m-d') === $date ? $parsed->format('F j, Y') : $date;
+    $formatted = $parsed && $parsed->format('Y-m-d') === $date ? $parsed->format('F j, Y') : $date;
+    return mb_strtoupper($formatted, 'UTF-8');
 }
 
 function weddingMarriagePdfTime(string $time): string
 {
     $parsed = DateTimeImmutable::createFromFormat('!H:i', $time);
-    return $parsed && $parsed->format('H:i') === $time ? $parsed->format('g:i A') : $time;
+    $formatted = $parsed && $parsed->format('H:i') === $time ? $parsed->format('g:i A') : $time;
+    return mb_strtoupper($formatted, 'UTF-8');
 }
 
 /** @return string[] */
@@ -479,6 +481,7 @@ function weddingPdfHeader(FPDF $pdf, string $title): void
     $pdf->SetFont('Times', '', 9); $pdf->SetX(48); $pdf->Cell(145, 5, 'Email address: mountcarmelbalilihan@gmail.com', 0, 1, 'C');
     $pdf->SetDrawColor(20, 92, 18); $pdf->SetLineWidth(0.8); $pdf->Line(15, 42, 195, 42);
     $pdf->SetTextColor(0, 0, 0); $pdf->SetFont('Times', 'B', 15); $pdf->SetXY(15, 47); $pdf->Cell(180, 8, $title, 0, 1, 'C');
+    $pdf->SetDrawColor(0, 0, 0); $pdf->SetLineWidth(0.3);
 }
 
 function weddingPdfField(FPDF $pdf, string $label, string $value, float $x, float $y, float $width, float $labelWidth = 38, float $height = 6, float $fontSize = 9): void

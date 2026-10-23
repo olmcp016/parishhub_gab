@@ -165,13 +165,15 @@ function funeralPdfText(string $value): string
 function funeralPdfDate(string $date): string
 {
     $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
-    return $parsed && $parsed->format('Y-m-d') === $date ? $parsed->format('F j, Y') : $date;
+    $formatted = $parsed && $parsed->format('Y-m-d') === $date ? $parsed->format('F j, Y') : $date;
+    return mb_strtoupper($formatted, 'UTF-8');
 }
 
 function funeralPdfTime(string $time): string
 {
     $parsed = DateTimeImmutable::createFromFormat('!H:i', $time);
-    return $parsed && $parsed->format('H:i') === $time ? $parsed->format('g:i A') : $time;
+    $formatted = $parsed && $parsed->format('H:i') === $time ? $parsed->format('g:i A') : $time;
+    return mb_strtoupper($formatted, 'UTF-8');
 }
 
 function funeralPdfField(FPDF $pdf, string $label, string $value, float $x, float $y, float $width, float $labelWidth, float $size = 9): void
