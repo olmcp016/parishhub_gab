@@ -222,7 +222,7 @@ if ($generated) {
  * ------------------------------------------------------------- */
 $me = currentUser() ?? [];
 $preparedBy = trim(($me['firstname'] ?? '') . ' ' . ($me['lastname'] ?? ''));
-if ($preparedBy === '') $preparedBy = 'Parish Treasurer / Cashier';
+if ($preparedBy === '') $preparedBy = 'Cashier';
 
 $generatedOn = date('F j, Y, g:i A');
 $periodLabel = ($fromDate && $toDate)
@@ -328,8 +328,8 @@ include __DIR__ . '/../includes/dash-start.php';
   border-top:1px solid #000; border-bottom:3px double #000; }
 
 /* Signatories */
-.trpt-signatories { display:grid; grid-template-columns:repeat(3,1fr);
-  gap:28px; margin-top:46px; page-break-inside:avoid; }
+.trpt-signatories { display:grid; grid-template-columns:repeat(2,1fr);
+  gap:48px; max-width:760px; margin:46px auto 0; page-break-inside:avoid; }
 .trpt-sig { text-align:center; font-size:12.5px; }
 .trpt-sig .lbl2 { font-size:11px; color:#555; margin-bottom:26px; text-align:left; }
 .trpt-sig .line { border-bottom:1px solid #000; height:34px; margin-bottom:4px; }
@@ -633,13 +633,7 @@ include __DIR__ . '/../includes/dash-start.php';
       <div class="lbl2">Prepared &amp; Remitted by:</div>
       <div class="line"></div>
       <div class="name"><?= e($preparedBy) ?></div>
-      <div class="role">Parish Treasurer / Cashier</div>
-    </div>
-    <div class="trpt-sig">
-      <div class="lbl2">Audited &amp; Reconciled by:</div>
-      <div class="line"></div>
-      <div class="name">&nbsp;</div>
-      <div class="role">Parish Auditor / Finance Council Chair</div>
+      <div class="role">Cashier</div>
     </div>
     <div class="trpt-sig">
       <div class="lbl2">Approved &amp; Received by:</div>

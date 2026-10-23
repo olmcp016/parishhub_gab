@@ -37,21 +37,8 @@ function reportReference(int $appointmentId): string
 $defaultFrom = date('Y-m-01');
 $defaultTo   = date('Y-m-d');
 
-$categories = [];
-try {
-    $categories = db()->query(
-        "SELECT DISTINCT category::text FROM services WHERE category IS NOT NULL ORDER BY category::text"
-    )->fetchAll(PDO::FETCH_COLUMN);
-} catch (Throwable $e) {
-    error_log('Failed to fetch categories: ' . $e->getMessage());
-}
-
 $fromDate = reportValidDate($_GET['from_date'] ?? null);
 $toDate   = reportValidDate($_GET['to_date'] ?? null);
-$category = trim((string) ($_GET['category'] ?? ''));
-if ($category !== '' && !in_array($category, $categories, true)) {
-    $category = '';
-}
 
 $generated = isset($_GET['generate']);
 $filterError = '';
@@ -70,7 +57,6 @@ $formTo   = $toDate ?? $defaultTo;
 
 /* ------------------------------------------------------------------
  * Report data
- * Rejected/Cancelled bookings are excluded: they were never billed.
  * Paid amounts = sum of verified payments per appointment.
  * ------------------------------------------------------------------ */
 
@@ -110,14 +96,9 @@ if ($generated) {
                 GROUP BY appointment_id
             ) pay ON pay.appointment_id = a.appointment_id
             WHERE a.appointment_date BETWEEN ? AND ?
-              AND st.status_name NOT IN ('Rejected', 'Cancelled')
+            ORDER BY a.appointment_date ASC, a.appointment_time ASC, a.appointment_id ASC
         ";
         $params = [$fromDate, $toDate];
-        if ($category !== '') {
-            $sql .= ' AND s.category::text = ?';
-            $params[] = $category;
-        }
-        $sql .= ' ORDER BY a.appointment_date ASC, a.appointment_time ASC, a.appointment_id ASC';
 
         $stmt = db()->prepare($sql);
         $stmt->execute($params);
@@ -184,13 +165,13 @@ if ($generated) {
 $me = currentUser() ?? [];
 $preparedBy = trim(($me['firstname'] ?? '') . ' ' . ($me['lastname'] ?? ''));
 if ($preparedBy === '') {
-    $preparedBy = 'Parish Secretary';
+    $preparedBy = 'Secretary';
 }
 $generatedOn = date('F j, Y, g:i A');
 $periodLabel = $fromDate && $toDate
     ? 'For the period of ' . formatDate($fromDate) . ' to ' . formatDate($toDate)
     : '';
-$scopeLabel = $category !== '' ? $category : 'All Services';
+$scopeLabel = 'All Services';
 
 $active = 'reports';
 $pageTitle = 'Sales & Services Report';
@@ -283,15 +264,6 @@ include __DIR__ . '/../includes/dash-start.php';
       <label for="to_date">Date To</label>
       <input type="date" id="to_date" name="to_date" value="<?= e($formTo) ?>" required>
     </div>
-    <div class="field">
-      <label for="category">Service / Category</label>
-      <select id="category" name="category">
-        <option value="">All Services</option>
-        <?php foreach ($categories as $cat): ?>
-          <option value="<?= e($cat) ?>" <?= $category === $cat ? 'selected' : '' ?>><?= e($cat) ?></option>
-        <?php endforeach; ?>
-      </select>
-    </div>
     <input type="hidden" name="generate" value="1">
     <div class="field">
       <button type="submit" class="btn btn-primary" style="width:100%;">Generate Report</button>
@@ -301,7 +273,7 @@ include __DIR__ . '/../includes/dash-start.php';
   <?php if ($generated): ?>
     <div class="rpt-actions">
       <span class="text-muted" style="font-size:13px;">
-        Showing: <strong><?= e($scopeLabel) ?></strong> &middot; <?= e(formatDate($fromDate)) ?> to <?= e(formatDate($toDate)) ?>
+        Showing: <?= e(formatDate($fromDate)) ?> to <?= e(formatDate($toDate)) ?>
       </span>
       <button type="button" class="btn btn-success" onclick="window.print()">🖨️ Print Report</button>
     </div>
@@ -452,13 +424,13 @@ include __DIR__ . '/../includes/dash-start.php';
       <div class="label">Prepared by:</div>
       <div class="line"></div>
       <div class="name"><?= e($preparedBy) ?></div>
-      <div class="role">Parish Secretary</div>
+      <div class="role">Secretary</div>
     </div>
     <div class="rpt-sig">
       <div class="label">Reviewed &amp; Verified by:</div>
       <div class="line"></div>
       <div class="name">&nbsp;</div>
-      <div class="role">Parish Bookkeeper / Treasurer</div>
+      <div class="role">Cashier</div>
     </div>
     <div class="rpt-sig">
       <div class="label">Approved &amp; Noted by:</div>
