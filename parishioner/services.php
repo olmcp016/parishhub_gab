@@ -1011,7 +1011,7 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:6px;">
             <label style="margin:0;">Preferred Priest (optional)</label>
             <button type="button" class="btn btn-outline btn-sm" id="btnPriestOthers" style="display:none; font-size:12px; padding:3px 10px;">
-              Others (Visiting Priest)
+              Other (Preferred Priest)
             </button>
           </div>
           <select name="priest_id" id="priestSelect">
@@ -1019,11 +1019,11 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
             <?php foreach ($priests as $p): ?>
               <option value="<?= $p['priest_id'] ?>"><?= e($p['title']) ?>   <?= e($p['full_name']) ?></option>
             <?php endforeach; ?>
-            <option value="other" id="priestOtherOption" style="display:none;">Others (Visiting / Guest Priest)</option>
+            <option value="other" id="priestOtherOption" style="display:none;">Other (Preferred Priest)</option>
           </select>
           <div id="outsidePriestGroup" style="display:none; margin-top:10px; background:var(--cream, #f9f6f0); padding:12px; border-radius:8px; border:1px solid var(--cream-dark, #e5dec9);">
             <label for="outsidePriestInput" style="font-weight:600; font-size:13px; margin-bottom:6px; display:block;">
-              Visiting Priest Name <span style="color:var(--danger, #dc2626);">*</span>
+              Preferred Priest Name <span style="color:var(--danger, #dc2626);">*</span>
             </label>
             <div style="display:flex; align-items:center;">
               <span style="background:var(--cream-dark, #e8dfcb); border:1px solid #c9be9f; border-right:none; padding:8px 14px; border-radius:6px 0 0 6px; font-weight:700; color:var(--text, #333); font-size:14px; user-select:none;">Fr.</span>
@@ -2424,7 +2424,7 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     var sSelect = document.getElementById('serviceSelect');
     var category = sSelect.options[sSelect.selectedIndex]?.dataset.category || '';
     if (category !== '' && category !== 'Donation' && category !== 'Mass Intention') {
-      html += '<option value="other" id="priestOtherOption"' + (current === 'other' ? ' selected' : '') + '>Others (Visiting / Guest Priest)</option>';
+      html += '<option value="other" id="priestOtherOption"' + (current === 'other' ? ' selected' : '') + '>Other (Preferred Priest)</option>';
     }
     select.innerHTML = html;
 
@@ -3057,7 +3057,7 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     if (priestSel && priestSel.offsetParent !== null && priestSel.value) {
       if (priestSel.value === 'other') {
         var outside = document.getElementById('outsidePriestInput')?.value.trim();
-        if (outside) detailsList.push('Visiting Priest: ' + outside);
+        if (outside) detailsList.push('Preferred Priest: ' + outside);
       } else {
         var priestName = priestSel.options[priestSel.selectedIndex]?.textContent.trim();
         if (priestName) detailsList.push('Priest: ' + priestName);

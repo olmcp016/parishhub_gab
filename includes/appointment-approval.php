@@ -211,7 +211,7 @@ function appointmentApprovedEmailHtml(array $a, bool $isGuest, string $name, str
         'Time' => $hasTime ? $h(date('g:i A', strtotime((string) $a['appointment_time']))) : $tba,
     ];
     if (!empty($a['outside_priest_name'])) {
-        $rows['Priest'] = $h($a['outside_priest_name']) . ' (Visiting Priest)';
+        $rows['Priest'] = $h($a['outside_priest_name']) . ' (Preferred Priest)';
     } elseif (!empty($a['priest_name'])) {
         $rows['Assigned Priest'] = $h($a['priest_name']);
     }
@@ -404,7 +404,7 @@ function notifyAppointmentRescheduled(int $appointmentId, ?string $newDate, ?str
         $timeStr = !empty($timeVal) ? date('g:i A', strtotime((string) $timeVal)) : '';
         $scheduleDisplay = htmlspecialchars($dateStr . ($timeStr ? " at $timeStr" : ''));
         $priestName = !empty($a['outside_priest_name'])
-            ? htmlspecialchars((string) $a['outside_priest_name']) . ' (Visiting Priest)'
+            ? htmlspecialchars((string) $a['outside_priest_name']) . ' (Preferred Priest)'
             : (!empty($a['priest_name']) ? htmlspecialchars((string) $a['priest_name']) : 'Assigned by Parish Office');
 
         // In-app notification for registered parishioner
@@ -551,7 +551,7 @@ function notifyAppointmentConfirmed(int $appointmentId, ?int $actorUserId): arra
         $timeStr = !empty($a['appointment_time']) ? date('g:i A', strtotime((string) $a['appointment_time'])) : '';
         $scheduleDisplay = htmlspecialchars($dateStr . ($timeStr ? " at $timeStr" : ''));
         $priestName = !empty($a['outside_priest_name'])
-            ? htmlspecialchars((string) $a['outside_priest_name']) . ' (Visiting Priest)'
+            ? htmlspecialchars((string) $a['outside_priest_name']) . ' (Preferred Priest)'
             : (!empty($a['priest_name']) ? htmlspecialchars((string) $a['priest_name']) : 'Assigned Priest');
 
         $link = $isGuest && trim((string) $a['guest_reference']) !== ''

@@ -92,7 +92,7 @@ function renderAppointmentsTable(array $appointments, bool $isSecretaryViewer): 
               <td><?= e($a['service_name']) ?></td>
               <td>
                 <?php if (!empty($a['outside_priest_name'])): ?>
-                  <?= e($a['outside_priest_name']) ?> <span class="text-muted" style="font-size:11px;">(Visiting)</span>
+                  <?= e($a['outside_priest_name']) ?> <span class="text-muted" style="font-size:11px;">(Preferred Priest)</span>
                 <?php else: ?>
                   <?= e($a['priest_name'] ?? '—') ?>
                 <?php endif; ?>

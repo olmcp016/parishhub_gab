@@ -771,7 +771,7 @@ if (!$isAjax) {
     <?php endif; ?>
     <p><strong>Date:</strong> <?= formatDate($appointment['appointment_date']) ?><?= $appointment['appointment_time'] ? ' at ' . date('g:i A', strtotime($appointment['appointment_time'])) : ' (To be scheduled)' ?></p>
     <?php if (!empty($appointment['outside_priest_name'])): ?>
-      <p><strong>Priest:</strong> <?= e($appointment['outside_priest_name']) ?> <span class="badge badge-info" style="font-size:11px; margin-left:4px;">Visiting / Guest Priest</span></p>
+      <p><strong>Priest:</strong> <?= e($appointment['outside_priest_name']) ?> <span class="badge badge-info" style="font-size:11px; margin-left:4px;">Preferred Priest</span></p>
     <?php endif; ?>
     <?php if ($paymentDeadline && (int) $appointment['status_id'] === 2): ?>
       <p><strong>Payment Deadline:</strong> <span style="color:#b45309; font-weight:600;"><?= e($paymentDeadline->format('F j, Y \a\t g:i A')) ?></span></p>
@@ -1282,7 +1282,7 @@ if (!$isAjax) {
       <div class="card-header">
         <h3><?= ($priestAlreadySet || $hasOutsidePriest) ? 'Priest Assignment' : 'Assign Priest' ?></h3>
         <?php if ($hasOutsidePriest): ?>
-          <span class="badge badge-success">Visiting Priest</span>
+          <span class="badge badge-success">Preferred Priest</span>
         <?php elseif ($priestAlreadySet): ?>
           <span class="badge badge-success">Assigned</span>
         <?php else: ?>
@@ -1291,8 +1291,8 @@ if (!$isAjax) {
       </div>
 
       <?php if ($hasOutsidePriest): ?>
-        <p style="margin-top:0;"><strong>Designated Priest:</strong> <?= e($appointment['outside_priest_name']) ?> <span class="badge badge-info" style="font-size:11px; margin-left:4px;">Visiting / Guest Priest</span></p>
-        <p class="text-muted" style="font-size:13px; margin-bottom:12px;">This service was requested with a guest or visiting priest chosen by the family. An in-house parish priest assignment is not required for approval.</p>
+        <p style="margin-top:0;"><strong>Designated Priest:</strong> <?= e($appointment['outside_priest_name']) ?> <span class="badge badge-info" style="font-size:11px; margin-left:4px;">Preferred Priest</span></p>
+        <p class="text-muted" style="font-size:13px; margin-bottom:12px;">This service was requested with a preferred priest chosen by the family. An in-house parish priest assignment is not required for approval.</p>
         <details>
           <summary class="text-muted" style="cursor:pointer; font-size:13px;">Reassign to in-house parish priest</summary>
           <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>" class="mb-3 mt-2">

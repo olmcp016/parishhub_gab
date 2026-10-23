@@ -278,7 +278,7 @@ include __DIR__ . '/includes/header.php';
         <?php renderFuneralScheduleSummary($appointment); ?>
       <?php endif; ?>
       <?php if ($appointment['category'] !== 'Donation'): ?>
-        <p><strong>Priest:</strong> <?= !empty($appointment['outside_priest_name']) ? e($appointment['outside_priest_name']) . ' <span class="badge badge-info" style="font-size:11px; margin-left:4px;">Visiting Priest</span>' : e($appointment['priest_name'] ?? 'Not yet assigned') ?></p>
+        <p><strong>Priest:</strong> <?= !empty($appointment['outside_priest_name']) ? e($appointment['outside_priest_name']) . ' <span class="badge badge-info" style="font-size:11px; margin-left:4px;">Preferred Priest</span>' : e($appointment['priest_name'] ?? 'Not yet assigned') ?></p>
         <p><strong>Fee:</strong>
           <?php if ($appointment['pss_classification'] === 'pending_verification'): ?>Fee pending PSS verification
           <?php elseif ($appointmentSnapshot): ?><?= feeTotalNeedsNoPayment($appointment['category'], $displayFee) ? NO_PAYMENT_REQUIRED_LABEL : feeLabel($displayFee) ?>
