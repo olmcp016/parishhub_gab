@@ -49,8 +49,7 @@ $fromDate   = trptValidDate($_GET['from_date'] ?? null);
 $toDate     = trptValidDate($_GET['to_date']   ?? null);
 $methodId   = isset($_GET['method_id']) && ctype_digit((string)$_GET['method_id'])
                 ? (int) $_GET['method_id'] : 0;
-$statusFilter = in_array($_GET['pstatus'] ?? '', ['verified', 'pending', 'all'], true)
-                ? ($_GET['pstatus'] ?? 'verified') : 'verified';
+$statusFilter = 'all';
 $generated  = isset($_GET['generate']);
 
 if ($generated) {
@@ -375,17 +374,6 @@ include __DIR__ . '/../includes/dash-start.php';
 
   <form method="GET" id="trptForm" class="trpt-filter" autocomplete="off">
     <div class="fld">
-      <label for="trpt-preset">Quick Range</label>
-      <select id="trpt-preset">
-        <option value="custom">Custom</option>
-        <option value="today">Today</option>
-        <option value="yesterday">Yesterday</option>
-        <option value="week">This Week</option>
-        <option value="month">This Month</option>
-        <option value="year">This Year</option>
-      </select>
-    </div>
-    <div class="fld">
       <label for="from_date">Date From</label>
       <input type="date" id="from_date" name="from_date" value="<?= e($formFrom) ?>" required>
     </div>
@@ -405,14 +393,6 @@ include __DIR__ . '/../includes/dash-start.php';
         <?php endforeach; ?>
       </select>
     </div>
-    <div class="fld">
-      <label for="pstatus">Payment Status</label>
-      <select id="pstatus" name="pstatus">
-        <option value="verified" <?= $statusFilter==='verified'?'selected':'' ?>>Verified / Collected</option>
-        <option value="pending"  <?= $statusFilter==='pending' ?'selected':'' ?>>Pending</option>
-        <option value="all"      <?= $statusFilter==='all'     ?'selected':'' ?>>All Statuses</option>
-      </select>
-    </div>
     <input type="hidden" name="generate" value="1">
     <div class="fld">
       <button type="submit" class="btn btn-primary" style="width:100%;">Generate Report</button>
@@ -423,7 +403,6 @@ include __DIR__ . '/../includes/dash-start.php';
     <div class="trpt-actions">
       <span style="font-size:13px; color:var(--text-muted,#64748b);">
         Showing: <strong><?= e($methodLabel) ?></strong> &middot;
-        <strong><?= e($statusLabel) ?></strong> &middot;
         <?= e(formatDate($fromDate)) ?> &ndash; <?= e(formatDate($toDate)) ?>
       </span>
       <button type="button" class="btn btn-success" onclick="window.print()">
@@ -681,54 +660,6 @@ include __DIR__ . '/../includes/dash-start.php';
 </div>
 
 <?php endif; ?>
-
-<script>
-(function () {
-  var preset = document.getElementById('trpt-preset');
-  var from   = document.getElementById('from_date');
-  var to     = document.getElementById('to_date');
-
-  function iso(d) {
-    return d.getFullYear() + '-' +
-      String(d.getMonth() + 1).padStart(2, '0') + '-' +
-      String(d.getDate()).padStart(2, '0');
-  }
-
-  function apply(name) {
-    var now   = new Date();
-    var start = new Date(now);
-    var end   = new Date(now);
-    switch (name) {
-      case 'today':
-        break;
-      case 'yesterday':
-        start.setDate(now.getDate() - 1);
-        end = new Date(start);
-        break;
-      case 'week':
-        var dow = (now.getDay() + 6) % 7; // Monday = 0
-        start.setDate(now.getDate() - dow);
-        end = new Date(start); end.setDate(start.getDate() + 6);
-        break;
-      case 'month':
-        start = new Date(now.getFullYear(), now.getMonth(), 1);
-        end   = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-        break;
-      case 'year':
-        start = new Date(now.getFullYear(), 0, 1);
-        end   = new Date(now.getFullYear(), 11, 31);
-        break;
-      default: return;
-    }
-    from.value = iso(start);
-    to.value   = iso(end);
-  }
-
-  preset.addEventListener('change', function () { apply(preset.value); });
-  from.addEventListener('change',   function () { preset.value = 'custom'; });
-  to.addEventListener('change',     function () { preset.value = 'custom'; });
-})();
-</script>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

@@ -276,16 +276,6 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
   <form method="GET" id="reportForm" class="rpt-filter" autocomplete="off">
     <div class="field">
-      <label for="preset">Quick Range</label>
-      <select id="preset">
-        <option value="custom">Custom</option>
-        <option value="today">Today</option>
-        <option value="week">This Week</option>
-        <option value="month">This Month</option>
-        <option value="year">This Year</option>
-      </select>
-    </div>
-    <div class="field">
       <label for="from_date">Date From</label>
       <input type="date" id="from_date" name="from_date" value="<?= e($formFrom) ?>" required>
     </div>
@@ -485,53 +475,6 @@ include __DIR__ . '/../includes/dash-start.php';
     <p class="text-muted text-center mt-3">Piliin ang petsa at kategorya, saka pindutin ang <strong>Generate Report</strong>.</p>
   </div>
 <?php endif; ?>
-
-<script>
-  // Quick Range presets: fill the date inputs; any manual date change switches to "Custom".
-  (function () {
-    var preset = document.getElementById('preset');
-    var from   = document.getElementById('from_date');
-    var to     = document.getElementById('to_date');
-
-    function iso(d) {
-      var m = String(d.getMonth() + 1).padStart(2, '0');
-      var day = String(d.getDate()).padStart(2, '0');
-      return d.getFullYear() + '-' + m + '-' + day;
-    }
-
-    function apply(name) {
-      var now = new Date();
-      var start = new Date(now);
-      var end = new Date(now);
-      switch (name) {
-        case 'today':
-          break;
-        case 'week':
-          var dow = (now.getDay() + 6) % 7; // Monday = start of week
-          start.setDate(now.getDate() - dow);
-          end = new Date(start);
-          end.setDate(start.getDate() + 6);
-          break;
-        case 'month':
-          start = new Date(now.getFullYear(), now.getMonth(), 1);
-          end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-          break;
-        case 'year':
-          start = new Date(now.getFullYear(), 0, 1);
-          end = new Date(now.getFullYear(), 11, 31);
-          break;
-        default:
-          return;
-      }
-      from.value = iso(start);
-      to.value = iso(end);
-    }
-
-    preset.addEventListener('change', function () { apply(preset.value); });
-    from.addEventListener('change', function () { preset.value = 'custom'; });
-    to.addEventListener('change', function () { preset.value = 'custom'; });
-  })();
-</script>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
