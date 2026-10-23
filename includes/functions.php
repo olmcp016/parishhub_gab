@@ -880,11 +880,12 @@ function normalizeOutsidePriestName(?string $name): ?string
 
 /**
  * Services that allow an outside/visiting priest ("dili atoa nga pari").
- * Specifically Marriage (Wedding), Funeral, and Baptism.
+ * Applicable to all parish services (except non-appointment donations).
  */
 function isOutsidePriestEligibleCategory(?string $category): bool
 {
-    return in_array($category, ['Wedding', 'Marriage', 'Funeral', 'Baptism'], true);
+    if (empty($category)) return false;
+    return $category !== 'Donation';
 }
 
 

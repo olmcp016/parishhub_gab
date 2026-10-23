@@ -16,7 +16,10 @@ $isSecretaryViewer = $viewerRole === 'Secretary';
 $isCashierViewer = $viewerRole === 'Treasurer';
 $showPayment = !$isSecretaryViewer; // Cashier/Admin only — payments are the Cashier's job
 
-$sql = "SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.status_id, a.guest_name,
+$hasOutsidePriest = outsidePriestAvailable();
+$outsideField = $hasOutsidePriest ? ', a.outside_priest_name' : '';
+
+$sql = "SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.status_id, a.guest_name{$outsideField},
                st.status_name, u.firstname, u.lastname,
                mi.intention_type, mi.offerer_name, mi.intention_for, mi.message,
                p.payment_id, p.payment_status, p.amount, p.method_id
@@ -149,7 +152,13 @@ include __DIR__ . '/../includes/dash-start.php';
           <?php foreach ($intentions as $row): ?>
             <?php [$miLabel, $miClass] = massIntentionStatusDisplay($row['status_name'], $row['payment_id'] ? true : false, $isSecretaryViewer); ?>
             <tr>
-              <td><?= formatDate($row['appointment_date']) ?><br><span class="text-muted" style="font-size:13px;"><?= date('g:i A', strtotime($row['appointment_time'])) ?></span></td>
+              <td>
+                <?= formatDate($row['appointment_date']) ?><br>
+                <span class="text-muted" style="font-size:13px;"><?= date('g:i A', strtotime($row['appointment_time'])) ?></span>
+                <?php if (!empty($row['outside_priest_name'])): ?>
+                  <br><span class="badge badge-info" style="font-size:11px; margin-top:3px;"><?= e($row['outside_priest_name']) ?></span>
+                <?php endif; ?>
+              </td>
               <td><?= e($row['intention_type']) ?></td>
               <td><?= e($row['offerer_name']) ?></td>
               <td><?= e($row['intention_for']) ?></td>

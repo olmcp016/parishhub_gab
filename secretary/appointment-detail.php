@@ -382,7 +382,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         respondAjaxOrRedirect($isAjax, true, 'Appointment rejected. ' . $rejNotice, $redirectUrl);
     } elseif ($action === 'assign_priest') {
         if (!in_array($currentStatusId, [1, 2, 4, 5], true)
-            || in_array($actionAppointment['category'], ['Mass Intention', 'Donation'], true)) {
+            || ($actionAppointment['category'] ?? '') === 'Donation') {
             respondAjaxOrRedirect($isAjax, false, 'A priest cannot be assigned at this appointment status.', $redirectUrl);
         }
         $priestId = (int) ($_POST['priest_id'] ?? 0);
@@ -1261,7 +1261,7 @@ if (!$isAjax) {
       <?php endif; ?>
     </div>
 
-    <?php if (!in_array($appointment['category'], ['Mass Intention', 'Donation'], true) && in_array((int) $appointment['status_id'], [1, 2, 4, 5], true)): ?>
+    <?php if (($appointment['category'] ?? '') !== 'Donation' && in_array((int) $appointment['status_id'], [1, 2, 4, 5], true)): ?>
     <?php
       $hasOutsidePriest = !empty($appointment['outside_priest_name']) && isOutsidePriestEligibleCategory($appointment['category'] ?? '');
       $priestAlreadySet = !empty($appointment['priest_id']);

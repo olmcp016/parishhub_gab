@@ -1421,7 +1421,7 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
   function updateOutsidePriestUI() {
     var select = document.getElementById('serviceSelect');
     var category = select.options[select.selectedIndex]?.dataset.category || '';
-    var allowsOutside = ['Baptism', 'Wedding', 'Funeral'].indexOf(category) !== -1;
+    var allowsOutside = category !== '' && category !== 'Donation';
     var btn = document.getElementById('btnPriestOthers');
     var opt = document.getElementById('priestOtherOption');
     var priestSelect = document.getElementById('priestSelect');
@@ -1560,12 +1560,12 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     var blessingPhone = document.getElementById('blessingPhoneInput');
     if (blessingPhone) blessingPhone.required = isBlessing;
 
-    // Priests do not personally read Mass Intentions, so there's nothing to prefer.
+    // Priest selection (preferred parish priest or visiting priest) is available for all services
     var priestGroup = document.getElementById('priestFieldGroup');
     var priestSelect = document.getElementById('priestSelect');
-    priestGroup.style.display = isMassIntention ? 'none' : 'block';
-    priestSelect.disabled = isMassIntention;
-    if (isMassIntention) priestSelect.value = '';
+    priestGroup.style.display = category === 'Donation' ? 'none' : 'block';
+    priestSelect.disabled = category === 'Donation';
+    if (category === 'Donation') priestSelect.value = '';
 
     // No documents for Mass Intentions, drafts (Baptism/Wedding/Funeral), or
     // services that handle documents separately (Anointing, Blessing, Wake).
@@ -1981,7 +1981,7 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     }
     var sSelect = document.getElementById('serviceSelect');
     var category = sSelect.options[sSelect.selectedIndex]?.dataset.category || '';
-    if (['Baptism', 'Wedding', 'Funeral'].indexOf(category) !== -1) {
+    if (category !== '' && category !== 'Donation') {
       html += '<option value="other" id="priestOtherOption"' + (current === 'other' ? ' selected' : '') + '>Others (Visiting / Guest Priest)</option>';
     }
     select.innerHTML = html;

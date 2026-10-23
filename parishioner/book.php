@@ -225,8 +225,11 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         // below — and a Mass Intention can NEVER be saved without a real
         // payment: the amount, payment choice, and (for manual payments) the
         // payment choice is required up front, and the appointment,
-        // intention, and payment record are created together in one transaction.
-        $priestId = null;
+        if (!$outsidePriestName && !empty($_POST['priest_id']) && is_numeric($_POST['priest_id'])) {
+            $priestId = (int) $_POST['priest_id'];
+        } else {
+            $priestId = null;
+        }
         $paymentRequiredMsg = 'Payment is required before submitting a Mass Intention. Please enter a valid amount.';
 
         $intentionType = $_POST['intention_type'] ?? '';
