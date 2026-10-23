@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect(url('admin/services.php'));
 }
 
-$services = db()->query('SELECT * FROM services ORDER BY category, service_name')->fetchAll();
+$services = db()->query("SELECT * FROM services WHERE category != 'Donation' ORDER BY category, service_name")->fetchAll();
 
 $active = 'services';
 $pageTitle = 'Manage Services';

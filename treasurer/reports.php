@@ -123,6 +123,8 @@ if ($generated) {
             -- Donation donor name (overrides parishioner for donations)
             d.donor_name,
             d.purpose AS donation_purpose,
+            d.project_id,
+            pr.project_name,
             -- Official receipt number
             orec.receipt_number,
             -- Verified by user
@@ -135,6 +137,7 @@ if ($generated) {
         LEFT JOIN users u           ON u.user_id = par.user_id
         LEFT JOIN mass_intentions mi ON mi.appointment_id = a.appointment_id
         LEFT JOIN donations d        ON d.appointment_id = a.appointment_id
+        LEFT JOIN projects pr        ON pr.project_id = d.project_id
         LEFT JOIN official_receipts orec ON orec.payment_id = p.payment_id
         LEFT JOIN users vu           ON vu.user_id = p.verified_by
         WHERE $whereStr
@@ -148,23 +151,36 @@ if ($generated) {
         $amt    = (float) $r['amount'];
         $method = (string) $r['method_name'];
         $isCash = trptIsCash($method);
-        $cat    = (string) ($r['category'] ?: 'Uncategorized');
+        $rawCat = (string) ($r['category'] ?: 'Uncategorized');
+        $cat    = $rawCat;
+
+        // Separate General Parish Donation vs Support an Ongoing Project
+        $isProjectDonation = false;
+        if ($rawCat === 'Donation') {
+            $isProjectDonation = !empty($r['project_id']) || !empty($r['project_name']) || (string)($r['donation_purpose'] ?? '') === 'Ongoing Project';
+            if ($isProjectDonation) {
+                $cat = 'Support an Ongoing Project';
+                $proj = !empty($r['project_name']) ? $r['project_name'] : 'Project';
+                $particulars = 'Support an Ongoing Project — ' . $proj;
+            } else {
+                $cat = 'General Parish Donation';
+                $purp = !empty($r['donation_purpose']) ? $r['donation_purpose'] : 'General';
+                $particulars = 'General Parish Donation — ' . $purp;
+            }
+        } else {
+            // Particulars
+            $particulars = (string) $r['service_name'];
+        }
 
         // Resolve payor name
         $payor = trim((string) $r['par_name']);
-        if ($cat === 'Mass Intention' && !empty($r['offerer_name'])) {
+        if ($rawCat === 'Mass Intention' && !empty($r['offerer_name'])) {
             $payor = (string) $r['offerer_name'];
-        } elseif ($cat === 'Donation' && !empty($r['donor_name'])) {
+        } elseif ($rawCat === 'Donation' && !empty($r['donor_name'])) {
             $payor = (string) $r['donor_name'];
         }
         if ($payor === '') {
             $payor = trim((string) ($r['guest_name'] ?? '')) ?: '—';
-        }
-
-        // Particulars
-        $particulars = (string) $r['service_name'];
-        if ($cat === 'Donation' && !empty($r['donation_purpose'])) {
-            $particulars .= ' — ' . $r['donation_purpose'];
         }
 
         // Receipt / ref number

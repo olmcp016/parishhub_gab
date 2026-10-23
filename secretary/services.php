@@ -59,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect(url('secretary/services.php'));
 }
 
-$services = db()->query('SELECT * FROM services ORDER BY category, service_name')->fetchAll();
+$services = db()->query("SELECT * FROM services WHERE category != 'Donation' ORDER BY category, service_name")->fetchAll();
 $donationEnabled = db()->query("SELECT setting_value FROM settings WHERE setting_key = 'donation_enabled'")->fetchColumn() !== '0';
 
 $active = 'services';

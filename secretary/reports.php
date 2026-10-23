@@ -82,13 +82,16 @@ if ($generated) {
                    st.status_name,
                    pr.title AS priest_title, pr.full_name AS priest_name,
                    u.firstname, u.lastname,
-                   COALESCE(pay.paid, 0) AS paid
+                   COALESCE(pay.paid, 0) AS paid,
+                   d.project_id, proj.project_name, d.purpose AS donation_purpose
             FROM appointments a
             JOIN services s            ON s.service_id = a.service_id
             JOIN appointment_status st ON st.status_id = a.status_id
             LEFT JOIN priests pr       ON pr.priest_id = a.priest_id
             LEFT JOIN parishioners par ON par.parishioner_id = a.parishioner_id
             LEFT JOIN users u          ON u.user_id = par.user_id
+            LEFT JOIN donations d      ON d.appointment_id = a.appointment_id
+            LEFT JOIN projects proj    ON proj.project_id = d.project_id
             LEFT JOIN (
                 SELECT appointment_id, SUM(amount) AS paid
                 FROM payments
@@ -126,12 +129,27 @@ if ($generated) {
                 $priest = trim((string) ($r['outside_priest_name'] ?? '')) ?: '—';
             }
 
+            $rawCat = $r['category'] ?: 'Uncategorized';
+            $cat = $rawCat;
+            $serviceTitle = (string) $r['service_name'];
+
+            if ($rawCat === 'Donation') {
+                $isProject = !empty($r['project_id']) || !empty($r['project_name']) || (string)($r['donation_purpose'] ?? '') === 'Ongoing Project';
+                if ($isProject) {
+                    $cat = 'Support an Ongoing Project';
+                    $serviceTitle = 'Support an Ongoing Project — ' . ($r['project_name'] ?: 'Project');
+                } else {
+                    $cat = 'General Parish Donation';
+                    $serviceTitle = 'General Parish Donation' . (!empty($r['donation_purpose']) ? ' — ' . $r['donation_purpose'] : '');
+                }
+            }
+
             $rows[] = [
                 'date'       => $r['appointment_date'],
                 'time'       => $r['appointment_time'],
                 'reference'  => reportReference((int) $r['appointment_id']),
-                'service'    => $r['service_name'],
-                'category'   => $r['category'],
+                'service'    => $serviceTitle,
+                'category'   => $cat,
                 'client'     => $client,
                 'priest'     => $priest,
                 'status'     => $r['status_name'],
@@ -141,7 +159,6 @@ if ($generated) {
                 'payStatus'  => $payStatus,
             ];
 
-            $cat = $r['category'] ?: 'Uncategorized';
             if (!isset($categoryTotals[$cat])) {
                 $categoryTotals[$cat] = ['bookings' => 0, 'billed' => 0.0, 'collected' => 0.0, 'balance' => 0.0];
             }
