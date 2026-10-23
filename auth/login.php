@@ -192,11 +192,6 @@ include __DIR__ . '/../includes/header.php';
       <div class="auth-footer">
         Don't have an account? <a href="<?= url('auth/register.php') ?>">Register here</a>
       </div>
-
-      <div class="auth-footer" style="margin-top:6px;padding-top:10px;border-top:1px solid var(--border,#e8e0d5);font-size:12px;color:var(--text-muted,#9a8b72);">
-        Are you church staff or priest?
-        <a href="<?= url('staff/login.php') ?>" style="color:var(--accent,#7a5c1e);font-weight:600;">Log in here →</a>
-      </div>
     </div>
   </div>
 </div>

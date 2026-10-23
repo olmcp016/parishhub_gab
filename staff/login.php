@@ -53,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Block Parishioners from using the Staff Portal.
     if ($user['role_name'] === 'Parishioner') {
-        $fail('email', 'This portal is for Staff and Clergy only.');
+        $fail('email', 'This portal is for Staff and Priests only.');
     }
 
     if ($user['email_verified_at'] === null) {
@@ -109,7 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect($destination);
 }
 
-$pageTitle = 'Staff & Clergy Portal';
+$pageTitle = 'Staff & Priest Portal';
 include __DIR__ . '/../includes/header.php';
 ?>
 
@@ -121,14 +121,6 @@ include __DIR__ . '/../includes/header.php';
     rgba(30,24,12,0.80) 60%,
     rgba(50,35,10,0.72) 100%);
 }
-.staff-badge {
-  display: inline-flex; align-items: center; gap: 6px;
-  background: linear-gradient(135deg, #1a1206, #3b2a0e);
-  color: #e5c158; font-size: 11px; font-weight: 700;
-  letter-spacing: .8px; text-transform: uppercase; border-radius: 20px;
-  padding: 5px 14px; margin-bottom: 14px;
-}
-.staff-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: #e5c158; }
 .staff-btn-submit {
   background: linear-gradient(135deg, #2c1e0f, #5c3d10) !important;
   border-color: #3b2a0e !important;
@@ -156,7 +148,7 @@ include __DIR__ . '/../includes/header.php';
         <span class="crest"><?= crestMarkup() ?></span>
         <span class="panel-brand-titles">
           <span class="panel-brand-text">Our Lady of Mt. Carmel Parish</span>
-          <span class="panel-brand-sub">Administration &amp; Clergy Portal</span>
+          <span class="panel-brand-sub">Administration &amp; Priest Portal</span>
         </span>
       </div>
     </a>
@@ -166,7 +158,7 @@ include __DIR__ . '/../includes/header.php';
         "Let all things be done decently and in order."
         <cite>1 Corinthians 14:40</cite>
       </blockquote>
-      <p class="panel-foot">Authorized access only for Parish Clergy, Administration, and Staff. All activity is logged and monitored.</p>
+      <p class="panel-foot">Authorized access only for Parish Staff, Administration, and Priests. All activity is logged and monitored.</p>
     </div>
   </div>
 
@@ -175,9 +167,8 @@ include __DIR__ . '/../includes/header.php';
     <a href="<?= url('index.php') ?>" class="auth-back-link">← Back to Homepage</a>
 
     <div class="auth-card">
-      <div class="staff-badge"><span class="dot"></span> Secure Access</div>
       <div class="form-heading">
-        <h1 style="font-size:26px; line-height:1.2; margin-bottom:6px;">Parish Administration<br>&amp; Clergy Portal</h1>
+        <h1 style="font-size:26px; line-height:1.2; margin-bottom:6px;">Parish Staff<br>&amp; Priest Portal</h1>
         <p class="subtitle">Sign in with your parish-issued credentials to access the administration system.</p>
       </div>
 
