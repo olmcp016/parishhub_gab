@@ -27,11 +27,13 @@ $statusFilter = $_GET['status'] ?? '';
 
 function fetchMyAppointmentsPage(int $parishionerId, string $statusFilter): array
 {
-    $sql = "SELECT a.*, s.service_name, s.fee, s.category, st.status_name, p.full_name AS priest_name
+    $sql = "SELECT a.*, s.service_name, s.fee, s.category, st.status_name, p.full_name AS priest_name,
+                   ic.document_id AS certificate_document_id, ic.status AS certificate_status
             FROM appointments a
             JOIN services s ON a.service_id = s.service_id
             JOIN appointment_status st ON a.status_id = st.status_id
             LEFT JOIN priests p ON a.priest_id = p.priest_id
+            LEFT JOIN issued_certificates ic ON ic.appointment_id = a.appointment_id
             WHERE a.parishioner_id = ? AND s.category != 'Donation'";
     $params = [$parishionerId];
     if ($statusFilter) {
@@ -40,7 +42,8 @@ function fetchMyAppointmentsPage(int $parishionerId, string $statusFilter): arra
     }
 
     $countSql = str_replace(
-        "SELECT a.*, s.service_name, s.fee, s.category, st.status_name, p.full_name AS priest_name",
+        "SELECT a.*, s.service_name, s.fee, s.category, st.status_name, p.full_name AS priest_name,
+                   ic.document_id AS certificate_document_id, ic.status AS certificate_status",
         'SELECT COUNT(*)',
         $sql
     );
@@ -91,6 +94,9 @@ function renderMyAppointmentsTable(array $appointments): void
                   <a href="<?= $detailUrl ?>" class="btn btn-outline btn-sm js-view-modal" data-url="<?= $detailUrl ?>" data-title="<?= $detailTitle ?>">View Details</a>
                 <?php else: ?>
                   <a href="<?= $detailUrl ?>" class="btn btn-outline btn-sm js-view-modal" data-url="<?= $detailUrl ?>" data-title="<?= $detailTitle ?>">View</a>
+                <?php endif; ?>
+                <?php if (!empty($a['certificate_document_id'])): ?>
+                  <a href="<?= url('document.php?id=' . (int) $a['certificate_document_id']) ?>" target="_blank" rel="noopener" class="btn btn-outline btn-sm" title="View / Download Official Certificate">📜 Certificate</a>
                 <?php endif; ?>
               </td>
             </tr>

@@ -119,6 +119,7 @@ if ($formType) {
         'katin_awan_bunyag' => 'Katin-awan_sa_Bunyag',
         'cluster_clearance_baptism_sponsor' => 'Cluster_Clearance_for_Baptismal_Sponsor',
         'katin_awan_paglubong' => 'Katin-awan_sa_Paglubong',
+        'official_certificate' => 'Official_Certificate',
     ];
     $base = $baseNames[$formType] ?? 'Generated_Form';
     
@@ -145,6 +146,13 @@ if ($formType) {
         $stmt = db()->prepare('SELECT form_data FROM generated_forms WHERE service_category = \'Funeral\' AND appointment_id = ?');
         $stmt->execute([$document['appointment_id']]);
         if ($row = $stmt->fetch()) $formData = json_decode($row['form_data'], true) ?: [];
+    } elseif ($formType === 'official_certificate') {
+        $stmt = db()->prepare('SELECT certificate_type, form_data FROM issued_certificates WHERE appointment_id = ?');
+        $stmt->execute([$document['appointment_id']]);
+        if ($row = $stmt->fetch()) {
+            $formData = json_decode($row['form_data'], true) ?: [];
+            $formData['_certificate_type'] = $row['certificate_type'];
+        }
     }
     
     $subject = '';
@@ -175,6 +183,25 @@ if ($formType) {
         $subject = sanitizePdfFilename($formData['sponsor_name'] ?? '');
     } elseif ($formType === 'katin_awan_paglubong') {
         $subject = sanitizePdfFilename($formData['ngalan_sa_ilubong'] ?? '');
+    } elseif ($formType === 'official_certificate') {
+        $certType = $formData['_certificate_type'] ?? '';
+        $base = $certType ? 'Certificate_of_' . $certType : $base;
+        $nameKey = match ($certType) {
+            'Marriage' => null,
+            'Baptism' => 'child_name',
+            'Confirmation' => 'confirmed_name',
+            'Death' => 'deceased_name',
+            default => null,
+        };
+        if ($certType === 'Marriage') {
+            $groom = sanitizePdfFilename($formData['groom_name'] ?? '');
+            $bride = sanitizePdfFilename($formData['bride_name'] ?? '');
+            if ($groom && $bride) $subject = $groom . '_and_' . $bride;
+            elseif ($groom) $subject = $groom;
+            elseif ($bride) $subject = $bride;
+        } elseif ($nameKey) {
+            $subject = sanitizePdfFilename($formData[$nameKey] ?? '');
+        }
     }
     
     if ($subject) {

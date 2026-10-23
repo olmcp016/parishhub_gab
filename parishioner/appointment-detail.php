@@ -10,6 +10,7 @@ require_once __DIR__ . '/../includes/generated-form-workflow.php';
 require_once __DIR__ . '/../includes/requirements-review.php';
 require_once __DIR__ . '/../includes/funeral-schedule.php';
 require_once __DIR__ . '/../includes/service-fees.php'; // appointmentNoPaymentRequired(), NO_PAYMENT_REQUIRED_LABEL
+require_once __DIR__ . '/../includes/certificate-workflow.php';
 requireRole('Parishioner');
 
 $userId = currentUser()['user_id'];
@@ -285,6 +286,9 @@ $canPay = $appointment['status_name'] === 'Approved'
 $stmt = db()->prepare("SELECT * FROM uploaded_documents WHERE appointment_id = ? AND superseded_by IS NULL AND (document_source IS NULL OR document_source <> 'generated') ORDER BY uploaded_at DESC, document_id DESC");
 $stmt->execute([$id]);
 $documents = $stmt->fetchAll();
+// Official Parish Certificate: shown once generated, for a completed sacrament
+// or an approved/claimed Certificate Request — see includes/certificate-workflow.php.
+$officialCertificate = issuedCertificateLoad($id);
 $generatedForms = [];
 if (($appointment['category'] ?? '') === 'Wedding') {
     $stmt = db()->prepare('SELECT g.*, d.document_id, d.review_status, d.rejection_reason FROM generated_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.service_category = \'Wedding\' AND g.appointment_id = ? ORDER BY g.form_type');
@@ -318,6 +322,19 @@ if (!$isAjax) {
       </div>
     </div>
     <p><strong>Booking Reference:</strong> <?= e($appointment['guest_reference'] ?: 'Appointment #' . (int) $appointment['appointment_id']) ?></p>
+    <?php if (!empty($officialCertificate['document_id'])): ?>
+      <div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">
+        <strong>📜 Official Certificate of <?= e($officialCertificate['certificate_type']) ?></strong> is ready.
+        <div class="flex gap-2" style="margin-top:8px; flex-wrap:wrap;">
+          <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $officialCertificate['document_id']) ?>">View / Download Official Certificate</a>
+        </div>
+        <?php if (($officialCertificate['status'] ?? '') === 'ready_for_pickup'): ?>
+          <p class="helper-text" style="margin:8px 0 0;">Your certified copy is ready for pick-up at the parish office. Please bring a valid ID to claim the stamped and dry-sealed original.</p>
+        <?php else: ?>
+          <p class="helper-text" style="margin:8px 0 0;">This is a digital preview. Visit the parish office to claim the stamped and dry-sealed original.</p>
+        <?php endif; ?>
+      </div>
+    <?php endif; ?>
     <?php
       require_once __DIR__ . '/../includes/appointment-approval.php';
       $isPastDateUnpaid = (int) $appointment['status_id'] === 2
