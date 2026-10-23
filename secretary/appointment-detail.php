@@ -1286,9 +1286,7 @@ if (!$isAjax) {
     <?php endif; ?>
   </div>
 
-  <?php if ($officialCertEligible): ?>
-  <div class="card" style="margin-top:16px;">
-    <div class="card-header"><h3>📜 Canonical Registry &amp; Official Certificate</h3></div>
+  <div>
     <?php if ($officialCertNewDocId): ?>
       <div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">
         Certificate generated. <a href="<?= url('document.php?id=' . $officialCertNewDocId) ?>" target="_blank" rel="noopener"><strong>Preview / Print</strong></a>
