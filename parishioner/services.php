@@ -1587,6 +1587,7 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
 
     toggleServiceUI();
     bookStepReset();
+    initAllParishModalControls();
     modal.showModal();
     var mBody = modal.querySelector('.modal-body');
     if (mBody) mBody.scrollTop = 0;
@@ -1916,6 +1917,7 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     selectEl.innerHTML = getPriestOptionsMarkup(defaultToOther ? 'other' : '');
     if (defaultToOther) selectEl.value = 'other';
     selectWrap.appendChild(selectEl);
+    initParishCustomSelect(selectEl);
 
     var inputGroup = document.createElement('div');
     inputGroup.className = 'outside-priest-input-group';
@@ -2578,6 +2580,7 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
       select.value = stillAvailable ? current : '';
     }
     updateOutsidePriestUI();
+    if (select._phSync) select._phSync();
   }
 
   /**
@@ -3528,7 +3531,395 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     bookStepShow(1);
   }
 
+  /* ==========================================================
+     PARISH-THEMED CUSTOM SELECT & DATEPICKER CONTROLS
+     Replaces native browser selects and datepickers with
+     warm cream, gold, and deep brown styled custom components.
+     ========================================================== */
+
+  function initParishCustomSelect(selectEl) {
+    if (!selectEl || selectEl.dataset.phEnhanced) return;
+    selectEl.dataset.phEnhanced = '1';
+
+    var wrap = document.createElement('div');
+    wrap.className = 'ph-custom-select';
+    if (selectEl.id) wrap.dataset.for = selectEl.id;
+
+    var trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'ph-select-trigger';
+    trigger.setAttribute('aria-haspopup', 'listbox');
+    trigger.setAttribute('aria-expanded', 'false');
+
+    var labelSpan = document.createElement('span');
+    labelSpan.className = 'ph-select-label';
+
+    var arrowSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    arrowSvg.setAttribute('class', 'ph-select-arrow');
+    arrowSvg.setAttribute('viewBox', '0 0 24 24');
+    arrowSvg.setAttribute('fill', 'none');
+    arrowSvg.setAttribute('stroke', 'currentColor');
+    arrowSvg.setAttribute('stroke-width', '2');
+    arrowSvg.setAttribute('stroke-linecap', 'round');
+    arrowSvg.setAttribute('stroke-linejoin', 'round');
+    var polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    polyline.setAttribute('points', '6 9 12 15 18 9');
+    arrowSvg.appendChild(polyline);
+
+    trigger.appendChild(labelSpan);
+    trigger.appendChild(arrowSvg);
+
+    var dropdown = document.createElement('div');
+    dropdown.className = 'ph-select-dropdown';
+    dropdown.setAttribute('role', 'listbox');
+    dropdown.style.display = 'none';
+
+    wrap.appendChild(trigger);
+    wrap.appendChild(dropdown);
+
+    selectEl.classList.add('ph-native-hidden');
+    selectEl.parentNode.insertBefore(wrap, selectEl.nextSibling);
+
+    function createOptionItem(opt) {
+      var item = document.createElement('div');
+      item.className = 'ph-select-option';
+      item.textContent = opt.textContent;
+      item.dataset.value = opt.value;
+      if (opt.disabled) item.classList.add('is-disabled');
+      if (opt.selected) item.classList.add('is-selected');
+
+      item.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (opt.disabled || selectEl.disabled) return;
+        selectEl.value = opt.value;
+        dropdown.style.display = 'none';
+        trigger.classList.remove('is-open');
+        trigger.setAttribute('aria-expanded', 'false');
+        syncUI();
+        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+        selectEl.dispatchEvent(new Event('input', { bubbles: true }));
+        if (typeof selectEl.onchange === 'function') {
+          selectEl.onchange(new Event('change'));
+        }
+      });
+      return item;
+    }
+
+    function syncUI() {
+      var isDisabled = selectEl.disabled;
+      trigger.classList.toggle('is-disabled', isDisabled);
+      if (isDisabled) {
+        trigger.setAttribute('disabled', 'disabled');
+        dropdown.style.display = 'none';
+        trigger.classList.remove('is-open');
+        trigger.setAttribute('aria-expanded', 'false');
+      } else {
+        trigger.removeAttribute('disabled');
+      }
+
+      var selectedOpt = selectEl.options[selectEl.selectedIndex];
+      var text = selectedOpt ? selectedOpt.textContent.trim() : '';
+      labelSpan.textContent = text || '-- Select --';
+      labelSpan.classList.toggle('is-placeholder', !selectedOpt || !selectedOpt.value);
+
+      dropdown.innerHTML = '';
+      Array.from(selectEl.children).forEach(function (child) {
+        if (child.tagName === 'OPTGROUP') {
+          var groupDiv = document.createElement('div');
+          groupDiv.className = 'ph-select-optgroup';
+          var groupTitle = document.createElement('div');
+          groupTitle.className = 'ph-select-optgroup-title';
+          groupTitle.textContent = child.label;
+          groupDiv.appendChild(groupTitle);
+          Array.from(child.children).forEach(function (opt) {
+            groupDiv.appendChild(createOptionItem(opt));
+          });
+          dropdown.appendChild(groupDiv);
+        } else if (child.tagName === 'OPTION') {
+          dropdown.appendChild(createOptionItem(child));
+        }
+      });
+    }
+
+    trigger.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (selectEl.disabled) return;
+      var isOpen = dropdown.style.display === 'block';
+      // Close all other dropdowns
+      document.querySelectorAll('.ph-select-dropdown').forEach(function (d) { d.style.display = 'none'; });
+      document.querySelectorAll('.ph-select-trigger').forEach(function (t) {
+        t.classList.remove('is-open');
+        t.setAttribute('aria-expanded', 'false');
+      });
+      // Close any open mini-dp
+      document.querySelectorAll('.mini-dp-popup').forEach(function (p) { p.style.display = 'none'; });
+
+      if (!isOpen) {
+        syncUI();
+        dropdown.style.display = 'block';
+        trigger.classList.add('is-open');
+        trigger.setAttribute('aria-expanded', 'true');
+        // scroll selected into view if possible
+        var selItem = dropdown.querySelector('.ph-select-option.is-selected');
+        if (selItem) selItem.scrollIntoView({ block: 'nearest' });
+      }
+    });
+
+    selectEl.addEventListener('change', syncUI);
+    var observer = new MutationObserver(syncUI);
+    observer.observe(selectEl, { childList: true, attributes: true, subtree: true });
+
+    selectEl._phSync = syncUI;
+    syncUI();
+  }
+
+  function initParishDatePicker(inputEl) {
+    if (!inputEl || inputEl.dataset.phEnhanced) return;
+    inputEl.dataset.phEnhanced = '1';
+
+    var box = document.createElement('div');
+    box.className = 'ph-datepicker-box mini-dp';
+
+    var field = document.createElement('div');
+    field.className = 'ph-dp-field';
+
+    var textSpan = document.createElement('span');
+    textSpan.className = 'ph-dp-text';
+
+    var calIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    calIcon.setAttribute('class', 'ph-dp-icon');
+    calIcon.setAttribute('viewBox', '0 0 24 24');
+    calIcon.setAttribute('fill', 'none');
+    calIcon.setAttribute('stroke', 'currentColor');
+    calIcon.setAttribute('stroke-width', '2');
+    calIcon.setAttribute('stroke-linecap', 'round');
+    calIcon.setAttribute('stroke-linejoin', 'round');
+    var rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('x', '3'); rect.setAttribute('y', '4'); rect.setAttribute('width', '18'); rect.setAttribute('height', '18'); rect.setAttribute('rx', '2'); rect.setAttribute('ry', '2');
+    var l1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    l1.setAttribute('x1', '16'); l1.setAttribute('y1', '2'); l1.setAttribute('x2', '16'); l1.setAttribute('y2', '6');
+    var l2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    l2.setAttribute('x1', '8'); l2.setAttribute('y1', '2'); l2.setAttribute('x2', '8'); l2.setAttribute('y2', '6');
+    var l3 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    l3.setAttribute('x1', '3'); l3.setAttribute('y1', '10'); l3.setAttribute('x2', '21'); l3.setAttribute('y2', '10');
+    calIcon.appendChild(rect); calIcon.appendChild(l1); calIcon.appendChild(l2); calIcon.appendChild(l3);
+
+    field.appendChild(textSpan);
+    field.appendChild(calIcon);
+
+    var popup = document.createElement('div');
+    popup.className = 'mini-dp-popup';
+    popup.style.display = 'none';
+
+    popup.innerHTML =
+      '<div class="mini-dp-nav">' +
+        '<button type="button" class="mini-dp-nav-btn ph-dp-prev" aria-label="Previous Month">&lsaquo;</button>' +
+        '<div class="mini-dp-month-label ph-dp-label"></div>' +
+        '<button type="button" class="mini-dp-nav-btn ph-dp-next" aria-label="Next Month">&rsaquo;</button>' +
+      '</div>' +
+      '<div class="mini-dp-weekdays">' +
+        '<span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>' +
+      '</div>' +
+      '<div class="mini-dp-grid ph-dp-grid"></div>' +
+      '<div class="mini-dp-footer">' +
+        '<button type="button" class="mini-dp-footer-btn ph-dp-clear">Clear</button>' +
+        '<button type="button" class="mini-dp-footer-btn ph-dp-today">Today</button>' +
+        '<button type="button" class="mini-dp-footer-btn ph-dp-close" style="font-weight:700;">Done</button>' +
+      '</div>';
+
+    box.appendChild(field);
+    box.appendChild(popup);
+
+    inputEl.classList.add('ph-native-hidden');
+    inputEl.parentNode.insertBefore(box, inputEl.nextSibling);
+
+    var monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+    function formatDateDisplay(yyyyMmDd) {
+      if (!yyyyMmDd || !/^\d{4}-\d{2}-\d{2}$/.test(yyyyMmDd)) return '';
+      var parts = yyyyMmDd.split('-');
+      var y = parseInt(parts[0], 10);
+      var m = parseInt(parts[1], 10) - 1;
+      var d = parseInt(parts[2], 10);
+      return monthNames[m] + ' ' + d + ', ' + y;
+    }
+
+    function syncDisplay() {
+      var isDisabled = inputEl.disabled;
+      field.classList.toggle('is-disabled', isDisabled);
+      var val = inputEl.value;
+      if (val) {
+        textSpan.textContent = formatDateDisplay(val);
+        textSpan.classList.remove('is-placeholder');
+      } else {
+        textSpan.textContent = 'Select date...';
+        textSpan.classList.add('is-placeholder');
+      }
+    }
+
+    var viewYear = null;
+    var viewMonth = null;
+
+    function renderGrid() {
+      var val = inputEl.value;
+      var today = new Date();
+      if (viewYear === null || viewMonth === null) {
+        if (val && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
+          var p = val.split('-');
+          viewYear = parseInt(p[0], 10);
+          viewMonth = parseInt(p[1], 10) - 1;
+        } else {
+          viewYear = today.getFullYear();
+          viewMonth = today.getMonth();
+        }
+      }
+
+      popup.querySelector('.ph-dp-label').textContent = monthNames[viewMonth] + ' ' + viewYear;
+      var grid = popup.querySelector('.ph-dp-grid');
+      grid.innerHTML = '';
+
+      var firstDow = new Date(viewYear, viewMonth, 1).getDay();
+      var daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+      var todayStr = today.toISOString().slice(0, 10);
+      var minDate = inputEl.min || '';
+      var maxDate = inputEl.max || '';
+
+      for (var b = 0; b < firstDow; b++) {
+        var blank = document.createElement('div');
+        blank.className = 'mini-dp-blank';
+        grid.appendChild(blank);
+      }
+
+      for (var d = 1; d <= daysInMonth; d++) {
+        var mm = String(viewMonth + 1).padStart(2, '0');
+        var dd = String(d).padStart(2, '0');
+        var dateStr = viewYear + '-' + mm + '-' + dd;
+
+        var isBeforeMin = minDate && dateStr < minDate;
+        var isAfterMax = maxDate && dateStr > maxDate;
+        var isDisabled = isBeforeMin || isAfterMax;
+
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'mini-dp-day';
+        if (isDisabled) btn.className += ' mini-dp-disabled';
+        if (dateStr === val) btn.className += ' mini-dp-selected';
+        if (dateStr === todayStr) btn.className += ' mini-dp-today';
+        btn.textContent = d;
+
+        if (!isDisabled) {
+          (function (pickedDate) {
+            btn.addEventListener('click', function (e) {
+              e.stopPropagation();
+              inputEl.value = pickedDate;
+              popup.style.display = 'none';
+              syncDisplay();
+              inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+              inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+              if (typeof inputEl.onchange === 'function') {
+                inputEl.onchange(new Event('change'));
+              }
+            });
+          })(dateStr);
+        } else {
+          btn.disabled = true;
+        }
+        grid.appendChild(btn);
+      }
+    }
+
+    field.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (inputEl.disabled) return;
+      var isOpen = popup.style.display === 'block';
+      document.querySelectorAll('.mini-dp-popup').forEach(function (p) { p.style.display = 'none'; });
+      document.querySelectorAll('.ph-select-dropdown').forEach(function (d) { d.style.display = 'none'; });
+      if (!isOpen) {
+        viewYear = null;
+        renderGrid();
+        popup.style.display = 'block';
+      }
+    });
+
+    popup.querySelector('.ph-dp-prev').addEventListener('click', function (e) {
+      e.stopPropagation();
+      viewMonth--;
+      if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+      renderGrid();
+    });
+
+    popup.querySelector('.ph-dp-next').addEventListener('click', function (e) {
+      e.stopPropagation();
+      viewMonth++;
+      if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+      renderGrid();
+    });
+
+    popup.querySelector('.ph-dp-clear').addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      inputEl.value = '';
+      popup.style.display = 'none';
+      syncDisplay();
+      inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+      inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+      if (typeof inputEl.onchange === 'function') inputEl.onchange(new Event('change'));
+    });
+
+    popup.querySelector('.ph-dp-today').addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      var todayStr = new Date().toISOString().slice(0, 10);
+      var minDate = inputEl.min || '';
+      var maxDate = inputEl.max || '';
+      if ((minDate && todayStr < minDate) || (maxDate && todayStr > maxDate)) return;
+      inputEl.value = todayStr;
+      popup.style.display = 'none';
+      syncDisplay();
+      inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+      inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+      if (typeof inputEl.onchange === 'function') inputEl.onchange(new Event('change'));
+    });
+
+    popup.querySelector('.ph-dp-close').addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      popup.style.display = 'none';
+    });
+
+    inputEl.addEventListener('change', syncDisplay);
+    var obs = new MutationObserver(syncDisplay);
+    obs.observe(inputEl, { attributes: true, attributeFilter: ['disabled', 'min', 'max', 'value'] });
+
+    inputEl._phSync = syncDisplay;
+    syncDisplay();
+  }
+
+  function initAllParishModalControls() {
+    // Dropdowns
+    ['serviceSelect', 'pssClaimInput', 'priestSelect', 'precanaTimeInput', 'freeTimeInput', 'funeralPreferredTimeInput', 'occasionSelect', 'certificateTypeSelect'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) initParishCustomSelect(el);
+    });
+
+    // Datepickers
+    ['precanaDateInput', 'appointmentDateInput', 'funeralPreferredDateInput', 'dateOfDeathInput'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) initParishDatePicker(el);
+    });
+  }
+
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('.ph-custom-select')) {
+      document.querySelectorAll('.ph-select-dropdown').forEach(function (d) { d.style.display = 'none'; });
+      document.querySelectorAll('.ph-select-trigger').forEach(function (t) {
+        t.classList.remove('is-open');
+        t.setAttribute('aria-expanded', 'false');
+      });
+    }
+    if (!e.target.closest('.mini-dp')) {
+      document.querySelectorAll('.ph-datepicker-box .mini-dp-popup').forEach(function (p) { p.style.display = 'none'; });
+    }
+  });
   document.addEventListener('DOMContentLoaded', function () {
+    initAllParishModalControls();
     var form = document.getElementById('bookForm');
     if (form) {
       form.addEventListener('keydown', function (e) {
