@@ -4,7 +4,20 @@ set_error_handler(function($errno, $errstr, $errfile, $errline) {
     return true; // suppress default output so JSON stays clean
 });
 set_exception_handler(function($e) {
-    error_log('book.php exception: ' . $e->getMessage());
+    error_log('book.php exception: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+    $isAjax = (isset($_POST['ajax']) && $_POST['ajax'] === '1')
+        || (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest');
+    if ($isAjax) {
+        if (!headers_sent()) {
+            header('Content-Type: application/json');
+            http_response_code(400);
+        }
+        echo json_encode([
+            'success' => false,
+            'message' => 'Unable to complete booking request: ' . $e->getMessage()
+        ]);
+        exit;
+    }
 });
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
@@ -454,8 +467,8 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     }
 
     // ---- Re-check priest availability right before saving (race-condition guard) ----
-    if ($priestId) {
-        $availability = priestIsAvailable((int) $priestId, $date, $finalTime, null, $serviceId, $scheduleTypeToSave);
+    if ($priestId && !$isNoScheduleCategory && !empty($date) && !empty($finalTime)) {
+        $availability = priestIsAvailable((int) $priestId, (string) $date, (string) $finalTime, null, $serviceId, $scheduleTypeToSave);
         if (!$availability['available']) {
             bookRespondError($isAjax, $availability['reason'], url('parishioner/services.php'));
         }

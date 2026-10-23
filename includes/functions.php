@@ -226,6 +226,17 @@ function verifyCsrf(): void
     $token = $_POST['csrf_token'] ?? '';
     if (!$token || !hash_equals($_SESSION['csrf_token'] ?? '', $token)) {
         http_response_code(419);
+        $isAjax = (isset($_POST['ajax']) && $_POST['ajax'] === '1')
+            || (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
+            || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false);
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => false,
+                'message' => 'Your session or security token has expired. Please refresh the page and submit again.'
+            ]);
+            exit;
+        }
         die('Session expired or invalid request token. Please go back and try again.');
     }
 }

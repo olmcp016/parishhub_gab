@@ -2941,8 +2941,27 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
       setBookSubmitting(true);
 
       var formData = new FormData(e.target);
-      fetch('<?= url('parishioner/book.php') ?>', { method: 'POST', body: formData })
-        .then(function (res) { return res.json(); })
+      fetch('<?= url('parishioner/book.php') ?>', {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        body: formData
+      })
+        .then(function (res) {
+          return res.text().then(function (rawText) {
+            var data;
+            try {
+              data = JSON.parse(rawText);
+            } catch (err) {
+              console.error('Non-JSON response from server:', rawText);
+              var clean = rawText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+              if (clean && clean.length < 250) {
+                return { success: false, message: clean };
+              }
+              return { success: false, message: 'Server returned an unexpected response. Please refresh the page and try again.' };
+            }
+            return data;
+          });
+        })
         .then(function (data) {
           if (data.success && data.redirect) {
             // Submitted: nothing left to restore if the person comes back to this page.
@@ -2981,17 +3000,18 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
               typeLine.style.display = 'none';
             }
           } else {
-            errorBox.textContent = data.message;
+            errorBox.textContent = data.message || 'Unable to process your request. Please try again.';
             errorBox.style.display = 'block';
             errorBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
           }
         })
-        .catch(function () {
+        .catch(function (err) {
           // No clear answer (connection dropped, or an unexpected reply): the
           // request may still have been saved, so don't just say "try again".
           setBookSubmitting(false);
-          // If it was saved, its Thank You is waiting: on Check Status (guests) or here on Services.
-          errorBox.textContent = <?= json_encode($identity['is_guest']
+          console.error('Booking submission error:', err);
+          var customMsg = (err && err.message && err.message.length < 250 && !err.message.includes('JSON')) ? err.message : null;
+          errorBox.textContent = customMsg || <?= json_encode($identity['is_guest']
             ? 'We could not confirm whether your request was received. Before submitting again, please open Check Status: if it went through, your Thank You and reference code will appear there.'
             : 'We could not confirm whether your request was received. Before submitting again, please reload this page or check My Appointments: if it went through, your Thank You and reference code will appear.') ?>;
           errorBox.style.display = 'block';
@@ -3073,6 +3093,17 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
       }
     }
     var schedText = dateVal ? (dateVal + (timeVal ? ' at ' + timeVal : '')) : 'To be confirmed';
+    if (category === 'Funeral') {
+      var burialDate = document.getElementById('funeralPreferredDateInput')?.value;
+      var burialTime = document.getElementById('funeralPreferredTimeInput')?.value;
+      if (burialDate) {
+        schedText = 'Preferred: ' + burialDate + (burialTime ? ' at ' + burialTime : '');
+      } else {
+        schedText = 'To be confirmed';
+      }
+    } else if (category === 'Confirmation' || category === 'First Communion') {
+      schedText = 'To be scheduled by parish office';
+    }
 
     var elService = document.getElementById('reviewService');
     if (elService) elService.textContent = serviceName;
@@ -3080,6 +3111,12 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     if (elSched) elSched.textContent = schedText;
 
     var detailsList = [];
+    if (['Baptism', 'Wedding', 'Funeral'].indexOf(category) !== -1) {
+      var pssSelect = document.getElementById('pssClaimInput');
+      if (pssSelect && pssSelect.value) {
+        detailsList.push(pssSelect.value === 'pss' ? 'PSS: PSS Giver (Subject to verification)' : 'PSS: Non-PSS Giver');
+      }
+    }
     if (category === 'Mass Intention') {
       var offerer = document.getElementById('offererNameInput')?.value.trim();
       var intentionFor = document.getElementById('intentionForInput')?.value.trim();
