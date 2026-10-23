@@ -75,13 +75,17 @@ function funeralKatinAwanNormalizeData(array $data): array
 {
     $sacrament = trim((string) ($data['katapusan_nga_sakramento'] ?? ''));
     $legacyMarriage = trim((string) ($data['kasal'] ?? ''));
+    $cluster = trim((string) ($data['ngalan_sa_cluster'] ?? $data['cluster_name'] ?? ''));
+    $chapel = trim((string) ($data['sakop_sa_kapilya'] ?? $data['chapel'] ?? ''));
     $normalized = [
         'ngalan_sa_ilubong' => trim((string) ($data['ngalan_sa_ilubong'] ?? $data['deceased_name'] ?? '')),
         'edad' => trim((string) ($data['edad'] ?? $data['deceased_age'] ?? '')),
         'pinuy_anan' => trim((string) ($data['pinuy_anan'] ?? $data['place_of_wake'] ?? '')),
         'relihiyon' => trim((string) ($data['relihiyon'] ?? '')),
-        'sakop_sa_kapilya' => trim((string) ($data['sakop_sa_kapilya'] ?? '')),
-        'ngalan_sa_cluster' => trim((string) ($data['ngalan_sa_cluster'] ?? '')),
+        'sakop_sa_kapilya' => $chapel,
+        'chapel' => $chapel,
+        'ngalan_sa_cluster' => $cluster,
+        'cluster_name' => $cluster,
         'sakramento_hilog' => !empty($data['sakramento_hilog']) || $sacrament === 'Hilog/Hulog',
         'sakramento_kumpisal' => !empty($data['sakramento_kumpisal']) || $sacrament === 'Kumpisal',
         'sakramento_wala' => !empty($data['sakramento_wala']) || $sacrament === 'Wala',
@@ -98,7 +102,7 @@ function funeralKatinAwanNormalizeData(array $data): array
         'petsa_sa_kasal' => trim((string) ($data['petsa_sa_kasal'] ?? '')),
         'diin_kasal' => trim((string) ($data['diin_kasal'] ?? '')),
     ];
-    $textFields = ['ngalan_sa_ilubong', 'pinuy_anan', 'relihiyon', 'sakop_sa_kapilya', 'ngalan_sa_cluster', 'unsay_namatyan', 'responde', 'ginikanan_anak', 'asawa_bana', 'diin_kasal'];
+    $textFields = ['ngalan_sa_ilubong', 'pinuy_anan', 'relihiyon', 'sakop_sa_kapilya', 'chapel', 'ngalan_sa_cluster', 'cluster_name', 'unsay_namatyan', 'responde', 'ginikanan_anak', 'asawa_bana', 'diin_kasal'];
     foreach ($textFields as $tf) {
         if (!empty($normalized[$tf])) {
             $normalized[$tf] = mb_strtoupper($normalized[$tf], 'UTF-8');
@@ -261,7 +265,8 @@ function funeralKatinAwanPdf(array $data): string
 
     // Full-width fields (underlines from X=54 to 192)
     funeralPdfField($pdf, 'SAKOP SA KAPILYA SA:', $v('sakop_sa_kapilya'), 18, 84, 174, $leftLabelW, 8.5);
-    funeralPdfField($pdf, 'NGALAN SA CLUSTER:', $v('cluster_name'), 18, 94, 174, $leftLabelW);
+    $clusterVal = $v('ngalan_sa_cluster') !== '' ? $v('ngalan_sa_cluster') : $v('cluster_name');
+    funeralPdfField($pdf, 'NGALAN SA CLUSTER:', $clusterVal, 18, 94, 174, $leftLabelW);
 
     $pdf->SetFont('Times', 'B', 9); $pdf->SetXY(18, 104); $pdf->Cell(174, 5, 'UNSANG SAKRAMENTOHA ANG NADAWAT?', 0, 1);
     funeralPdfChoice($pdf, 'HILOG', (bool) $data['sakramento_hilog'], 18, 111, 48);
