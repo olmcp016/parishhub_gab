@@ -67,23 +67,37 @@ function requireAnyRole(array $roles): void
 }
 
 /**
- * The priest_id linked to the logged-in account, or null if unlinked. Matches
- * by user_id first (the normal Priest-login link); falls back to a
- * case-insensitive email match for an Admin who is also a serving priest but
- * has no priests.user_id link yet (only when that priest row has no
- * user_id of its own, so it never steals a different account's login).
+ * The priest_id linked to the logged-in account, or null if unlinked.
+ * Matches by user_id first (the normal Priest-login link, and also how an
+ * Admin who is also a serving priest gets linked — see "Link to My Admin
+ * Account" on admin/priests.php). Falls back to an exact, case-insensitive
+ * email match only when that priest row has no user_id of its own (so it
+ * never steals a different account's login), and persists that link once
+ * found so the lookup is a one-time cost, not a guess repeated on every call.
  */
 function currentPriestId(): ?int
 {
     $user = currentUser();
     $userId = $user['user_id'] ?? null;
-    $email = $user['email'] ?? null;
     if (!$userId) return null;
     static $cache = [];
     if (array_key_exists($userId, $cache)) return $cache[$userId];
-    $stmt = db()->prepare('SELECT priest_id FROM priests WHERE user_id = ? OR (user_id IS NULL AND LOWER(email) = LOWER(?)) LIMIT 1');
-    $stmt->execute([$userId, $email]);
-    return $cache[$userId] = ($stmt->fetchColumn() ?: null);
+
+    $pdo = db();
+    $stmt = $pdo->prepare('SELECT priest_id FROM priests WHERE user_id = ?');
+    $stmt->execute([$userId]);
+    $priestId = $stmt->fetchColumn();
+
+    if (!$priestId && !empty($user['email'])) {
+        $stmt = $pdo->prepare('SELECT priest_id FROM priests WHERE user_id IS NULL AND LOWER(email) = LOWER(?) LIMIT 1');
+        $stmt->execute([$user['email']]);
+        $priestId = $stmt->fetchColumn();
+        if ($priestId) {
+            $pdo->prepare('UPDATE priests SET user_id = ? WHERE priest_id = ? AND user_id IS NULL')->execute([$userId, $priestId]);
+        }
+    }
+
+    return $cache[$userId] = ($priestId ?: null);
 }
 
 function guestOnly(): void

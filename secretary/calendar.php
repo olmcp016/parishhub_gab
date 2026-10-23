@@ -70,16 +70,16 @@ $stmt->execute([$today]);
 $eventPagination = paginate((int) $stmt->fetchColumn(), 10);
 
 $calendarEvents = array_map(function ($e) use ($priestId) {
-    // Only a Mass event assigned (by priest_id) to this priest-linked admin turns blue; every other
-    // event — including masses assigned to a different priest — keeps the standard gold color.
-    $isMyMass = $priestId !== null && $e['priest_id'] !== null && (int) $e['priest_id'] === $priestId
-        && preg_match('/\bmass\b/i', (string) $e['title']);
+    // Any event assigned (by priest_id) to this priest-linked admin turns blue — a Mass, a wedding,
+    // a baptism, anything. Events assigned to a different priest keep the standard gold color.
+    $isMine = $priestId !== null && $e['priest_id'] !== null && (int) $e['priest_id'] === $priestId;
     return [
         'id' => (int) $e['event_id'],
         'date' => $e['event_date'],
         'title' => $e['title'],
-        'backgroundColor' => $isMyMass ? '#2457a6' : null,
-        'borderColor' => $isMyMass ? '#1b4280' : null,
+        'backgroundColor' => $isMine ? '#2457a6' : null,
+        'borderColor' => $isMine ? '#1b4280' : null,
+        'textColor' => $isMine ? '#ffffff' : null,
     ];
 }, $allEvents);
 $calendarBlocked = array_map(fn($b) => ['date' => $b['calendar_date'], 'notes' => $b['notes']], $blocks);
