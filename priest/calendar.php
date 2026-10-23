@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
-requireRole('Priest');
+requireAnyRole(['Priest', 'Admin']);
 
 /**
  * View-only for the Priest role (item 22) — no add-event, block-date, or

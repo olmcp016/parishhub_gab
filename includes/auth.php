@@ -60,6 +60,12 @@ function requireRole(string ...$roles): void
     }
 }
 
+/** Array-accepting counterpart to requireRole() — same checks. Usage: requireAnyRole(['Priest', 'Admin']); */
+function requireAnyRole(array $roles): void
+{
+    requireRole(...$roles);
+}
+
 /** The priest_id linked to the logged-in Priest account, or null if somehow unlinked. */
 function currentPriestId(): ?int
 {

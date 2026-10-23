@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
-requireRole('Priest');
+requireAnyRole(['Priest', 'Admin']);
 
 /**
  * Item 23: the priest sees only current/upcoming Mass Intentions (approved
