@@ -260,6 +260,13 @@ function handleDonationCheckoutReturn(int $appointmentId): ?array
             ->execute([$session['ok'] ? $session['status'] : 'unknown', json_encode($session['raw'] ?? []), $payment['payment_id']]);
 
         if ($localStatus === 'verified') {
+            $resolvedMethod = resolvePaymentMethodName('PayMongo (Online)', json_encode($session['raw'] ?? []));
+            $methodMap = ['GCash' => 2, 'Maya' => 3, 'Credit/Debit Card' => 5];
+            if (isset($methodMap[$resolvedMethod])) {
+                try {
+                    db()->prepare('UPDATE payments SET method_id = ? WHERE payment_id = ?')->execute([$methodMap[$resolvedMethod], $payment['payment_id']]);
+                } catch (Throwable $e) {}
+            }
             $result = verifyPaymentAndIssueReceipt((int) $payment['payment_id'], null, $payment['gateway_transaction_id']);
             if ($result['ok']) {
                 $status = 'verified';

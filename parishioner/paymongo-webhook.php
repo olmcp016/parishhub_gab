@@ -61,6 +61,13 @@ if ($sessionId) {
                 ->execute([$session['status'], json_encode($session['raw']), $paymentRow['payment_id']]);
 
             if ($localStatus === 'verified') {
+                $resolvedMethod = resolvePaymentMethodName('PayMongo (Online)', json_encode($session['raw'] ?? []));
+                $methodMap = ['GCash' => 2, 'Maya' => 3, 'Credit/Debit Card' => 5];
+                if (isset($methodMap[$resolvedMethod])) {
+                    try {
+                        db()->prepare('UPDATE payments SET method_id = ? WHERE payment_id = ?')->execute([$methodMap[$resolvedMethod], $paymentRow['payment_id']]);
+                    } catch (Throwable $e) {}
+                }
                 $result = verifyPaymentAndIssueReceipt((int) $paymentRow['payment_id'], null, $sessionId);
                 if (!$result['ok']) {
                     error_log("PayMongo webhook: payment {$paymentRow['payment_id']} confirmed but verifyPaymentAndIssueReceipt failed: {$result['message']}");

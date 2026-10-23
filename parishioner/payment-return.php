@@ -52,6 +52,13 @@ if ($row) {
             ->execute([$session['ok'] ? $session['status'] : 'unknown', json_encode($session['raw'] ?? []), $paymentId]);
 
         if ($localStatus === 'verified') {
+            $resolvedMethod = resolvePaymentMethodName('PayMongo (Online)', json_encode($session['raw'] ?? []));
+            $methodMap = ['GCash' => 2, 'Maya' => 3, 'Credit/Debit Card' => 5];
+            if (isset($methodMap[$resolvedMethod])) {
+                try {
+                    db()->prepare('UPDATE payments SET method_id = ? WHERE payment_id = ?')->execute([$methodMap[$resolvedMethod], $paymentId]);
+                } catch (Throwable $e) {}
+            }
             $result = verifyPaymentAndIssueReceipt($paymentId, null, $row['gateway_transaction_id']);
             if ($result['ok']) {
                 $outcome = 'paid';
