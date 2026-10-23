@@ -116,151 +116,72 @@ include __DIR__ . '/../includes/header.php';
 ?>
 
 <style>
-/* ── Staff portal overrides ────────────────────────────────── */
-.staff-split { display:flex; min-height:100vh; }
-
-.staff-panel {
-  flex:0 0 38%;
-  position:relative;
-  background-image: url('<?= url('public/img/login_bg.jpg') ?>');
-  background-size:cover; background-position:center;
-  display:flex; flex-direction:column; justify-content:space-between;
-  padding:38px 36px;
-}
-.staff-panel::before {
-  content:'';
-  position:absolute; inset:0;
+/* ── Staff portal accents ────────────────────────────────── */
+.auth-split-panel.panel--staff::before {
   background: linear-gradient(160deg,
-    rgba(15,20,30,0.82) 0%,
-    rgba(30,24,12,0.78) 60%,
-    rgba(60,40,10,0.65) 100%);
+    rgba(15,20,30,0.85) 0%,
+    rgba(30,24,12,0.80) 60%,
+    rgba(50,35,10,0.72) 100%);
 }
-.staff-panel > * { position:relative; z-index:1; }
-
-.staff-panel-brand { display:flex; align-items:center; gap:14px; }
-.staff-panel-brand .crest { font-size:40px; line-height:1; }
-.staff-panel-brand-titles { display:flex; flex-direction:column; }
-.staff-panel-brand-text { font-size:16px; font-weight:700; color:#fff; letter-spacing:.4px;
-  font-family:'Cormorant Garamond',Georgia,serif; }
-.staff-panel-brand-sub { font-size:11px; color:rgba(255,255,255,.65); letter-spacing:.6px;
-  text-transform:uppercase; margin-top:2px; }
-
-.staff-seal {
-  text-align:center; margin:auto 0;
-  display:flex; flex-direction:column; align-items:center; gap:16px;
-}
-.staff-seal img { width:80px; height:80px; object-fit:contain; filter:brightness(1.1) drop-shadow(0 2px 8px rgba(0,0,0,.5)); }
-.staff-seal .seal-title {
-  font-family:'Cormorant Garamond',Georgia,serif;
-  font-size:20px; font-weight:700; color:#fff; letter-spacing:.8px;
-  text-transform:uppercase; text-align:center; line-height:1.3;
-}
-.staff-seal .seal-sub {
-  font-size:12px; color:rgba(255,255,255,.7); letter-spacing:.4px;
-  text-transform:uppercase; text-align:center; line-height:1.5;
-}
-.staff-seal .seal-divider {
-  width:48px; height:2px; background:rgba(212,175,55,.7); border-radius:1px;
-}
-
-.staff-panel-bottom { }
-.staff-panel-quote {
-  color:rgba(255,255,255,.72); font-size:13px; line-height:1.7;
-  font-style:italic; border-left:3px solid rgba(212,175,55,.5);
-  padding-left:14px; margin:0 0 12px;
-}
-.staff-panel-quote cite {
-  display:block; margin-top:8px; font-style:normal;
-  color:rgba(212,175,55,.85); font-size:12px; font-weight:600;
-}
-.staff-panel-foot { font-size:11.5px; color:rgba(255,255,255,.45); margin:0; }
-
-.staff-form-side {
-  flex:1; display:flex; flex-direction:column;
-  align-items:center; justify-content:center;
-  padding:48px 32px; background:var(--surface,#faf8f5);
-  position:relative; overflow-y:auto;
-}
-.staff-back-link {
-  position:absolute; top:22px; left:24px;
-  font-size:13px; color:var(--text-muted,#9a8b72); text-decoration:none;
-  display:flex; align-items:center; gap:5px;
-}
-.staff-back-link:hover { color:var(--accent,#7a5c1e); }
-
-.staff-card {
-  width:100%; max-width:400px;
-  background:#fff; border:1px solid var(--border,#e8e0d5);
-  border-radius:14px; padding:36px 32px 28px;
-  box-shadow:0 4px 28px rgba(30,20,5,0.07);
-}
-
 .staff-badge {
-  display:inline-flex; align-items:center; gap:6px;
-  background:linear-gradient(135deg,#1a1206,#3b2a0e);
-  color:rgba(212,175,55,1); font-size:11px; font-weight:700;
-  letter-spacing:.8px; text-transform:uppercase; border-radius:20px;
-  padding:5px 14px; margin-bottom:18px;
+  display: inline-flex; align-items: center; gap: 6px;
+  background: linear-gradient(135deg, #1a1206, #3b2a0e);
+  color: #e5c158; font-size: 11px; font-weight: 700;
+  letter-spacing: .8px; text-transform: uppercase; border-radius: 20px;
+  padding: 5px 14px; margin-bottom: 14px;
 }
-.staff-badge .dot { width:6px; height:6px; border-radius:50%; background:rgba(212,175,55,.9); }
-
-.staff-card .heading { margin:0 0 6px; font-size:22px; font-weight:700; color:var(--text,#2c1e0f); }
-.staff-card .sub { margin:0 0 24px; font-size:13.5px; color:var(--text-muted,#9a8b72); line-height:1.5; }
-
-.staff-footer { margin-top:14px; text-align:center; font-size:12px; color:var(--text-muted,#9a8b72); }
-.staff-footer a { color:var(--accent,#7a5c1e); font-weight:600; }
-.staff-divider { margin:14px 0 0; padding-top:12px; border-top:1px solid var(--border,#e8e0d5); }
-
-@media(max-width:680px) {
-  .staff-split { flex-direction:column; }
-  .staff-panel { flex:0 0 180px; min-height:180px; }
-  .staff-seal { display:none; }
-  .staff-form-side { padding:32px 16px; }
+.staff-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: #e5c158; }
+.staff-btn-submit {
+  background: linear-gradient(135deg, #2c1e0f, #5c3d10) !important;
+  border-color: #3b2a0e !important;
+  color: #fff !important;
 }
+.staff-btn-submit:hover {
+  background: linear-gradient(135deg, #3b2a0e, #7a5015) !important;
+}
+.staff-footer-link {
+  margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border, #e8e0d5);
+  text-align: center; font-size: 13px; color: var(--text-muted, #9a8b72);
+}
+.staff-footer-link a {
+  color: var(--accent, #7a5c1e); font-weight: 600; text-decoration: none;
+}
+.staff-footer-link a:hover { text-decoration: underline; }
 </style>
 
-<div class="staff-split">
+<div class="auth-split">
 
   <!-- ── Left panel ─────────────────────────────────── -->
-  <div class="staff-panel">
-    <a href="<?= url('index.php') ?>" style="display:contents;text-decoration:none;" title="Back to Home">
-      <div class="staff-panel-brand">
+  <div class="auth-split-panel panel--staff" style="background-image: url('<?= url('public/img/login_bg.jpg') ?>');">
+    <a href="<?= url('index.php') ?>" style="display:contents; text-decoration:none; color:inherit;" title="Back to Home">
+      <div class="panel-brand">
         <span class="crest"><?= crestMarkup() ?></span>
-        <span class="staff-panel-brand-titles">
-          <span class="staff-panel-brand-text">ParishHub</span>
-          <span class="staff-panel-brand-sub">Administration Portal</span>
+        <span class="panel-brand-titles">
+          <span class="panel-brand-text">Our Lady of Mt. Carmel Parish</span>
+          <span class="panel-brand-sub">Administration &amp; Clergy Portal</span>
         </span>
       </div>
     </a>
 
-    <div class="staff-seal">
-      <?php if (hasParishLogo()): ?>
-        <img src="<?= url('public/img/logo.png') ?>" alt="Parish Seal">
-      <?php else: ?>
-        <span style="font-size:64px;line-height:1;">⛪</span>
-      <?php endif; ?>
-      <div class="seal-divider"></div>
-      <p class="seal-title">Our Lady of Mt. Carmel Parish</p>
-      <p class="seal-sub">Office of Administration &amp; Finance<br>Parish Information System</p>
-    </div>
-
-    <div class="staff-panel-bottom">
-      <blockquote class="staff-panel-quote">
+    <div class="panel-bottom">
+      <blockquote class="panel-quote">
         "Let all things be done decently and in order."
         <cite>1 Corinthians 14:40</cite>
       </blockquote>
-      <p class="staff-panel-foot">Authorized personnel only. All access is logged and monitored.</p>
+      <p class="panel-foot">Authorized access only for Parish Clergy, Administration, and Staff. All activity is logged and monitored.</p>
     </div>
   </div>
 
   <!-- ── Right: form ────────────────────────────────── -->
-  <div class="staff-form-side">
-    <a href="<?= url('index.php') ?>" class="staff-back-link">← Back to Homepage</a>
+  <div class="auth-split-form">
+    <a href="<?= url('index.php') ?>" class="auth-back-link">← Back to Homepage</a>
 
-    <div class="staff-card">
+    <div class="auth-card">
       <div class="staff-badge"><span class="dot"></span> Secure Access</div>
-      <h1 class="heading">Parish Administration<br>&amp; Clergy Portal</h1>
-      <p class="sub">Sign in with your parish-issued credentials to access the administration system.</p>
+      <div class="form-heading">
+        <h1 style="font-size:26px; line-height:1.2; margin-bottom:6px;">Parish Administration<br>&amp; Clergy Portal</h1>
+        <p class="subtitle">Sign in with your parish-issued credentials to access the administration system.</p>
+      </div>
 
       <?php include __DIR__ . '/../includes/flash.php'; ?>
 
@@ -292,13 +213,12 @@ include __DIR__ . '/../includes/header.php';
             </button>
           </div>
         </div>
-        <button type="submit" class="btn btn-primary btn-block"
-          style="background:linear-gradient(135deg,#2c1e0f,#5c3d10);border-color:#3b2a0e;">
+        <button type="submit" class="btn btn-primary btn-block staff-btn-submit">
           Sign In to Staff Portal →
         </button>
       </form>
 
-      <div class="staff-footer staff-divider">
+      <div class="staff-footer-link">
         Are you a parishioner?
         <a href="<?= url('auth/login.php') ?>">Log in here →</a>
       </div>
