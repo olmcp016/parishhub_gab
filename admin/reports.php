@@ -42,20 +42,10 @@ $reportType = ($_GET['report_type'] ?? 'financial') === 'operations' ? 'operatio
 $defaultFrom = date('Y-m-01');
 $defaultTo   = date('Y-m-d');
 
-// Available payment methods from DB
-$allMethods = [];
-try {
-    $allMethods = db()->query(
-        "SELECT method_id, method_name FROM payment_methods ORDER BY method_id"
-    )->fetchAll();
-} catch (Throwable $e) {
-    error_log('Failed to fetch payment methods: ' . $e->getMessage());
-}
-
 $fromDate     = adminRptValidDate($_GET['from_date'] ?? null);
 $toDate       = adminRptValidDate($_GET['to_date']   ?? null);
-$methodId     = isset($_GET['method_id']) && ctype_digit((string)$_GET['method_id']) ? (int) $_GET['method_id'] : 0;
-$statusFilter = in_array($_GET['status'] ?? 'all', ['all', 'verified', 'pending'], true) ? $_GET['status'] : 'all';
+$methodId     = 0;
+$statusFilter = 'all';
 $generated    = isset($_GET['generate']);
 
 if ($generated) {
@@ -112,7 +102,7 @@ if ($generated) {
             $pendingStmt->execute([$fromDate, $toDate]);
             $finGrand['pending'] = (float) $pendingStmt->fetchColumn();
 
-            // Main ledger with donations and projects joined
+            // Main ledger with donations, projects, and gateway transactions joined
             $sql = "
                 SELECT
                     p.payment_id,
@@ -121,6 +111,9 @@ if ($generated) {
                     p.amount,
                     p.payment_status,
                     pm.method_name,
+                    t.raw_response AS gateway_raw_response,
+                    t.gateway,
+                    t.gateway_transaction_id,
                     a.appointment_id,
                     a.guest_name,
                     a.guest_reference,
@@ -145,6 +138,12 @@ if ($generated) {
                 LEFT JOIN projects pr             ON pr.project_id = d.project_id
                 LEFT JOIN official_receipts orec ON orec.payment_id = p.payment_id
                 LEFT JOIN users vu               ON vu.user_id = p.verified_by
+                LEFT JOIN (
+                    SELECT payment_id, MAX(transaction_id) AS max_tx_id
+                    FROM transactions
+                    GROUP BY payment_id
+                ) t_max ON t_max.payment_id = p.payment_id
+                LEFT JOIN transactions t ON t.transaction_id = t_max.max_tx_id
                 WHERE $whereStr
                 ORDER BY p.payment_date ASC, p.payment_id ASC
             ";
@@ -154,7 +153,7 @@ if ($generated) {
 
             foreach ($stmt->fetchAll() as $r) {
                 $amt    = (float) $r['amount'];
-                $method = (string) $r['method_name'];
+                $method = resolvePaymentMethodName((string) $r['method_name'], $r['gateway_raw_response'] ?? null, $r['reference_number'] ?? null, $r['gateway_transaction_id'] ?? null);
                 $isCash = adminRptIsCash($method);
                 $rawCat = (string) ($r['category'] ?: 'Uncategorized');
                 $cat    = $rawCat;
@@ -500,42 +499,11 @@ include __DIR__ . '/../includes/dash-start.php';
         <input type="date" id="f_to" name="to_date" value="<?= e($formTo) ?>" required>
       </div>
 
-      <?php if ($reportType === 'financial'): ?>
-      <div class="fld">
-        <label for="f_method">Payment Method</label>
-        <select id="f_method" name="method_id">
-          <option value="0">All Payment Methods</option>
-          <?php foreach ($allMethods as $m): ?>
-            <option value="<?= (int)$m['method_id'] ?>" <?= $methodId === (int)$m['method_id'] ? 'selected' : '' ?>>
-              <?= e($m['method_name']) ?>
-            </option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <div class="fld">
-        <label for="f_status">Payment Status</label>
-        <select id="f_status" name="status">
-          <option value="all" <?= $statusFilter === 'all' ? 'selected' : '' ?>>All Statuses</option>
-          <option value="verified" <?= $statusFilter === 'verified' ? 'selected' : '' ?>>Verified / Collected</option>
-          <option value="pending" <?= $statusFilter === 'pending' ? 'selected' : '' ?>>Pending Verification</option>
-        </select>
-      </div>
-      <?php endif; ?>
-
       <div class="fld">
         <button type="submit" name="generate" value="1" class="btn btn-primary btn-block">
           Generate Report
         </button>
       </div>
-    </div>
-
-    <!-- Quick Presets -->
-    <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
-      <span style="font-size:12px; color:#64748b; font-weight:600; text-transform:uppercase;">Quick Presets:</span>
-      <button type="button" class="btn btn-outline btn-sm" onclick="setPreset('today')">Today</button>
-      <button type="button" class="btn btn-outline btn-sm" onclick="setPreset('this_week')">This Week</button>
-      <button type="button" class="btn btn-outline btn-sm" onclick="setPreset('this_month')">This Month</button>
-      <button type="button" class="btn btn-outline btn-sm" onclick="setPreset('this_year')">This Year</button>
     </div>
 
     <?php if ($generated): ?>
@@ -601,7 +569,7 @@ include __DIR__ . '/../includes/dash-start.php';
 
       <h2 class="trpt-doc-title">Official Statement of Cash Receipts &amp; Revenue Collections</h2>
       <p class="trpt-meta"><?= e($periodLabel) ?></p>
-      <p class="trpt-meta">Payment Method: <?= e($methodLabel) ?> &nbsp;&middot;&nbsp; Status Filter: <?= e($statusLabel) ?></p>
+      
       <div class="trpt-meta-bar">
         <span>Date &amp; Time Generated: <?= e($generatedOn) ?> &nbsp;|&nbsp; Prepared by: <?= e($preparedBy) ?></span>
         <span>Total Entries: <?= count($finRows) ?></span>
@@ -943,32 +911,7 @@ include __DIR__ . '/../includes/dash-start.php';
 
 <?php endif; ?>
 
-<script>
-function setPreset(range) {
-  var now = new Date();
-  var pad = function(n) { return String(n).padStart(2, '0'); };
-  var format = function(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
-  var from = new Date(), to = new Date();
 
-  if (range === 'today') {
-    from = new Date(); to = new Date();
-  } else if (range === 'this_week') {
-    var day = now.getDay();
-    var diff = now.getDate() - day + (day === 0 ? -6 : 1);
-    from = new Date(now.setDate(diff));
-    to = new Date();
-  } else if (range === 'this_month') {
-    from = new Date(now.getFullYear(), now.getMonth(), 1);
-    to = new Date();
-  } else if (range === 'this_year') {
-    from = new Date(now.getFullYear(), 0, 1);
-    to = new Date();
-  }
-
-  document.getElementById('f_from').value = format(from);
-  document.getElementById('f_to').value = format(to);
-}
-</script>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

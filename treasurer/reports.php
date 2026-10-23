@@ -47,8 +47,7 @@ try {
 
 $fromDate   = trptValidDate($_GET['from_date'] ?? null);
 $toDate     = trptValidDate($_GET['to_date']   ?? null);
-$methodId   = isset($_GET['method_id']) && ctype_digit((string)$_GET['method_id'])
-                ? (int) $_GET['method_id'] : 0;
+$methodId   = 0;
 $statusFilter = 'all';
 $generated  = isset($_GET['generate']);
 
@@ -111,6 +110,9 @@ if ($generated) {
             p.amount,
             p.payment_status,
             pm.method_name,
+            t.raw_response AS gateway_raw_response,
+            t.gateway,
+            t.gateway_transaction_id,
             a.appointment_id,
             a.guest_name,
             a.guest_reference,
@@ -140,6 +142,12 @@ if ($generated) {
         LEFT JOIN projects pr        ON pr.project_id = d.project_id
         LEFT JOIN official_receipts orec ON orec.payment_id = p.payment_id
         LEFT JOIN users vu           ON vu.user_id = p.verified_by
+        LEFT JOIN (
+            SELECT payment_id, MAX(transaction_id) AS max_tx_id
+            FROM transactions
+            GROUP BY payment_id
+        ) t_max ON t_max.payment_id = p.payment_id
+        LEFT JOIN transactions t ON t.transaction_id = t_max.max_tx_id
         WHERE $whereStr
         ORDER BY p.payment_date ASC, p.payment_id ASC
     ";
@@ -149,7 +157,7 @@ if ($generated) {
 
     foreach ($stmt->fetchAll() as $r) {
         $amt    = (float) $r['amount'];
-        $method = (string) $r['method_name'];
+        $method = resolvePaymentMethodName((string) $r['method_name'], $r['gateway_raw_response'] ?? null, $r['reference_number'] ?? null, $r['gateway_transaction_id'] ?? null);
         $isCash = trptIsCash($method);
         $rawCat = (string) ($r['category'] ?: 'Uncategorized');
         $cat    = $rawCat;
@@ -397,18 +405,6 @@ include __DIR__ . '/../includes/dash-start.php';
       <label for="to_date">Date To</label>
       <input type="date" id="to_date" name="to_date" value="<?= e($formTo) ?>" required>
     </div>
-    <div class="fld">
-      <label for="method_id">Payment Method</label>
-      <select id="method_id" name="method_id">
-        <option value="0">All Methods</option>
-        <?php foreach ($allMethods as $m): ?>
-          <option value="<?= (int)$m['method_id'] ?>"
-            <?= $methodId === (int)$m['method_id'] ? 'selected' : '' ?>>
-            <?= e($m['method_name']) ?>
-          </option>
-        <?php endforeach; ?>
-      </select>
-    </div>
     <input type="hidden" name="generate" value="1">
     <div class="fld">
       <button type="submit" class="btn btn-primary" style="width:100%;">Generate Report</button>
@@ -418,7 +414,7 @@ include __DIR__ . '/../includes/dash-start.php';
   <?php if ($generated): ?>
     <div class="trpt-actions">
       <span style="font-size:13px; color:var(--text-muted,#64748b);">
-        Showing: <strong><?= e($methodLabel) ?></strong> &middot;
+        Showing:
         <?= e(formatDate($fromDate)) ?> &ndash; <?= e(formatDate($toDate)) ?>
       </span>
       <button type="button" class="btn btn-success" onclick="window.print()">
@@ -471,7 +467,7 @@ include __DIR__ . '/../includes/dash-start.php';
 
   <h2 class="trpt-doc-title">Official Statement of Cash Receipts &amp; Revenue Collections</h2>
   <p class="trpt-meta"><?= e($periodLabel) ?></p>
-  <p class="trpt-meta">Payment Method: <?= e($methodLabel) ?> &nbsp;&middot;&nbsp; Status Filter: <?= e($statusLabel) ?></p>
+  
   <div class="trpt-meta-bar">
     <span>Date &amp; Time Generated: <?= e($generatedOn) ?> &nbsp;|&nbsp; Prepared by: <?= e($preparedBy) ?></span>
     <span>Total Entries: <?= count($rows) ?></span>

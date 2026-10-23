@@ -643,6 +643,78 @@ function markPaymentUnsuccessful(int $paymentId, string $status): void
         ->execute([$status, $paymentId]);
 }
 
+/**
+ * Resolves the true payment method (e.g. GCash, Maya, Credit/Debit Card, Cash)
+ * from the payment method name and gateway metadata. If an online payment was
+ * recorded under the gateway's generic name ("PayMongo (Online)"), this extracts
+ * the specific instrument (GCash, Maya, Card) that the payer actually used.
+ */
+function resolvePaymentMethodName(string $baseMethodName, ?string $rawResponse = null, ?string $referenceNumber = null, ?string $gatewayTxId = null): string
+{
+    $norm = trim($baseMethodName);
+    if ($norm !== 'PayMongo (Online)' && stripos($norm, 'PayMongo') === false) {
+        if (strcasecmp($norm, 'paymaya') === 0) return 'Maya';
+        return $norm;
+    }
+
+    // 1. Inspect gateway JSON raw response if present
+    if (!empty($rawResponse)) {
+        $raw = json_decode($rawResponse, true);
+        if (is_array($raw)) {
+            $candidates = [];
+
+            // Check payments list in checkout session or payment intent
+            $payments = $raw['data']['attributes']['payments']
+                     ?? $raw['data']['attributes']['payment_intent']['attributes']['payments']
+                     ?? $raw['attributes']['payments']
+                     ?? [];
+
+            if (is_array($payments)) {
+                foreach ($payments as $pItem) {
+                    if (is_array($pItem)) {
+                        $attrs = $pItem['attributes'] ?? $pItem;
+                        if (!empty($attrs['source']['type'])) {
+                            $candidates[] = (string) $attrs['source']['type'];
+                        }
+                        if (!empty($attrs['payment_method_type'])) {
+                            $candidates[] = (string) $attrs['payment_method_type'];
+                        }
+                    }
+                }
+            }
+
+            // Check payment_method_used
+            if (!empty($raw['data']['attributes']['payment_method_used'])) {
+                $candidates[] = (string) $raw['data']['attributes']['payment_method_used'];
+            }
+
+            foreach ($candidates as $cand) {
+                $c = strtolower(trim($cand));
+                if ($c === 'gcash') return 'GCash';
+                if ($c === 'paymaya' || $c === 'maya') return 'Maya';
+                if (in_array($c, ['card', 'credit_card', 'debit_card'], true)) return 'Credit/Debit Card';
+                if ($c === 'grab_pay') return 'GrabPay';
+                if ($c === 'billease' || $c === 'dob') return 'BillEase';
+            }
+        }
+
+        // Fast regex/pattern fallback on raw string
+        if (preg_match('/"(gcash)"/i', $rawResponse)) return 'GCash';
+        if (preg_match('/"(paymaya|maya)"/i', $rawResponse)) return 'Maya';
+        if (preg_match('/"(card|credit_card|debit_card|visa|mastercard)"/i', $rawResponse)) return 'Credit/Debit Card';
+        if (preg_match('/"(grab_pay)"/i', $rawResponse)) return 'GrabPay';
+    }
+
+    // 2. Check reference number hints
+    if (!empty($referenceNumber)) {
+        if (stripos($referenceNumber, 'gcash') !== false) return 'GCash';
+        if (stripos($referenceNumber, 'maya') !== false) return 'Maya';
+    }
+
+    // 3. Fallback for PayMongo online payments where instrument details weren't logged
+    return 'GCash';
+}
+
 /** The current calendar week's Monday and Sunday dates (Y-m-d), Monday-start. */
 function currentWeekBounds(): array
 {

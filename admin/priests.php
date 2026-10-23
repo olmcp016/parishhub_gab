@@ -187,7 +187,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('error', 'Invalid portal login action.');
             redirect(url('admin/priests.php'));
         }
-        $stmt = db()->prepare('SELECT p.title, p.full_name, p.user_id, u.email, u.status AS user_status FROM priests p LEFT JOIN users u ON u.user_id = p.user_id WHERE p.priest_id = ?');
+        $stmt = db()->prepare('SELECT p.title, p.full_name, p.user_id, u.email, u.status AS user_status, r.role_name FROM priests p LEFT JOIN users u ON u.user_id = p.user_id LEFT JOIN roles r ON u.role_id = r.role_id WHERE p.priest_id = ?');
         $stmt->execute([$priestId]);
         $account = $stmt->fetch();
         if (!$account || empty($account['user_id'])) {
@@ -195,6 +195,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect(url('admin/priests.php'));
         }
         if ($operation === 'activate' || $operation === 'deactivate') {
+            // This priest row is linked to an Admin account (via "Link to My Admin
+            // Account" below), not a dedicated Priest login — deactivating it here
+            // would lock that Admin out of the entire portal, not just Priest pages.
+            if ($operation === 'deactivate' && ($account['role_name'] ?? '') === 'Admin') {
+                flash('error', 'This priest profile is linked to an Admin account. Unlink it under "My Priest Link" instead of deactivating the portal login — deactivating here would lock that Admin out of the whole system.');
+                redirect(url('admin/priests.php'));
+            }
             $reason = trim((string) ($_POST['deactivate_reason'] ?? ''));
             if ($operation === 'deactivate' && $reason === '') {
                 flash('error', 'Please provide a reason for deactivating portal access.');
@@ -219,11 +226,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ];
             flash('success', "Portal access reset successfully.");
         }
+    } elseif ($action === 'link_self') {
+        // Lets an Admin who is also a serving Priest attach their own login to
+        // a priest profile with one click, instead of a manual SQL update.
+        if (currentUser()['role_name'] !== 'Admin') {
+            flash('error', 'Only an Admin account can link itself to a priest profile.');
+            redirect(url('admin/priests.php'));
+        }
+        $priestId = (int) ($_POST['priest_id'] ?? 0);
+        $adminUserId = (int) currentUser()['user_id'];
+
+        $pdo = db();
+        $pdo->beginTransaction();
+        $stmt = $pdo->prepare('SELECT priest_id, user_id, title, full_name FROM priests WHERE priest_id = ? FOR UPDATE');
+        $stmt->execute([$priestId]);
+        $priest = $stmt->fetch();
+        if (!$priest) {
+            $pdo->rollBack();
+            flash('error', 'Priest not found.');
+            redirect(url('admin/priests.php'));
+        }
+        if (!empty($priest['user_id']) && (int) $priest['user_id'] !== $adminUserId) {
+            $pdo->rollBack();
+            flash('error', 'This priest already has a linked portal account. Unlink it there first.');
+            redirect(url('admin/priests.php'));
+        }
+        // An Admin can only be linked to one priest profile at a time.
+        $pdo->prepare('UPDATE priests SET user_id = NULL WHERE user_id = ? AND priest_id != ?')->execute([$adminUserId, $priestId]);
+        $pdo->prepare('UPDATE priests SET user_id = ? WHERE priest_id = ?')->execute([$adminUserId, $priestId]);
+        $pdo->commit();
+
+        logActivity($adminUserId, "Linked Admin account to priest profile: {$priest['title']} {$priest['full_name']}", 'Priests');
+        flash('success', 'Your Admin account is now linked to this priest profile. Your personal schedule and dashboard will reflect it.');
+    } elseif ($action === 'unlink_self') {
+        $priestId = (int) ($_POST['priest_id'] ?? 0);
+        $adminUserId = (int) currentUser()['user_id'];
+        $stmt = db()->prepare('UPDATE priests SET user_id = NULL WHERE priest_id = ? AND user_id = ?');
+        $stmt->execute([$priestId, $adminUserId]);
+        if ($stmt->rowCount() > 0) {
+            logActivity($adminUserId, "Unlinked Admin account from priest profile #$priestId", 'Priests');
+            flash('success', 'Your Admin account has been unlinked from this priest profile.');
+        } else {
+            flash('error', 'This priest profile is not linked to your account.');
+        }
     }
     redirect(url('admin/priests.php'));
 }
 
 $priests = db()->query('SELECT p.*, u.email AS login_email, u.status AS login_status FROM priests p LEFT JOIN users u ON u.user_id = p.user_id ORDER BY p.full_name')->fetchAll();
+$isAdminViewer = currentUser()['role_name'] === 'Admin';
+$currentUserId = (int) currentUser()['user_id'];
 
 $active = 'priests';
 $pageTitle = 'Manage Priests';
@@ -238,7 +290,7 @@ include __DIR__ . '/../includes/dash-start.php';
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Name</th><th>Status</th><th>Portal Login</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Name</th><th>Status</th><th>Portal Login</th><?php if ($isAdminViewer): ?><th>My Priest Link</th><?php endif; ?><th>Actions</th></tr></thead>
       <tbody id="priestsTableBody">
         <?php foreach ($priests as $p): ?>
           <tr>
@@ -262,6 +314,30 @@ include __DIR__ . '/../includes/dash-start.php';
                 <div class="priest-login-summary"><span class="text-muted">Not Created</span><button type="button" class="btn btn-outline btn-sm js-create-login" data-priest-id="<?= (int) $p['priest_id'] ?>" data-priest-name="<?= e(trim(($p['title'] ?? '') . ' ' . ($p['full_name'] ?? ''))) ?>" data-priest-email="<?= e($p['email'] ?? '') ?>">Create Login</button></div>
               <?php endif; ?>
             </td>
+            <?php if ($isAdminViewer): ?>
+            <td>
+              <?php if ((int) ($p['user_id'] ?? 0) === $currentUserId): ?>
+                <div class="priest-login-summary">
+                  <span class="badge badge-verified">Linked to Your Account (Active Priest)</span>
+                  <form method="POST" action="<?= url('admin/priests.php') ?>" style="display:inline;">
+                    <?= csrfField() ?>
+                    <input type="hidden" name="action" value="unlink_self">
+                    <input type="hidden" name="priest_id" value="<?= (int) $p['priest_id'] ?>">
+                    <button type="submit" class="btn btn-outline btn-sm">Unlink</button>
+                  </form>
+                </div>
+              <?php elseif (empty($p['user_id'])): ?>
+                <form method="POST" action="<?= url('admin/priests.php') ?>">
+                  <?= csrfField() ?>
+                  <input type="hidden" name="action" value="link_self">
+                  <input type="hidden" name="priest_id" value="<?= (int) $p['priest_id'] ?>">
+                  <button type="submit" class="btn btn-outline btn-sm">Link to My Admin Account</button>
+                </form>
+              <?php else: ?>
+                <span class="text-muted">—</span>
+              <?php endif; ?>
+            </td>
+            <?php endif; ?>
             <td>
               <div class="flex gap-2">
                 <button type="button" class="btn btn-outline btn-sm js-edit-priest"
