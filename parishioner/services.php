@@ -497,6 +497,39 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
   #bookForm textarea {
     text-transform: uppercase;
   }
+  /* Booking Summary Vertical List */
+  .book-summary-row {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 16px;
+    padding: 10px 4px;
+    border-bottom: 1px solid var(--cream-dark, #ece5da);
+    font-size: 13.5px;
+    align-items: baseline;
+  }
+  .book-summary-row:last-child {
+    border-bottom: none;
+  }
+  .book-summary-row .summary-label {
+    color: var(--text-muted, #7a6e65);
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+  }
+  .book-summary-row .summary-value {
+    color: var(--brown-dark, #3d2b1f);
+    font-size: 13.5px;
+    font-weight: 700;
+    word-break: break-word;
+  }
+  @media (max-width: 520px) {
+    .book-summary-row {
+      grid-template-columns: 1fr;
+      gap: 3px;
+      padding: 8px 0;
+    }
+  }
 </style>
 
 <dialog class="modal modal-lg" id="bookModal">
@@ -1203,29 +1236,12 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
         <!-- ========== STEP 3: Review & Submit ========== -->
         <div class="book-step-panel" id="book-panel-3">
 
-          <!-- Booking Summary Card -->
-          <div class="book-review-card" id="bookReviewCard" style="background:var(--cream, #fdfbf7); border:1px solid var(--cream-dark, #e8e0d5); border-radius:8px; padding:16px; margin-bottom:18px;">
-            <div style="font-weight:700; color:var(--brown-dark, #3d2b1f); font-size:14px; margin-bottom:10px; border-bottom:1px solid var(--cream-dark, #e8e0d5); padding-bottom:6px;">
+          <!-- Booking Summary Card (Vertical uncluttered layout) -->
+          <div class="book-review-card" id="bookReviewCard" style="background:#fff; border:1px solid var(--cream-dark, #e8e0d5); border-radius:10px; padding:16px 20px; margin-bottom:18px; box-shadow:0 1px 3px rgba(0,0,0,0.03);">
+            <div style="font-weight:700; color:var(--brown-dark, #3d2b1f); font-size:15px; margin-bottom:10px; border-bottom:2px solid var(--cream-dark, #e8e0d5); padding-bottom:8px;">
               Booking Summary
             </div>
-            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; font-size:13px;" id="bookReviewGrid">
-              <div>
-                <span style="color:var(--text-muted, #7a6e65); display:block; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Service</span>
-                <strong id="reviewService" style="color:var(--brown-dark, #3d2b1f); font-size:13.5px;">—</strong>
-              </div>
-              <div>
-                <span style="color:var(--text-muted, #7a6e65); display:block; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Schedule</span>
-                <strong id="reviewSchedule" style="color:var(--brown-dark, #3d2b1f); font-size:13.5px;">—</strong>
-              </div>
-              <div id="reviewPriestWrap" style="display:none;">
-                <span style="color:var(--text-muted, #7a6e65); display:block; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Preferred Priest</span>
-                <strong id="reviewPriest" style="color:var(--brown-dark, #3d2b1f); font-size:13.5px;">—</strong>
-              </div>
-              <div id="reviewDetailsWrap" style="grid-column:1 / -1; display:none; border-top:1px dashed var(--cream-dark, #e8e0d5); padding-top:10px; margin-top:2px;">
-                <span style="color:var(--text-muted, #7a6e65); display:block; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">Booking Details</span>
-                <div id="reviewDetails" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:8px 12px;"></div>
-              </div>
-            </div>
+            <div id="bookSummaryList" style="display:flex; flex-direction:column;"></div>
           </div>
 
           <div class="form-group" id="remarksGroup">
@@ -3243,17 +3259,11 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
       }
     }
 
-    var elService = document.getElementById('reviewService');
-    if (elService) elService.textContent = serviceName;
-    var elSched = document.getElementById('reviewSchedule');
-    if (elSched) elSched.textContent = schedText;
-
     // 2. Resolve Preferred Priest
     var priestGroup = document.getElementById('priestFieldGroup');
     var priestSelect = document.getElementById('priestSelect');
     var isPriestApplicable = priestGroup && priestGroup.style.display !== 'none' && priestSelect && !priestSelect.disabled;
-    var priestWrap = document.getElementById('reviewPriestWrap');
-    var elPriest = document.getElementById('reviewPriest');
+    var priestDisplayText = 'Parish Assigned (No preference)';
     var priestList = [];
 
     if (isPriestApplicable) {
@@ -3276,16 +3286,9 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
         }
       });
 
-      var priestDisplayText = priestList.length > 0
-        ? priestList.join(', ')
-        : 'Parish Assigned (No preference)';
-
-      if (priestWrap && elPriest) {
-        priestWrap.style.display = 'block';
-        elPriest.textContent = priestDisplayText;
+      if (priestList.length > 0) {
+        priestDisplayText = priestList.join(', ');
       }
-    } else if (priestWrap) {
-      priestWrap.style.display = 'none';
     }
 
     // 3. Resolve Detailed Fields
@@ -3419,21 +3422,28 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
       detailsList.push({ label: 'Contact Person', value: gName + (gPhone ? ' (' + gPhone + ')' : '') });
     }
 
-    // Render Details
-    var detailsWrap = document.getElementById('reviewDetailsWrap');
-    var elDetails = document.getElementById('reviewDetails');
-    if (detailsWrap && elDetails) {
-      if (detailsList.length > 0) {
-        detailsWrap.style.display = 'block';
-        elDetails.innerHTML = detailsList.map(function (d) {
-          return '<div style="background:#fff; border:1px solid var(--cream-dark, #e8e0d5); border-radius:6px; padding:6px 10px;">' +
-            '<span style="font-size:10.5px; color:var(--text-muted, #7a6e65); display:block; text-transform:uppercase; letter-spacing:0.4px; font-weight:600;">' + escapeHtml(d.label) + '</span>' +
-            '<strong style="color:var(--brown-dark, #3d2b1f); font-size:13px; word-break:break-word;">' + escapeHtml(d.value) + '</strong>' +
-            '</div>';
-        }).join('');
-      } else {
-        detailsWrap.style.display = 'none';
-      }
+    // 4. Build Unified Vertical List (Pababa ang layout, hindi siksik)
+    var summaryItems = [
+      { label: 'Service', value: serviceName },
+      { label: 'Schedule', value: schedText }
+    ];
+
+    if (isPriestApplicable) {
+      summaryItems.push({ label: 'Preferred Priest', value: priestDisplayText });
+    }
+
+    detailsList.forEach(function (d) {
+      summaryItems.push(d);
+    });
+
+    var summaryContainer = document.getElementById('bookSummaryList');
+    if (summaryContainer) {
+      summaryContainer.innerHTML = summaryItems.map(function (item) {
+        return '<div class="book-summary-row">' +
+          '<span class="summary-label">' + escapeHtml(item.label) + '</span>' +
+          '<strong class="summary-value">' + escapeHtml(item.value) + '</strong>' +
+          '</div>';
+      }).join('');
     }
   }
 
