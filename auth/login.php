@@ -56,8 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($user['email_verified_at'] === null) {
-        $resendUrl = url('auth/resend-verification.php?email=' . urlencode($email));
-        $fail('email', 'Please verify your email before logging in. <a href="'.$resendUrl.'" style="text-decoration:underline;font-weight:bold;color:inherit;">Click here to resend the verification link</a>.');
+        $fail('email', 'Please verify your email first before logging in.');
     }
 
     if ($user['status'] !== 'active') {
@@ -74,8 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Block staff and clergy from using the Parishioner portal.
     if (in_array($user['role_name'], ['Admin', 'Secretary', 'Treasurer', 'Priest'], true)) {
-        $staffUrl = url('staff/login.php');
-        $fail('email', 'This portal is for Parishioners only. Staff and Clergy must log in through the <a href="' . $staffUrl . '" style="text-decoration:underline;font-weight:bold;color:inherit;">Staff Portal →</a>');
+        $fail('email', 'This portal is for Parishioners. Please log in via Staff Portal.');
     }
 
     // Login success: clear this account's counter. The IP counter expires on its own.

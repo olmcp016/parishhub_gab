@@ -53,13 +53,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Block Parishioners from using the Staff Portal.
     if ($user['role_name'] === 'Parishioner') {
-        $parUrl = url('auth/login.php');
-        $fail('email', 'This portal is restricted to Parish Staff and Clergy. Parishioners must log in through the <a href="' . $parUrl . '" style="text-decoration:underline;font-weight:bold;color:inherit;">Parishioner Portal →</a>');
+        $fail('email', 'This portal is for Staff and Clergy only.');
     }
 
     if ($user['email_verified_at'] === null) {
-        $resendUrl = url('auth/resend-verification.php?email=' . urlencode($email));
-        $fail('email', 'Please verify your email before logging in. <a href="' . $resendUrl . '" style="text-decoration:underline;font-weight:bold;color:inherit;">Click here to resend the verification link</a>.');
+        $fail('email', 'Please verify your email first before logging in.');
     }
 
     if ($user['status'] !== 'active') {
