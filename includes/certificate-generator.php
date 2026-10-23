@@ -166,7 +166,7 @@ function certificatePdfDateParts(string $date): array
  * font until it fits $maxWidth (same fit-to-width approach as the other
  * generated-form PDFs in this codebase).
  */
-function certificateDrawField(FPDF $pdf, string $value, float $x, float $y, float $maxWidth, float $fontSize = 12, string $align = 'C', string $style = ''): void
+function certificateDrawField(FPDF $pdf, string $value, float $x, float $y, float $maxWidth, float $fontSize = 12, string $align = 'C', string $style = '', float $lineHeight = 5.2): void
 {
     $value = certificatePdfText(trim($value));
     if ($value === '') return;
@@ -175,8 +175,14 @@ function certificateDrawField(FPDF $pdf, string $value, float $x, float $y, floa
         $fontSize -= 0.5;
         $pdf->SetFont('Times', $style, $fontSize);
     }
-    $pdf->SetXY($x, $y);
-    $pdf->Cell($maxWidth, 6, $value, 0, 0, $align);
+    // (x, y) is the pre-printed blank LINE's own position; Cell() draws
+    // downward from its top, so shift up by its height to sit the text just
+    // above that line instead of straddling/crossing it. $lineHeight should
+    // be reduced below the 5.2mm default on a template where rows of blanks
+    // are packed closer together than that, so adjacent rows don't bleed
+    // into each other.
+    $pdf->SetXY($x, $y - $lineHeight);
+    $pdf->Cell($maxWidth, $lineHeight, $value, 0, 0, $align);
 }
 
 /**
@@ -212,8 +218,8 @@ function certificateBaptismPdf(array $data): string
     $pdf->SetTitle(certificatePdfText('Certificate of Baptism - ' . $v('child_name')), true);
     $at = certificateStampTemplate($pdf, 'Baptism');
 
-    [$x, $y] = $at(0.19, 0.192); certificateDrawField($pdf, $v('parish_of'), $x, $y, 60, 13, 'L');
-    [$x, $y] = $at(0.10, 0.383); certificateDrawField($pdf, $v('child_name'), $x, $y, 73, 16, 'C', 'B');
+    [$x, $y] = $at(0.315, 0.198); certificateDrawField($pdf, $v('parish_of'), $x, $y, 48, 13, 'L');
+    [$x, $y] = $at(0.10, 0.39); certificateDrawField($pdf, $v('child_name'), $x, $y, 73, 14, 'C', 'B');
     [$x, $y] = $at(0.104, 0.4365); certificateDrawField($pdf, $v('father_name'), $x, $y, 37, 12);
     [$x, $y] = $at(0.544, 0.4365); certificateDrawField($pdf, $v('mother_name'), $x, $y, 35, 12);
     [$x, $y] = $at(0.104, 0.4965); certificateDrawField($pdf, certificatePdfText($v('birth_date')), $x, $y, 37, 11);
@@ -238,39 +244,43 @@ function certificateMarriagePdf(array $data): string
     $pdf->SetTitle(certificatePdfText('Certificate of Marriage - ' . $v('groom_name') . ' and ' . $v('bride_name')), true);
     $at = certificateStampTemplate($pdf, 'Marriage');
 
-    [$x, $y] = $at(0.164, 0.168); certificateDrawField($pdf, $v('church_of'), $x, $y, 68, 12, 'L');
-    [$x, $y] = $at(0.108, 0.1825); certificateDrawField($pdf, $v('place'), $x, $y, 26, 11, 'L');
-    [$x, $y] = $at(0.555, 0.1825); certificateDrawField($pdf, $v('province'), $x, $y, 20, 11, 'L');
+    [$x, $y] = $at(0.291, 0.1663); certificateDrawField($pdf, $v('church_of'), $x, $y, 98, 12, 'L');
+    [$x, $y] = $at(0.111, 0.1805); certificateDrawField($pdf, $v('place'), $x, $y, 39, 11, 'L');
+    [$x, $y] = $at(0.554, 0.1805); certificateDrawField($pdf, $v('province'), $x, $y, 41, 11, 'L');
 
-    [$x, $y] = $at(0.072, 0.2905); certificateDrawField($pdf, $v('groom_name'), $x, $y, 44, 12, 'L', 'B');
-    [$x, $y] = $at(0.578, 0.2905); certificateDrawField($pdf, $v('bride_name'), $x, $y, 30, 12, 'L', 'B');
-    [$x, $y] = $at(0.108, 0.3238); certificateDrawField($pdf, $v('groom_age'), $x, $y, 42, 10, 'L');
-    [$x, $y] = $at(0.578, 0.3238); certificateDrawField($pdf, $v('bride_age'), $x, $y, 30, 10, 'L');
-    [$x, $y] = $at(0.108, 0.343); certificateDrawField($pdf, $v('groom_nationality'), $x, $y, 42, 10, 'L');
-    [$x, $y] = $at(0.578, 0.343); certificateDrawField($pdf, $v('bride_nationality'), $x, $y, 30, 10, 'L');
-    [$x, $y] = $at(0.108, 0.3623); certificateDrawField($pdf, $v('groom_residence'), $x, $y, 42, 10, 'L');
-    [$x, $y] = $at(0.578, 0.3623); certificateDrawField($pdf, $v('bride_residence'), $x, $y, 30, 10, 'L');
-    [$x, $y] = $at(0.108, 0.3815); certificateDrawField($pdf, $v('groom_father'), $x, $y, 42, 10, 'L');
-    [$x, $y] = $at(0.578, 0.3815); certificateDrawField($pdf, $v('bride_father'), $x, $y, 30, 10, 'L');
-    [$x, $y] = $at(0.108, 0.4005); certificateDrawField($pdf, $v('groom_mother'), $x, $y, 42, 10, 'L');
-    [$x, $y] = $at(0.578, 0.4005); certificateDrawField($pdf, $v('bride_mother'), $x, $y, 30, 10, 'L');
+    [$x, $y] = $at(0.069, 0.264); certificateDrawField($pdf, $v('groom_name'), $x, $y, 92, 12, 'L', 'B');
+    [$x, $y] = $at(0.582, 0.264); certificateDrawField($pdf, $v('bride_name'), $x, $y, 63, 12, 'L', 'B');
+    [$x, $y] = $at(0.151, 0.2866); certificateDrawField($pdf, $v('groom_age'), $x, $y, 84, 10, 'L');
+    [$x, $y] = $at(0.582, 0.2866); certificateDrawField($pdf, $v('bride_age'), $x, $y, 63, 10, 'L');
+    [$x, $y] = $at(0.237, 0.306); certificateDrawField($pdf, $v('groom_nationality'), $x, $y, 72, 10, 'L');
+    [$x, $y] = $at(0.582, 0.306); certificateDrawField($pdf, $v('bride_nationality'), $x, $y, 63, 10, 'L');
+    [$x, $y] = $at(0.211, 0.3254); certificateDrawField($pdf, $v('groom_residence'), $x, $y, 76, 10, 'L');
+    [$x, $y] = $at(0.582, 0.3254); certificateDrawField($pdf, $v('bride_residence'), $x, $y, 63, 10, 'L');
+    [$x, $y] = $at(0.155, 0.3452); certificateDrawField($pdf, $v('groom_father'), $x, $y, 84, 10, 'L');
+    [$x, $y] = $at(0.582, 0.3452); certificateDrawField($pdf, $v('bride_father'), $x, $y, 63, 10, 'L');
+    [$x, $y] = $at(0.165, 0.365); certificateDrawField($pdf, $v('groom_mother'), $x, $y, 82, 10, 'L');
+    [$x, $y] = $at(0.582, 0.365); certificateDrawField($pdf, $v('bride_mother'), $x, $y, 63, 10, 'L');
 
+    // This lower block's rows are packed only ~5mm apart on the template, tighter
+    // than the default 5.2mm text height — use a shorter line height and smaller
+    // font throughout so consecutive rows don't bleed into each other.
+    $lh = 3.8; $fs = 9;
     $dateParts = certificatePdfDateParts($v('marriage_date'));
-    [$x, $y] = $at(0.138, 0.597); certificateDrawField($pdf, $dateParts['day'], $x, $y, 18, 10, 'L');
-    [$x, $y] = $at(0.279, 0.597); certificateDrawField($pdf, $dateParts['month'], $x, $y, 44, 10, 'L');
-    [$x, $y] = $at(0.762, 0.597); certificateDrawField($pdf, $dateParts['year'], $x, $y, 9, 10, 'L');
-    [$x, $y] = $at(0.302, 0.6132); certificateDrawField($pdf, $v('officiating_priest'), $x, $y, 55, 10, 'L');
-    [$x, $y] = $at(0.19, 0.6288); certificateDrawField($pdf, $v('witness_name'), $x, $y, 66, 10, 'L');
-    [$x, $y] = $at(0.126, 0.6445); certificateDrawField($pdf, $v('witness_residence'), $x, $y, 76, 10, 'L');
-    [$x, $y] = $at(0.167, 0.6758); certificateDrawField($pdf, $v('book_no'), $x, $y, 6, 10, 'L');
-    [$x, $y] = $at(0.279, 0.6758); certificateDrawField($pdf, $v('page_no'), $x, $y, 6, 10, 'L');
-    [$x, $y] = $at(0.378, 0.6758); certificateDrawField($pdf, $v('line_no'), $x, $y, 8, 10, 'L');
-    [$x, $y] = $at(0.406, 0.6915); certificateDrawField($pdf, $v('marriage_license_no'), $x, $y, 7, 10, 'L');
-    [$x, $y] = $at(0.55, 0.6915); certificateDrawField($pdf, $v('license_issued_at'), $x, $y, 28, 10, 'L');
+    [$x, $y] = $at(0.107, 0.5571); certificateDrawField($pdf, $dateParts['day'], $x, $y, 26, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.27, 0.5571); certificateDrawField($pdf, $dateParts['month'], $x, $y, 93, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.755, 0.5571); certificateDrawField($pdf, $dateParts['year'], $x, $y, 13, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.298, 0.5943); certificateDrawField($pdf, $v('officiating_priest'), $x, $y, 114, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.187, 0.6137); certificateDrawField($pdf, $v('witness_name'), $x, $y, 137, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.121, 0.632); certificateDrawField($pdf, $v('witness_residence'), $x, $y, 151, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.166, 0.6717); certificateDrawField($pdf, $v('book_no'), $x, $y, 12, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.277, 0.6717); certificateDrawField($pdf, $v('page_no'), $x, $y, 12, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.391, 0.6717); certificateDrawField($pdf, $v('line_no'), $x, $y, 14, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.402, 0.6903); certificateDrawField($pdf, $v('marriage_license_no'), $x, $y, 14, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.547, 0.6903); certificateDrawField($pdf, $v('license_issued_at'), $x, $y, 62, $fs, 'L', '', $lh);
     $licenseParts = certificatePdfDateParts($v('license_issued_date'));
-    [$x, $y] = $at(0.093, 0.7073); certificateDrawField($pdf, trim($licenseParts['month'] . ' ' . $licenseParts['day']), $x, $y, 26, 10, 'L');
-    [$x, $y] = $at(0.322, 0.7073); certificateDrawField($pdf, $licenseParts['year'], $x, $y, 5, 10, 'L');
-    [$x, $y] = $at(0.198, 0.7256); certificateDrawField($pdf, certificatePdfText($v('certificate_dated')), $x, $y, 42, 10, 'L');
+    [$x, $y] = $at(0.09, 0.7083); certificateDrawField($pdf, trim($licenseParts['month'] . ' ' . $licenseParts['day']), $x, $y, 38, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.319, 0.7083); certificateDrawField($pdf, $licenseParts['year'], $x, $y, 7, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.194, 0.7262); certificateDrawField($pdf, certificatePdfText($v('certificate_dated')), $x, $y, 90, $fs, 'L', '', $lh);
 
     return $pdf->Output('S');
 }
@@ -282,21 +292,24 @@ function certificateConfirmationPdf(array $data): string
     $pdf->SetTitle(certificatePdfText('Certificate of Confirmation - ' . $v('confirmed_name')), true);
     $at = certificateStampTemplate($pdf, 'Confirmation');
 
-    [$x, $y] = $at(0.205, 0.2495); certificateDrawField($pdf, $v('parish_of'), $x, $y, 59, 12);
-    [$x, $y] = $at(0.161, 0.3645); certificateDrawField($pdf, $v('confirmed_name'), $x, $y, 70, 13, 'L', 'B');
-    [$x, $y] = $at(0.181, 0.3957); certificateDrawField($pdf, $v('father_name'), $x, $y, 68, 12, 'L');
-    [$x, $y] = $at(0.181, 0.4284); certificateDrawField($pdf, $v('mother_name'), $x, $y, 52, 12, 'L');
+    // Rows here are packed only ~7-8mm apart on the template — shorter line
+    // height and smaller font so consecutive rows don't bleed into each other.
+    $lh = 4.2; $fs = 10;
+    [$x, $y] = $at(0.205, 0.2495); certificateDrawField($pdf, $v('parish_of'), $x, $y, 59, 12, 'C', '', $lh);
+    [$x, $y] = $at(0.161, 0.39); certificateDrawField($pdf, $v('confirmed_name'), $x, $y, 70, 12, 'L', 'B', $lh);
+    [$x, $y] = $at(0.181, 0.4215); certificateDrawField($pdf, $v('father_name'), $x, $y, 68, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.181, 0.4535); certificateDrawField($pdf, $v('mother_name'), $x, $y, 52, $fs, 'L', '', $lh);
     $dateParts = certificatePdfDateParts($v('confirmation_date'));
-    [$x, $y] = $at(0.201, 0.463); certificateDrawField($pdf, $dateParts['day'], $x, $y, 8, 11, 'L');
-    [$x, $y] = $at(0.317, 0.463); certificateDrawField($pdf, $dateParts['month'], $x, $y, 51, 11, 'L');
-    [$x, $y] = $at(0.723, 0.463); certificateDrawField($pdf, $dateParts['year'], $x, $y, 9, 11, 'L');
-    [$x, $y] = $at(0.313, 0.6055); certificateDrawField($pdf, $v('officiating_bishop'), $x, $y, 55, 12, 'L');
-    [$x, $y] = $at(0.249, 0.6365); certificateDrawField($pdf, $v('sponsor_1'), $x, $y, 61, 12, 'L');
-    [$x, $y] = $at(0.181, 0.6673); certificateDrawField($pdf, $v('sponsor_2'), $x, $y, 65, 12, 'L');
-    [$x, $y] = $at(0.522, 0.698); certificateDrawField($pdf, $v('book_no'), $x, $y, 10, 11, 'L');
+    [$x, $y] = $at(0.201, 0.488); certificateDrawField($pdf, $dateParts['day'], $x, $y, 8, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.317, 0.488); certificateDrawField($pdf, $dateParts['month'], $x, $y, 51, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.723, 0.488); certificateDrawField($pdf, $dateParts['year'], $x, $y, 9, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.313, 0.629); certificateDrawField($pdf, $v('officiating_bishop'), $x, $y, 55, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.249, 0.66); certificateDrawField($pdf, $v('sponsor_1'), $x, $y, 61, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.181, 0.6908); certificateDrawField($pdf, $v('sponsor_2'), $x, $y, 65, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.522, 0.7215); certificateDrawField($pdf, $v('book_no'), $x, $y, 10, $fs, 'L', '', $lh);
     $givenParts = certificatePdfDateParts($v('given_date'));
-    [$x, $y] = $at(0.406, 0.7707); certificateDrawField($pdf, $givenParts['day'], $x, $y, 16, 11, 'L');
-    [$x, $y] = $at(0.092, 0.7989); certificateDrawField($pdf, trim($givenParts['month'] . ', 20' . $givenParts['year']), $x, $y, 40, 11, 'L');
+    [$x, $y] = $at(0.406, 0.793); certificateDrawField($pdf, $givenParts['day'], $x, $y, 16, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.092, 0.821); certificateDrawField($pdf, trim($givenParts['month'] . ', 20' . $givenParts['year']), $x, $y, 40, $fs, 'L', '', $lh);
 
     return $pdf->Output('S');
 }
@@ -309,38 +322,42 @@ function certificateDeathPdf(array $data): string
     $at = certificateStampTemplate($pdf, 'Death');
 
     [$x, $y] = $at(0.077, 0.2197); certificateDrawField($pdf, $v('deceased_name'), $x, $y, 76, 13, 'C', 'B');
-    [$x, $y] = $at(0.292, 0.2588); certificateDrawField($pdf, $v('barangay'), $x, $y, 63, 10, 'L');
-    [$x, $y] = $at(0.169, 0.2783); certificateDrawField($pdf, $v('municipality'), $x, $y, 34, 10, 'L');
-    [$x, $y] = $at(0.668, 0.2783); certificateDrawField($pdf, $v('province'), $x, $y, 28, 10, 'L');
+
+    // Rows from here down are packed only ~5-6mm apart on the template —
+    // shorter line height and smaller font so consecutive rows don't bleed.
+    $lh = 4.0; $fs = 9;
+    [$x, $y] = $at(0.303, 0.2685); certificateDrawField($pdf, $v('barangay'), $x, $y, 58, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.181, 0.2885); certificateDrawField($pdf, $v('municipality'), $x, $y, 42, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.618, 0.2885); certificateDrawField($pdf, $v('province'), $x, $y, 32, $fs, 'L', '', $lh);
 
     $isSingle = strtolower($v('civil_status')) === 'single';
     if ($isSingle) {
-        [$x, $y] = $at(0.253, 0.3003); certificateDrawField($pdf, $v('relation_names'), $x, $y, 23, 9, 'L');
+        [$x, $y] = $at(0.315, 0.331); certificateDrawField($pdf, $v('relation_names'), $x, $y, 42, $fs, 'L', '', $lh);
     } else {
-        [$x, $y] = $at(0.33, 0.3198); certificateDrawField($pdf, $v('relation_names'), $x, $y, 46, 9, 'L');
+        [$x, $y] = $at(0.348, 0.352); certificateDrawField($pdf, $v('relation_names'), $x, $y, 80, $fs, 'L', '', $lh);
     }
 
     $deathParts = certificatePdfDateParts($v('death_date'));
-    [$x, $y] = $at(0.177, 0.3394); certificateDrawField($pdf, $deathParts['day'], $x, $y, 6, 10, 'L');
-    [$x, $y] = $at(0.277, 0.3394); certificateDrawField($pdf, $deathParts['month'], $x, $y, 22, 10, 'L');
-    [$x, $y] = $at(0.534, 0.3394); certificateDrawField($pdf, $deathParts['year'], $x, $y, 4, 10, 'L');
-    [$x, $y] = $at(0.749, 0.3394); certificateDrawField($pdf, $v('death_age'), $x, $y, 11, 10, 'L');
+    [$x, $y] = $at(0.19, 0.3735); certificateDrawField($pdf, $deathParts['day'], $x, $y, 9, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.2715, 0.3735); certificateDrawField($pdf, $deathParts['month'], $x, $y, 38, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.547, 0.3735); certificateDrawField($pdf, $deathParts['year'], $x, $y, 7, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.7475, 0.3735); certificateDrawField($pdf, $v('death_age'), $x, $y, 14, $fs, 'L', '', $lh);
 
     $burialParts = certificatePdfDateParts($v('burial_date'));
     if ($v('burial_type') === 'municipal') {
-        [$x, $y] = $at(0.215, 0.3955); certificateDrawField($pdf, $v('municipal_cemetery_name'), $x, $y, 63, 9, 'L');
+        [$x, $y] = $at(0.22, 0.42); certificateDrawField($pdf, $v('municipal_cemetery_name'), $x, $y, 102, $fs, 'L', '', $lh);
     }
-    [$x, $y] = $at(0.177, 0.4175); certificateDrawField($pdf, $burialParts['day'], $x, $y, 6, 9, 'L');
-    [$x, $y] = $at(0.277, 0.4175); certificateDrawField($pdf, trim($burialParts['month'] . ($burialParts['year'] ? ', 20' . $burialParts['year'] : '')), $x, $y, 39, 9, 'L');
+    [$x, $y] = $at(0.181, 0.441); certificateDrawField($pdf, $burialParts['day'], $x, $y, 9, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.283, 0.441); certificateDrawField($pdf, trim($burialParts['month'] . ($burialParts['year'] ? ', 20' . $burialParts['year'] : '')), $x, $y, 79, $fs, 'L', '', $lh);
 
-    [$x, $y] = $at(0.388, 0.4785); certificateDrawField($pdf, $v('cause_of_death'), $x, $y, 55, 10, 'L');
-    [$x, $y] = $at(0.376, 0.6055); certificateDrawField($pdf, $v('book_no'), $x, $y, 12, 10, 'L');
-    [$x, $y] = $at(0.618, 0.6055); certificateDrawField($pdf, $v('line_no'), $x, $y, 20, 10, 'L');
-    [$x, $y] = $at(0.088, 0.6641); certificateDrawField($pdf, $v('parish_name'), $x, $y, 83, 11, 'C');
+    [$x, $y] = $at(0.397, 0.48); certificateDrawField($pdf, $v('cause_of_death'), $x, $y, 73, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.413, 0.6335); certificateDrawField($pdf, $v('book_no'), $x, $y, 15, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.586, 0.6335); certificateDrawField($pdf, $v('line_no'), $x, $y, 32, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.0905, 0.701); certificateDrawField($pdf, $v('parish_name'), $x, $y, 96, $fs + 1, 'C', '', $lh);
 
     $datedParts = certificatePdfDateParts($v('certificate_dated'));
-    [$x, $y] = $at(0.196, 0.7129); certificateDrawField($pdf, $datedParts['day'], $x, $y, 10, 10, 'L');
-    [$x, $y] = $at(0.35, 0.7129); certificateDrawField($pdf, trim($datedParts['month'] . ($datedParts['year'] ? ', 20' . $datedParts['year'] : '')), $x, $y, 41, 10, 'L');
+    [$x, $y] = $at(0.2006, 0.726); certificateDrawField($pdf, $datedParts['day'], $x, $y, 14, $fs, 'L', '', $lh);
+    [$x, $y] = $at(0.358, 0.726); certificateDrawField($pdf, trim($datedParts['month'] . ($datedParts['year'] ? ', 20' . $datedParts['year'] : '')), $x, $y, 53, $fs, 'L', '', $lh);
 
     return $pdf->Output('S');
 }
