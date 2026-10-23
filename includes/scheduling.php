@@ -756,6 +756,8 @@ function schedulingPolicyText(string $category, ?int $serviceId = null): string
             return 'Propose a preferred date and time for the Anointing. This sacrament is free of charge — no payment is required.';
         case 'First Communion':
             return 'You may submit your booking request and required documents without selecting a date or time. First Communion is scheduled during February, and the Parish Office will notify you once the final date and time are confirmed.';
+        case 'Certificate':
+            return 'Request for official church certificates (Baptismal, Confirmation, Death, or Marriage). Fixed fee: <strong>₱100.00</strong>. You may indicate your preferred date to claim the certificate at the Parish Office.';
         default:
             return '';
     }

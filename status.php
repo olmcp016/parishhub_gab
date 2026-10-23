@@ -333,6 +333,7 @@ include __DIR__ . '/includes/header.php';
       <?php if (!empty($appointment['contact_phone'])): ?><p><strong>Contact Phone:</strong> <?= e($appointment['contact_phone']) ?></p><?php endif; ?>
       <?php if ($appointment['rejection_reason']): ?><p><strong>Reason:</strong> <?= e($appointment['rejection_reason']) ?></p><?php endif; ?>
       <?php if ($appointment['cancelled_reason']): ?><p><strong>Cancellation Reason:</strong> <?= e($appointment['cancelled_reason']) ?></p><?php endif; ?>
+      <?php if (!empty($appointment['remarks'])): ?><p><strong>Remarks / Details:</strong> <?= nl2br(e($appointment['remarks'])) ?></p><?php endif; ?>
 
       <?php if (requirementsReviewAvailable() && ($appointment['requirements_review_status'] ?? null) !== null && (int) $appointment['status_id'] === 1):
         $guestReviewItems = requirementsReviewItems((int) $appointment['appointment_id']);

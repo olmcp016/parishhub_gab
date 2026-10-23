@@ -888,4 +888,34 @@ function isOutsidePriestEligibleCategory(?string $category): bool
     return $category !== 'Donation';
 }
 
+/**
+ * Ensures the "Certificate" category and "Certificate Request" service exist in the database.
+ * Auto-seeds if missing.
+ */
+function ensureCertificateService(): void
+{
+    static $ensured = false;
+    if ($ensured) return;
+    $ensured = true;
+    try {
+        $pdo = db();
+        try {
+            $pdo->exec("ALTER TYPE service_category ADD VALUE IF NOT EXISTS 'Certificate'");
+        } catch (Throwable $e) {
+            // Already present, or non-PostgreSQL engine
+        }
+        $count = (int) $pdo->query("SELECT COUNT(*) FROM services WHERE category = 'Certificate' OR service_name = 'Certificate Request'")->fetchColumn();
+        if ($count === 0) {
+            try {
+                $pdo->exec("INSERT INTO services (service_name, category, description, fee, requirements, duration_minutes, is_active)
+                            VALUES ('Certificate Request', 'Certificate', 'Official church certificate issuance (Baptismal, Confirmation, Death, or Marriage Certificate).', 100.00, NULL, 15, TRUE)");
+            } catch (Throwable $e) {
+                error_log('Failed to auto-seed Certificate Request service: ' . $e->getMessage());
+            }
+        }
+    } catch (Throwable $e) {
+        // DB not yet connected or tables not present
+    }
+}
+
 

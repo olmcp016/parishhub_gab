@@ -33,7 +33,8 @@ DO $$ BEGIN
         'Funeral',
         'Blessing',
         'Confirmation',
-        'First Communion'
+        'First Communion',
+        'Certificate'
     );
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 

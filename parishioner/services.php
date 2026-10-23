@@ -33,6 +33,7 @@ if (preg_match('/^(baptism|wedding|funeral)-(\d+)$/', (string) ($_GET['resume_dr
   $resumeDraft = loadResumableBookingDraft($resumeMatch[1], (int) $resumeMatch[2]);
 }
 
+ensureCertificateService();
 $services = db()->query("SELECT * FROM services WHERE is_active = 1 AND category != 'Donation' ORDER BY category, service_name")->fetchAll();
 $variableFeeCategories = ['Baptism', 'Wedding'];
 $feeRulesByCategory = [];
@@ -178,6 +179,8 @@ $thankYouIsGuest = false; include __DIR__ . '/../includes/thank-you-modal.php'; 
         $scheduleDisplay = 'Propose a preferred date &amp; time — parish office confirms';
       } elseif ($s['category'] === 'Mass Intention') {
         $scheduleDisplay = 'Daily 6:00 AM / Wed 5:15 PM / Sun 6:30 AM, 9:00 AM, 4:30 PM';
+      } elseif ($s['category'] === 'Certificate') {
+        $scheduleDisplay = 'Office pick-up schedule arranged with Parish Office';
       } else {
         $scheduleDisplay = 'Schedule arranged with the Parish Office';
       }
@@ -704,6 +707,103 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
             <textarea name="location_address" id="blessingAddressInput" rows="2"
               placeholder="House number, street, barangay..."><?= e($profileAddress) ?></textarea>
             <p class="helper-text">This is just the address of the home/establishment — no document upload needed.</p>
+          </div>
+        </div>
+
+        <div id="certificateFields"
+          style="display:none; background: var(--cream); padding: 14px; border-radius: 8px; margin-bottom: 16px;">
+          <h4 style="margin-top:0;">Certificate Request Details</h4>
+          <p class="helper-text" style="margin-top:-4px; margin-bottom:12px;">
+            Request for official church certificate. Fixed fee: <strong>₱100.00</strong>.
+          </p>
+
+          <div class="form-group">
+            <label>Select Certificate <span style="color:var(--danger);">*</span></label>
+            <select name="certificate_type" id="certificateTypeSelect" onchange="updateCertificateUI()">
+              <option value="">-- Choose a certificate --</option>
+              <option value="Baptismal Certificate">1. Baptismal Certificate - ₱100</option>
+              <option value="Confirmation Certificate">2. Confirmation Certificate - ₱100</option>
+              <option value="Death Certificate">3. Death Certificate - ₱100</option>
+              <option value="Marriage Certificate">4. Marriage Certificate - ₱100</option>
+            </select>
+          </div>
+
+          <!-- Common Requestor field (for 1. Baptismal, 2. Confirmation, 3. Death) -->
+          <div class="form-group" id="certRequestorGroup" style="display:none;">
+            <label>Requestor <span style="color:var(--danger);">*</span></label>
+            <input type="text" name="cert_requestor" id="certRequestorInput"
+              placeholder="Full name of person requesting" disabled>
+          </div>
+
+          <!-- 1. Baptismal certificate - 100 -->
+          <div id="certBaptismalFields" style="display:none;">
+            <div class="form-group">
+              <label>Full Name of Registrant <span style="color:var(--danger);">*</span></label>
+              <input type="text" name="cert_baptism_registrant" id="certBaptismRegistrantInput"
+                placeholder="Full name of registrant" disabled>
+            </div>
+            <div class="form-group">
+              <label>Birthday / Year of Birth <span style="color:var(--danger);">*</span></label>
+              <input type="text" name="cert_baptism_birth" id="certBaptismBirthInput"
+                placeholder="e.g. October 24, 1995 or 1995" disabled>
+            </div>
+            <div class="form-group">
+              <label>Year of Baptism <span style="color:var(--danger);">*</span></label>
+              <input type="text" name="cert_baptism_year" id="certBaptismYearInput"
+                placeholder="e.g. 1996" maxlength="4" disabled>
+            </div>
+          </div>
+
+          <!-- 2. Confirmation certificate - 100 -->
+          <div id="certConfirmationFields" style="display:none;">
+            <div class="form-group">
+              <label>Full Name of Registrant <span style="color:var(--danger);">*</span></label>
+              <input type="text" name="cert_confirm_registrant" id="certConfirmRegistrantInput"
+                placeholder="Full name of registrant" disabled>
+            </div>
+            <div class="form-group">
+              <label>Birthday / Year of Birth <span style="color:var(--danger);">*</span></label>
+              <input type="text" name="cert_confirm_birth" id="certConfirmBirthInput"
+                placeholder="e.g. October 24, 1995 or 1995" disabled>
+            </div>
+            <div class="form-group">
+              <label>Year of Confirmation <span style="color:var(--danger);">*</span></label>
+              <input type="text" name="cert_confirm_year" id="certConfirmYearInput"
+                placeholder="e.g. 2008" maxlength="4" disabled>
+            </div>
+          </div>
+
+          <!-- 3. Death certificate - 100 -->
+          <div id="certDeathFields" style="display:none;">
+            <div class="form-group">
+              <label>Full Name of the Deceased <span style="color:var(--danger);">*</span></label>
+              <input type="text" name="cert_deceased_name" id="certDeceasedNameInput"
+                placeholder="Full name of the deceased" disabled>
+            </div>
+            <div class="form-group">
+              <label>Year of Death <span style="color:var(--danger);">*</span></label>
+              <input type="text" name="cert_death_year" id="certDeathYearInput"
+                placeholder="e.g. 2021" maxlength="4" disabled>
+            </div>
+          </div>
+
+          <!-- 4. Marriage certificate - 100 -->
+          <div id="certMarriageFields" style="display:none;">
+            <div class="form-group">
+              <label>Full Name (Groom) <span style="color:var(--danger);">*</span></label>
+              <input type="text" name="cert_groom_name" id="certGroomNameInput"
+                placeholder="Full name of groom" disabled>
+            </div>
+            <div class="form-group">
+              <label>Full Name (Bride) <span style="color:var(--danger);">*</span></label>
+              <input type="text" name="cert_bride_name" id="certBrideNameInput"
+                placeholder="Full name of bride" disabled>
+            </div>
+            <div class="form-group">
+              <label>Year of Marriage <span style="color:var(--danger);">*</span></label>
+              <input type="text" name="cert_marriage_year" id="certMarriageYearInput"
+                placeholder="e.g. 2015" maxlength="4" disabled>
+            </div>
           </div>
         </div>
 
@@ -1471,6 +1571,12 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     } else if (outsideInput) {
       outsideInput.setCustomValidity('');
     }
+    if (category === 'Certificate') {
+      var certTypeSelect = document.getElementById('certificateTypeSelect');
+      if (certTypeSelect) {
+        certTypeSelect.setCustomValidity(!certTypeSelect.value ? 'Please choose a certificate to request.' : '');
+      }
+    }
   }
 
   /**
@@ -1636,6 +1742,71 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
   window.addEventListener('pageshow', resumeBookingAfterBack);
 
   /**
+   * Certificate Request: Toggle input fields based on selected certificate type.
+   * 1. Baptismal: Requestor, Registrant, Birthday/Birth Year, Baptism Year
+   * 2. Confirmation: Requestor, Registrant, Birthday/Birth Year, Confirmation Year
+   * 3. Death: Requestor, Deceased, Death Year
+   * 4. Marriage: Groom, Bride, Marriage Year
+   */
+  function updateCertificateUI() {
+    var certFields = document.getElementById('certificateFields');
+    if (!certFields) return;
+    var isCertVisible = certFields.style.display !== 'none';
+    var certTypeSelect = document.getElementById('certificateTypeSelect');
+    var certType = certTypeSelect ? certTypeSelect.value : '';
+
+    var isBaptismal = isCertVisible && certType === 'Baptismal Certificate';
+    var isConfirmation = isCertVisible && certType === 'Confirmation Certificate';
+    var isDeath = isCertVisible && certType === 'Death Certificate';
+    var isMarriage = isCertVisible && certType === 'Marriage Certificate';
+
+    var showRequestor = isBaptismal || isConfirmation || isDeath;
+    var reqGroup = document.getElementById('certRequestorGroup');
+    var reqInput = document.getElementById('certRequestorInput');
+    if (reqGroup && reqInput) {
+      reqGroup.style.display = showRequestor ? 'block' : 'none';
+      reqInput.required = showRequestor;
+      reqInput.disabled = !showRequestor;
+    }
+
+    var baptBox = document.getElementById('certBaptismalFields');
+    if (baptBox) {
+      baptBox.style.display = isBaptismal ? 'block' : 'none';
+      ['certBaptismRegistrantInput', 'certBaptismBirthInput', 'certBaptismYearInput'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) { el.required = isBaptismal; el.disabled = !isBaptismal; }
+      });
+    }
+
+    var confBox = document.getElementById('certConfirmationFields');
+    if (confBox) {
+      confBox.style.display = isConfirmation ? 'block' : 'none';
+      ['certConfirmRegistrantInput', 'certConfirmBirthInput', 'certConfirmYearInput'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) { el.required = isConfirmation; el.disabled = !isConfirmation; }
+      });
+    }
+
+    var deathBox = document.getElementById('certDeathFields');
+    if (deathBox) {
+      deathBox.style.display = isDeath ? 'block' : 'none';
+      ['certDeceasedNameInput', 'certDeathYearInput'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) { el.required = isDeath; el.disabled = !isDeath; }
+      });
+    }
+
+    var marrBox = document.getElementById('certMarriageFields');
+    if (marrBox) {
+      marrBox.style.display = isMarriage ? 'block' : 'none';
+      ['certGroomNameInput', 'certBrideNameInput', 'certMarriageYearInput'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) { el.required = isMarriage; el.disabled = !isMarriage; }
+      });
+    }
+  }
+
+  /**
    * Special Mass Request: "Others" makes the Additional Requests box mandatory,
    * since the typed text is the occasion itself. Only active while the Special
    * Mass Request block is visible, so it never affects other services.
@@ -1799,10 +1970,25 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     var blessingPhone = document.getElementById('blessingPhoneInput');
     if (blessingPhone) blessingPhone.required = isBlessing;
 
-    // Priest selection (preferred parish priest or visiting priest) is available for all services except Donation and Mass Intention
+    var isCertificate = category === 'Certificate';
+    var certFields = document.getElementById('certificateFields');
+    if (certFields) certFields.style.display = isCertificate ? 'block' : 'none';
+    var certSelect = document.getElementById('certificateTypeSelect');
+    if (certSelect) {
+      certSelect.required = isCertificate;
+      certSelect.disabled = !isCertificate;
+      if (isCertificate) {
+        updateCertificateUI();
+      } else if (certFields) {
+        var certInputs = certFields.querySelectorAll('input');
+        certInputs.forEach(function(inp) { inp.required = false; inp.disabled = true; });
+      }
+    }
+
+    // Priest selection (preferred parish priest or visiting priest) is available for all services except Donation, Mass Intention, and Certificate
     var priestGroup = document.getElementById('priestFieldGroup');
     var priestSelect = document.getElementById('priestSelect');
-    var hidePriest = category === 'Donation' || isMassIntention;
+    var hidePriest = category === 'Donation' || isMassIntention || isCertificate;
     priestGroup.style.display = hidePriest ? 'none' : 'block';
     priestSelect.disabled = hidePriest;
     if (hidePriest) {
@@ -1818,11 +2004,11 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
       if (btnOthers) btnOthers.style.display = 'none';
     }
 
-    // No documents for Mass Intentions, drafts (Baptism/Wedding/Funeral), or
+    // No documents for Mass Intentions, Certificate requests, drafts (Baptism/Wedding/Funeral), or
     // services that handle documents separately (Anointing, Blessing, Wake).
     var uploadGroup = document.getElementById('uploadGroup');
     var draftService = category === 'Baptism' || category === 'Wedding' || category === 'Funeral';
-    var noDocsService = isMassIntention || draftService || category === 'Anointing' || category === 'Blessing' || category === 'Wake';
+    var noDocsService = isMassIntention || draftService || category === 'Anointing' || category === 'Blessing' || category === 'Wake' || isCertificate;
     document.getElementById('documentRequirementsNote').style.display = noDocsService ? 'none' : 'block';
     uploadGroup.style.display = noDocsService ? 'none' : 'block';
     document.getElementById('extraDocumentsInput').disabled = noDocsService;
@@ -2830,6 +3016,41 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     } else if (category === 'Blessing') {
       var bAddr = document.getElementById('blessingAddressInput')?.value.trim();
       if (bAddr) detailsList.push('Location: ' + bAddr);
+    } else if (category === 'Certificate') {
+      var certType = document.getElementById('certificateTypeSelect')?.value;
+      if (certType) detailsList.push('Certificate: ' + certType);
+      detailsList.push('Fee: ₱100.00');
+      var req = document.getElementById('certRequestorInput')?.value.trim();
+      if (req && (certType === 'Baptismal Certificate' || certType === 'Confirmation Certificate' || certType === 'Death Certificate')) {
+        detailsList.push('Requestor: ' + req);
+      }
+      if (certType === 'Baptismal Certificate') {
+        var reg = document.getElementById('certBaptismRegistrantInput')?.value.trim();
+        var birth = document.getElementById('certBaptismBirthInput')?.value.trim();
+        var byear = document.getElementById('certBaptismYearInput')?.value.trim();
+        if (reg) detailsList.push('Registrant: ' + reg);
+        if (birth) detailsList.push('Birth: ' + birth);
+        if (byear) detailsList.push('Baptism Year: ' + byear);
+      } else if (certType === 'Confirmation Certificate') {
+        var reg = document.getElementById('certConfirmRegistrantInput')?.value.trim();
+        var birth = document.getElementById('certConfirmBirthInput')?.value.trim();
+        var cyear = document.getElementById('certConfirmYearInput')?.value.trim();
+        if (reg) detailsList.push('Registrant: ' + reg);
+        if (birth) detailsList.push('Birth: ' + birth);
+        if (cyear) detailsList.push('Confirmation Year: ' + cyear);
+      } else if (certType === 'Death Certificate') {
+        var dec = document.getElementById('certDeceasedNameInput')?.value.trim();
+        var dyear = document.getElementById('certDeathYearInput')?.value.trim();
+        if (dec) detailsList.push('Deceased: ' + dec);
+        if (dyear) detailsList.push('Death Year: ' + dyear);
+      } else if (certType === 'Marriage Certificate') {
+        var groom = document.getElementById('certGroomNameInput')?.value.trim();
+        var bride = document.getElementById('certBrideNameInput')?.value.trim();
+        var myear = document.getElementById('certMarriageYearInput')?.value.trim();
+        if (groom) detailsList.push('Groom: ' + groom);
+        if (bride) detailsList.push('Bride: ' + bride);
+        if (myear) detailsList.push('Marriage Year: ' + myear);
+      }
     }
 
     var priestSel = document.getElementById('priestSelect');

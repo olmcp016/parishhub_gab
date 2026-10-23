@@ -58,6 +58,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     }
 
     verifyCsrf();
+    ensureCertificateService();
     $serviceId = (int) ($_POST['service_id'] ?? 0);
     $priestId = ($_POST['priest_id'] ?? '') ?: null;
     $rawOutsidePriest = trim((string) ($_POST['outside_priest_name'] ?? ''));
@@ -136,6 +137,10 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         }
     } else {
         if ($priestId === 'other') $priestId = null;
+        $outsidePriestName = null;
+    }
+    if ($category === 'Certificate') {
+        $priestId = null;
         $outsidePriestName = null;
     }
 
@@ -292,6 +297,80 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
             bookRespondError($isAjax, 'Please type the specific occasion in the Additional Requests box.', url('parishioner/services.php'));
         }
         $remarks = 'Occasion: ' . $occasion . ' | Additional Requests: ' . ($additionalRequests !== '' ? $additionalRequests : 'None');
+    }
+
+    // Certificate Request: Validate certificate type and required registry details
+    if ($category === 'Certificate') {
+        $certType = trim($_POST['certificate_type'] ?? '');
+        $validTypes = ['Baptismal Certificate', 'Confirmation Certificate', 'Death Certificate', 'Marriage Certificate'];
+        if (!in_array($certType, $validTypes, true)) {
+            bookRespondError($isAjax, 'Please select a valid certificate type.', url('parishioner/services.php'));
+        }
+
+        $certDetails = [];
+        $certDetails[] = "Certificate: " . $certType;
+
+        if ($certType === 'Baptismal Certificate') {
+            $req = mb_strtoupper(trim($_POST['cert_requestor'] ?? ''), 'UTF-8');
+            $reg = mb_strtoupper(trim($_POST['cert_baptism_registrant'] ?? ''), 'UTF-8');
+            $birth = mb_strtoupper(trim($_POST['cert_baptism_birth'] ?? ''), 'UTF-8');
+            $year = trim($_POST['cert_baptism_year'] ?? '');
+
+            if ($req === '' || $reg === '' || $birth === '' || $year === '') {
+                bookRespondError($isAjax, 'Please provide the Requestor, Registrant full name, Birthday/Year of birth, and Year of baptism.', url('parishioner/services.php'));
+            }
+            $requesterName = $req;
+            $certDetails[] = "Requestor: " . $req;
+            $certDetails[] = "Registrant: " . $reg;
+            $certDetails[] = "Birthday/Birth Year: " . $birth;
+            $certDetails[] = "Year of Baptism: " . $year;
+
+        } elseif ($certType === 'Confirmation Certificate') {
+            $req = mb_strtoupper(trim($_POST['cert_requestor'] ?? ''), 'UTF-8');
+            $reg = mb_strtoupper(trim($_POST['cert_confirm_registrant'] ?? ''), 'UTF-8');
+            $birth = mb_strtoupper(trim($_POST['cert_confirm_birth'] ?? ''), 'UTF-8');
+            $year = trim($_POST['cert_confirm_year'] ?? '');
+
+            if ($req === '' || $reg === '' || $birth === '' || $year === '') {
+                bookRespondError($isAjax, 'Please provide the Requestor, Registrant full name, Birthday/Year of birth, and Year of confirmation.', url('parishioner/services.php'));
+            }
+            $requesterName = $req;
+            $certDetails[] = "Requestor: " . $req;
+            $certDetails[] = "Registrant: " . $reg;
+            $certDetails[] = "Birthday/Birth Year: " . $birth;
+            $certDetails[] = "Year of Confirmation: " . $year;
+
+        } elseif ($certType === 'Death Certificate') {
+            $req = mb_strtoupper(trim($_POST['cert_requestor'] ?? ''), 'UTF-8');
+            $dec = mb_strtoupper(trim($_POST['cert_deceased_name'] ?? ''), 'UTF-8');
+            $year = trim($_POST['cert_death_year'] ?? '');
+
+            if ($req === '' || $dec === '' || $year === '') {
+                bookRespondError($isAjax, 'Please provide the Requestor, Full name of the deceased, and Year of death.', url('parishioner/services.php'));
+            }
+            $requesterName = $req;
+            $patientName = $dec;
+            $certDetails[] = "Requestor: " . $req;
+            $certDetails[] = "Deceased: " . $dec;
+            $certDetails[] = "Year of Death: " . $year;
+
+        } elseif ($certType === 'Marriage Certificate') {
+            $groom = mb_strtoupper(trim($_POST['cert_groom_name'] ?? ''), 'UTF-8');
+            $bride = mb_strtoupper(trim($_POST['cert_bride_name'] ?? ''), 'UTF-8');
+            $year = trim($_POST['cert_marriage_year'] ?? '');
+
+            if ($groom === '' || $bride === '' || $year === '') {
+                bookRespondError($isAjax, 'Please provide the Groom full name, Bride full name, and Year of marriage.', url('parishioner/services.php'));
+            }
+            $requesterName = $isGuest ? $guestName : (currentUser()['firstname'] . ' ' . currentUser()['lastname']);
+            $certDetails[] = "Groom: " . $groom;
+            $certDetails[] = "Bride: " . $bride;
+            $certDetails[] = "Year of Marriage: " . $year;
+        }
+
+        $formattedCertInfo = implode(' | ', $certDetails);
+        $userRemarks = trim($_POST['remarks'] ?? '');
+        $remarks = $formattedCertInfo . ($userRemarks !== '' ? (' | Remarks: ' . $userRemarks) : '');
     }
 
     // House Blessing (category "Blessing") needs a contact number and the
