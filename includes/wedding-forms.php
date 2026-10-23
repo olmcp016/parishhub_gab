@@ -483,8 +483,15 @@ function weddingPdfHeader(FPDF $pdf, string $title): void
 
 function weddingPdfField(FPDF $pdf, string $label, string $value, float $x, float $y, float $width, float $labelWidth = 38, float $height = 6, float $fontSize = 9): void
 {
+    $labelStr = weddingPdfText($label);
+    $labelFontSize = $fontSize;
+    $pdf->SetFont('Times', 'B', $labelFontSize);
+    while ($labelFontSize > 6.0 && $pdf->GetStringWidth($labelStr) > $labelWidth - 2) {
+        $labelFontSize -= 0.5;
+        $pdf->SetFont('Times', 'B', $labelFontSize);
+    }
     $value = weddingPdfFit($pdf, $value, $width - $labelWidth - 2, $fontSize);
-    $pdf->SetFont('Times', 'B', $fontSize); $pdf->SetXY($x, $y); $pdf->Cell($labelWidth, $height, weddingPdfText($label), 0, 0);
+    $pdf->SetXY($x, $y); $pdf->Cell($labelWidth, $height, $labelStr, 0, 0);
     $pdf->SetFont('Times', '', $fontSize); $pdf->Cell($width - $labelWidth, $height, $value, 'B', 0);
 }
 
@@ -703,23 +710,35 @@ function weddingKatinPdf(array $data): string
     weddingPdfField($pdf, 'INAHAN:', $v('mother_name'), 18, 88, 124, 26);
     weddingPdfField($pdf, 'RELIHIYON:', $v('mother_religion'), 146, 88, 46, 22, 6, 7.5);
 
-    weddingPdfField($pdf, 'SPONSORS: 1.', $v('sponsor_1'), 18, 97, 88, 28);
-    weddingPdfField($pdf, '2.', $v('sponsor_2'), 110, 97, 82, 12);
+    // Sponsors: tight label padding to eliminate awkward blank gaps
+    weddingPdfField($pdf, 'SPONSORS: 1.', $v('sponsor_1'), 18, 97, 94, 25);
+    weddingPdfField($pdf, '2.', $v('sponsor_2'), 115, 97, 77, 6);
 
     $pdf->SetFont('Times', 'B', 9); $pdf->SetXY(18, 107); $pdf->Cell(174, 5, 'UNSANG KASALA ANG NADAWAT SA GINIKANAN?', 0, 1);
     weddingChoice($pdf, 'SIMBAHAN', $v('parent_marriage') === 'Simbahan', 18, 114);
     weddingChoice($pdf, 'SIBIL', $v('parent_marriage') === 'Sibil', 75, 114);
     weddingChoice($pdf, 'WALA', $v('parent_marriage') === 'Wala', 125, 114);
 
-    weddingPdfField($pdf, 'DIIN:', $v('marriage_place'), 18, 123, 90, 20);
-    weddingPdfField($pdf, 'KANUS-A:', weddingMarriagePdfDate($v('marriage_date')), 112, 123, 80, 22);
+    // DIIN and KANUS-A:
+    // DIIN line starts at X=66 (exactly aligned with PINUY-ANAN right below it) and extends to 138 (72mm).
+    // DIIN label is right-aligned up to X=64 so there is no gap between text and underline.
+    // KANUS-A line is reduced from 58mm to 35mm (X=157 to 192) with no gap after KANUS-A:.
+    $pdf->SetXY(18, 123);
+    $pdf->SetFont('Times', 'B', 9);
+    $pdf->Cell(46, 6, weddingPdfText('DIIN:'), 0, 0, 'R');
+    $pdf->Cell(2, 6, '', 0, 0);
+    $diinVal = weddingPdfFit($pdf, $v('marriage_place'), 70, 9);
+    $pdf->SetFont('Times', '', 9);
+    $pdf->Cell(72, 6, $diinVal, 'B', 0);
+
+    weddingPdfField($pdf, 'KANUS-A:', weddingMarriagePdfDate($v('marriage_date')), 140, 123, 52, 17);
 
     $fullW = 174.0;
     $fullLabelW = 48.0;
     weddingPdfField($pdf, 'PINUY-ANAN:', $v('address'), 18, 132, $fullW, $fullLabelW);
     weddingPdfField($pdf, 'SAKOP SA KAPILYA SA:', $v('chapel'), 18, 141, $fullW, $fullLabelW);
     weddingPdfField($pdf, 'NGALAN SA CLUSTER:', $v('cluster_name'), 18, 150, $fullW, $fullLabelW);
-    weddingPdfField($pdf, 'NGALAN SA PAMANHUNON/PANGASAW-ONON:', $v('spouse_name'), 18, 159, $fullW, 72, 7.5);
+    weddingPdfField($pdf, 'NGALAN SA PAMANHUNON/PANGASAW-ONON:', $v('spouse_name'), 18, 159, $fullW, 76, 6, 8);
 
     weddingPdfField($pdf, 'EDAD:', $spouseAge, 18, 168, 48, 16);
     weddingPdfField($pdf, 'ESTADO:', $v('spouse_status'), 70, 168, 60, 20);
