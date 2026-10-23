@@ -330,75 +330,126 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
 
 <!-- ===================== Booking Modal ===================== -->
 <style>
-  /* ---- Booking Stepper ---- */
+  /* ---- Booking Modal Refinements ---- */
+  #bookModal {
+    width: 680px;
+    max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 40px);
+    margin: auto;
+    border: 1px solid var(--border, #d8cebe);
+    border-radius: 16px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+    overflow: hidden;
+    background: var(--cream, #fdfbf7);
+  }
+  #bookModal .modal-body {
+    padding: 18px 22px;
+    max-height: calc(100vh - 165px);
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .book-modal-head {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    padding: 0 !important;
+    gap: 0 !important;
+    background: var(--brown-dark, #241611) !important;
+    border-bottom: 1px solid rgba(212, 175, 55, 0.25) !important;
+    flex: 0 0 auto !important;
+  }
+  .book-modal-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px 10px;
+  }
+  .book-modal-top h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--ivory, #fdfbf7);
+    letter-spacing: 0.3px;
+  }
+  /* Stepper inside header: unified dark & gold theme */
   .book-stepper {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0;
-    padding: 14px 20px 10px;
-    background: #fff;
-    border-bottom: 1px solid var(--cream-dark, #e8e0d5);
-    margin-bottom: 0;
+    padding: 8px 24px 14px;
+    background: rgba(0, 0, 0, 0.15);
+    position: relative;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    box-sizing: border-box;
+    width: 100%;
   }
   .book-step {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 4px;
-    flex: 1;
     position: relative;
-    z-index: 0;
-  }
-  .book-step-connector {
-    flex: 1;
-    height: 2px;
-    background: var(--cream-dark, #e8e0d5);
-    margin-bottom: 16px;
-    transition: background 0.3s;
-  }
-  .book-step-connector.done { background: var(--accent, #7a5c1e); }
-  .book-step-circle {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    border: 2px solid var(--cream-dark, #e8e0d5);
-    background: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--text-muted, #9a8b72);
-    transition: all 0.3s;
-    position: relative;
-    z-index: 1;
-  }
-  .book-step.active .book-step-circle {
-    border-color: var(--accent, #7a5c1e);
-    background: var(--accent, #7a5c1e);
-    color: #fff;
-    box-shadow: 0 0 0 4px rgba(122,92,30,0.12);
-  }
-  .book-step.done .book-step-circle {
-    border-color: var(--accent, #7a5c1e);
-    background: var(--accent, #7a5c1e);
-    color: #fff;
+    z-index: 2;
+    cursor: default;
+    user-select: none;
   }
   .book-step.done {
     cursor: pointer;
   }
+  .book-step-connector {
+    flex: 1;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.18);
+    margin: 0 8px 16px;
+    transition: background 0.3s;
+    position: relative;
+    z-index: 1;
+  }
+  .book-step-connector.done {
+    background: var(--gold, #c89b3c);
+  }
+  .book-step-circle {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.65);
+    transition: all 0.3s;
+  }
+  .book-step.active .book-step-circle {
+    border-color: var(--gold, #c89b3c);
+    background: var(--gold, #c89b3c);
+    color: var(--brown-darkest, #1a0e0a);
+    box-shadow: 0 0 10px rgba(200, 155, 60, 0.45);
+  }
+  .book-step.done .book-step-circle {
+    border-color: var(--gold, #c89b3c);
+    background: var(--gold, #c89b3c);
+    color: var(--brown-darkest, #1a0e0a);
+  }
   .book-step-label {
     font-size: 11px;
-    font-weight: 600;
-    color: var(--text-muted, #9a8b72);
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.6);
     text-align: center;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.2px;
     white-space: nowrap;
     transition: color 0.3s;
   }
-  .book-step.active .book-step-label { color: var(--accent, #7a5c1e); }
-  .book-step.done .book-step-label { color: var(--accent, #7a5c1e); }
+  .book-step.active .book-step-label {
+    color: var(--gold-light, #f5e6c4);
+    font-weight: 700;
+  }
+  .book-step.done .book-step-label {
+    color: var(--gold-light, #f5e6c4);
+    font-weight: 600;
+  }
   /* ---- Step panels ---- */
   .book-step-panel { display: none; }
   .book-step-panel.active { display: block; }
@@ -408,8 +459,12 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     gap: 12px;
     align-items: center;
     margin-top: 20px;
-    padding-top: 16px;
+    padding-top: 14px;
     border-top: 1px solid var(--cream-dark, #e8e0d5);
+    position: sticky;
+    bottom: 0;
+    background: var(--cream, #fdfbf7);
+    z-index: 10;
   }
   .book-step-nav .btn-step-back {
     flex: 0 0 auto;
@@ -419,17 +474,17 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
   .book-step-nav .btn-step-submit {
     flex: 0 0 auto;
   }
-  @media (max-width: 480px) {
-    .book-stepper { padding: 10px 12px 8px; gap: 0; }
+  @media (max-width: 520px) {
+    .book-stepper { padding: 8px 12px 10px; }
     .book-step-label { font-size: 10px; }
-    .book-step-circle { width: 28px; height: 28px; font-size: 12px; }
+    .book-step-circle { width: 24px; height: 24px; font-size: 11px; }
   }
 </style>
 
 <dialog class="modal modal-lg" id="bookModal">
-  <div class="modal-head" style="flex-direction:column; align-items:stretch; padding-bottom:0; gap:0;">
-    <div style="display:flex; align-items:center; justify-content:space-between; padding: 16px 20px 12px;">
-      <h3 id="bookModalTitle" style="margin:0;">Book a Service</h3>
+  <div class="modal-head book-modal-head">
+    <div class="book-modal-top">
+      <h3 id="bookModalTitle">Book a Service</h3>
       <button type="button" class="modal-close" onclick="closeBookModal()">✕</button>
     </div>
     <!-- Step indicator -->
@@ -503,50 +558,52 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
           <?php if ($identity['is_guest']): ?>
           <style>
             .guest-info-fields {
-              display: flex;
-              flex-direction: column;
-              gap: 16px;
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 12px;
             }
 
             .guest-info-fields .form-group {
               width: 100%;
               margin-bottom: 0;
             }
+
+            @media (max-width: 520px) {
+              .guest-info-fields {
+                grid-template-columns: 1fr;
+                gap: 10px;
+              }
+            }
           </style>
           <div
-            style="background: var(--cream); padding: 14px; border-radius: 8px; margin-bottom: 16px; border: 1px solid var(--cream-dark);">
-            <h4 style="margin-top:0; margin-bottom:12px;">Guest Information</h4>
+            style="background: var(--cream); padding: 14px 16px; border-radius: 10px; margin-bottom: 16px; border: 1px solid var(--cream-dark);">
+            <h4 style="margin-top:0; margin-bottom:12px; font-size:14px; color:var(--brown-dark);">Guest Information</h4>
             <div class="guest-info-fields">
               <div class="form-group">
-                <label>First Name</label>
+                <label>First Name <span style="color:var(--danger);">*</span></label>
                 <input type="text" name="guest_firstname" id="guestFirstNameInput" required placeholder="Juan"
                   style="width:100%;">
               </div>
               <div class="form-group">
-                <label>Middle Name <span class="text-muted" style="font-weight:400;">(optional)</span></label>
-                <input type="text" name="guest_middlename" id="guestMiddleNameInput" placeholder="Santos"
-                  style="width:100%;">
-              </div>
-              <div class="form-group">
-                <label>Last Name</label>
+                <label>Last Name <span style="color:var(--danger);">*</span></label>
                 <input type="text" name="guest_lastname" id="guestLastNameInput" required placeholder="Dela Cruz"
                   style="width:100%;">
               </div>
               <div class="form-group">
-                <label>Phone Number</label>
+                <label>Phone Number <span style="color:var(--danger);">*</span></label>
                 <input type="tel" name="guest_phone" id="guestPhoneInput" required pattern="09[0-9]{9}" maxlength="11"
                   minlength="11" placeholder="09XXXXXXXXX" title="Must be exactly 11 digits starting with 09"
                   style="width:100%;">
               </div>
               <div class="form-group">
-                <label>Email Address</label>
+                <label>Email Address <span style="color:var(--danger);">*</span></label>
                 <input type="email" name="guest_email" id="guestEmailInput" placeholder="you@example.com"
                   style="width:100%;" required maxlength="150">
-                <p class="helper-text">We'll send updates about your booking to this email.</p>
               </div>
             </div>
+            <input type="hidden" name="guest_middlename" id="guestMiddleNameInput" value="">
             <input type="hidden" name="guest_name" id="guestCombinedName">
-            <p class="helper-text" style="margin-top:12px; margin-bottom:0;">We'll use your name and phone number to
+            <p class="helper-text" style="margin-top:10px; margin-bottom:0; font-size:12px;">We'll use your name and phone number to
               identify your request — you'll get a reference code to check its status anytime.</p>
           </div>
         <?php else: ?>
@@ -1378,6 +1435,8 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     toggleServiceUI();
     bookStepReset();
     modal.showModal();
+    var mBody = modal.querySelector('.modal-body');
+    if (mBody) mBody.scrollTop = 0;
   }
 
   function closeBookModal() {
