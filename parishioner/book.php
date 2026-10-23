@@ -61,7 +61,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     $serviceId = (int) ($_POST['service_id'] ?? 0);
     $priestId = ($_POST['priest_id'] ?? '') ?: null;
     $rawOutsidePriest = trim((string) ($_POST['outside_priest_name'] ?? ''));
-    $outsidePriestName = null;
+    $outsidePriestName = $rawOutsidePriest !== '' ? mb_strtoupper($rawOutsidePriest, 'UTF-8') : null;
     $date = $_POST['appointment_date'] ?? '';
     $time = $_POST['appointment_time'] ?? '';
     $dateOfDeath = ($_POST['date_of_death'] ?? '') ?: null;
@@ -86,11 +86,15 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         $guestEmail     = validateEmail($_POST['guest_email'] ?? '') ?: null;
 
         if ($guestLastname && $guestFirstname) {
+            $guestLastname = mb_strtoupper($guestLastname, 'UTF-8');
+            $guestFirstname = mb_strtoupper($guestFirstname, 'UTF-8');
+            if ($guestMiddle) $guestMiddle = mb_strtoupper($guestMiddle, 'UTF-8');
             // Compose the full name from split fields
             $guestName = $guestLastname . ', ' . $guestFirstname . ($guestMiddle ? ' ' . $guestMiddle : '');
         } else {
             // Fall back to legacy combined field
             $guestName = validateName($_POST['guest_name'] ?? '');
+            if ($guestName) $guestName = mb_strtoupper($guestName, 'UTF-8');
         }
 
         if (!$guestName) {
@@ -230,8 +234,8 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         $paymentRequiredMsg = 'Payment is required before submitting a Mass Intention. Please enter a valid amount.';
 
         $intentionType = $_POST['intention_type'] ?? '';
-        $offererName = trim($_POST['offerer_name'] ?? '');
-        $intentionFor = trim($_POST['intention_for'] ?? '');
+        $offererName = mb_strtoupper(trim($_POST['offerer_name'] ?? ''), 'UTF-8');
+        $intentionFor = mb_strtoupper(trim($_POST['intention_for'] ?? ''), 'UTF-8');
         $intentionMessage = trim($_POST['message'] ?? '') ?: null;
         if (!in_array($intentionType, ['Living', 'Dead', 'Thanksgiving', 'Healing', 'Birthday'], true) || $offererName === '' || $intentionFor === '') {
             bookRespondError($isAjax, 'Please enter the intention type, the offerer name, and who the Mass is offered for.', url('parishioner/services.php'));
@@ -261,8 +265,8 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     $requesterName = null;
     $patientName   = null;
     if ($category === 'Anointing' || ($category === 'Wake' && !$isSpecialMass)) {
-        $requesterName = trim($_POST['requester_name'] ?? '');
-        $patientName   = trim($_POST['patient_name'] ?? '');
+        $requesterName = mb_strtoupper(trim($_POST['requester_name'] ?? ''), 'UTF-8');
+        $patientName   = mb_strtoupper(trim($_POST['patient_name'] ?? ''), 'UTF-8');
         if ($requesterName === '' || $patientName === '') {
             $missingMsg = $category === 'Wake'
                 ? 'Please provide both the requester\'s name and the name of the deceased.'
@@ -278,7 +282,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     // requirement here, so patient_name stays empty.
     if ($isSpecialMass) {
         $occasionOptions = ['Death Anniversary', 'Birthday', 'Wedding Anniversary', 'Thanksgiving', 'Healing and Recovery', 'Special Intention', 'Others'];
-        $requesterName = trim($_POST['special_requester_name'] ?? '');
+        $requesterName = mb_strtoupper(trim($_POST['special_requester_name'] ?? ''), 'UTF-8');
         $occasion = trim($_POST['occasion'] ?? '');
         $additionalRequests = trim($_POST['special_requests'] ?? '');
         if ($requesterName === '' || !in_array($occasion, $occasionOptions, true)) {
@@ -297,7 +301,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     $contactPhone = null;
     $locationAddress = null;
     if ($category === 'Blessing') {
-        $locationAddress = trim($_POST['location_address'] ?? '');
+        $locationAddress = mb_strtoupper(trim($_POST['location_address'] ?? ''), 'UTF-8');
         $contactPhone = $isGuest ? $guestPhone : trim($_POST['contact_phone'] ?? '');
         if ($locationAddress === '' || $contactPhone === '') {
             bookRespondError($isAjax, 'Please provide the address to bless and a contact phone number.', url('parishioner/services.php'));
@@ -310,7 +314,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     // Special Mass Request: where the Mass will be celebrated, stored in the
     // same location_address column as the House Blessing address.
     if ($isSpecialMass) {
-        $locationAddress = trim($_POST['location_address'] ?? '');
+        $locationAddress = mb_strtoupper(trim($_POST['location_address'] ?? ''), 'UTF-8');
         if ($locationAddress === '') {
             bookRespondError($isAjax, 'Please provide the location/address where the Mass will be celebrated.', url('parishioner/services.php'));
         }
@@ -318,7 +322,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
 
     // Wake Mass and Anointing of the Sick: same required location_address as Special Mass Request.
     if ($category === 'Anointing' || ($category === 'Wake' && !$isSpecialMass)) {
-        $locationAddress = trim($_POST['location_address'] ?? '');
+        $locationAddress = mb_strtoupper(trim($_POST['location_address'] ?? ''), 'UTF-8');
         if ($locationAddress === '') {
             bookRespondError($isAjax, $category === 'Wake'
                 ? 'Please provide the location/address where the Wake Mass will be held.'

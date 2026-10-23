@@ -479,6 +479,11 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     .book-step-label { font-size: 10px; }
     .book-step-circle { width: 24px; height: 24px; font-size: 11px; }
   }
+  /* Auto-capitalize text inputs and textareas (except email/password/dates) */
+  #bookForm input[type="text"]:not([type="email"]),
+  #bookForm textarea {
+    text-transform: uppercase;
+  }
 </style>
 
 <dialog class="modal modal-lg" id="bookModal">
@@ -2582,9 +2587,9 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     var guestCombined = document.getElementById('guestCombinedName');
     if (guestLast && guestFirst && guestCombined) {
       function syncGuestName() {
-        var last = guestLast.value.trim();
-        var first = guestFirst.value.trim();
-        var mid = guestMiddle ? guestMiddle.value.trim() : '';
+        var last = guestLast.value.trim().toUpperCase();
+        var first = guestFirst.value.trim().toUpperCase();
+        var mid = guestMiddle ? guestMiddle.value.trim().toUpperCase() : '';
         guestCombined.value = last + ', ' + first + (mid ? ' ' + mid : '');
       }
       [guestLast, guestFirst, guestMiddle].filter(Boolean).forEach(function (el) {
@@ -2592,6 +2597,23 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
       });
       syncGuestName();
     }
+
+    // Automatically transform all text inputs and textareas to uppercase on typing in real-time
+    document.getElementById('bookForm').addEventListener('input', function (e) {
+      var el = e.target;
+      if (!el || el.type === 'email' || el.type === 'password' || el.type === 'file' || el.type === 'date' || el.type === 'time' || el.type === 'hidden') return;
+      if ((el.tagName === 'INPUT' && (el.type === 'text' || el.type === 'search' || !el.type)) || el.tagName === 'TEXTAREA') {
+        var start = el.selectionStart;
+        var end = el.selectionEnd;
+        var upper = el.value.toUpperCase();
+        if (el.value !== upper) {
+          el.value = upper;
+          if (start !== null && end !== null) {
+            try { el.setSelectionRange(start, end); } catch (err) {}
+          }
+        }
+      }
+    });
 
     document.getElementById('massTimeSelect').addEventListener('change', function () {
       document.getElementById('massTimeInput').value = this.value;
@@ -2630,6 +2652,13 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
       var submitBtn = document.getElementById('bookSubmitBtn');
       var errorBox = document.getElementById('bookFormError');
       errorBox.style.display = 'none';
+
+      // Ensure all text inputs and textareas are uppercase before submission
+      document.querySelectorAll('#bookForm input[type="text"], #bookForm textarea').forEach(function (el) {
+        if (el.type !== 'email' && el.type !== 'password' && el.type !== 'file' && el.type !== 'date' && el.type !== 'time' && el.type !== 'hidden') {
+          el.value = el.value.toUpperCase();
+        }
+      });
 
       // Compose guest full name before submission
       if (guestCombined && typeof syncGuestName === 'function') syncGuestName();
