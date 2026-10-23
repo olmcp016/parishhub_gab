@@ -155,6 +155,28 @@ function baptismPdfChoice(FPDF $pdf, string $label, bool $selected, float $x, fl
     $pdf->SetFont('Times', '', 9); $pdf->SetXY($x, $y); $pdf->Cell(6, 5, $selected ? 'X' : '', 1, 0, 'C'); $pdf->Cell(30, 5, baptismPdfText($label), 0, 0);
 }
 
+function baptismPdfSignature(FPDF $pdf, string $name, string $roleTitle, float $x, float $y, float $width): void
+{
+    $pdf->SetDrawColor(0, 0, 0);
+    $pdf->SetLineWidth(0.3);
+    $pdf->Line($x, $y, $x + $width, $y);
+    if ($name !== '') {
+        $pdf->SetFont('Times', 'B', 9.5);
+        $pdf->SetXY($x, $y - 5.5);
+        $pdf->Cell($width, 5, baptismPdfText($name), 0, 0, 'C');
+    }
+    if ($roleTitle !== '') {
+        $pdf->SetFont('Times', '', 8.5);
+        $lines = explode("\n", $roleTitle);
+        $offsetY = 1.2;
+        foreach ($lines as $line) {
+            $pdf->SetXY($x, $y + $offsetY);
+            $pdf->Cell($width, 4, baptismPdfText($line), 0, 0, 'C');
+            $offsetY += 4.0;
+        }
+    }
+}
+
 function baptismKatinPdf(array $data): string
 {
     $data = baptismNormalizeData($data);
@@ -164,34 +186,56 @@ function baptismKatinPdf(array $data): string
     $metaTitle = 'Katin-awan sa Bunyag' . ($child ? ' - ' . $child : '');
     $pdf->SetTitle($metaTitle, true);
     baptismPdfHeader($pdf, 'KATIN-AWAN SA BUNYAG');
-    baptismPdfField($pdf, 'NGALAN SA BUNYAGAN:', $v('child_name'), 18, 62, 174, 46);
-    baptismPdfField($pdf, 'PETSA NATAWO:', baptismPdfDate($v('birth_date')), 18, 72, 84, 34);
-    baptismPdfField($pdf, 'DIIN NATAWO:', $v('birth_place'), 105, 72, 87, 31, 8.5);
-    baptismPdfField($pdf, 'AMAHAN:', $v('father_name'), 18, 82, 108, 25);
-    baptismPdfField($pdf, 'RELIHIYON:', $v('father_religion'), 130, 82, 62, 25);
-    baptismPdfField($pdf, 'INAHAN:', $v('mother_name'), 18, 92, 108, 25);
-    baptismPdfField($pdf, 'RELIHIYON:', $v('mother_religion'), 130, 92, 62, 25);
+
+    // Uniform label width for full-width rows (48mm) so all lines start at X=66 and end at X=192
+    $fullW = 174.0;
+    $fullLabelW = 48.0;
+
+    baptismPdfField($pdf, 'NGALAN SA BUNYAGAN:', $v('child_name'), 18, 62, $fullW, $fullLabelW);
+
+    // Two columns for birth / parents with uniform column alignment
+    // Left col: X=18, width=90, labelWidth=32 -> line from 50 to 108
+    // Right col: X=114, width=78, labelWidth=28 -> line from 142 to 192
+    baptismPdfField($pdf, 'PETSA NATAWO:', baptismPdfDate($v('birth_date')), 18, 72, 90, 32);
+    baptismPdfField($pdf, 'DIIN NATAWO:', $v('birth_place'), 114, 72, 78, 28, 8.5);
+
+    baptismPdfField($pdf, 'AMAHAN:', $v('father_name'), 18, 82, 90, 32);
+    baptismPdfField($pdf, 'RELIHIYON:', $v('father_religion'), 114, 82, 78, 28);
+
+    baptismPdfField($pdf, 'INAHAN:', $v('mother_name'), 18, 92, 90, 32);
+    baptismPdfField($pdf, 'RELIHIYON:', $v('mother_religion'), 114, 92, 78, 28);
+
     $pdf->SetFont('Times', 'B', 9); $pdf->SetXY(18, 102); $pdf->Cell(174, 5, 'UNSANG KASALA ANG NADAWAT SA GINIKANAN?', 0, 1);
     baptismPdfChoice($pdf, 'SIMBAHAN', $v('parent_marriage') === 'Simbahan', 18, 109);
     baptismPdfChoice($pdf, 'SIBIL', $v('parent_marriage') === 'Sibil', 78, 109);
     baptismPdfChoice($pdf, 'WALA', $v('parent_marriage') === 'Wala', 132, 109);
-    baptismPdfField($pdf, 'DIIN:', $v('marriage_place'), 18, 119, 174, 20);
-    baptismPdfField($pdf, 'SPONSORS: 1.', $v('sponsor_1'), 18, 129, 174, 31);
-    baptismPdfField($pdf, '2.', $v('sponsor_2'), 18, 139, 174, 10);
-    baptismPdfField($pdf, 'SAKOP SA KAPILYA SA:', $v('chapel'), 18, 149, 174, 47);
-    baptismPdfField($pdf, 'NGALAN SA CLUSTER:', $v('cluster_name'), 18, 159, 174, 40);
-    baptismPdfField($pdf, 'NGALAN SA BARANGAY:', $v('barangay'), 18, 169, 174, 46);
-    $pdf->SetFont('Times', '', 8); $y = 195;
-    foreach ([['Cluster Service', 'Chapel Service'], ['Cluster Leader', 'Chapel Chairman'], ['Cluster Treasurer', 'Chapel Treasurer']] as $row) {
-        $pdf->SetXY(18, $y); $pdf->Cell(80, 5, '__________________________', 0, 0); $pdf->Cell(80, 5, '__________________________', 0, 1);
-        $pdf->Cell(80, 5, $row[0], 0, 0, 'C'); $pdf->Cell(80, 5, $row[1], 0, 1, 'C'); $y += 13;
-    }
-    $pdf->SetFont('Times', 'B', 9); $pdf->SetXY(54, 240); $pdf->Cell(90, 5, baptismPdfText('REV. FR. AL JOHN A. MIÑOZA, SThL'), 0, 1, 'C');
-    $pdf->SetFont('Times', '', 9); $pdf->SetX(54); $pdf->Cell(90, 5, 'Parish Priest', 0, 1, 'C');
 
-    $pdf->SetFont('Times', 'B', 7.5); $pdf->SetXY(18, 253);
+    // Full-width fields with uniform $fullLabelW so underlines start at X=66 and end at X=192
+    baptismPdfField($pdf, 'DIIN:', $v('marriage_place'), 18, 119, $fullW, $fullLabelW);
+    baptismPdfField($pdf, 'SPONSORS: 1.', $v('sponsor_1'), 18, 129, $fullW, $fullLabelW);
+    baptismPdfField($pdf, '                   2.', $v('sponsor_2'), 18, 139, $fullW, $fullLabelW);
+    baptismPdfField($pdf, 'SAKOP SA KAPILYA SA:', $v('chapel'), 18, 149, $fullW, $fullLabelW);
+    baptismPdfField($pdf, 'NGALAN SA CLUSTER:', $v('cluster_name'), 18, 159, $fullW, $fullLabelW);
+    baptismPdfField($pdf, 'NGALAN SA BARANGAY:', $v('barangay'), 18, 169, $fullW, $fullLabelW);
+
+    // Signatures: 2 columns, centered vector lines and text
+    $y = 194;
+    foreach ([
+        ['Cluster Service', 'Chapel Service'],
+        ['Cluster Leader', 'Chapel Chairman'],
+        ['Cluster Treasurer', 'Chapel Treasurer'],
+    ] as $row) {
+        baptismPdfSignature($pdf, '', $row[0], 22, $y, 72);
+        baptismPdfSignature($pdf, '', $row[1], 116, $y, 72);
+        $y += 14;
+    }
+
+    // Parish Priest centered
+    baptismPdfSignature($pdf, 'REV. FR. AL JOHN A. MIÑOZA, SThL', 'Parish Priest', 60, 244, 90);
+
+    $pdf->SetFont('Times', 'B', 7.5); $pdf->SetXY(18, 255);
     $pdf->MultiCell(116, 4, baptismPdfText('PAHINUMDOM: Isukip niining maong katin-awan ang Certificate of Live Birth sa bata - original og usa ka Xerox copy.'), 0, 'L');
-    $pdf->SetFont('Times', 'B', 8.5); $pdf->SetXY(137, 253); $pdf->Cell(31, 5, baptismPdfText('Cellphone Number:'), 0, 0);
+    $pdf->SetFont('Times', 'B', 8.5); $pdf->SetXY(137, 255); $pdf->Cell(31, 5, baptismPdfText('Cellphone Number:'), 0, 0);
     $pdf->SetFont('Times', '', 8.5); $pdf->Cell(24, 5, baptismPdfFit($pdf, $v('cellphone'), 22, 8.5), 'B', 1);
     return $pdf->Output('S');
 }
@@ -204,25 +248,45 @@ function baptismSponsorPdf(array $data): string
     $metaTitle = 'Cluster Clearance for Baptismal Sponsor' . ($sponsor ? ' - ' . $sponsor : '');
     $pdf->SetTitle($metaTitle, true);
     baptismPdfHeader($pdf, 'CLUSTER CLEARANCE FOR BAPTISM SPONSOR');
-    baptismPdfField($pdf, 'NAME OF SPONSOR:', $v('sponsor_name'), 18, 64, 174, 43);
-    baptismPdfField($pdf, 'PINUY-ANAN:', $v('address'), 18, 75, 174, 30);
-    baptismPdfField($pdf, 'NAME OF THE CHILD:', $v('child_name'), 18, 86, 174, 45);
-    baptismPdfField($pdf, 'FATHER:', $v('father_name'), 18, 97, 174, 22);
-    baptismPdfField($pdf, 'MOTHER MAIDEN NAME:', $v('mother_maiden_name'), 18, 108, 174, 50);
+
+    // Standardize top 5 rows with labelWidth = 48: all underlines start at X=66 and end at X=192 (width 174)
+    $fullW = 174.0;
+    $labelW = 48.0;
+    baptismPdfField($pdf, 'NAME OF SPONSOR:', $v('sponsor_name'), 18, 64, $fullW, $labelW);
+    baptismPdfField($pdf, 'PINUY-ANAN:', $v('address'), 18, 75, $fullW, $labelW);
+    baptismPdfField($pdf, 'NAME OF THE CHILD:', $v('child_name'), 18, 86, $fullW, $labelW);
+    baptismPdfField($pdf, 'FATHER:', $v('father_name'), 18, 97, $fullW, $labelW);
+    baptismPdfField($pdf, 'MOTHER MAIDEN NAME:', $v('mother_maiden_name'), 18, 108, $fullW, $labelW);
+
     $pdf->SetFont('Times', 'B', 9); $pdf->SetXY(18, 119); $pdf->Cell(174, 5, 'SERVICE REQUESTED: (Please check)', 0, 1);
     $selected = 'Bunyag'; $x = 20;
-    foreach (['Bunyag', 'Confirmation', 'Kasal', 'Ninong/Ninang', 'Others'] as $option) { baptismPdfChoice($pdf, $option, $selected === $option, $x, 127); $x += $option === 'Ninong/Ninang' ? 43 : 31; }
-    baptismPdfField($pdf, 'Others, please specify:', '', 18, 137, 174, 48);
-    baptismPdfField($pdf, 'DATE OF SERVICE/ADLAW SA SERBISYO', baptismPdfDate($v('service_date')), 18, 148, 108, 72, 8);
-    $pdf->SetFont('Times', 'B', 8.5); $pdf->SetXY(128, 148); $pdf->Cell(19, 6, 'Pls.Check:', 0, 0);
-    baptismPdfChoice($pdf, 'Active', false, 149, 149); baptismPdfChoice($pdf, 'Inactive', false, 174, 149);
-    baptismPdfField($pdf, 'Member of Cluster No.:', $v('cluster_number'), 18, 159, 76, 43, 8.5);
-    baptismPdfField($pdf, 'Cluster Name:', $v('cluster_name'), 98, 159, 94, 30, 8.5);
-    $pdf->SetFont('Times', 'B', 10); $pdf->SetXY(18, 174); $pdf->Cell(174, 5, 'VERIFIED BY:', 0, 1);
-    $pdf->SetFont('Times', '', 9); $y = 195;
-    foreach ([['Ngalan ug pirma sa Cluster Treasurer', 'Ngalan ug pirma sa Cluster Leader'], ['Ngalan ug pirma sa Chapel Treasurer', 'Ngalan ug pirma sa Chapel Chairman']] as $row) {
-        $pdf->SetXY(18, $y); $pdf->Cell(85, 5, '___________________________________', 0, 0); $pdf->Cell(85, 5, '___________________________________', 0, 1);
-        $pdf->Cell(85, 5, baptismPdfText($row[0]), 0, 0, 'C'); $pdf->Cell(85, 5, baptismPdfText($row[1]), 0, 1, 'C'); $y += 18;
+    foreach (['Bunyag', 'Confirmation', 'Kasal', 'Ninong/Ninang', 'Others'] as $option) {
+        baptismPdfChoice($pdf, $option, $selected === $option, $x, 127);
+        $x += $option === 'Ninong/Ninang' ? 43 : 31;
+    }
+    baptismPdfField($pdf, 'Others, please specify:', '', 18, 137, $fullW, $labelW);
+
+    // DATE OF SERVICE and Pls.Check
+    baptismPdfField($pdf, 'DATE OF SERVICE / ADLAW SA SERBISYO:', baptismPdfDate($v('service_date')), 18, 148, 115, 68, 8);
+    $pdf->SetFont('Times', 'B', 8.5); $pdf->SetXY(135, 148); $pdf->Cell(19, 6, 'Pls.Check:', 0, 0);
+    baptismPdfChoice($pdf, 'Active', false, 154, 149);
+    baptismPdfChoice($pdf, 'Inactive', false, 174, 149);
+
+    // Cluster row
+    baptismPdfField($pdf, 'Member of Cluster No.:', $v('cluster_number'), 18, 159, 78, 42, 8.5);
+    baptismPdfField($pdf, 'Cluster Name:', $v('cluster_name'), 102, 159, 90, 26, 8.5);
+
+    $pdf->SetFont('Times', 'B', 10); $pdf->SetXY(18, 175); $pdf->Cell(174, 5, 'VERIFIED BY:', 0, 1);
+
+    // Vector-drawn signatures with centered names / roles (Image 3 fix)
+    $y = 198;
+    foreach ([
+        ['Ngalan ug pirma sa Cluster Treasurer', 'Ngalan ug pirma sa Cluster Leader'],
+        ['Ngalan ug pirma sa Chapel Treasurer', 'Ngalan ug pirma sa Chapel Chairman'],
+    ] as $row) {
+        baptismPdfSignature($pdf, '', $row[0], 20, $y, 74);
+        baptismPdfSignature($pdf, '', $row[1], 116, $y, 74);
+        $y += 19;
     }
     return $pdf->Output('S');
 }

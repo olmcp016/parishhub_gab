@@ -511,6 +511,28 @@ function weddingChoice(FPDF $pdf, string $label, bool $selected, float $x, float
     $pdf->SetFont('Times', '', 9); $pdf->SetXY($x, $y); $pdf->Cell(6, 5, $selected ? 'X' : '', 1, 0, 'C'); $pdf->Cell(25, 5, $label, 0, 0);
 }
 
+function weddingPdfSignature(FPDF $pdf, string $name, string $roleTitle, float $x, float $y, float $width): void
+{
+    $pdf->SetDrawColor(0, 0, 0);
+    $pdf->SetLineWidth(0.3);
+    $pdf->Line($x, $y, $x + $width, $y);
+    if ($name !== '') {
+        $pdf->SetFont('Times', 'B', 9.5);
+        $pdf->SetXY($x, $y - 5.5);
+        $pdf->Cell($width, 5, weddingPdfText($name), 0, 0, 'C');
+    }
+    if ($roleTitle !== '') {
+        $pdf->SetFont('Times', '', 8.5);
+        $lines = explode("\n", $roleTitle);
+        $offsetY = 1.2;
+        foreach ($lines as $line) {
+            $pdf->SetXY($x, $y + $offsetY);
+            $pdf->Cell($width, 4, weddingPdfText($line), 0, 0, 'C');
+            $offsetY += 4.0;
+        }
+    }
+}
+
 function weddingMarriagePdfValue(FPDF $pdf, string $label, string $value, float $x, float $y, float $width, float $labelWidth): void
 {
     $pdf->SetTextColor(0, 0, 0);
@@ -573,11 +595,13 @@ function weddingMarriageApplicationPdf(array $data): string
     $pdf->SetXY(15, 35);
     $pdf->Cell(186, 8, 'MARRIAGE REQUIREMENTS & APPLICATION FORM', 0, 1, 'C');
 
-    weddingMarriagePdfValue($pdf, 'Date Applied:', weddingMarriagePdfDate($value('date_applied')), 18, 44, 72, 24);
+    weddingMarriagePdfValue($pdf, 'Date Applied:', weddingMarriagePdfDate($value('date_applied')), 18, 44, 76, 28);
 
     $leftX = 18.0;
     $rightX = 111.0;
     $columnWidth = 84.0;
+    $colLabelW = 28.0; // Uniform label width for both columns: all underlines are vertically aligned
+
     $pdf->SetTextColor(128, 0, 0);
     $pdf->SetFont('Times', 'B', 11);
     $pdf->SetXY($leftX, 52);
@@ -585,22 +609,22 @@ function weddingMarriageApplicationPdf(array $data): string
     $pdf->SetXY($rightX, 52);
     $pdf->Cell($columnWidth, 6, '(Female)', 0, 0, 'L');
 
-    weddingMarriagePdfValue($pdf, 'Name:', $value('groom_name'), $leftX, 61, $columnWidth, 15);
-    weddingMarriagePdfValue($pdf, 'Name:', $value('bride_name'), $rightX, 61, $columnWidth, 15);
-    weddingMarriagePdfValue($pdf, 'Age:', $groomAge === null ? '' : (string) $groomAge, $leftX, 69, 34, 12);
-    weddingMarriagePdfValue($pdf, 'Age:', $brideAge === null ? '' : (string) $brideAge, $rightX, 69, 34, 12);
-    weddingMarriagePdfValue($pdf, 'Date of Birth:', weddingMarriagePdfDate($value('groom_birth_date')), $leftX, 77, $columnWidth, 29);
-    weddingMarriagePdfValue($pdf, 'Date of Birth:', weddingMarriagePdfDate($value('bride_birth_date')), $rightX, 77, $columnWidth, 29);
-    weddingMarriagePdfValue($pdf, 'Father:', $value('groom_father'), $leftX, 85, $columnWidth, 17);
-    weddingMarriagePdfValue($pdf, 'Father:', $value('bride_father'), $rightX, 85, $columnWidth, 17);
-    weddingMarriagePdfValue($pdf, 'Mother:', $value('groom_mother'), $leftX, 93, $columnWidth, 19);
-    weddingMarriagePdfValue($pdf, 'Mother:', $value('bride_mother'), $rightX, 93, $columnWidth, 19);
-    weddingMarriagePdfValue($pdf, '(Maiden Name):', $value('groom_mother_maiden_name'), $leftX + 12, 100, $columnWidth - 12, 31);
-    weddingMarriagePdfValue($pdf, '(Maiden Name):', $value('bride_mother_maiden_name'), $rightX + 12, 100, $columnWidth - 12, 31);
-    weddingMarriagePdfValue($pdf, 'Address:', $value('groom_address'), $leftX, 109, $columnWidth, 20);
-    weddingMarriagePdfValue($pdf, 'Address:', $value('bride_address'), $rightX, 109, $columnWidth, 20);
-    weddingMarriagePdfValue($pdf, 'Cell No.:', $value('groom_cell'), $leftX, 117, $columnWidth, 20);
-    weddingMarriagePdfValue($pdf, 'Cell No.:', $value('bride_cell'), $rightX, 117, $columnWidth, 20);
+    weddingMarriagePdfValue($pdf, 'Name:', $value('groom_name'), $leftX, 61, $columnWidth, $colLabelW);
+    weddingMarriagePdfValue($pdf, 'Name:', $value('bride_name'), $rightX, 61, $columnWidth, $colLabelW);
+    weddingMarriagePdfValue($pdf, 'Age:', $groomAge === null ? '' : (string) $groomAge, $leftX, 69, $columnWidth, $colLabelW);
+    weddingMarriagePdfValue($pdf, 'Age:', $brideAge === null ? '' : (string) $brideAge, $rightX, 69, $columnWidth, $colLabelW);
+    weddingMarriagePdfValue($pdf, 'Date of Birth:', weddingMarriagePdfDate($value('groom_birth_date')), $leftX, 77, $columnWidth, $colLabelW);
+    weddingMarriagePdfValue($pdf, 'Date of Birth:', weddingMarriagePdfDate($value('bride_birth_date')), $rightX, 77, $columnWidth, $colLabelW);
+    weddingMarriagePdfValue($pdf, 'Father:', $value('groom_father'), $leftX, 85, $columnWidth, $colLabelW);
+    weddingMarriagePdfValue($pdf, 'Father:', $value('bride_father'), $rightX, 85, $columnWidth, $colLabelW);
+    weddingMarriagePdfValue($pdf, 'Mother:', $value('groom_mother'), $leftX, 93, $columnWidth, $colLabelW);
+    weddingMarriagePdfValue($pdf, 'Mother:', $value('bride_mother'), $rightX, 93, $columnWidth, $colLabelW);
+    weddingMarriagePdfValue($pdf, '(Maiden Name):', $value('groom_mother_maiden_name'), $leftX, 100, $columnWidth, $colLabelW);
+    weddingMarriagePdfValue($pdf, '(Maiden Name):', $value('bride_mother_maiden_name'), $rightX, 100, $columnWidth, $colLabelW);
+    weddingMarriagePdfValue($pdf, 'Address:', $value('groom_address'), $leftX, 109, $columnWidth, $colLabelW);
+    weddingMarriagePdfValue($pdf, 'Address:', $value('bride_address'), $rightX, 109, $columnWidth, $colLabelW);
+    weddingMarriagePdfValue($pdf, 'Cell No.:', $value('groom_cell'), $leftX, 117, $columnWidth, $colLabelW);
+    weddingMarriagePdfValue($pdf, 'Cell No.:', $value('bride_cell'), $rightX, 117, $columnWidth, $colLabelW);
 
     $pdf->SetTextColor(128, 0, 0);
     $pdf->SetFont('Times', 'B', 10.5);
@@ -659,47 +683,66 @@ function weddingKatinPdf(array $data): string
     $pdf->SetTitle($metaTitle, true);
     weddingPdfHeader($pdf, 'KATIN-AWAN SA KASAL');
 
-    // Ages are computed on the wedding date from each birth date. The old
-    // stored kaslonon_age/spouse_age values are no longer read, so legacy saved
-    // values there cannot print in place of the computed age.
     $referenceDate = $v('wedding_date') ?: date('Y-m-d');
     $kaslononAgeYears = weddingMarriageAge($v('kaslonon_birth_date'), $referenceDate);
     $spouseAgeYears = weddingMarriageAge($v('spouse_birth_date'), $referenceDate);
     $kaslononAge = $kaslononAgeYears === null ? '' : (string) $kaslononAgeYears;
     $spouseAge = $spouseAgeYears === null ? '' : (string) $spouseAgeYears;
 
-    // Keep the EDAD column protected: the name underline ends at x=138,
-    // leaving a fixed gap before the EDAD field begins at x=143.
-    weddingPdfField($pdf, 'NGALAN SA KASLONON:', $v('kaslonon_name'), 18, 61, 120, 48);
-    weddingPdfField($pdf, 'EDAD:', $kaslononAge, 143, 61, 49, 17);
-    weddingPdfField($pdf, 'ESTADO:', $v('kaslonon_status'), 18, 70, 52, 24);
-    weddingPdfField($pdf, 'PETSA NATAWO:', weddingMarriagePdfDate($v('kaslonon_birth_date')), 74, 70, 73, 34);
-    weddingPdfField($pdf, 'RELIHIYON:', $v('kaslonon_religion'), 148, 70, 44, 20, 6, 7.5);
-    weddingPdfField($pdf, 'AMAHAN:', $v('father_name'), 18, 79, 132, 25);
-    weddingPdfField($pdf, 'RELIHIYON:', $v('father_religion'), 149, 79, 43, 20, 6, 7.5);
-    weddingPdfField($pdf, 'INAHAN:', $v('mother_name'), 18, 88, 132, 25);
-    weddingPdfField($pdf, 'RELIHIYON:', $v('mother_religion'), 149, 88, 43, 20, 6, 7.5);
-    weddingPdfField($pdf, 'SPONSORS: 1.', $v('sponsor_1'), 18, 97, 88, 30);
-    weddingPdfField($pdf, '2.', $v('sponsor_2'), 108, 97, 84, 10);
+    weddingPdfField($pdf, 'NGALAN SA KASLONON:', $v('kaslonon_name'), 18, 61, 122, 48);
+    weddingPdfField($pdf, 'EDAD:', $kaslononAge, 144, 61, 48, 16);
+
+    weddingPdfField($pdf, 'ESTADO:', $v('kaslonon_status'), 18, 70, 52, 20);
+    weddingPdfField($pdf, 'PETSA NATAWO:', weddingMarriagePdfDate($v('kaslonon_birth_date')), 74, 70, 68, 30);
+    weddingPdfField($pdf, 'RELIHIYON:', $v('kaslonon_religion'), 146, 70, 46, 22, 6, 7.5);
+
+    // Parent lines: Left col underline starts at 44 and ends at 142; Right col underline starts at 168 and ends at 192
+    weddingPdfField($pdf, 'AMAHAN:', $v('father_name'), 18, 79, 124, 26);
+    weddingPdfField($pdf, 'RELIHIYON:', $v('father_religion'), 146, 79, 46, 22, 6, 7.5);
+
+    weddingPdfField($pdf, 'INAHAN:', $v('mother_name'), 18, 88, 124, 26);
+    weddingPdfField($pdf, 'RELIHIYON:', $v('mother_religion'), 146, 88, 46, 22, 6, 7.5);
+
+    weddingPdfField($pdf, 'SPONSORS: 1.', $v('sponsor_1'), 18, 97, 88, 28);
+    weddingPdfField($pdf, '2.', $v('sponsor_2'), 110, 97, 82, 12);
+
     $pdf->SetFont('Times', 'B', 9); $pdf->SetXY(18, 107); $pdf->Cell(174, 5, 'UNSANG KASALA ANG NADAWAT SA GINIKANAN?', 0, 1);
     weddingChoice($pdf, 'SIMBAHAN', $v('parent_marriage') === 'Simbahan', 18, 114);
     weddingChoice($pdf, 'SIBIL', $v('parent_marriage') === 'Sibil', 75, 114);
     weddingChoice($pdf, 'WALA', $v('parent_marriage') === 'Wala', 125, 114);
-    weddingPdfField($pdf, 'DIIN:', $v('marriage_place'), 18, 123, 90, 20); weddingPdfField($pdf, 'KANUS-A:', weddingMarriagePdfDate($v('marriage_date')), 111, 123, 81, 27);
-    weddingPdfField($pdf, 'PINUY-ANAN:', $v('address'), 18, 132, 174, 30);
-    weddingPdfField($pdf, 'SAKOP SA KAPILYA SA:', $v('chapel'), 18, 141, 174, 47);
-    weddingPdfField($pdf, 'NGALAN SA CLUSTER:', $v('cluster_name'), 18, 150, 174, 38);
-    weddingPdfField($pdf, 'NGALAN SA PAMANHUNON/PANGASAW-ONON:', $v('spouse_name'), 18, 159, 174, 78);
-    weddingPdfField($pdf, 'EDAD:', $spouseAge, 18, 168, 48, 17); weddingPdfField($pdf, 'ESTADO:', $v('spouse_status'), 69, 168, 61, 25); weddingPdfField($pdf, 'RELIHIYON:', $v('spouse_religion'), 133, 168, 59, 25);
-    weddingPdfField($pdf, 'PINUY-ANAN:', $v('spouse_address'), 18, 177, 174, 30);
-    $pdf->SetFont('Times', 'B', 8); $pdf->SetXY(18, 186); $pdf->MultiCell(174, 4, 'PAHINUDOM: Human mamatud-i kining tanan, kini pagapirmahan sa Cluster Leader, Cluster Treasurer ug Chapel Chairman, Chapel Treasurer ug dad-on sa mga hingtungdan ngadto sa simbahan (apil na ang mga papeles nga gikinahanglan alang sa kasal ug mga sponsors) ug ihatag ngadto sa Parish Clerk.');
-    $pdf->SetFont('Times', '', 8); $pdf->SetXY(18, 207); $pdf->Cell(80, 5, '__________________________', 0, 0); $pdf->Cell(80, 5, '__________________________', 0, 1);
-    $pdf->Cell(80, 5, 'Cluster Family and Life', 0, 0, 'C'); $pdf->Cell(80, 5, 'Chapel Family and Life', 0, 1, 'C');
-    $pdf->SetXY(18, 220); $pdf->Cell(80, 5, '__________________________', 0, 0); $pdf->Cell(80, 5, '__________________________', 0, 1);
-    $pdf->Cell(80, 5, 'Cluster Leader', 0, 0, 'C'); $pdf->Cell(80, 5, 'Chapel Chairman', 0, 1, 'C');
-    $pdf->SetXY(18, 233); $pdf->Cell(80, 5, '__________________________', 0, 0); $pdf->Cell(80, 5, '__________________________', 0, 1);
-    $pdf->Cell(80, 5, 'Cluster Treasurer', 0, 0, 'C'); $pdf->Cell(80, 5, 'Chapel Treasurer', 0, 1, 'C');
-    $pdf->SetFont('Times', 'B', 10); $pdf->SetXY(70, 257); $pdf->Cell(70, 5, weddingPdfText('REV. FR. AL JOHN A. MIÑOZA'), 0, 1, 'C'); $pdf->SetFont('Times', '', 9); $pdf->SetX(70); $pdf->Cell(70, 5, 'Parish Priest', 0, 1, 'C');
+
+    weddingPdfField($pdf, 'DIIN:', $v('marriage_place'), 18, 123, 90, 20);
+    weddingPdfField($pdf, 'KANUS-A:', weddingMarriagePdfDate($v('marriage_date')), 112, 123, 80, 22);
+
+    $fullW = 174.0;
+    $fullLabelW = 48.0;
+    weddingPdfField($pdf, 'PINUY-ANAN:', $v('address'), 18, 132, $fullW, $fullLabelW);
+    weddingPdfField($pdf, 'SAKOP SA KAPILYA SA:', $v('chapel'), 18, 141, $fullW, $fullLabelW);
+    weddingPdfField($pdf, 'NGALAN SA CLUSTER:', $v('cluster_name'), 18, 150, $fullW, $fullLabelW);
+    weddingPdfField($pdf, 'NGALAN SA PAMANHUNON/PANGASAW-ONON:', $v('spouse_name'), 18, 159, $fullW, 72, 7.5);
+
+    weddingPdfField($pdf, 'EDAD:', $spouseAge, 18, 168, 48, 16);
+    weddingPdfField($pdf, 'ESTADO:', $v('spouse_status'), 70, 168, 60, 20);
+    weddingPdfField($pdf, 'RELIHIYON:', $v('spouse_religion'), 134, 168, 58, 22);
+
+    weddingPdfField($pdf, 'PINUY-ANAN:', $v('spouse_address'), 18, 177, $fullW, $fullLabelW);
+
+    $pdf->SetFont('Times', 'B', 8); $pdf->SetXY(18, 186);
+    $pdf->MultiCell(174, 4, 'PAHINUDOM: Human mamatud-i kining tanan, kini pagapirmahan sa Cluster Leader, Cluster Treasurer ug Chapel Chairman, Chapel Treasurer ug dad-on sa mga hingtungdan ngadto sa simbahan (apil na ang mga papeles nga gikinahanglan alang sa kasal ug mga sponsors) ug ihatag ngadto sa Parish Clerk.');
+
+    // Centered signature vector lines & titles
+    $y = 208;
+    foreach ([
+        ['Cluster Family and Life', 'Chapel Family and Life'],
+        ['Cluster Leader', 'Chapel Chairman'],
+        ['Cluster Treasurer', 'Chapel Treasurer'],
+    ] as $row) {
+        weddingPdfSignature($pdf, '', $row[0], 22, $y, 72);
+        weddingPdfSignature($pdf, '', $row[1], 116, $y, 72);
+        $y += 14;
+    }
+
+    weddingPdfSignature($pdf, 'REV. FR. AL JOHN A. MIÑOZA', 'Parish Priest', 60, 258, 90);
     return $pdf->Output('S');
 }
 
@@ -717,19 +760,46 @@ function weddingSponsorPdf(array $data): string
     $metaTitle = 'Cluster Clearance for Wedding Sponsor' . ($recipient ? ' - ' . $recipient : '');
     $pdf->SetTitle($metaTitle, true);
     weddingPdfHeader($pdf, 'CLUSTER CLEARANCE FOR WEDDING SPONSORS');
-    weddingPdfField($pdf, 'NAME OF RECIPIENT:', $v('recipient_name'), 18, 64, 174, 43);
-    weddingPdfField($pdf, 'PINUY-ANAN:', $v('address'), 18, 75, 174, 30);
-    weddingPdfField($pdf, 'NAME OF THE GROOM:', $v('groom_name'), 18, 88, 174, 45);
-    weddingPdfField($pdf, 'NAME OF THE BRIDE:', $v('bride_name'), 18, 99, 174, 45);
+
+    // Standardize top 4 rows with labelWidth = 48: all underlines start at X=66 and end at X=192 (width 174)
+    $fullW = 174.0;
+    $labelW = 48.0;
+    weddingPdfField($pdf, 'NAME OF RECIPIENT:', $v('recipient_name'), 18, 64, $fullW, $labelW);
+    weddingPdfField($pdf, 'PINUY-ANAN:', $v('address'), 18, 75, $fullW, $labelW);
+    weddingPdfField($pdf, 'NAME OF THE GROOM:', $v('groom_name'), 18, 86, $fullW, $labelW);
+    weddingPdfField($pdf, 'NAME OF THE BRIDE:', $v('bride_name'), 18, 97, $fullW, $labelW);
+
     $pdf->SetFont('Times', 'B', 10); $pdf->SetXY(18, 113); $pdf->Cell(174, 5, 'SERVICE REQUESTED: (Please check)', 0, 1);
-    $options = ['Bunyag', 'Confirmation', 'Kasal', 'Ninong/Ninang', 'Others']; $selected = 'Kasal';
-    $x = 20; foreach ($options as $option) { weddingChoice($pdf, $option, $selected === $option, $x, 121); $x += $option === 'Ninong/Ninang' ? 43 : 31; }
-    weddingPdfField($pdf, 'Others, please specify:', '', 18, 130, 174, 48);
-    weddingPdfField($pdf, 'DATE OF SERVICE/ADLAW SA SERBISYO:', weddingMarriagePdfDate($v('service_date')), 18, 141, 108, 76);
-    weddingChoice($pdf, 'Active', false, 130, 141); weddingChoice($pdf, 'Inactive', false, 163, 141);
-    weddingPdfField($pdf, 'Member of Cluster No.:', $v('cluster_number'), 18, 151, 58, 43); weddingPdfField($pdf, 'Cluster Name:', $v('cluster_name'), 82, 151, 110, 30);
-    $pdf->SetFont('Times', 'B', 10); $pdf->SetXY(18, 171); $pdf->Cell(174, 5, 'VERIFIED BY:', 0, 1);
-    $pdf->SetFont('Times', '', 9); $y = 184; foreach (['Ngalan ug pirma sa Cluster Treasurer', 'Ngalan ug pirma sa Cluster Leader', 'Ngalan ug pirma sa Chapel Treasurer', 'Ngalan ug pirma sa Chapel Chairman'] as $label) { $pdf->SetXY(18, $y); $pdf->Cell(174, 5, $label . ' ________________________________', 0, 1); $y += 14; }
+    $options = ['Bunyag', 'Confirmation', 'Kasal', 'Ninong/Ninang', 'Others'];
+    $selected = 'Kasal';
+    $x = 20;
+    foreach ($options as $option) {
+        weddingChoice($pdf, $option, $selected === $option, $x, 121);
+        $x += $option === 'Ninong/Ninang' ? 43 : 31;
+    }
+    weddingPdfField($pdf, 'Others, please specify:', '', 18, 134, $fullW, $labelW);
+
+    // DATE OF SERVICE and Active/Inactive checkboxes
+    weddingPdfField($pdf, 'DATE OF SERVICE / ADLAW SA SERBISYO:', weddingMarriagePdfDate($v('service_date')), 18, 146, 115, 68, 8);
+    weddingChoice($pdf, 'Active', false, 144, 146);
+    weddingChoice($pdf, 'Inactive', false, 169, 146);
+
+    // Cluster row
+    weddingPdfField($pdf, 'Member of Cluster No.:', $v('cluster_number'), 18, 158, 78, 42, 8.5);
+    weddingPdfField($pdf, 'Cluster Name:', $v('cluster_name'), 102, 158, 90, 26, 8.5);
+
+    $pdf->SetFont('Times', 'B', 10); $pdf->SetXY(18, 174); $pdf->Cell(174, 5, 'VERIFIED BY:', 0, 1);
+
+    // 2x2 grid matching baptism sponsor clearance with vector lines & centered titles
+    $y = 197;
+    foreach ([
+        ['Ngalan ug pirma sa Cluster Treasurer', 'Ngalan ug pirma sa Cluster Leader'],
+        ['Ngalan ug pirma sa Chapel Treasurer', 'Ngalan ug pirma sa Chapel Chairman'],
+    ] as $row) {
+        weddingPdfSignature($pdf, '', $row[0], 20, $y, 74);
+        weddingPdfSignature($pdf, '', $row[1], 116, $y, 74);
+        $y += 19;
+    }
     return $pdf->Output('S');
 }
 
