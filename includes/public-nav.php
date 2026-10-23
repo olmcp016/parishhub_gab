@@ -22,6 +22,9 @@ $publicNavUser = $__user ?? currentUser();
       <div style="display:flex; gap: 8px; align-items:center;">
         <a href="<?= url('auth/login.php') ?>" class="btn btn-outline btn-sm">Login</a>
         <a href="<?= url('auth/register.php') ?>" class="btn btn-primary btn-sm">Create Account</a>
+        <a href="<?= url('staff/login.php') ?>"
+           style="font-size:11px;color:var(--text-muted,#9a8b72);text-decoration:none;opacity:.75;padding:4px 6px;white-space:nowrap;"
+           title="Parish staff and clergy login">Staff Portal</a>
       </div>
     <?php endif; ?>
   </div>

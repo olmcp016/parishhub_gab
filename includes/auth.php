@@ -30,6 +30,9 @@ function sendNoCacheHeaders(): void
     header('Expires: 0');
 }
 
+/** Roles that belong to the internal parish administration (Staff & Clergy). */
+const STAFF_ROLES = ['Admin', 'Secretary', 'Treasurer', 'Priest'];
+
 function requireLogin(): void
 {
     sendNoCacheHeaders();
@@ -42,7 +45,13 @@ function requireLogin(): void
 /** Usage: requireRole('Admin', 'Secretary'); */
 function requireRole(string ...$roles): void
 {
-    requireLogin();
+    sendNoCacheHeaders();
+    if (!isLoggedIn()) {
+        flash('error', 'Your session has expired or you are not signed in. Please log in again.');
+        // If every required role is a staff/clergy role, send to the Staff Portal.
+        $allStaff = !empty($roles) && count(array_diff($roles, STAFF_ROLES)) === 0;
+        redirect($allStaff ? url('staff/login.php') : url('auth/login.php'));
+    }
     autoCancelExpiredUnpaidAppointments();
     if (!in_array($_SESSION['user']['role_name'], $roles, true)) {
         http_response_code(403);
@@ -263,7 +272,7 @@ function baseUrl(): string
         $scriptDir = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME']));
         // Normalize: strip any trailing role subfolder (admin/, secretary/, etc.) to get project root
         $parts = explode('/', trim($scriptDir, '/'));
-        $roleFolders = ['admin', 'secretary', 'treasurer', 'parishioner', 'priest', 'auth'];
+        $roleFolders = ['admin', 'secretary', 'treasurer', 'parishioner', 'priest', 'auth', 'staff'];
         if (!empty($parts) && in_array(end($parts), $roleFolders, true)) {
             array_pop($parts);
         }

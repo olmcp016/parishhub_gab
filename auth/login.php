@@ -72,6 +72,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $fail('password', 'Incorrect password. Please try again. (' . (5 - $emailFailures) . ' attempts left)');
     }
 
+    // Block staff and clergy from using the Parishioner portal.
+    if (in_array($user['role_name'], ['Admin', 'Secretary', 'Treasurer', 'Priest'], true)) {
+        $staffUrl = url('staff/login.php');
+        $fail('email', 'This portal is for Parishioners only. Staff and Clergy must log in through the <a href="' . $staffUrl . '" style="text-decoration:underline;font-weight:bold;color:inherit;">Staff Portal →</a>');
+    }
+
     // Login success: clear this account's counter. The IP counter expires on its own.
     throttleClear($emailKey);
 
@@ -187,6 +193,11 @@ include __DIR__ . '/../includes/header.php';
 
       <div class="auth-footer">
         Don't have an account? <a href="<?= url('auth/register.php') ?>">Register here</a>
+      </div>
+
+      <div class="auth-footer" style="margin-top:6px;padding-top:10px;border-top:1px solid var(--border,#e8e0d5);font-size:12px;color:var(--text-muted,#9a8b72);">
+        Are you church staff or priest?
+        <a href="<?= url('staff/login.php') ?>" style="color:var(--accent,#7a5c1e);font-weight:600;">Log in here →</a>
       </div>
     </div>
   </div>
