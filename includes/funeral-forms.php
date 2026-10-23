@@ -239,45 +239,57 @@ function funeralKatinAwanPdf(array $data): string
     $pdf->SetDrawColor(20, 92, 18); $pdf->SetLineWidth(0.8); $pdf->Line(15, 42, 195, 42);
     $pdf->SetTextColor(0, 0, 0); $pdf->SetDrawColor(0, 0, 0); $pdf->SetFont('Times', 'B', 15); $pdf->SetXY(15, 48); $pdf->Cell(180, 8, 'KATIN-AWAN SA PAGLUBONG', 0, 1, 'C');
 
-    $fullW = 174.0;
-    $fullLabelW = 48.0;
+    // Unified column metrics:
+    // Left side: starts at X=18, labelWidth=36 -> all underlines start at X=54.0.
+    // 2-column left field ends at X=142.0.
+    // 2-column right field starts at X=145.0, labelWidth=18 -> right underline from X=163.0 to 192.0.
+    $leftColW = 124.0;
+    $leftLabelW = 36.0;
+    $rightColX = 145.0;
+    $rightColW = 47.0;
+    $rightLabelW = 18.0;
 
-    funeralPdfField($pdf, 'NGALAN SA ILUBONG:', $v('ngalan_sa_ilubong'), 18, 64, 132, 46);
-    funeralPdfField($pdf, 'EDAD:', $v('edad'), 152, 64, 40, 14);
+    // Row 1: NGALAN SA ILUBONG and EDAD
+    funeralPdfField($pdf, 'NGALAN SA ILUBONG:', $v('ngalan_sa_ilubong'), 18, 64, $leftColW, 37, 8.5);
+    funeralPdfField($pdf, 'EDAD:', $v('edad'), $rightColX, 64, $rightColW, $rightLabelW);
 
-    funeralPdfField($pdf, 'PINUY-ANAN:', $v('pinuy_anan'), 18, 74, 112, 28);
-    funeralPdfField($pdf, 'RELIHIYON:', $v('relihiyon'), 134, 74, 58, 24);
+    // Row 2: PINUY-ANAN and RELIHIYON (starts at X=54, exactly aligned with other left fields)
+    funeralPdfField($pdf, 'PINUY-ANAN:', $v('pinuy_anan'), 18, 74, $leftColW, $leftLabelW);
+    funeralPdfField($pdf, 'RELIHIYON:', $v('relihiyon'), $rightColX, 74, $rightColW, $rightLabelW, 8.5);
 
-    // Full-width fields with uniform $fullLabelW (48mm) so underlines start at X=66 and end at X=192
-    funeralPdfField($pdf, 'SAKOP SA KAPILYA SA:', $v('sakop_sa_kapilya'), 18, 84, $fullW, $fullLabelW);
-    funeralPdfField($pdf, 'NGALAN SA CLUSTER:', $v('ngalan_sa_cluster'), 18, 94, $fullW, $fullLabelW);
+    // Full-width fields (underlines from X=54 to 192)
+    funeralPdfField($pdf, 'SAKOP SA KAPILYA SA:', $v('sakop_sa_kapilya'), 18, 84, 174, $leftLabelW, 8.5);
+    funeralPdfField($pdf, 'NGALAN SA CLUSTER:', $v('cluster_name'), 18, 94, 174, $leftLabelW);
 
     $pdf->SetFont('Times', 'B', 9); $pdf->SetXY(18, 104); $pdf->Cell(174, 5, 'UNSANG SAKRAMENTOHA ANG NADAWAT?', 0, 1);
     funeralPdfChoice($pdf, 'HILOG', (bool) $data['sakramento_hilog'], 18, 111, 48);
     funeralPdfChoice($pdf, 'KUMPISAL', (bool) $data['sakramento_kumpisal'], 70, 111, 55);
     funeralPdfChoice($pdf, 'WALA', (bool) $data['sakramento_wala'], 130, 111, 62);
 
-    funeralPdfField($pdf, 'KANUS-A NAMATAY:', funeralPdfDate($v('kanus_a_namatay')), 18, 121, 84, 40);
-    funeralPdfField($pdf, 'UNSAY NAMATYAN:', $v('unsay_namatyan'), 106, 121, 86, 38);
+    funeralPdfField($pdf, 'KANUS-A NAMATAY:', funeralPdfDate($v('kanus_a_namatay')), 18, 121, 84, $leftLabelW);
+    funeralPdfField($pdf, 'UNSAY NAMATYAN:', $v('unsay_namatyan'), 106, 121, 86, 36);
 
-    funeralPdfField($pdf, 'KANUS-A ILUBONG:', funeralPdfDate($v('kanus_a_ilubong')), 18, 131, 126, 40);
-    funeralPdfField($pdf, 'ORAS:', funeralPdfTime($v('oras_sa_lubong')), 148, 131, 44, 14);
+    // Row 7: KANUS-A ILUBONG and ORAS
+    funeralPdfField($pdf, 'KANUS-A ILUBONG:', funeralPdfDate($v('kanus_a_ilubong')), 18, 131, $leftColW, $leftLabelW);
+    funeralPdfField($pdf, 'ORAS:', funeralPdfTime($v('oras_sa_lubong')), $rightColX, 131, $rightColW, $rightLabelW);
 
-    funeralPdfField($pdf, 'RESPONDE:', $v('responde'), 18, 141, $fullW, $fullLabelW);
+    // Row 8: RESPONDE (starts at X=54, eliminating the huge 30mm blank gap)
+    funeralPdfField($pdf, 'RESPONDE:', $v('responde'), 18, 141, 174, $leftLabelW);
 
-    // Parent/child and spouse rows: identical left/right column alignment
-    funeralPdfField($pdf, 'GINIKANAN/ANAK:', $v('ginikanan_anak'), 18, 151, 122, 38);
-    funeralPdfField($pdf, 'Cell.#', $v('ginikanan_anak_cell'), 144, 151, 48, 14);
+    // Rows 9 & 10: Parent/child and spouse rows (identical column coordinates)
+    funeralPdfField($pdf, 'GINIKANAN/ANAK:', $v('ginikanan_anak'), 18, 151, $leftColW, $leftLabelW);
+    funeralPdfField($pdf, 'Cell.#', $v('ginikanan_anak_cell'), $rightColX, 151, $rightColW, $rightLabelW);
 
-    funeralPdfField($pdf, 'ASAWA/BANA:', $v('asawa_bana'), 18, 161, 122, 38);
-    funeralPdfField($pdf, 'Cell.#', $v('asawa_bana_cell'), 144, 161, 48, 14);
+    funeralPdfField($pdf, 'ASAWA/BANA:', $v('asawa_bana'), 18, 161, $leftColW, $leftLabelW);
+    funeralPdfField($pdf, 'Cell.#', $v('asawa_bana_cell'), $rightColX, 161, $rightColW, $rightLabelW);
 
     $pdf->SetFont('Times', 'B', 9); $pdf->SetXY(18, 171); $pdf->Cell(174, 5, 'UNSANG KASALA ANG NADAWAT?', 0, 1);
     funeralPdfChoice($pdf, 'SIMBAHAN', $v('kasal') === 'Simbahan', 18, 178, 55);
     funeralPdfChoice($pdf, 'SIBIL', $v('kasal') === 'Sibil', 78, 178, 50);
     funeralPdfChoice($pdf, 'WALA', $v('kasal') === 'Wala', 133, 178, 59);
 
-    funeralPdfField($pdf, 'PETSA SA KASAL:', funeralPdfDate($v('petsa_sa_kasal')), 18, 188, 84, 36);
+    // Row 12: Marriage date & place
+    funeralPdfField($pdf, 'PETSA SA KASAL:', funeralPdfDate($v('petsa_sa_kasal')), 18, 188, 84, $leftLabelW);
     funeralPdfField($pdf, 'DIIN:', $v('diin_kasal'), 106, 188, 86, 16);
 
     $pdf->SetFont('Times', 'B', 7.8); $pdf->SetXY(18, 199);
