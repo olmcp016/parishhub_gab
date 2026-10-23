@@ -36,9 +36,14 @@ $defaultFrom = date('Y-m-01');
 $defaultTo   = date('Y-m-d');
 
 // Available payment methods from DB
-$allMethods = db()->query(
-    "SELECT method_id, method_name FROM payment_methods ORDER BY method_id"
-)->fetchAll();
+$allMethods = [];
+try {
+    $allMethods = db()->query(
+        "SELECT method_id, method_name FROM payment_methods ORDER BY method_id"
+    )->fetchAll();
+} catch (Throwable $e) {
+    error_log('Failed to fetch payment methods: ' . $e->getMessage());
+}
 
 $fromDate   = trptValidDate($_GET['from_date'] ?? null);
 $toDate     = trptValidDate($_GET['to_date']   ?? null);
@@ -69,8 +74,11 @@ $byMethod      = [];
 $byCategory    = [];
 $grand = ['count' => 0, 'total' => 0.0, 'cash' => 0.0, 'digital' => 0.0, 'pending' => 0.0];
 
+$filterError   = '';
+
 if ($generated) {
-    /* ---- Build WHERE clauses ---- */
+    try {
+        /* ---- Build WHERE clauses ---- */
     $where  = ['p.payment_date::date BETWEEN ? AND ?'];
     $params = [$fromDate, $toDate];
 
@@ -204,6 +212,10 @@ if ($generated) {
 
     arsort($byMethod);  // highest collection first
     arsort($byCategory);
+    } catch (Throwable $e) {
+        error_log('Treasurer report query error: ' . $e->getMessage());
+        $filterError = 'Paumanhin, nagkaroon ng problema sa pagbuo ng ulat. Pakisubukang muli.';
+    }
 }
 
 /* ---------------------------------------------------------------
@@ -348,6 +360,10 @@ include __DIR__ . '/../includes/dash-start.php';
   .trpt-section { break-after:avoid; }
 }
 </style>
+
+<?php if (!empty($filterError)): ?>
+  <div class="rpt-note no-print" style="margin-bottom:14px; padding:10px 14px; background:#fffbeb; border:1px solid #fde68a; border-radius:6px; color:#92400e; font-size:13px;"><?= e($filterError) ?></div>
+<?php endif; ?>
 
 <!-- ╔══════════════════════════════════════════════════════════╗
      ║  FILTER CARD  (hidden on print)                        ║

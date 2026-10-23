@@ -37,9 +37,14 @@ function reportReference(int $appointmentId): string
 $defaultFrom = date('Y-m-01');
 $defaultTo   = date('Y-m-d');
 
-$categories = db()->query(
-    "SELECT DISTINCT category FROM services WHERE category IS NOT NULL AND category <> '' ORDER BY category"
-)->fetchAll(PDO::FETCH_COLUMN);
+$categories = [];
+try {
+    $categories = db()->query(
+        "SELECT DISTINCT category::text FROM services WHERE category IS NOT NULL ORDER BY category::text"
+    )->fetchAll(PDO::FETCH_COLUMN);
+} catch (Throwable $e) {
+    error_log('Failed to fetch categories: ' . $e->getMessage());
+}
 
 $fromDate = reportValidDate($_GET['from_date'] ?? null);
 $toDate   = reportValidDate($_GET['to_date'] ?? null);
@@ -79,92 +84,101 @@ $grand = [
 ];
 
 if ($generated) {
-    $sql = "
-        SELECT a.appointment_id, a.appointment_date, a.appointment_time,
-               a.guest_name, a.outside_priest_name,
-               s.service_name, s.category, COALESCE(s.fee, 0) AS fee,
-               st.status_name,
-               pr.title AS priest_title, pr.full_name AS priest_name,
-               u.firstname, u.lastname,
-               COALESCE(pay.paid, 0) AS paid
-        FROM appointments a
-        JOIN services s            ON s.service_id = a.service_id
-        JOIN appointment_status st ON st.status_id = a.status_id
-        LEFT JOIN priests pr       ON pr.priest_id = a.priest_id
-        LEFT JOIN parishioners par ON par.parishioner_id = a.parishioner_id
-        LEFT JOIN users u          ON u.user_id = par.user_id
-        LEFT JOIN (
-            SELECT appointment_id, SUM(amount) AS paid
-            FROM payments
-            WHERE payment_status = 'verified'
-            GROUP BY appointment_id
-        ) pay ON pay.appointment_id = a.appointment_id
-        WHERE a.appointment_date BETWEEN ? AND ?
-          AND st.status_name NOT IN ('Rejected', 'Cancelled')
-    ";
-    $params = [$fromDate, $toDate];
-    if ($category !== '') {
-        $sql .= ' AND s.category = ?';
-        $params[] = $category;
+    try {
+        $outsideCol = (function_exists('outsidePriestAvailable') && outsidePriestAvailable())
+            ? 'a.outside_priest_name'
+            : 'NULL AS outside_priest_name';
+
+        $sql = "
+            SELECT a.appointment_id, a.appointment_date, a.appointment_time,
+                   a.guest_name, {$outsideCol},
+                   s.service_name, s.category::text AS category, COALESCE(s.fee, 0) AS fee,
+                   st.status_name,
+                   pr.title AS priest_title, pr.full_name AS priest_name,
+                   u.firstname, u.lastname,
+                   COALESCE(pay.paid, 0) AS paid
+            FROM appointments a
+            JOIN services s            ON s.service_id = a.service_id
+            JOIN appointment_status st ON st.status_id = a.status_id
+            LEFT JOIN priests pr       ON pr.priest_id = a.priest_id
+            LEFT JOIN parishioners par ON par.parishioner_id = a.parishioner_id
+            LEFT JOIN users u          ON u.user_id = par.user_id
+            LEFT JOIN (
+                SELECT appointment_id, SUM(amount) AS paid
+                FROM payments
+                WHERE payment_status = 'verified'
+                GROUP BY appointment_id
+            ) pay ON pay.appointment_id = a.appointment_id
+            WHERE a.appointment_date BETWEEN ? AND ?
+              AND st.status_name NOT IN ('Rejected', 'Cancelled')
+        ";
+        $params = [$fromDate, $toDate];
+        if ($category !== '') {
+            $sql .= ' AND s.category::text = ?';
+            $params[] = $category;
+        }
+        $sql .= ' ORDER BY a.appointment_date ASC, a.appointment_time ASC, a.appointment_id ASC';
+
+        $stmt = db()->prepare($sql);
+        $stmt->execute($params);
+
+        foreach ($stmt->fetchAll() as $r) {
+            $fee  = (float) $r['fee'];
+            $paid = (float) $r['paid'];
+
+            if ($fee > 0) {
+                $payStatus = $paid >= $fee ? 'Paid' : 'Pending';
+                $balance   = max($fee - $paid, 0.0);
+            } else {
+                // Free / voluntary-offering services: Paid if an offering was verified, otherwise Waived.
+                $payStatus = $paid > 0 ? 'Paid' : 'Waived';
+                $balance   = 0.0;
+            }
+
+            $client = trim(($r['firstname'] ?? '') . ' ' . ($r['lastname'] ?? ''));
+            if ($client === '') {
+                $client = trim((string) ($r['guest_name'] ?? '')) ?: '—';
+            }
+
+            $priest = trim(($r['priest_title'] ?? '') . ' ' . ($r['priest_name'] ?? ''));
+            if ($priest === '') {
+                $priest = trim((string) ($r['outside_priest_name'] ?? '')) ?: '—';
+            }
+
+            $rows[] = [
+                'date'       => $r['appointment_date'],
+                'time'       => $r['appointment_time'],
+                'reference'  => reportReference((int) $r['appointment_id']),
+                'service'    => $r['service_name'],
+                'category'   => $r['category'],
+                'client'     => $client,
+                'priest'     => $priest,
+                'status'     => $r['status_name'],
+                'fee'        => $fee,
+                'paid'       => $paid,
+                'balance'    => $balance,
+                'payStatus'  => $payStatus,
+            ];
+
+            $cat = $r['category'] ?: 'Uncategorized';
+            if (!isset($categoryTotals[$cat])) {
+                $categoryTotals[$cat] = ['bookings' => 0, 'billed' => 0.0, 'collected' => 0.0, 'balance' => 0.0];
+            }
+            $categoryTotals[$cat]['bookings']++;
+            $categoryTotals[$cat]['billed']    += $fee;
+            $categoryTotals[$cat]['collected'] += $paid;
+            $categoryTotals[$cat]['balance']   += $balance;
+
+            $grand['bookings']++;
+            $grand['billed']    += $fee;
+            $grand['collected'] += $paid;
+            $grand['balance']   += $balance;
+        }
+        ksort($categoryTotals);
+    } catch (Throwable $e) {
+        error_log('Secretary report query error: ' . $e->getMessage());
+        $filterError = 'Paumanhin, nagkaroon ng error sa pag-load ng report. Pakisubukang muli.';
     }
-    $sql .= ' ORDER BY a.appointment_date ASC, a.appointment_time ASC, a.appointment_id ASC';
-
-    $stmt = db()->prepare($sql);
-    $stmt->execute($params);
-
-    foreach ($stmt->fetchAll() as $r) {
-        $fee  = (float) $r['fee'];
-        $paid = (float) $r['paid'];
-
-        if ($fee > 0) {
-            $payStatus = $paid >= $fee ? 'Paid' : 'Pending';
-            $balance   = max($fee - $paid, 0.0);
-        } else {
-            // Free / voluntary-offering services: Paid if an offering was verified, otherwise Waived.
-            $payStatus = $paid > 0 ? 'Paid' : 'Waived';
-            $balance   = 0.0;
-        }
-
-        $client = trim(($r['firstname'] ?? '') . ' ' . ($r['lastname'] ?? ''));
-        if ($client === '') {
-            $client = trim((string) $r['guest_name']) ?: '—';
-        }
-
-        $priest = trim(($r['priest_title'] ?? '') . ' ' . ($r['priest_name'] ?? ''));
-        if ($priest === '') {
-            $priest = trim((string) $r['outside_priest_name']) ?: '—';
-        }
-
-        $rows[] = [
-            'date'       => $r['appointment_date'],
-            'time'       => $r['appointment_time'],
-            'reference'  => reportReference((int) $r['appointment_id']),
-            'service'    => $r['service_name'],
-            'category'   => $r['category'],
-            'client'     => $client,
-            'priest'     => $priest,
-            'status'     => $r['status_name'],
-            'fee'        => $fee,
-            'paid'       => $paid,
-            'balance'    => $balance,
-            'payStatus'  => $payStatus,
-        ];
-
-        $cat = $r['category'] ?: 'Uncategorized';
-        if (!isset($categoryTotals[$cat])) {
-            $categoryTotals[$cat] = ['bookings' => 0, 'billed' => 0.0, 'collected' => 0.0, 'balance' => 0.0];
-        }
-        $categoryTotals[$cat]['bookings']++;
-        $categoryTotals[$cat]['billed']    += $fee;
-        $categoryTotals[$cat]['collected'] += $paid;
-        $categoryTotals[$cat]['balance']   += $balance;
-
-        $grand['bookings']++;
-        $grand['billed']    += $fee;
-        $grand['collected'] += $paid;
-        $grand['balance']   += $balance;
-    }
-    ksort($categoryTotals);
 }
 
 $me = currentUser() ?? [];
