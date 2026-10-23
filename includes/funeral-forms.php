@@ -176,7 +176,14 @@ function funeralPdfTime(string $time): string
 
 function funeralPdfField(FPDF $pdf, string $label, string $value, float $x, float $y, float $width, float $labelWidth, float $size = 9): void
 {
-    $pdf->SetFont('Times', 'B', $size); $pdf->SetXY($x, $y); $pdf->Cell($labelWidth, 6, funeralPdfText($label), 0, 0);
+    $labelStr = funeralPdfText($label);
+    $labelFontSize = $size;
+    $pdf->SetFont('Times', 'B', $labelFontSize);
+    while ($labelFontSize > 6.0 && $pdf->GetStringWidth($labelStr) > $labelWidth - 1.5) {
+        $labelFontSize -= 0.5;
+        $pdf->SetFont('Times', 'B', $labelFontSize);
+    }
+    $pdf->SetXY($x, $y); $pdf->Cell($labelWidth, 6, $labelStr, 0, 0);
     $value = funeralPdfText(trim($value));
     for ($fontSize = $size; $fontSize >= 6.5; $fontSize -= 0.5) {
         $pdf->SetFont('Times', '', $fontSize);
