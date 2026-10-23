@@ -67,7 +67,7 @@ if ($type === 'katin_awan_bunyag' && !$form) {
     $data = [
         'cellphone' => $contactPhone
     ];
-} elseif ($type === 'cluster_clearance_baptism_sponsor' && !$form) {
+} elseif ($type === 'cluster_clearance_baptism_sponsor') {
     $kq = $pdo->prepare($isAppointmentForm
         ? 'SELECT form_data FROM generated_forms WHERE service_category = \'Baptism\' AND appointment_id = ? AND form_type = ?'
         : 'SELECT form_data FROM generated_forms WHERE service_category = \'Baptism\' AND draft_id = ? AND form_type = ?');
@@ -75,10 +75,13 @@ if ($type === 'katin_awan_bunyag' && !$form) {
     $katin = $kq->fetchColumn();
     if ($katin) {
         $kData = json_decode($katin, true) ?: [];
-        $data['child_name'] = $kData['child_name'] ?? '';
-        $data['father_name'] = $kData['father_name'] ?? '';
+        if (empty($data['child_name'])) $data['child_name'] = $kData['child_name'] ?? '';
+        if (empty($data['father_name'])) $data['father_name'] = $kData['father_name'] ?? '';
+        if (empty($data['mother_maiden_name'])) $data['mother_maiden_name'] = $kData['mother_name'] ?? '';
+        if (empty($data['cluster_name'])) $data['cluster_name'] = $kData['cluster_name'] ?? '';
     }
-    $data['service_date'] = (string) ($draft['appointment_date'] ?? '');
+    if (empty($data['service_date'])) $data['service_date'] = (string) ($draft['appointment_date'] ?? '');
+    $data = baptismNormalizeData($data);
 }
 
 $isAjaxGenerate = false;
@@ -211,6 +214,11 @@ $backLink = $isAppointmentForm
 include __DIR__ . '/includes/header.php';
 include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 'dash-start.php');
 ?>
+<style>
+input[type="text"], textarea {
+    text-transform: uppercase;
+}
+</style>
 <div class="card">
   <p style="margin-top:0;"><a href="<?= $backLink ?>" class="back-link">← Back to <?= $isAppointmentForm ? 'Appointment' : 'Baptism Requirements' ?></a></p>
   <h2><?= e($def['title']) ?></h2>
@@ -348,6 +356,18 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
   }
   choices.forEach(function (choice) { choice.addEventListener('change', syncMarriagePlace); });
   syncMarriagePlace();
+  // Auto-uppercase all text inputs as typed
+  document.addEventListener('input', function (e) {
+    if (e.target && e.target.matches('input[type="text"]:not([data-no-uppercase]), textarea:not([data-no-uppercase])')) {
+      var start = e.target.selectionStart;
+      var end = e.target.selectionEnd;
+      e.target.value = e.target.value.toUpperCase();
+      if (start !== null && end !== null) {
+        e.target.setSelectionRange(start, end);
+      }
+    }
+  });
+
   attachInlineValidation(form);
   form.addEventListener('submit', function (event) {
     if (!event.submitter || event.submitter.value !== 'generate' || !form.checkValidity()) return;

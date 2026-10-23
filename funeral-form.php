@@ -23,11 +23,23 @@ if ($isDraft) {
     
     // Not saved yet: prefill the burial date/time from the family's preferred
     // burial / Funeral Mass schedule (a draft has no confirmed schedule yet).
-    $data = funeralKatinAwanNormalizeData($draft['katin_awan_payload'] ?: [
-        'kanus_a_ilubong' => (string) (($draft['date'] ?? '') ?: ($draft['preferredBurialDate'] ?? '')),
-        'oras_sa_lubong' => substr((string) (($draft['finalTime'] ?? '') ?: ($draft['preferredBurialTime'] ?? '')), 0, 5),
-        'responde' => trim((string) ($draft['guest_name'] ?? ''))
-    ]);
+    $burialDate = (string) (($draft['date'] ?? '') ?: ($draft['preferredBurialDate'] ?? ''));
+    $burialTime = substr((string) (($draft['finalTime'] ?? '') ?: ($draft['preferredBurialTime'] ?? '')), 0, 5);
+    $responde = trim((string) (($draft['guest_name'] ?? '') ?: ($user ? trim(($user['firstname'] ?? '') . ' ' . ($user['lastname'] ?? '')) : '')));
+    $phone = trim((string) (($draft['contactPhone'] ?? '') ?: ($draft['guest_phone'] ?? '')));
+    $addr = trim((string) ($draft['locationAddress'] ?? ''));
+    $dod = trim((string) ($draft['dateOfDeath'] ?? ''));
+
+    $defaults = [
+        'kanus_a_ilubong' => $burialDate,
+        'oras_sa_lubong' => $burialTime,
+        'responde' => $responde,
+        'pinuy_anan' => $addr,
+        'kanus_a_namatay' => $dod,
+        'ginikanan_anak_cell' => $phone,
+    ];
+    $savedPayload = $draft['katin_awan_payload'] ?: [];
+    $data = funeralKatinAwanNormalizeData(array_merge($defaults, array_filter($savedPayload)));
     $form = null;
     $appointment = null;
     $previewDocumentId = 0;
@@ -107,11 +119,23 @@ if ($isDraft) {
     // Not saved yet: prefill from the confirmed schedule, otherwise the family's
     // preferred one. A saved form is never overwritten — see $scheduleMismatch.
     $hasConfirmedSchedule = !empty($appointment['appointment_date']) && !empty($appointment['appointment_time']);
-    $data = $form ? funeralKatinAwanNormalizeData(json_decode($form['form_data'], true) ?: []) : funeralKatinAwanNormalizeData([
-        'kanus_a_ilubong' => (string) ($hasConfirmedSchedule ? $appointment['appointment_date'] : ($appointment['preferred_burial_date'] ?? '')),
-        'oras_sa_lubong' => substr((string) ($hasConfirmedSchedule ? $appointment['appointment_time'] : ($appointment['preferred_burial_time'] ?? '')), 0, 5),
-        'responde' => trim((string) ($appointment['guest_name'] ?? '')),
-    ]);
+    $burialDate = (string) ($hasConfirmedSchedule ? $appointment['appointment_date'] : ($appointment['preferred_burial_date'] ?? ''));
+    $burialTime = substr((string) ($hasConfirmedSchedule ? $appointment['appointment_time'] : ($appointment['preferred_burial_time'] ?? '')), 0, 5);
+    $responde = trim((string) ($appointment['guest_name'] ?? ''));
+    $phone = trim((string) (($appointment['contact_phone'] ?? '') ?: ($appointment['guest_phone'] ?? '')));
+    $addr = trim((string) ($appointment['location_address'] ?? ''));
+    $dod = trim((string) ($appointment['date_of_death'] ?? ''));
+
+    $defaults = [
+        'kanus_a_ilubong' => $burialDate,
+        'oras_sa_lubong' => $burialTime,
+        'responde' => $responde,
+        'pinuy_anan' => $addr,
+        'kanus_a_namatay' => $dod,
+        'ginikanan_anak_cell' => $phone,
+    ];
+    $saved = $form ? (json_decode($form['form_data'], true) ?: []) : [];
+    $data = funeralKatinAwanNormalizeData(array_merge($defaults, array_filter($saved)));
     $scheduleMismatch = $form ? funeralKatinAwanScheduleMismatch($appointment, json_decode($form['form_data'], true) ?: []) : null;
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -203,6 +227,9 @@ include __DIR__ . '/includes/header.php';
 include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 'dash-start.php');
 ?>
 <style>
+input[type="text"], textarea {
+    text-transform: uppercase;
+}
 .form-section { background:#fff; padding:24px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.05); margin-bottom:24px; border:1px solid var(--cream-dark); }
 .form-section h3 { margin-top:0; color:var(--brown); margin-bottom:20px; font-size:1.1rem; border-bottom:2px solid var(--cream); padding-bottom:10px; }
 .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
@@ -317,6 +344,18 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
   }
   marriageChoices.forEach(function (choice) { choice.addEventListener('change', syncMarriage); });
   syncMarriage();
+  // Auto-uppercase all text inputs as typed
+  document.addEventListener('input', function (e) {
+    if (e.target && e.target.matches('input[type="text"]:not([data-no-uppercase]), textarea:not([data-no-uppercase])')) {
+      var start = e.target.selectionStart;
+      var end = e.target.selectionEnd;
+      e.target.value = e.target.value.toUpperCase();
+      if (start !== null && end !== null) {
+        e.target.setSelectionRange(start, end);
+      }
+    }
+  });
+
   attachInlineValidation(form);
   form.addEventListener('submit', function (event) {
     if (!event.submitter || event.submitter.value !== 'generate') return;

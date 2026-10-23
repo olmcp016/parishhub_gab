@@ -34,6 +34,17 @@ function baptismNormalizeData(array $data): array
             }
         }
     }
+    $textFields = [
+        'child_name', 'birth_place', 'father_name', 'father_religion',
+        'mother_name', 'mother_religion', 'marriage_place', 'sponsor_1',
+        'sponsor_2', 'chapel', 'cluster_name', 'barangay',
+        'sponsor_name', 'address', 'mother_maiden_name'
+    ];
+    foreach ($textFields as $tf) {
+        if (isset($data[$tf]) && is_string($data[$tf])) {
+            $data[$tf] = mb_strtoupper(trim($data[$tf]), 'UTF-8');
+        }
+    }
     return $data;
 }
 

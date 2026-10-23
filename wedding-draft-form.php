@@ -40,52 +40,12 @@ if ($user) {
         'gender' => strtolower(trim((string) ($profile['gender'] ?? ''))),
     ];
 }
-if ($type === 'matrimony_application') {
-    if ($form) {
-        $data = weddingMarriageNormalizeData($data);
-        if (empty($data['date_applied'])) $data['date_applied'] = date('Y-m-d');
-        if (empty($data['wedding_date'])) $data['wedding_date'] = (string) ($draft['appointment_date'] ?? '');
-        if (empty($data['wedding_time'])) $data['wedding_time'] = substr((string) ($draft['appointment_time'] ?? ''), 0, 5);
-    } else {
-        $data = [
-            'date_applied' => date('Y-m-d'),
-            'wedding_date' => (string) ($draft['appointment_date'] ?? ''),
-            'wedding_time' => substr((string) ($draft['appointment_time'] ?? ''), 0, 5),
-        ];
-        $side = in_array($bookingContact['gender'], ['male', 'm'], true) ? 'groom' : (in_array($bookingContact['gender'], ['female', 'f'], true) ? 'bride' : null);
-        if ($side) {
-            $data[$side . '_name'] = $bookingContact['name'];
-            $data[$side . '_birth_date'] = $bookingContact['birthdate'];
-            $data[$side . '_address'] = $bookingContact['address'];
-            $data[$side . '_cell'] = $bookingContact['phone'];
-        }
-    }
-} elseif ($type === 'cluster_clearance') {
-    $data = weddingClusterNormalizeData($data);
-    if (!$form) {
-        $data = [
-            'kaslonon_name' => $bookingContact['name'],
-            'kaslonon_birth_date' => $bookingContact['birthdate'],
-            'address' => $bookingContact['address'],
-            'wedding_date' => (string) ($draft['appointment_date'] ?? ''),
-        ];
-    } elseif (empty($data['wedding_date'])) {
-        $data['wedding_date'] = (string) ($draft['appointment_date'] ?? '');
-    }
-} elseif ($type === 'wedding_sponsor_clearance') {
-    if (!$form) {
-        $qApp = $pdo->prepare('SELECT form_data FROM generated_forms WHERE service_category = \'Wedding\' AND draft_id = ? AND form_type = ?');
-        $qApp->execute([$draftId, 'matrimony_application']);
-        $appForm = $qApp->fetch();
-        $appData = $appForm ? (json_decode($appForm['form_data'], true) ?: []) : [];
-        $data = [
-            'recipient_name' => $bookingContact['name'],
-            'address' => $bookingContact['address'],
-            'groom_name' => $appData['groom_name'] ?? '',
-            'bride_name' => $appData['bride_name'] ?? '',
-            'service_date' => (string) ($draft['appointment_date'] ?? ''),
-        ];
-    }
+$data = weddingPrefillFormData($pdo, $draftId, 0, $type, $data, $bookingContact, $draft);
+$matrimonyFormData = null;
+if ($type === 'cluster_clearance') {
+    $qMat = $pdo->prepare("SELECT form_data FROM generated_forms WHERE service_category = 'Wedding' AND draft_id = ? AND form_type = 'matrimony_application'");
+    $qMat->execute([$draftId]);
+    $matrimonyFormData = json_decode((string) $qMat->fetchColumn(), true) ?: null;
 }
 $error = null;
 $isAjaxGenerate = false;
@@ -97,6 +57,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach (weddingFormDefinition($type)['fields'] as $key => $label) {
         $data[$key] = trim((string) ($_POST[$key] ?? ''));
     }
+    if ($type === 'matrimony_application') $data = weddingMarriageNormalizeData($data);
+    elseif ($type === 'cluster_clearance') $data = weddingClusterNormalizeData($data);
+    elseif ($type === 'wedding_sponsor_clearance') $data = weddingSponsorNormalizeData($data);
     if ($type === 'cluster_clearance') $data['wedding_date'] = (string) ($draft['appointment_date'] ?? '');
     $validationErrors = weddingFormValidationErrors($type, $data, $action === 'generate');
     if ($validationErrors) $error = ($action === 'generate' ? 'Please complete all required fields before continuing. ' : '') . implode(' ', $validationErrors);
@@ -185,6 +148,11 @@ $backLink = url('wedding-draft.php?draft_id=' . $draftId);
 include __DIR__ . '/includes/header.php';
 include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 'dash-start.php');
 ?>
+<style>
+input[type="text"], textarea {
+    text-transform: uppercase;
+}
+</style>
 <div class="card" style="max-width:900px;margin:auto;">
     <p style="margin-top:0;"><a href="<?= $backLink ?>" class="back-link">← Back to Wedding Requirements</a></p>
     <h2><?= e($definition['title']) ?></h2>
@@ -205,14 +173,26 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
                 <button class="btn btn-outline btn-sm" type="button" data-copy-booking-contact="bride">Use for Bride</button>
             </div>
         </div>
-    <?php elseif ($type === 'cluster_clearance' && $bookingContact['name'] !== ''): ?>
-        <div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">
-            <strong>Booking contact:</strong> <?= e($bookingContact['name']) ?>
-            <div class="flex gap-2" style="margin-top:8px; flex-wrap:wrap;">
-                <button class="btn btn-outline btn-sm" type="button" data-copy-booking-contact="kaslonon">Use for Kaslonon</button>
-                <button class="btn btn-outline btn-sm" type="button" data-copy-booking-contact="spouse">Use for Spouse</button>
+    <?php elseif ($type === 'cluster_clearance'): ?>
+        <?php if (!empty($matrimonyFormData)): ?>
+            <div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark); margin-bottom:12px;">
+                <strong>Na-detect nga Impormasyon gikan sa Step 1 (Application):</strong><br>
+                Groom: <strong><?= e($matrimonyFormData['groom_name'] ?? '—') ?></strong> | Bride: <strong><?= e($matrimonyFormData['bride_name'] ?? '—') ?></strong>
+                <p style="margin:6px 0 8px; font-size:13px;">Pindota aron awtomatikong mabutang ang mga detalye (Pangalan, Petsa Natawo, Ginikanan, Tirahan):</p>
+                <div class="flex gap-2" style="flex-wrap:wrap;">
+                    <button class="btn btn-outline btn-sm" type="button" id="btnFillGroomKaslonon">Auto-fill: Groom ang Kaslonon</button>
+                    <button class="btn btn-outline btn-sm" type="button" id="btnFillBrideKaslonon">Auto-fill: Bride ang Kaslonon</button>
+                </div>
             </div>
-        </div>
+        <?php elseif ($bookingContact['name'] !== ''): ?>
+            <div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">
+                <strong>Booking contact:</strong> <?= e($bookingContact['name']) ?>
+                <div class="flex gap-2" style="margin-top:8px; flex-wrap:wrap;">
+                    <button class="btn btn-outline btn-sm" type="button" data-copy-booking-contact="kaslonon">Use for Kaslonon</button>
+                    <button class="btn btn-outline btn-sm" type="button" data-copy-booking-contact="spouse">Use for Spouse</button>
+                </div>
+            </div>
+        <?php endif; ?>
     <?php endif; ?>
     <form method="POST" id="weddingGeneratedForm" data-general-error="Please complete all required fields before continuing.">
         <?= csrfField() ?>
@@ -415,6 +395,46 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
   }
   marriageChoices.forEach(function (choice) { choice.addEventListener('change', syncMarriageFields); });
   syncMarriageFields();
+
+  // Auto-uppercase all text inputs as typed
+  document.addEventListener('input', function (e) {
+    if (e.target && e.target.matches('input[type="text"]:not([data-no-uppercase]), textarea:not([data-no-uppercase])')) {
+      var start = e.target.selectionStart;
+      var end = e.target.selectionEnd;
+      e.target.value = e.target.value.toUpperCase();
+      if (start !== null && end !== null) {
+        e.target.setSelectionRange(start, end);
+      }
+    }
+  });
+
+  var appData = <?= json_encode($matrimonyFormData, JSON_UNESCAPED_UNICODE) ?>;
+  var btnGroom = document.getElementById('btnFillGroomKaslonon');
+  var btnBride = document.getElementById('btnFillBrideKaslonon');
+  if (btnGroom && appData) {
+    btnGroom.addEventListener('click', function () {
+      if (document.getElementById('kaslonon_name')) document.getElementById('kaslonon_name').value = (appData.groom_name || '').toUpperCase();
+      if (document.getElementById('kaslonon_birth_date')) document.getElementById('kaslonon_birth_date').value = appData.groom_birth_date || '';
+      if (document.getElementById('address')) document.getElementById('address').value = (appData.groom_address || '').toUpperCase();
+      if (document.getElementById('father_name')) document.getElementById('father_name').value = (appData.groom_father || '').toUpperCase();
+      if (document.getElementById('mother_name')) document.getElementById('mother_name').value = (appData.groom_mother_maiden_name || appData.groom_mother || '').toUpperCase();
+      if (document.getElementById('spouse_name')) document.getElementById('spouse_name').value = (appData.bride_name || '').toUpperCase();
+      if (document.getElementById('spouse_birth_date')) document.getElementById('spouse_birth_date').value = appData.bride_birth_date || '';
+      if (document.getElementById('spouse_address')) document.getElementById('spouse_address').value = (appData.bride_address || '').toUpperCase();
+    });
+  }
+  if (btnBride && appData) {
+    btnBride.addEventListener('click', function () {
+      if (document.getElementById('kaslonon_name')) document.getElementById('kaslonon_name').value = (appData.bride_name || '').toUpperCase();
+      if (document.getElementById('kaslonon_birth_date')) document.getElementById('kaslonon_birth_date').value = appData.bride_birth_date || '';
+      if (document.getElementById('address')) document.getElementById('address').value = (appData.bride_address || '').toUpperCase();
+      if (document.getElementById('father_name')) document.getElementById('father_name').value = (appData.bride_father || '').toUpperCase();
+      if (document.getElementById('mother_name')) document.getElementById('mother_name').value = (appData.bride_mother_maiden_name || appData.bride_mother || '').toUpperCase();
+      if (document.getElementById('spouse_name')) document.getElementById('spouse_name').value = (appData.groom_name || '').toUpperCase();
+      if (document.getElementById('spouse_birth_date')) document.getElementById('spouse_birth_date').value = appData.groom_birth_date || '';
+      if (document.getElementById('spouse_address')) document.getElementById('spouse_address').value = (appData.groom_address || '').toUpperCase();
+    });
+  }
 
   // Inline errors under each field. Birth-date rules (past, 18+ on the wedding
   // date) and phone formats are declared on the inputs themselves. Save Draft

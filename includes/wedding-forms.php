@@ -126,6 +126,15 @@ function weddingMarriageNormalizeData(array $data): array
         $data['bride_mother_maiden_name'] = $data['bride_mother'];
         $data['bride_mother'] = '';
     }
+    $textFields = [
+        'groom_name', 'groom_father', 'groom_mother', 'groom_mother_maiden_name', 'groom_address',
+        'bride_name', 'bride_father', 'bride_mother', 'bride_mother_maiden_name', 'bride_address'
+    ];
+    foreach ($textFields as $tf) {
+        if (isset($data[$tf]) && is_string($data[$tf])) {
+            $data[$tf] = mb_strtoupper(trim($data[$tf]), 'UTF-8');
+        }
+    }
     return $data;
 }
 
@@ -139,7 +148,124 @@ function weddingClusterNormalizeData(array $data): array
             }
         }
     }
+    $textFields = [
+        'kaslonon_name', 'kaslonon_status', 'kaslonon_religion', 'father_name', 'father_religion',
+        'mother_name', 'mother_religion', 'sponsor_1', 'sponsor_2', 'marriage_place', 'address',
+        'chapel', 'cluster_name', 'spouse_name', 'spouse_status', 'spouse_religion', 'spouse_address'
+    ];
+    foreach ($textFields as $tf) {
+        if (isset($data[$tf]) && is_string($data[$tf])) {
+            $data[$tf] = mb_strtoupper(trim($data[$tf]), 'UTF-8');
+        }
+    }
     return $data;
+}
+
+function weddingSponsorNormalizeData(array $data): array
+{
+    $textFields = ['recipient_name', 'address', 'groom_name', 'bride_name', 'cluster_name'];
+    foreach ($textFields as $tf) {
+        if (isset($data[$tf]) && is_string($data[$tf])) {
+            $data[$tf] = mb_strtoupper(trim($data[$tf]), 'UTF-8');
+        }
+    }
+    return $data;
+}
+
+/**
+ * Prefill and synchronize shared data across wedding forms so the applicant
+ * does not have to re-enter information already supplied in Step 1 / other forms.
+ */
+function weddingPrefillFormData(PDO $pdo, int $draftId, int $appointmentId, string $targetType, array $currentData, array $bookingContact, array $appointmentOrDraft): array
+{
+    $where = $draftId > 0 ? 'draft_id = ?' : 'appointment_id = ?';
+    $targetId = $draftId > 0 ? $draftId : $appointmentId;
+    $siblings = [];
+    if ($targetId > 0) {
+        $stmt = $pdo->prepare("SELECT form_type, form_data FROM generated_forms WHERE service_category = 'Wedding' AND {$where}");
+        $stmt->execute([$targetId]);
+        while ($row = $stmt->fetch()) {
+            $siblings[$row['form_type']] = json_decode($row['form_data'], true) ?: [];
+        }
+    }
+
+    $app = $siblings['matrimony_application'] ?? [];
+    $cluster = $siblings['cluster_clearance'] ?? [];
+
+    $isBride = in_array(strtolower($bookingContact['gender'] ?? ''), ['female', 'f'], true)
+        || (!empty($app['bride_name']) && strtoupper($bookingContact['name'] ?? '') === strtoupper($app['bride_name']));
+
+    if ($targetType === 'matrimony_application') {
+        if (empty($currentData['date_applied'])) $currentData['date_applied'] = date('Y-m-d');
+        if (empty($currentData['wedding_date'])) $currentData['wedding_date'] = (string) ($appointmentOrDraft['appointment_date'] ?? '');
+        if (empty($currentData['wedding_time'])) $currentData['wedding_time'] = substr((string) ($appointmentOrDraft['appointment_time'] ?? ''), 0, 5);
+
+        if (!empty($cluster)) {
+            $primary = $isBride ? 'bride' : 'groom';
+            $secondary = $isBride ? 'groom' : 'bride';
+            if (empty($currentData[$primary . '_name'])) $currentData[$primary . '_name'] = $cluster['kaslonon_name'] ?? '';
+            if (empty($currentData[$primary . '_birth_date'])) $currentData[$primary . '_birth_date'] = $cluster['kaslonon_birth_date'] ?? '';
+            if (empty($currentData[$primary . '_address'])) $currentData[$primary . '_address'] = $cluster['address'] ?? '';
+            if (empty($currentData[$primary . '_father'])) $currentData[$primary . '_father'] = $cluster['father_name'] ?? '';
+            if (empty($currentData[$primary . '_mother'])) $currentData[$primary . '_mother'] = $cluster['mother_name'] ?? '';
+            if (empty($currentData[$primary . '_mother_maiden_name'])) $currentData[$primary . '_mother_maiden_name'] = $cluster['mother_name'] ?? '';
+
+            if (empty($currentData[$secondary . '_name'])) $currentData[$secondary . '_name'] = $cluster['spouse_name'] ?? '';
+            if (empty($currentData[$secondary . '_birth_date'])) $currentData[$secondary . '_birth_date'] = $cluster['spouse_birth_date'] ?? '';
+            if (empty($currentData[$secondary . '_address'])) $currentData[$secondary . '_address'] = $cluster['spouse_address'] ?? '';
+        }
+
+        $side = $isBride ? 'bride' : 'groom';
+        if (empty($currentData[$side . '_name']) && !empty($bookingContact['name'])) $currentData[$side . '_name'] = $bookingContact['name'];
+        if (empty($currentData[$side . '_birth_date']) && !empty($bookingContact['birthdate'])) $currentData[$side . '_birth_date'] = $bookingContact['birthdate'];
+        if (empty($currentData[$side . '_address']) && !empty($bookingContact['address'])) $currentData[$side . '_address'] = $bookingContact['address'];
+        if (empty($currentData[$side . '_cell']) && !empty($bookingContact['phone'])) $currentData[$side . '_cell'] = $bookingContact['phone'];
+
+        $currentData = weddingMarriageNormalizeData($currentData);
+    } elseif ($targetType === 'cluster_clearance') {
+        if (empty($currentData['wedding_date'])) $currentData['wedding_date'] = (string) ($appointmentOrDraft['appointment_date'] ?? '');
+
+        if (!empty($app)) {
+            $kaslononPrefix = $isBride ? 'bride' : 'groom';
+            $spousePrefix = $isBride ? 'groom' : 'bride';
+
+            if (empty($currentData['kaslonon_name'])) $currentData['kaslonon_name'] = $app[$kaslononPrefix . '_name'] ?? '';
+            if (empty($currentData['kaslonon_birth_date'])) $currentData['kaslonon_birth_date'] = $app[$kaslononPrefix . '_birth_date'] ?? '';
+            if (empty($currentData['address'])) $currentData['address'] = $app[$kaslononPrefix . '_address'] ?? '';
+            if (empty($currentData['father_name'])) $currentData['father_name'] = $app[$kaslononPrefix . '_father'] ?? '';
+            if (empty($currentData['mother_name'])) $currentData['mother_name'] = $app[$kaslononPrefix . '_mother_maiden_name'] ?? ($app[$kaslononPrefix . '_mother'] ?? '');
+
+            if (empty($currentData['spouse_name'])) $currentData['spouse_name'] = $app[$spousePrefix . '_name'] ?? '';
+            if (empty($currentData['spouse_birth_date'])) $currentData['spouse_birth_date'] = $app[$spousePrefix . '_birth_date'] ?? '';
+            if (empty($currentData['spouse_address'])) $currentData['spouse_address'] = $app[$spousePrefix . '_address'] ?? '';
+        }
+
+        if (empty($currentData['kaslonon_name']) && !empty($bookingContact['name'])) $currentData['kaslonon_name'] = $bookingContact['name'];
+        if (empty($currentData['kaslonon_birth_date']) && !empty($bookingContact['birthdate'])) $currentData['kaslonon_birth_date'] = $bookingContact['birthdate'];
+        if (empty($currentData['address']) && !empty($bookingContact['address'])) $currentData['address'] = $bookingContact['address'];
+
+        $currentData = weddingClusterNormalizeData($currentData);
+    } elseif ($targetType === 'wedding_sponsor_clearance') {
+        if (empty($currentData['service_date'])) $currentData['service_date'] = (string) ($appointmentOrDraft['appointment_date'] ?? '');
+        if (empty($currentData['service_requested'])) $currentData['service_requested'] = 'Kasal';
+
+        if (empty($currentData['groom_name'])) {
+            $currentData['groom_name'] = $app['groom_name'] ?? ($cluster['kaslonon_name'] ?? '');
+        }
+        if (empty($currentData['bride_name'])) {
+            $currentData['bride_name'] = $app['bride_name'] ?? ($cluster['spouse_name'] ?? '');
+        }
+        if (empty($currentData['cluster_name'])) {
+            $currentData['cluster_name'] = $cluster['cluster_name'] ?? '';
+        }
+        if (empty($currentData['address']) && !empty($bookingContact['address'])) {
+            $currentData['address'] = $bookingContact['address'];
+        }
+
+        $currentData = weddingSponsorNormalizeData($currentData);
+    }
+
+    return $currentData;
 }
 
 function weddingMarriageAge(string $birthDate, string $referenceDate): ?int
@@ -579,6 +705,7 @@ function weddingKatinPdf(array $data): string
 
 function weddingSponsorPdf(array $data): string
 {
+    $data = weddingSponsorNormalizeData($data);
     $pdf = new FPDF('P', 'mm', 'A4');
     $v = static fn(string $key): string => trim((string) ($data[$key] ?? ''));
     $recipient = $v('recipient_name');

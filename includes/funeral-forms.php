@@ -75,7 +75,7 @@ function funeralKatinAwanNormalizeData(array $data): array
 {
     $sacrament = trim((string) ($data['katapusan_nga_sakramento'] ?? ''));
     $legacyMarriage = trim((string) ($data['kasal'] ?? ''));
-    return [
+    $normalized = [
         'ngalan_sa_ilubong' => trim((string) ($data['ngalan_sa_ilubong'] ?? $data['deceased_name'] ?? '')),
         'edad' => trim((string) ($data['edad'] ?? $data['deceased_age'] ?? '')),
         'pinuy_anan' => trim((string) ($data['pinuy_anan'] ?? $data['place_of_wake'] ?? '')),
@@ -98,6 +98,13 @@ function funeralKatinAwanNormalizeData(array $data): array
         'petsa_sa_kasal' => trim((string) ($data['petsa_sa_kasal'] ?? '')),
         'diin_kasal' => trim((string) ($data['diin_kasal'] ?? '')),
     ];
+    $textFields = ['ngalan_sa_ilubong', 'pinuy_anan', 'relihiyon', 'sakop_sa_kapilya', 'ngalan_sa_cluster', 'unsay_namatyan', 'responde', 'ginikanan_anak', 'asawa_bana', 'diin_kasal'];
+    foreach ($textFields as $tf) {
+        if (!empty($normalized[$tf])) {
+            $normalized[$tf] = mb_strtoupper($normalized[$tf], 'UTF-8');
+        }
+    }
+    return $normalized;
 }
 
 /** @return string[] */
