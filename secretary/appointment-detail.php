@@ -409,7 +409,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 respondAjaxOrRedirect($isAjax, false, 'Please choose an active priest.', $redirectUrl);
             }
         }
-        $update = db()->prepare("UPDATE appointments SET priest_id = ? WHERE appointment_id = ? AND status_id IN (1, 2, 4, 5)");
+        $clearOutside = outsidePriestAvailable() ? ', outside_priest_name = NULL' : '';
+        $update = db()->prepare("UPDATE appointments SET priest_id = ?{$clearOutside} WHERE appointment_id = ? AND status_id IN (1, 2, 4, 5)");
         $update->execute([$priestId, $id]);
         if ($update->rowCount() !== 1) {
             respondAjaxOrRedirect($isAjax, false, 'The priest assignment was not changed. Refresh and try again.', $redirectUrl);
@@ -769,6 +770,9 @@ if (!$isAjax) {
       <p><strong>Parishioner:</strong> <?= e($appointment['firstname']) ?> <?= e($appointment['lastname']) ?> (<?= e($appointment['email']) ?>, <?= e($appointment['phone']) ?>)</p>
     <?php endif; ?>
     <p><strong>Date:</strong> <?= formatDate($appointment['appointment_date']) ?><?= $appointment['appointment_time'] ? ' at ' . date('g:i A', strtotime($appointment['appointment_time'])) : ' (To be scheduled)' ?></p>
+    <?php if (!empty($appointment['outside_priest_name'])): ?>
+      <p><strong>Priest:</strong> <?= e($appointment['outside_priest_name']) ?> <span class="badge badge-info" style="font-size:11px; margin-left:4px;">Visiting / Guest Priest</span></p>
+    <?php endif; ?>
     <?php if ($paymentDeadline && (int) $appointment['status_id'] === 2): ?>
       <p><strong>Payment Deadline:</strong> <span style="color:#b45309; font-weight:600;"><?= e($paymentDeadline->format('F j, Y \a\t g:i A')) ?></span></p>
     <?php endif; ?>
@@ -1259,6 +1263,7 @@ if (!$isAjax) {
 
     <?php if (!in_array($appointment['category'], ['Mass Intention', 'Donation'], true) && in_array((int) $appointment['status_id'], [1, 2, 4, 5], true)): ?>
     <?php
+      $hasOutsidePriest = !empty($appointment['outside_priest_name']) && isOutsidePriestEligibleCategory($appointment['category'] ?? '');
       $priestAlreadySet = !empty($appointment['priest_id']);
       $assignedPriest = null;
       if ($priestAlreadySet) {
@@ -1274,9 +1279,37 @@ if (!$isAjax) {
       }
     ?>
     <div class="card">
-      <div class="card-header"><h3><?= $priestAlreadySet ? 'Priest Assignment' : 'Assign Priest' ?></h3><span class="badge badge-pending">Required before approval</span></div>
+      <div class="card-header">
+        <h3><?= ($priestAlreadySet || $hasOutsidePriest) ? 'Priest Assignment' : 'Assign Priest' ?></h3>
+        <?php if ($hasOutsidePriest): ?>
+          <span class="badge badge-success">Visiting Priest</span>
+        <?php elseif ($priestAlreadySet): ?>
+          <span class="badge badge-success">Assigned</span>
+        <?php else: ?>
+          <span class="badge badge-pending">Required before approval</span>
+        <?php endif; ?>
+      </div>
 
-      <?php if ($priestAlreadySet): ?>
+      <?php if ($hasOutsidePriest): ?>
+        <p style="margin-top:0;"><strong>Designated Priest:</strong> <?= e($appointment['outside_priest_name']) ?> <span class="badge badge-info" style="font-size:11px; margin-left:4px;">Visiting / Guest Priest</span></p>
+        <p class="text-muted" style="font-size:13px; margin-bottom:12px;">This service was requested with a guest or visiting priest chosen by the family. An in-house parish priest assignment is not required for approval.</p>
+        <details>
+          <summary class="text-muted" style="cursor:pointer; font-size:13px;">Reassign to in-house parish priest</summary>
+          <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>" class="mb-3 mt-2">
+            <?= csrfField() ?>
+            <input type="hidden" name="action" value="assign_priest">
+            <div class="form-group">
+              <select name="priest_id" required>
+                <option value="">-- Select In-House Priest --</option>
+                <?php foreach ($priests as $p): ?>
+                  <option value="<?= $p['priest_id'] ?>"><?= e($p['title']) ?> <?= e($p['full_name']) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-outline btn-block">Assign In-House Priest</button>
+          </form>
+        </details>
+      <?php elseif ($priestAlreadySet): ?>
         <!-- The parishioner already picked (and the system already checked
              availability for) a priest at booking time — no manual
              assignment step is needed. This form stays available only for

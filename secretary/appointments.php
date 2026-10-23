@@ -39,8 +39,11 @@ function buildAppointmentsQuery(string $statusFilter, string $search): array
         $params[] = $statusFilter;
     }
     if ($search) {
-        $sql .= ' AND (u.firstname LIKE ? OR u.lastname LIKE ? OR a.guest_name LIKE ? OR s.service_name LIKE ?)';
+        $hasOutsidePriest = outsidePriestAvailable();
+        $outsideSql = $hasOutsidePriest ? ' OR a.outside_priest_name LIKE ?' : '';
+        $sql .= " AND (u.firstname LIKE ? OR u.lastname LIKE ? OR a.guest_name LIKE ? OR s.service_name LIKE ?{$outsideSql})";
         $lk = likeSafe($search); $params[] = $lk; $params[] = $lk; $params[] = $lk; $params[] = $lk;
+        if ($hasOutsidePriest) $params[] = $lk;
     }
     return [$sql, $params];
 }
@@ -87,8 +90,13 @@ function renderAppointmentsTable(array $appointments, bool $isSecretaryViewer): 
                 <?php endif; ?>
               </td>
               <td><?= e($a['service_name']) ?></td>
-              <td><?= formatDate($a['appointment_date']) ?><?= $a['appointment_time'] ? ' ' . date('g:i A', strtotime($a['appointment_time'])) : '' ?></td>
-              <td><?= e($a['priest_name'] ?? '—') ?></td>
+              <td>
+                <?php if (!empty($a['outside_priest_name'])): ?>
+                  <?= e($a['outside_priest_name']) ?> <span class="text-muted" style="font-size:11px;">(Visiting)</span>
+                <?php else: ?>
+                  <?= e($a['priest_name'] ?? '—') ?>
+                <?php endif; ?>
+              </td>
               <td>
                 <?php if ($a['schedule_type']): ?><span class="badge badge-<?= strtolower($a['schedule_type']) ?>"><?= e($a['schedule_type']) ?></span><?php endif; ?>
                 <?php if ($a['category'] === 'Mass Intention'):

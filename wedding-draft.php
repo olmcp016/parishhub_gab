@@ -82,10 +82,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $guestReference = generateGuestReference();
         $appointmentParishionerId = $locked['parishioner_id'] ?: guestParishionerId();
         $finalizationStage = 'insert_appointment';
+        $hasOutsidePriestCol = outsidePriestAvailable();
+        $outsidePriestName = $locked['outside_priest_name'] ?? null;
+        $outsidePriestCol = ($hasOutsidePriestCol && !empty($outsidePriestName)) ? ', outside_priest_name' : '';
+        $outsidePriestVal = ($hasOutsidePriestCol && !empty($outsidePriestName)) ? ', ?' : '';
+        $outsidePriestValues = ($hasOutsidePriestCol && !empty($outsidePriestName)) ? [$outsidePriestName] : [];
         $stmt = $pdo->prepare("INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, schedule_type, pss_claim, pss_classification, wedding_sponsor_count, guest_name, guest_email, guest_phone, guest_reference, contact_phone, location_address, requirements_snapshot"
             . ($precanaValues ? ', precana_type, precana_date, precana_time, precana_status' : '')
-            . ") VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 'pending_verification', ?, ?, ?, ?, ?, ?, ?, ?" . ($precanaValues ? ', ?, ?, ?, ?' : '') . ") RETURNING appointment_id");
-        $stmt->execute(array_merge([$appointmentParishionerId, $locked['service_id'], $locked['priest_id'], $locked['appointment_date'], $finalTime, $locked['remarks'], $locked['schedule_type'], $locked['pss_claim'], $locked['wedding_sponsor_count'], $locked['guest_name'], $locked['guest_email'], $locked['guest_phone'], $guestReference, $locked['contact_phone'], $locked['location_address'], json_encode(weddingDraftRequiredDocuments($locked))], $precanaValues));
+            . $outsidePriestCol
+            . ") VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 'pending_verification', ?, ?, ?, ?, ?, ?, ?, ?" . ($precanaValues ? ', ?, ?, ?, ?' : '') . $outsidePriestVal . ") RETURNING appointment_id");
+        $stmt->execute(array_merge([$appointmentParishionerId, $locked['service_id'], $locked['priest_id'], $locked['appointment_date'], $finalTime, $locked['remarks'], $locked['schedule_type'], $locked['pss_claim'], $locked['wedding_sponsor_count'], $locked['guest_name'], $locked['guest_email'], $locked['guest_phone'], $guestReference, $locked['contact_phone'], $locked['location_address'], json_encode(weddingDraftRequiredDocuments($locked))], $precanaValues, $outsidePriestValues));
         $appointmentId = (int) $stmt->fetchColumn();
         if ($appointmentId < 1) throw new RuntimeException('Wedding appointment could not be created.');
         $finalizationStage = 'transfer_supporting_documents';

@@ -36,6 +36,7 @@ function loadResumableBookingDraft(string $type, int $id): ?array
             // Preferred burial / Funeral Mass schedule (one schedule).
             'preferred_burial_date' => $d['preferredBurialDate'] ?? null,
             'preferred_burial_time' => !empty($d['preferredBurialTime']) ? substr((string) $d['preferredBurialTime'], 0, 5) : null,
+            'outside_priest_name' => $d['outside_priest_name'] ?? null,
         ];
     }
 
@@ -48,6 +49,7 @@ function loadResumableBookingDraft(string $type, int $id): ?array
         'type' => $type, 'category' => RESUMABLE_DRAFT_CATEGORIES[$type], 'id' => $id,
         'service_id' => (int) $d['service_id'],
         'priest_id' => !empty($d['priest_id']) ? (int) $d['priest_id'] : null,
+        'outside_priest_name' => $d['outside_priest_name'] ?? null,
         'date' => $d['appointment_date'] ?? null,
         'time' => !empty($d['appointment_time']) ? substr((string) $d['appointment_time'], 0, 5) : null,
         'schedule_type' => $d['schedule_type'] ?? null,

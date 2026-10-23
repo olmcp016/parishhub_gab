@@ -39,11 +39,13 @@ function approvedAppointmentDetails(int $appointmentId): ?array
 {
     $hasDeadlineCol = paymentDeadlineColumnAvailable();
     $deadlineField = $hasDeadlineCol ? 'a.payment_deadline,' : '';
+    $hasOutsidePriestCol = outsidePriestAvailable();
+    $outsidePriestField = $hasOutsidePriestCol ? 'a.outside_priest_name,' : '';
 
     $stmt = db()->prepare(
         "SELECT a.appointment_id, a.status_id, a.appointment_date, a.appointment_time, a.location_address,
                 a.guest_name, a.guest_email, a.guest_reference, a.schedule_type, a.pss_classification,
-                a.sponsor_count, a.wedding_sponsor_count, a.fee_snapshot, a.approved_at, $deadlineField
+                a.sponsor_count, a.wedding_sponsor_count, a.fee_snapshot, a.approved_at, $deadlineField $outsidePriestField
                 a.priest_id, pr.full_name AS priest_name,
                 s.service_name, s.category, s.fee,
                 u.user_id, u.email AS user_email, u.firstname, u.lastname
@@ -208,7 +210,11 @@ function appointmentApprovedEmailHtml(array $a, bool $isGuest, string $name, str
         'Date' => $hasDate ? $h(date('F j, Y', strtotime((string) $a['appointment_date']))) : $tba,
         'Time' => $hasTime ? $h(date('g:i A', strtotime((string) $a['appointment_time']))) : $tba,
     ];
-    if (!empty($a['priest_name'])) $rows['Assigned Priest'] = $h($a['priest_name']);
+    if (!empty($a['outside_priest_name'])) {
+        $rows['Priest'] = $h($a['outside_priest_name']) . ' (Visiting Priest)';
+    } elseif (!empty($a['priest_name'])) {
+        $rows['Assigned Priest'] = $h($a['priest_name']);
+    }
     if (trim((string) ($a['location_address'] ?? '')) !== '') $rows['Location'] = $h($a['location_address']);
     $rows['Status'] = (int) $a['status_id'] === 5 ? 'Approved (Confirmed)' : 'Approved (Awaiting Payment)';
 
@@ -397,7 +403,9 @@ function notifyAppointmentRescheduled(int $appointmentId, ?string $newDate, ?str
         $dateStr = !empty($dateVal) ? date('F j, Y', strtotime((string) $dateVal)) : 'To be arranged';
         $timeStr = !empty($timeVal) ? date('g:i A', strtotime((string) $timeVal)) : '';
         $scheduleDisplay = htmlspecialchars($dateStr . ($timeStr ? " at $timeStr" : ''));
-        $priestName = !empty($a['priest_name']) ? htmlspecialchars((string) $a['priest_name']) : 'Assigned by Parish Office';
+        $priestName = !empty($a['outside_priest_name'])
+            ? htmlspecialchars((string) $a['outside_priest_name']) . ' (Visiting Priest)'
+            : (!empty($a['priest_name']) ? htmlspecialchars((string) $a['priest_name']) : 'Assigned by Parish Office');
 
         // In-app notification for registered parishioner
         if (!$isGuest && !empty($a['user_id'])) {
@@ -542,7 +550,9 @@ function notifyAppointmentConfirmed(int $appointmentId, ?int $actorUserId): arra
         $dateStr = !empty($a['appointment_date']) ? date('F j, Y', strtotime((string) $a['appointment_date'])) : 'To be confirmed';
         $timeStr = !empty($a['appointment_time']) ? date('g:i A', strtotime((string) $a['appointment_time'])) : '';
         $scheduleDisplay = htmlspecialchars($dateStr . ($timeStr ? " at $timeStr" : ''));
-        $priestName = !empty($a['priest_name']) ? htmlspecialchars((string) $a['priest_name']) : 'Assigned Priest';
+        $priestName = !empty($a['outside_priest_name'])
+            ? htmlspecialchars((string) $a['outside_priest_name']) . ' (Visiting Priest)'
+            : (!empty($a['priest_name']) ? htmlspecialchars((string) $a['priest_name']) : 'Assigned Priest');
 
         $link = $isGuest && trim((string) $a['guest_reference']) !== ''
             ? guestAccessLink($appointmentId, (string) $a['guest_reference'])

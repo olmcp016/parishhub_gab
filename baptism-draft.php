@@ -87,24 +87,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new RuntimeException('Guest appointment owner could not be resolved.');
         }
         $guestReference = generateGuestReference();
+        $hasOutsidePriestCol = outsidePriestAvailable();
+        $outsidePriestName = $locked['outside_priest_name'] ?? null;
+        $outsidePriestCol = ($hasOutsidePriestCol && !empty($outsidePriestName)) ? ', outside_priest_name' : '';
+        $outsidePriestVal = ($hasOutsidePriestCol && !empty($outsidePriestName)) ? ', ?' : '';
         $stmt = $pdo->prepare(
             "INSERT INTO appointments
              (parishioner_id, service_id, priest_id, appointment_date, appointment_time,
               status_id, remarks, schedule_type, pss_claim, pss_classification,
               sponsor_count, guest_name, guest_email, guest_phone, guest_reference,
-              contact_phone, location_address, requirements_snapshot)
+              contact_phone, location_address, requirements_snapshot{$outsidePriestCol})
              VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 'pending_verification',
-                     ?, ?, ?, ?, ?, ?, ?, ?)"
+                     ?, ?, ?, ?, ?, ?, ?, ?{$outsidePriestVal})"
         );
         $baptismFinalizationStage = 'insert_appointment';
-        $stmt->execute([
+        $bapParams = [
             $appointmentParishionerId, $locked['service_id'], $locked['priest_id'],
             $locked['appointment_date'], $check['forcedTime'] ?: $locked['appointment_time'],
             $locked['remarks'], $locked['schedule_type'], $locked['pss_claim'],
             $locked['sponsor_count'], $locked['guest_name'], $locked['guest_email'],
             $locked['guest_phone'], $guestReference, $locked['contact_phone'],
             $locked['location_address'], json_encode(baptismDraftRequiredDocuments($locked))
-        ]);
+        ];
+        if ($hasOutsidePriestCol && !empty($outsidePriestName)) {
+            $bapParams[] = $outsidePriestName;
+        }
+        $stmt->execute($bapParams);
         $appointmentId = (int) $pdo->lastInsertId();
         $baptismFinalizationStage = 'transfer_documents';
         $pdo->prepare('UPDATE uploaded_documents SET appointment_id = ?, draft_id = NULL WHERE draft_id = ?')->execute([$appointmentId, $id]);

@@ -83,10 +83,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submi
 
         $pdo->beginTransaction();
         
+        $hasOutsidePriestCol = outsidePriestAvailable();
+        $outsidePriestName = $draft['outside_priest_name'] ?? null;
+        $outsidePriestCol = ($hasOutsidePriestCol && !empty($outsidePriestName)) ? ', outside_priest_name' : '';
+        $outsidePriestVal = ($hasOutsidePriestCol && !empty($outsidePriestName)) ? ', ?' : '';
+        $outsidePriestValues = ($hasOutsidePriestCol && !empty($outsidePriestName)) ? [$outsidePriestName] : [];
+
         $stmt = $pdo->prepare(
             "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, date_of_death, pss_claim, pss_classification, guest_name, guest_email, guest_phone, guest_reference, contact_phone, location_address, requirements_snapshot"
             . ($preferredBurialValues ? ', preferred_burial_date, preferred_burial_time' : '')
-            . ") VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?" . ($preferredBurialValues ? ', ?, ?' : '') . ") RETURNING appointment_id"
+            . $outsidePriestCol
+            . ") VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?" . ($preferredBurialValues ? ', ?, ?' : '') . $outsidePriestVal . ") RETURNING appointment_id"
         );
         $stmt->execute(array_merge([
             $appointmentParishionerId,
@@ -105,7 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submi
             $draft['contactPhone'],
             $draft['locationAddress'],
             $draft['requirementsSnapshot']
-        ], $preferredBurialValues));
+        ], $preferredBurialValues, $outsidePriestValues));
         $appointmentId = (int) $stmt->fetchColumn();
         if ($appointmentId < 1) throw new RuntimeException('Funeral appointment could not be created.');
 

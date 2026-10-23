@@ -338,7 +338,7 @@ if (!$isAjax) {
     <?php if ($paymentDeadline && !$isPastDateUnpaid && (int) $appointment['status_id'] === 2): ?>
       <p><strong>Payment Deadline:</strong> <span style="color:#b45309; font-weight:600;"><?= e($paymentDeadline->format('F j, Y \a\t g:i A')) ?></span></p>
     <?php endif; ?>
-    <p><strong>Priest:</strong> <?= e($appointment['priest_name'] ?? 'Not yet assigned') ?></p>
+    <p><strong>Priest:</strong> <?= !empty($appointment['outside_priest_name']) ? e($appointment['outside_priest_name']) . ' <span class="badge badge-info" style="font-size:11px; margin-left:4px;">Visiting Priest</span>' : e($appointment['priest_name'] ?? 'Not yet assigned') ?></p>
     <?php if ($appointment['category'] === 'Wedding'): ?>
       <hr style="border-color:var(--cream-dark); margin:18px 0;"><h4>Wedding Forms</h4>
       <?php foreach ($generatedForms as $gf): $state = generatedFormWorkflowState($gf, $gf, false); ?>

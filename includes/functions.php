@@ -836,3 +836,55 @@ function parishContactEmail(): string
     return $email;
 }
 
+/**
+ * Checks whether the outside_priest_name column is available in appointments and appointment_drafts.
+ * Auto-creates the columns if the current DB user has permission.
+ */
+function outsidePriestAvailable(): bool
+{
+    static $available = null;
+    if ($available !== null) return $available;
+    try {
+        $count = (int) db()->query("SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'appointments' AND column_name = 'outside_priest_name'")->fetchColumn();
+        if ($count === 0) {
+            try {
+                db()->exec("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS outside_priest_name VARCHAR(150) DEFAULT NULL");
+                db()->exec("ALTER TABLE appointment_drafts ADD COLUMN IF NOT EXISTS outside_priest_name VARCHAR(150) DEFAULT NULL");
+                $count = 1;
+            } catch (Throwable $e) {
+                // Ignore DDL errors if DB user lacks ALTER TABLE permissions
+            }
+        }
+        $available = ($count > 0);
+    } catch (Throwable $e) {
+        $available = false;
+    }
+    return $available;
+}
+
+/**
+ * Validates and formats the visiting/guest priest's name.
+ * Automatically adds the formal "Fr." title so parishioners/guests only input the name,
+ * and strips any user-typed prefix so "Fr." does not get duplicated.
+ */
+function normalizeOutsidePriestName(?string $name): ?string
+{
+    $name = trim((string) $name);
+    if ($name === '') return null;
+    // Strip common prefixes the user might type (e.g. "Fr.", "Rev. Fr.", "Father", "Reverend Father", "Rev.")
+    $cleaned = preg_replace('/^(?:rev(?:erend)?\.?\s*(?:fr\.?|father)?|fr\.?|father)\s+/i', '', $name);
+    $cleaned = trim((string) $cleaned);
+    if ($cleaned === '') return null;
+    return 'Fr. ' . $cleaned;
+}
+
+/**
+ * Services that allow an outside/visiting priest ("dili atoa nga pari").
+ * Specifically Marriage (Wedding), Funeral, and Baptism.
+ */
+function isOutsidePriestEligibleCategory(?string $category): bool
+{
+    return in_array($category, ['Wedding', 'Marriage', 'Funeral', 'Baptism'], true);
+}
+
+

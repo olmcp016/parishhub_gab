@@ -60,6 +60,8 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     verifyCsrf();
     $serviceId = (int) ($_POST['service_id'] ?? 0);
     $priestId = ($_POST['priest_id'] ?? '') ?: null;
+    $rawOutsidePriest = trim((string) ($_POST['outside_priest_name'] ?? ''));
+    $outsidePriestName = null;
     $date = $_POST['appointment_date'] ?? '';
     $time = $_POST['appointment_time'] ?? '';
     $dateOfDeath = ($_POST['date_of_death'] ?? '') ?: null;
@@ -118,6 +120,20 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     // Special Mass Request is a Wake-category service for any special intention
     // (birthday, thanksgiving, etc.), so it is identified by name within Wake.
     $isSpecialMass = ($category === 'Wake' && ($service['service_name'] ?? '') === 'Special Mass Request');
+
+    // Visiting / outside priest ("dili atoa nga pari") for Marriage, Funeral, and Baptism
+    if (isOutsidePriestEligibleCategory($category)) {
+        if ($priestId === 'other' || $rawOutsidePriest !== '') {
+            if ($rawOutsidePriest === '') {
+                bookRespondError($isAjax, 'Please enter the name of your priest.', url('parishioner/services.php'));
+            }
+            $outsidePriestName = normalizeOutsidePriestName($rawOutsidePriest);
+            $priestId = null; // Visiting priest is not a parish priest record
+        }
+    } else {
+        if ($priestId === 'other') $priestId = null;
+        $outsidePriestName = null;
+    }
 
     // Coming back from "Back to Booking Form": re-submitting Step 1 updates the
     // draft the parishioner came from (its uploaded documents and generated
@@ -407,17 +423,27 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     // fall through to the legacy appointment INSERT below.
     if ($category === 'Baptism') {
         $pdo = db(); $createdStorageKeys = [];
+        $hasOutsidePriestCol = outsidePriestAvailable();
         try {
             $pdo->beginTransaction();
             if ($resumeDraft) {
                 $draftId = $resumeDraft['id'];
-                $stmt = $pdo->prepare("UPDATE appointment_drafts SET guest_name = ?, guest_email = ?, guest_phone = ?, service_id = ?, priest_id = ?, appointment_date = ?, appointment_time = ?, schedule_type = ?, pss_claim = ?, sponsor_count = ?, remarks = ?, contact_phone = ?, location_address = ?, updated_at = CURRENT_TIMESTAMP WHERE draft_id = ? AND service_type = 'Baptism' AND status = 'draft'");
-                $stmt->execute([$guestName, $guestEmail, $guestPhone, $serviceId, $priestId, $date, $finalTime, $scheduleTypeToSave, $pssClaim, $sponsorCount, $remarks, $contactPhone, $locationAddress, $draftId]);
+                $stmt = $pdo->prepare("UPDATE appointment_drafts SET guest_name = ?, guest_email = ?, guest_phone = ?, service_id = ?, priest_id = ?, appointment_date = ?, appointment_time = ?, schedule_type = ?, pss_claim = ?, sponsor_count = ?, remarks = ?, contact_phone = ?, location_address = ?"
+                    . ($hasOutsidePriestCol ? ', outside_priest_name = ?' : '')
+                    . ", updated_at = CURRENT_TIMESTAMP WHERE draft_id = ? AND service_type = 'Baptism' AND status = 'draft'");
+                $params = [$guestName, $guestEmail, $guestPhone, $serviceId, $priestId, $date, $finalTime, $scheduleTypeToSave, $pssClaim, $sponsorCount, $remarks, $contactPhone, $locationAddress];
+                if ($hasOutsidePriestCol) $params[] = $outsidePriestName;
+                $params[] = $draftId;
+                $stmt->execute($params);
                 if ($stmt->rowCount() !== 1) throw new RuntimeException('Baptism draft is no longer available.');
             } else {
                 $rawGuestToken = $isGuest ? bin2hex(random_bytes(32)) : null;
-                $stmt = $pdo->prepare("INSERT INTO appointment_drafts (service_type, parishioner_id, guest_access_token_hash, guest_name, guest_email, guest_phone, service_id, priest_id, appointment_date, appointment_time, schedule_type, pss_claim, sponsor_count, remarks, contact_phone, location_address) VALUES ('Baptism', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING draft_id");
-                $stmt->execute([$isGuest ? null : $parishionerId, $rawGuestToken ? hash('sha256', $rawGuestToken) : null, $guestName, $guestEmail, $guestPhone, $serviceId, $priestId, $date, $finalTime, $scheduleTypeToSave, $pssClaim, $sponsorCount, $remarks, $contactPhone, $locationAddress]);
+                $stmt = $pdo->prepare("INSERT INTO appointment_drafts (service_type, parishioner_id, guest_access_token_hash, guest_name, guest_email, guest_phone, service_id, priest_id, appointment_date, appointment_time, schedule_type, pss_claim, sponsor_count, remarks, contact_phone, location_address"
+                    . ($hasOutsidePriestCol ? ', outside_priest_name' : '')
+                    . ") VALUES ('Baptism', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?" . ($hasOutsidePriestCol ? ', ?' : '') . ") RETURNING draft_id");
+                $params = [$isGuest ? null : $parishionerId, $rawGuestToken ? hash('sha256', $rawGuestToken) : null, $guestName, $guestEmail, $guestPhone, $serviceId, $priestId, $date, $finalTime, $scheduleTypeToSave, $pssClaim, $sponsorCount, $remarks, $contactPhone, $locationAddress];
+                if ($hasOutsidePriestCol) $params[] = $outsidePriestName;
+                $stmt->execute($params);
                 $draftId = (int) $stmt->fetchColumn();
                 if ($rawGuestToken) $_SESSION['baptism_draft_tokens'][$draftId] = $rawGuestToken;
             }
@@ -458,6 +484,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
             'guest_reference' => $guestReference,
             'service_id' => $serviceId,
             'priest_id' => $priestId,
+            'outside_priest_name' => $outsidePriestName,
             'date' => $date,
             'finalTime' => $finalTime,
             'pssClaim' => $pssClaim,
@@ -479,6 +506,9 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
             $previous = $_SESSION['funeral_booking_drafts'][$draftId];
             foreach (['guest_token', 'uploaded_keys', 'katin_awan_payload', 'generated_document'] as $keep) {
                 $funeralDraft[$keep] = $previous[$keep] ?? $funeralDraft[$keep];
+            }
+            if ($outsidePriestName === null && !empty($previous['outside_priest_name'])) {
+                $funeralDraft['outside_priest_name'] = $previous['outside_priest_name'];
             }
         }
 
@@ -511,6 +541,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     if ($category === 'Wedding') {
         $pdo = db();
         $createdStorageKeys = [];
+        $hasOutsidePriestCol = outsidePriestAvailable();
         try {
             $pdo->beginTransaction();
             $precanaValues = $precana ? [$precana['type'], $precana['date'], $precana['time'], $precana['status']] : [];
@@ -518,15 +549,22 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
                 $draftId = $resumeDraft['id'];
                 $stmt = $pdo->prepare("UPDATE appointment_drafts SET guest_name = ?, guest_email = ?, guest_phone = ?, service_id = ?, priest_id = ?, appointment_date = ?, appointment_time = ?, schedule_type = ?, pss_claim = ?, wedding_sponsor_count = ?, remarks = ?, contact_phone = ?, location_address = ?"
                     . ($precana ? ', precana_type = ?, precana_date = ?, precana_time = ?, precana_status = ?' : '')
+                    . ($hasOutsidePriestCol ? ', outside_priest_name = ?' : '')
                     . ", updated_at = CURRENT_TIMESTAMP WHERE draft_id = ? AND service_type = 'Wedding' AND status = 'draft'");
-                $stmt->execute(array_merge([$guestName, $guestEmail, $guestPhone, $serviceId, $priestId, $date, $finalTime, $scheduleTypeToSave, $pssClaim, $weddingSponsorCount, $remarks, $contactPhone, $locationAddress], $precanaValues, [$draftId]));
+                $params = array_merge([$guestName, $guestEmail, $guestPhone, $serviceId, $priestId, $date, $finalTime, $scheduleTypeToSave, $pssClaim, $weddingSponsorCount, $remarks, $contactPhone, $locationAddress], $precanaValues);
+                if ($hasOutsidePriestCol) $params[] = $outsidePriestName;
+                $params[] = $draftId;
+                $stmt->execute($params);
                 if ($stmt->rowCount() !== 1) throw new RuntimeException('Wedding draft is no longer available.');
             } else {
                 $rawGuestToken = $isGuest ? bin2hex(random_bytes(32)) : null;
                 $stmt = $pdo->prepare("INSERT INTO appointment_drafts (service_type, parishioner_id, guest_access_token_hash, guest_name, guest_email, guest_phone, service_id, priest_id, appointment_date, appointment_time, schedule_type, pss_claim, sponsor_count, wedding_sponsor_count, remarks, contact_phone, location_address"
                     . ($precana ? ', precana_type, precana_date, precana_time, precana_status' : '')
-                    . ") VALUES ('Wedding', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?" . ($precana ? ', ?, ?, ?, ?' : '') . ") RETURNING draft_id");
-                $stmt->execute(array_merge([$isGuest ? null : $parishionerId, $rawGuestToken ? hash('sha256', $rawGuestToken) : null, $guestName, $guestEmail, $guestPhone, $serviceId, $priestId, $date, $finalTime, $scheduleTypeToSave, $pssClaim, null, $weddingSponsorCount, $remarks, $contactPhone, $locationAddress], $precanaValues));
+                    . ($hasOutsidePriestCol ? ', outside_priest_name' : '')
+                    . ") VALUES ('Wedding', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?" . ($precana ? ', ?, ?, ?, ?' : '') . ($hasOutsidePriestCol ? ', ?' : '') . ") RETURNING draft_id");
+                $params = array_merge([$isGuest ? null : $parishionerId, $rawGuestToken ? hash('sha256', $rawGuestToken) : null, $guestName, $guestEmail, $guestPhone, $serviceId, $priestId, $date, $finalTime, $scheduleTypeToSave, $pssClaim, null, $weddingSponsorCount, $remarks, $contactPhone, $locationAddress], $precanaValues);
+                if ($hasOutsidePriestCol) $params[] = $outsidePriestName;
+                $stmt->execute($params);
                 $draftId = (int) $stmt->fetchColumn();
                 if ($draftId < 1) throw new RuntimeException('Wedding draft could not be created.');
                 if ($rawGuestToken) $_SESSION['wedding_draft_tokens'][$draftId] = $rawGuestToken;
@@ -606,12 +644,20 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         $approvedAtColumn = $isMassIntention ? ', approved_at' : '';
         $approvedAtValue = $isMassIntention ? ', NOW()' : '';
 
+        $hasOutsidePriestCol = outsidePriestAvailable();
+        $outsidePriestCol = ($hasOutsidePriestCol && $outsidePriestName) ? ', outside_priest_name' : '';
+        $outsidePriestVal = ($hasOutsidePriestCol && $outsidePriestName) ? ', ?' : '';
+
         $stmt = $pdo->prepare(
-            "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, date_of_death, schedule_type, pss_claim, pss_classification, sponsor_count, wedding_sponsor_count, guest_name, guest_email, guest_phone, guest_reference, contact_phone, location_address, requirements_snapshot, requester_name, patient_name{$approvedAtColumn})
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$approvedAtValue})"
+            "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, date_of_death, schedule_type, pss_claim, pss_classification, sponsor_count, wedding_sponsor_count, guest_name, guest_email, guest_phone, guest_reference, contact_phone, location_address, requirements_snapshot, requester_name, patient_name{$approvedAtColumn}{$outsidePriestCol})
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$approvedAtValue}{$outsidePriestVal})"
         );
         if ($isMassIntention) $massIntentionStage = 'insert_appointment';
-        $stmt->execute([$parishionerId, $serviceId, $priestId, $date, $finalTime, $initialStatusId, $remarks, $dateOfDeath, $scheduleTypeToSave, $pssClaim, $pssClassification, $sponsorCount, $weddingSponsorCount, $guestName, $guestEmail, $guestPhone, $guestReference, $contactPhone, $locationAddress, $requirementsSnapshot, $requesterName, $patientName]);
+        $insertParams = [$parishionerId, $serviceId, $priestId, $date, $finalTime, $initialStatusId, $remarks, $dateOfDeath, $scheduleTypeToSave, $pssClaim, $pssClassification, $sponsorCount, $weddingSponsorCount, $guestName, $guestEmail, $guestPhone, $guestReference, $contactPhone, $locationAddress, $requirementsSnapshot, $requesterName, $patientName];
+        if ($hasOutsidePriestCol && $outsidePriestName) {
+            $insertParams[] = $outsidePriestName;
+        }
+        $stmt->execute($insertParams);
         $appointmentId = $pdo->lastInsertId();
 
         $checkoutUrl = null;
