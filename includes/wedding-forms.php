@@ -486,7 +486,7 @@ function weddingPdfField(FPDF $pdf, string $label, string $value, float $x, floa
     $labelStr = weddingPdfText($label);
     $labelFontSize = $fontSize;
     $pdf->SetFont('Times', 'B', $labelFontSize);
-    while ($labelFontSize > 6.0 && $pdf->GetStringWidth($labelStr) > $labelWidth - 2) {
+    while ($labelFontSize > 6.0 && $pdf->GetStringWidth($labelStr) > $labelWidth) {
         $labelFontSize -= 0.5;
         $pdf->SetFont('Times', 'B', $labelFontSize);
     }
@@ -720,31 +720,24 @@ function weddingKatinPdf(array $data): string
     weddingChoice($pdf, 'WALA', $v('parent_marriage') === 'Wala', 125, 114);
 
     // DIIN and KANUS-A:
-    // DIIN line starts at X=66 (exactly aligned with PINUY-ANAN right below it) and extends to 138 (72mm).
-    // DIIN label is right-aligned up to X=64 so there is no gap between text and underline.
-    // KANUS-A line is reduced from 58mm to 35mm (X=157 to 192) with no gap after KANUS-A:.
-    $pdf->SetXY(18, 123);
-    $pdf->SetFont('Times', 'B', 9);
-    $pdf->Cell(46, 6, weddingPdfText('DIIN:'), 0, 0, 'R');
-    $pdf->Cell(2, 6, '', 0, 0);
-    $diinVal = weddingPdfFit($pdf, $v('marriage_place'), 70, 9);
-    $pdf->SetFont('Times', '', 9);
-    $pdf->Cell(72, 6, $diinVal, 'B', 0);
+    // DIIN starts at X=18 (pantay sa text ng PINUY-ANAN), underline starts at X=46 (pantay sa line ni PINUY-ANAN) and extends to 136.
+    weddingPdfField($pdf, 'DIIN:', $v('marriage_place'), 18, 123, 118, 28);
+    weddingPdfField($pdf, 'KANUS-A:', weddingMarriagePdfDate($v('marriage_date')), 138, 123, 54, 18);
 
-    weddingPdfField($pdf, 'KANUS-A:', weddingMarriagePdfDate($v('marriage_date')), 140, 123, 52, 17);
+    // PINUY-ANAN (groom): line starts at X=46 (labelWidth=28) - ilapit kay PINUY-ANAN para hindi pangit tingnan
+    weddingPdfField($pdf, 'PINUY-ANAN:', $v('address'), 18, 132, 174, 28);
+    weddingPdfField($pdf, 'SAKOP SA KAPILYA SA:', $v('chapel'), 18, 141, 174, 42);
+    weddingPdfField($pdf, 'NGALAN SA CLUSTER:', $v('cluster_name'), 18, 150, 174, 38);
 
-    $fullW = 174.0;
-    $fullLabelW = 48.0;
-    weddingPdfField($pdf, 'PINUY-ANAN:', $v('address'), 18, 132, $fullW, $fullLabelW);
-    weddingPdfField($pdf, 'SAKOP SA KAPILYA SA:', $v('chapel'), 18, 141, $fullW, $fullLabelW);
-    weddingPdfField($pdf, 'NGALAN SA CLUSTER:', $v('cluster_name'), 18, 150, $fullW, $fullLabelW);
-    weddingPdfField($pdf, 'NGALAN SA PAMANHUNON/PANGASAW-ONON:', $v('spouse_name'), 18, 159, $fullW, 76, 6, 8);
+    // NGALAN SA PAMANHUNON/PANGASAW-ONON: standard 9pt font size, labelWidth=76 so no overlap with ANA REYES
+    weddingPdfField($pdf, 'NGALAN SA PAMANHUNON/PANGASAW-ONON:', $v('spouse_name'), 18, 159, 174, 76, 6, 9);
 
     weddingPdfField($pdf, 'EDAD:', $spouseAge, 18, 168, 48, 16);
     weddingPdfField($pdf, 'ESTADO:', $v('spouse_status'), 70, 168, 60, 20);
     weddingPdfField($pdf, 'RELIHIYON:', $v('spouse_religion'), 134, 168, 58, 22);
 
-    weddingPdfField($pdf, 'PINUY-ANAN:', $v('spouse_address'), 18, 177, $fullW, $fullLabelW);
+    // PINUY-ANAN (bride): line starts at X=46 (labelWidth=28) - ilapit kay PINUY-ANAN
+    weddingPdfField($pdf, 'PINUY-ANAN:', $v('spouse_address'), 18, 177, 174, 28);
 
     $pdf->SetFont('Times', 'B', 8); $pdf->SetXY(18, 186);
     $pdf->MultiCell(174, 4, 'PAHINUDOM: Human mamatud-i kining tanan, kini pagapirmahan sa Cluster Leader, Cluster Treasurer ug Chapel Chairman, Chapel Treasurer ug dad-on sa mga hingtungdan ngadto sa simbahan (apil na ang mga papeles nga gikinahanglan alang sa kasal ug mga sponsors) ug ihatag ngadto sa Parish Clerk.');
