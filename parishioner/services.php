@@ -3678,22 +3678,30 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     inputEl.dataset.phEnhanced = '1';
 
     var box = document.createElement('div');
-    box.className = 'ph-datepicker-box mini-dp';
+    box.className = 'mini-dp ph-datepicker-box';
+    box.style.cssText = 'position: relative; width: 100%;';
 
     var field = document.createElement('div');
-    field.className = 'ph-dp-field';
+    field.className = 'mini-dp-field';
+    field.setAttribute('tabindex', '0');
+    field.setAttribute('role', 'button');
+    field.setAttribute('aria-haspopup', 'dialog');
+    field.style.cssText = 'min-height: 46px; cursor: pointer; user-select: none;';
 
     var textSpan = document.createElement('span');
-    textSpan.className = 'ph-dp-text';
+    textSpan.className = 'mini-dp-placeholder';
 
     var calIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     calIcon.setAttribute('class', 'ph-dp-icon');
     calIcon.setAttribute('viewBox', '0 0 24 24');
+    calIcon.setAttribute('width', '18');
+    calIcon.setAttribute('height', '18');
     calIcon.setAttribute('fill', 'none');
-    calIcon.setAttribute('stroke', 'currentColor');
+    calIcon.setAttribute('stroke', '#9e7c2a');
     calIcon.setAttribute('stroke-width', '2');
     calIcon.setAttribute('stroke-linecap', 'round');
     calIcon.setAttribute('stroke-linejoin', 'round');
+    calIcon.setAttribute('style', 'width:18px !important; height:18px !important; min-width:18px !important; min-height:18px !important; max-width:18px !important; max-height:18px !important; flex:0 0 18px !important; stroke:var(--gold-dark, #9e7c2a) !important; pointer-events:none; display:inline-block;');
     var rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     rect.setAttribute('x', '3'); rect.setAttribute('y', '4'); rect.setAttribute('width', '18'); rect.setAttribute('height', '18'); rect.setAttribute('rx', '2'); rect.setAttribute('ry', '2');
     var l1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -3712,19 +3720,19 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     popup.style.display = 'none';
 
     popup.innerHTML =
-      '<div class="mini-dp-nav">' +
-        '<button type="button" class="mini-dp-nav-btn ph-dp-prev" aria-label="Previous Month">&lsaquo;</button>' +
-        '<div class="mini-dp-month-label ph-dp-label"></div>' +
-        '<button type="button" class="mini-dp-nav-btn ph-dp-next" aria-label="Next Month">&rsaquo;</button>' +
+      '<div class="mini-dp-header">' +
+        '<button type="button" class="mini-dp-nav ph-dp-prev" aria-label="Previous Month">‹</button>' +
+        '<span class="mini-dp-title ph-dp-label"></span>' +
+        '<button type="button" class="mini-dp-nav ph-dp-next" aria-label="Next Month">›</button>' +
       '</div>' +
       '<div class="mini-dp-weekdays">' +
         '<span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>' +
       '</div>' +
       '<div class="mini-dp-grid ph-dp-grid"></div>' +
       '<div class="mini-dp-footer">' +
-        '<button type="button" class="mini-dp-footer-btn ph-dp-clear">Clear</button>' +
-        '<button type="button" class="mini-dp-footer-btn ph-dp-today">Today</button>' +
-        '<button type="button" class="mini-dp-footer-btn ph-dp-close" style="font-weight:700;">Done</button>' +
+        '<button type="button" class="mini-dp-footer-link ph-dp-clear">Clear</button>' +
+        '<button type="button" class="mini-dp-footer-link ph-dp-today">Today</button>' +
+        '<button type="button" class="mini-dp-footer-link ph-dp-close" style="font-weight:700;">Done</button>' +
       '</div>';
 
     box.appendChild(field);
@@ -3747,13 +3755,15 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     function syncDisplay() {
       var isDisabled = inputEl.disabled;
       field.classList.toggle('is-disabled', isDisabled);
+      field.style.pointerEvents = isDisabled ? 'none' : '';
+      field.style.opacity = isDisabled ? '0.6' : '1';
       var val = inputEl.value;
       if (val) {
         textSpan.textContent = formatDateDisplay(val);
-        textSpan.classList.remove('is-placeholder');
+        textSpan.classList.remove('mini-dp-placeholder');
       } else {
         textSpan.textContent = 'Select date...';
-        textSpan.classList.add('is-placeholder');
+        textSpan.classList.add('mini-dp-placeholder');
       }
     }
 

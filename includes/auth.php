@@ -92,7 +92,7 @@ function currentPriestId(): ?int
     $priestId = $stmt->fetchColumn();
 
     if (!$priestId && !empty($user['email'])) {
-        $stmt = $pdo->prepare('SELECT priest_id FROM priests WHERE user_id IS NULL AND LOWER(email) = LOWER(?) LIMIT 1');
+        $stmt = $pdo->prepare('SELECT priest_id FROM priests WHERE LOWER(email) = LOWER(?) LIMIT 1');
         $stmt->execute([$user['email']]);
         $priestId = $stmt->fetchColumn();
     }
@@ -100,19 +100,21 @@ function currentPriestId(): ?int
     if (!$priestId && ($user['role_name'] ?? '') === 'Admin') {
         $stmt = $pdo->prepare(
             "SELECT priest_id FROM priests
-             WHERE user_id IS NULL
-               AND (full_name ILIKE '%Al John%' OR full_name ILIKE '%Minoza%' OR full_name ILIKE '%Miñoza%' OR title ILIKE '%Parish Priest%')
+             WHERE (full_name ILIKE '%Al John%' OR full_name ILIKE '%Minoza%' OR full_name ILIKE '%Miñoza%' OR full_name ILIKE '%Parish Priest%' OR title ILIKE '%Parish Priest%')
              ORDER BY priest_id ASC LIMIT 1"
         );
         $stmt->execute();
         $priestId = $stmt->fetchColumn();
+        if (!$priestId) {
+            $priestId = $pdo->query("SELECT priest_id FROM priests WHERE status = 'active' ORDER BY priest_id ASC LIMIT 1")->fetchColumn();
+        }
     }
 
     if ($priestId) {
-        $pdo->prepare('UPDATE priests SET user_id = ? WHERE priest_id = ? AND user_id IS NULL')->execute([$userId, $priestId]);
+        $pdo->prepare('UPDATE priests SET user_id = ? WHERE priest_id = ?')->execute([$userId, $priestId]);
     }
 
-    return $cache[$userId] = ($priestId ?: null);
+    return $cache[$userId] = ($priestId ? (int) $priestId : null);
 }
 
 function guestOnly(): void
