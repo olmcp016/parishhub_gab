@@ -329,17 +329,130 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
 <?php endif; ?>
 
 <!-- ===================== Booking Modal ===================== -->
+<style>
+  /* ---- Booking Stepper ---- */
+  .book-stepper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 14px 20px 10px;
+    background: #fff;
+    border-bottom: 1px solid var(--cream-dark, #e8e0d5);
+    margin-bottom: 0;
+  }
+  .book-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    position: relative;
+    z-index: 0;
+  }
+  .book-step-connector {
+    flex: 1;
+    height: 2px;
+    background: var(--cream-dark, #e8e0d5);
+    margin-bottom: 16px;
+    transition: background 0.3s;
+  }
+  .book-step-connector.done { background: var(--accent, #7a5c1e); }
+  .book-step-circle {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid var(--cream-dark, #e8e0d5);
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-muted, #9a8b72);
+    transition: all 0.3s;
+    position: relative;
+    z-index: 1;
+  }
+  .book-step.active .book-step-circle {
+    border-color: var(--accent, #7a5c1e);
+    background: var(--accent, #7a5c1e);
+    color: #fff;
+    box-shadow: 0 0 0 4px rgba(122,92,30,0.12);
+  }
+  .book-step.done .book-step-circle {
+    border-color: var(--accent, #7a5c1e);
+    background: var(--accent, #7a5c1e);
+    color: #fff;
+  }
+  .book-step.done {
+    cursor: pointer;
+  }
+  .book-step-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted, #9a8b72);
+    text-align: center;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    transition: color 0.3s;
+  }
+  .book-step.active .book-step-label { color: var(--accent, #7a5c1e); }
+  .book-step.done .book-step-label { color: var(--accent, #7a5c1e); }
+  /* ---- Step panels ---- */
+  .book-step-panel { display: none; }
+  .book-step-panel.active { display: block; }
+  /* ---- Nav buttons row ---- */
+  .book-step-nav {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--cream-dark, #e8e0d5);
+  }
+  .book-step-nav .btn-step-back {
+    flex: 0 0 auto;
+  }
+  .book-step-nav .spacer { flex: 1; }
+  .book-step-nav .btn-step-next,
+  .book-step-nav .btn-step-submit {
+    flex: 0 0 auto;
+  }
+  @media (max-width: 480px) {
+    .book-stepper { padding: 10px 12px 8px; gap: 0; }
+    .book-step-label { font-size: 10px; }
+    .book-step-circle { width: 28px; height: 28px; font-size: 12px; }
+  }
+</style>
+
 <dialog class="modal modal-lg" id="bookModal">
-  <div class="modal-head">
-    <h3 id="bookModalTitle">Book a Service</h3>
-    <button type="button" class="modal-close" onclick="closeBookModal()">✕</button>
+  <div class="modal-head" style="flex-direction:column; align-items:stretch; padding-bottom:0; gap:0;">
+    <div style="display:flex; align-items:center; justify-content:space-between; padding: 16px 20px 12px;">
+      <h3 id="bookModalTitle" style="margin:0;">Book a Service</h3>
+      <button type="button" class="modal-close" onclick="closeBookModal()">✕</button>
+    </div>
+    <!-- Step indicator -->
+    <div class="book-stepper" id="bookStepper">
+      <div class="book-step active" id="bstep-1" onclick="if(_bookCurrentStep>1) bookStepGo(1)" title="Step 1: Details">
+        <div class="book-step-circle" id="bstep-circle-1">1</div>
+        <span class="book-step-label">1. Details</span>
+      </div>
+      <div class="book-step-connector" id="bstep-conn-1"></div>
+      <div class="book-step" id="bstep-2" onclick="if(_bookCurrentStep>2) bookStepGo(2)" title="Step 2: Documents">
+        <div class="book-step-circle" id="bstep-circle-2">2</div>
+        <span class="book-step-label">2. Documents</span>
+      </div>
+      <div class="book-step-connector" id="bstep-conn-2"></div>
+      <div class="book-step" id="bstep-3" title="Step 3: Review &amp; Submit">
+        <div class="book-step-circle" id="bstep-circle-3">3</div>
+        <span class="book-step-label">3. Review &amp; Submit</span>
+      </div>
+    </div>
   </div>
   <div class="modal-body">
 
     <div id="bookFormView">
-      <div id="policyBox" class="alert"
-        style="display:none; background: var(--cream); color: var(--brown-mid); border: 1px solid var(--cream-dark);">
-      </div>
 
       <form method="POST" action="<?= url('parishioner/book.php') ?>" enctype="multipart/form-data" id="bookForm">
         <?= csrfField() ?>
@@ -382,7 +495,12 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
           }
         </style>
 
-        <?php if ($identity['is_guest']): ?>
+        <!-- ========== STEP 1: Details ========== -->
+        <div class="book-step-panel active" id="book-panel-1">
+          <div id="policyBox" class="alert"
+            style="display:none; background: var(--cream); color: var(--brown-mid); border: 1px solid var(--cream-dark); margin-bottom:14px;">
+          </div>
+          <?php if ($identity['is_guest']): ?>
           <style>
             .guest-info-fields {
               display: flex;
@@ -813,71 +931,125 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
           </div>
         </div>
 
-        <div class="form-group" id="remarksGroup">
-          <label>Additional Remarks</label>
-          <textarea name="remarks" id="remarksInput" rows="2" placeholder="Any special requests..."></textarea>
-        </div>
-
-        <div class="form-group" id="documentRequirementsNote" style="display:none;">
-          <label>Required Documents</label>
-          <div class="alert"
-            style="background: var(--cream); color: var(--brown-mid); border: 1px solid var(--cream-dark); font-size:13px; margin-bottom:12px;">
-            <strong>Document Requirements:</strong>
-            <ul style="margin:6px 0 0; padding-left:18px;">
-              <li>Please upload a clear and readable document.</li>
-              <li>Document must be in portrait orientation.</li>
-              <li>Make sure all information is visible.</li>
-              <li>Do not upload blurry, corrupted, or incorrect files.</li>
-              <li>Upload the required document as a PDF, JPG, JPEG, or PNG file.</li>
-              <li>Maximum file size: <?= e((string) MAX_DOCUMENT_UPLOAD_MB) ?> MB.</li>
-            </ul>
-            <p style="margin:8px 0 0;">These automated checks confirm a file is readable and correctly formatted — they
-              do not verify authenticity. Our parish staff will do a final manual review before approval.</p>
+          <!-- Step 1 nav: Next button -->
+          <div class="book-step-nav" id="step1-nav">
+            <span class="spacer"></span>
+            <button type="button" class="btn btn-primary btn-step-next" id="btnStep1Next" onclick="bookStepNext(1)">Next &rarr;</button>
           </div>
-        </div>
+        </div><!-- /book-panel-1 -->
 
-        <div class="form-group" id="uploadGroup">
-          <label>Required Documents</label>
-
-          <div id="requirementRows"></div>
-
-          <div class="form-group" style="margin-top:10px;">
-            <label>Additional Documents (optional)</label>
-            <input type="file" name="documents[]" id="extraDocumentsInput" multiple accept=".pdf,.jpg,.jpeg,.png">
-            <p class="helper-text">Max <?= e(ini_get('upload_max_filesize')) ?> per file,
-              <?= e(ini_get('post_max_size')) ?> total for the whole form. If your photos are larger than that (common
-              for phone camera photos), you can also upload documents later from the appointment detail page instead.
-            </p>
-          </div>
-        </div>
-
-        <div id="requirementsPreviewBox"
-          style="display:none; margin-top:20px; border:1px solid var(--cream-dark); border-radius:8px; padding:16px; background:var(--white);">
-          <h4 style="margin:0 0 8px; color:var(--brown-dark);">Requirements for the Next Step</h4>
-          <p style="margin:0 0 16px; color:var(--brown-mid); font-size:14px;">Please prepare the following documents.
-            You will upload them in the next step.</p>
-
-          <div id="previewSupportingDocuments" style="margin-bottom:16px;">
-            <h5
-              style="margin:0 0 6px; font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--gray-dark);">
-              Supporting Documents</h5>
-            <ul id="previewDocumentsList"
-              style="margin:0; padding-left:20px; color:var(--brown-dark); font-size:14px; line-height:1.5;"></ul>
+        <!-- ========== STEP 2: Documents ========== -->
+        <div class="book-step-panel" id="book-panel-2">
+          <div id="step2-empty-msg" class="alert"
+            style="display:none; background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark); margin-bottom:16px;">
+            No document uploads or requirements required for this service. You can proceed to Review &amp; Submit.
           </div>
 
-          <div id="previewFormsToComplete">
-            <h5
-              style="margin:0 0 6px; font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--gray-dark);">
-              Forms to Complete</h5>
-            <ul id="previewFormsList"
-              style="margin:0; padding-left:20px; color:var(--brown-dark); font-size:14px; line-height:1.5;"></ul>
+          <!-- Requirements Preview for draft services (Baptism, Wedding, Funeral) -->
+          <div id="requirementsPreviewBox"
+            style="display:none; margin-top:0; margin-bottom:20px; border:1px solid var(--cream-dark); border-radius:8px; padding:16px; background:var(--white);">
+            <h4 style="margin:0 0 8px; color:var(--brown-dark);">Requirements for the Next Step</h4>
+            <p style="margin:0 0 16px; color:var(--brown-mid); font-size:14px;">Please prepare the following documents.
+              You will upload them in the next step.</p>
+
+            <div id="previewSupportingDocuments" style="margin-bottom:16px;">
+              <h5
+                style="margin:0 0 6px; font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--gray-dark);">
+                Supporting Documents</h5>
+              <ul id="previewDocumentsList"
+                style="margin:0; padding-left:20px; color:var(--brown-dark); font-size:14px; line-height:1.5;"></ul>
+            </div>
+
+            <div id="previewFormsToComplete">
+              <h5
+                style="margin:0 0 6px; font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--gray-dark);">
+                Forms to Complete</h5>
+              <ul id="previewFormsList"
+                style="margin:0; padding-left:20px; color:var(--brown-dark); font-size:14px; line-height:1.5;"></ul>
+            </div>
+          </div><!-- /requirementsPreviewBox -->
+
+          <div class="form-group" id="documentRequirementsNote" style="display:none;">
+            <label>Required Documents</label>
+            <div class="alert"
+              style="background: var(--cream); color: var(--brown-mid); border: 1px solid var(--cream-dark); font-size:13px; margin-bottom:12px;">
+              <strong>Document Requirements:</strong>
+              <ul style="margin:6px 0 0; padding-left:18px;">
+                <li>Please upload a clear and readable document.</li>
+                <li>Document must be in portrait orientation.</li>
+                <li>Make sure all information is visible.</li>
+                <li>Do not upload blurry, corrupted, or incorrect files.</li>
+                <li>Upload the required document as a PDF, JPG, JPEG, or PNG file.</li>
+                <li>Maximum file size: <?= e((string) MAX_DOCUMENT_UPLOAD_MB) ?> MB.</li>
+              </ul>
+              <p style="margin:8px 0 0;">These automated checks confirm a file is readable and correctly formatted — they
+                do not verify authenticity. Our parish staff will do a final manual review before approval.</p>
+            </div>
           </div>
-        </div>
 
-        <div id="bookFormError" class="alert"
-          style="display:none; background: var(--danger-bg); color: var(--danger); border: 1px solid #f5c2c2;"></div>
+          <div class="form-group" id="uploadGroup">
+            <label>Required Documents</label>
 
-        <button type="submit" class="btn btn-primary btn-block" id="bookSubmitBtn">Submit Appointment Request</button>
+            <div id="requirementRows"></div>
+
+            <div class="form-group" style="margin-top:10px;">
+              <label>Additional Documents (optional)</label>
+              <input type="file" name="documents[]" id="extraDocumentsInput" multiple accept=".pdf,.jpg,.jpeg,.png">
+              <p class="helper-text">Max <?= e(ini_get('upload_max_filesize')) ?> per file,
+                <?= e(ini_get('post_max_size')) ?> total for the whole form. If your photos are larger than that (common
+                for phone camera photos), you can also upload documents later from the appointment detail page instead.
+              </p>
+            </div>
+          </div><!-- /uploadGroup -->
+
+          <!-- Step 2 nav -->
+          <div class="book-step-nav" id="step2-nav">
+            <button type="button" class="btn btn-outline btn-step-back" onclick="bookStepGo(1)">&larr; Back</button>
+            <span class="spacer"></span>
+            <button type="button" class="btn btn-primary btn-step-next" onclick="bookStepNext(2)">Next &rarr;</button>
+          </div>
+        </div><!-- /book-panel-2 -->
+
+        <!-- ========== STEP 3: Review & Submit ========== -->
+        <div class="book-step-panel" id="book-panel-3">
+
+          <!-- Booking Summary Card -->
+          <div class="book-review-card" id="bookReviewCard" style="background:var(--cream, #fdfbf7); border:1px solid var(--cream-dark, #e8e0d5); border-radius:8px; padding:16px; margin-bottom:18px;">
+            <div style="font-weight:700; color:var(--brown-dark, #3d2b1f); font-size:14px; margin-bottom:10px; border-bottom:1px solid var(--cream-dark, #e8e0d5); padding-bottom:6px;">
+              Booking Summary
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:13px;" id="bookReviewGrid">
+              <div>
+                <span style="color:var(--text-muted, #7a6e65); display:block; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Service</span>
+                <strong id="reviewService" style="color:var(--brown-dark, #3d2b1f);">—</strong>
+              </div>
+              <div>
+                <span style="color:var(--text-muted, #7a6e65); display:block; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Schedule</span>
+                <strong id="reviewSchedule" style="color:var(--brown-dark, #3d2b1f);">—</strong>
+              </div>
+              <div id="reviewDetailsWrap" style="grid-column:1 / -1; display:none;">
+                <span style="color:var(--text-muted, #7a6e65); display:block; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Details</span>
+                <div id="reviewDetails" style="color:var(--brown-dark, #3d2b1f);"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group" id="remarksGroup">
+            <label>Additional Remarks</label>
+            <textarea name="remarks" id="remarksInput" rows="2" placeholder="Any special requests..."></textarea>
+          </div>
+
+          <div id="bookFormError" class="alert"
+            style="display:none; background: var(--danger-bg); color: var(--danger); border: 1px solid #f5c2c2;"></div>
+
+          <button type="submit" class="btn btn-primary btn-block" id="bookSubmitBtn">Submit Appointment Request</button>
+
+          <!-- Step 3 nav: Back only -->
+          <div class="book-step-nav" id="step3-nav">
+            <button type="button" class="btn btn-outline btn-step-back" id="btnStep3Back" onclick="bookStepGo(2)">&larr; Back</button>
+            <span class="spacer"></span>
+          </div>
+        </div><!-- /book-panel-3 -->
       </form>
     </div>
 
@@ -1204,6 +1376,7 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     // No need to reset KatinAwan payload as it's moved to the draft requirements step.
 
     toggleServiceUI();
+    bookStepReset();
     modal.showModal();
   }
 
@@ -1357,6 +1530,7 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     document.getElementById('bookForm').reset();
     if (!restoreBookingForm(snapshot)) return;
     document.getElementById('resumeDraftInput').value = RESUME_DRAFT.key;
+    bookStepReset();
     document.getElementById('bookModal').showModal();
     // Drop ?resume_draft from the address bar so a reload or a later Book Now starts fresh.
     if (window.history && history.replaceState) history.replaceState(null, '', window.location.pathname);
@@ -1380,6 +1554,7 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     document.getElementById('bookConfirmView').style.display = 'none';
     document.getElementById('bookFormError').style.display = 'none';
     if (restoreBookingForm(snapshot)) {
+      bookStepReset();
       document.getElementById('bookModal').showModal();
     } else {
       writeBookingSnapshot(null);
@@ -2486,6 +2661,189 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
   // would hold the form back until every font, image and CDN script loaded.
   document.addEventListener('DOMContentLoaded', function () {
     if (RESUME_DRAFT) { resumeDraftBooking(); RESUME_DRAFT = null; resumedFromDraft = true; }
+  });
+
+  // =====================================================================
+  // Booking Wizard Stepper
+  // =====================================================================
+  var _bookCurrentStep = 1;
+
+  function bookStepUpdateIndicator(step) {
+    for (var i = 1; i <= 3; i++) {
+      var el = document.getElementById('bstep-' + i);
+      if (!el) continue;
+      el.classList.remove('active', 'done');
+      if (i < step) el.classList.add('done');
+      else if (i === step) el.classList.add('active');
+      var circle = document.getElementById('bstep-circle-' + i);
+      if (circle) circle.innerHTML = (i < step) ? '&#10003;' : i;
+    }
+    for (var j = 1; j <= 2; j++) {
+      var conn = document.getElementById('bstep-conn-' + j);
+      if (conn) {
+        if (j < step) conn.classList.add('done');
+        else conn.classList.remove('done');
+      }
+    }
+  }
+
+  function bookStepPopulateReview() {
+    var serviceSelect = document.getElementById('serviceSelect');
+    var opt = serviceSelect ? serviceSelect.options[serviceSelect.selectedIndex] : null;
+    var serviceName = opt ? opt.textContent.trim() : '—';
+    var category = opt ? (opt.dataset.category || '') : '';
+
+    var dateVal = document.getElementById('appointmentDateInput') ? document.getElementById('appointmentDateInput').value : '';
+    var timeVal = '';
+    var fixedBox = document.getElementById('regularFixedTimeBox');
+    if (fixedBox && fixedBox.style.display !== 'none') {
+      var fixedTxt = document.getElementById('regularFixedTimeText');
+      if (fixedTxt) timeVal = fixedTxt.textContent.trim();
+    }
+    if (!timeVal) {
+      var massTime = document.getElementById('massTimeSelect');
+      if (massTime && massTime.offsetParent !== null && massTime.value) {
+        timeVal = massTime.options[massTime.selectedIndex]?.textContent || massTime.value;
+      }
+    }
+    if (!timeVal) {
+      var freeTime = document.getElementById('freeTimeInput');
+      if (freeTime && freeTime.offsetParent !== null && freeTime.value) {
+        timeVal = freeTime.value;
+      }
+    }
+    var schedText = dateVal ? (dateVal + (timeVal ? ' at ' + timeVal : '')) : 'To be confirmed';
+
+    var elService = document.getElementById('reviewService');
+    if (elService) elService.textContent = serviceName;
+    var elSched = document.getElementById('reviewSchedule');
+    if (elSched) elSched.textContent = schedText;
+
+    var detailsList = [];
+    if (category === 'Mass Intention') {
+      var offerer = document.getElementById('offererNameInput')?.value.trim();
+      var intentionFor = document.getElementById('intentionForInput')?.value.trim();
+      var purpose = document.getElementById('massPurposeSelect')?.value;
+      var offering = document.getElementById('offeringAmount')?.value;
+      if (offerer) detailsList.push('Offered by: ' + offerer);
+      if (intentionFor) detailsList.push('Intention for: ' + intentionFor);
+      if (purpose) detailsList.push('Purpose: ' + purpose);
+      if (offering) detailsList.push('Offering: ₱' + Number(offering).toLocaleString());
+    } else if (category === 'Funeral') {
+      var deceased = document.getElementById('patientNameInput')?.value.trim();
+      var dod = document.getElementById('dateOfDeathInput')?.value;
+      if (deceased) detailsList.push('Deceased: ' + deceased);
+      if (dod) detailsList.push('Date of Death: ' + dod);
+    } else if (category === 'Anointing') {
+      var sick = document.getElementById('patientNameInput')?.value.trim();
+      var addr = document.getElementById('anointingAddressInput')?.value.trim();
+      if (sick) detailsList.push('Patient: ' + sick);
+      if (addr) detailsList.push('Address: ' + addr);
+    } else if (category === 'Blessing') {
+      var bAddr = document.getElementById('blessingAddressInput')?.value.trim();
+      if (bAddr) detailsList.push('Location: ' + bAddr);
+    }
+
+    var priestSel = document.getElementById('priestSelect');
+    if (priestSel && priestSel.offsetParent !== null && priestSel.value) {
+      if (priestSel.value === 'other') {
+        var outside = document.getElementById('outsidePriestInput')?.value.trim();
+        if (outside) detailsList.push('Visiting Priest: ' + outside);
+      } else {
+        var priestName = priestSel.options[priestSel.selectedIndex]?.textContent.trim();
+        if (priestName) detailsList.push('Priest: ' + priestName);
+      }
+    }
+
+    var detailsWrap = document.getElementById('reviewDetailsWrap');
+    var elDetails = document.getElementById('reviewDetails');
+    if (detailsWrap && elDetails) {
+      if (detailsList.length > 0) {
+        detailsWrap.style.display = 'block';
+        elDetails.innerHTML = detailsList.map(function (d) {
+          return '<span style="display:inline-block; margin-right:8px; margin-bottom:4px; background:rgba(0,0,0,0.05); padding:2px 8px; border-radius:4px;">' + d + '</span>';
+        }).join('');
+      } else {
+        detailsWrap.style.display = 'none';
+      }
+    }
+  }
+
+  function bookStepShow(step) {
+    _bookCurrentStep = step;
+    for (var i = 1; i <= 3; i++) {
+      var panel = document.getElementById('book-panel-' + i);
+      if (panel) panel.classList.toggle('active', i === step);
+    }
+    bookStepUpdateIndicator(step);
+
+    if (step === 2) {
+      var uploadGroup = document.getElementById('uploadGroup');
+      var docNote = document.getElementById('documentRequirementsNote');
+      var previewBox = document.getElementById('requirementsPreviewBox');
+      var hasDocs = (uploadGroup && uploadGroup.style.display !== 'none') ||
+                    (docNote && docNote.style.display !== 'none') ||
+                    (previewBox && previewBox.style.display !== 'none');
+      var emptyMsg = document.getElementById('step2-empty-msg');
+      if (emptyMsg) emptyMsg.style.display = hasDocs ? 'none' : 'block';
+    }
+
+    if (step === 3) {
+      bookStepPopulateReview();
+    }
+
+    var modalBody = document.querySelector('#bookModal .modal-body');
+    if (modalBody) modalBody.scrollTop = 0;
+  }
+
+  function bookStepValidate(step) {
+    var panel = document.getElementById('book-panel-' + step);
+    if (!panel) return true;
+    if (step === 1 && typeof bookingBeforeCheck === 'function') {
+      bookingBeforeCheck();
+    }
+    var inputs = panel.querySelectorAll('input, select, textarea');
+    for (var i = 0; i < inputs.length; i++) {
+      var el = inputs[i];
+      if (el.disabled || el.type === 'hidden' || el.offsetParent === null) continue;
+      if (!el.checkValidity()) {
+        el.reportValidity();
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function bookStepGo(step) {
+    bookStepShow(step);
+  }
+
+  function bookStepNext(fromStep) {
+    if (!bookStepValidate(fromStep)) return;
+    if (fromStep === 1) {
+      bookStepShow(2);
+    } else if (fromStep === 2) {
+      bookStepShow(3);
+    }
+  }
+
+  function bookStepReset() {
+    bookStepShow(1);
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var form = document.getElementById('bookForm');
+    if (form) {
+      form.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+          if (_bookCurrentStep < 3) {
+            e.preventDefault();
+            bookStepNext(_bookCurrentStep);
+          }
+        }
+      });
+    }
   });
 
 </script>
