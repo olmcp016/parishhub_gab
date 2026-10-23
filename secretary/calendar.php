@@ -4,6 +4,10 @@ require_once __DIR__ . '/../includes/functions.php';
 requireRole('Secretary', 'Admin', 'Treasurer');
 
 $userId = currentUser()['user_id'];
+// An Admin who is also a serving Priest (priests.user_id/email linked) sees
+// their own assigned Masses and confirmed appointments highlighted in blue,
+// same convention as the Priest Portal's own calendar (priest/calendar.php).
+$priestId = currentPriestId();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifyCsrf();
@@ -65,7 +69,19 @@ $stmt = db()->prepare('SELECT COUNT(*) FROM events WHERE event_date >= ?');
 $stmt->execute([$today]);
 $eventPagination = paginate((int) $stmt->fetchColumn(), 10);
 
-$calendarEvents = array_map(fn($e) => ['id' => (int) $e['event_id'], 'date' => $e['event_date'], 'title' => $e['title']], $allEvents);
+$calendarEvents = array_map(function ($e) use ($priestId) {
+    // Only a Mass event assigned (by priest_id) to this priest-linked admin turns blue; every other
+    // event — including masses assigned to a different priest — keeps the standard gold color.
+    $isMyMass = $priestId !== null && $e['priest_id'] !== null && (int) $e['priest_id'] === $priestId
+        && preg_match('/\bmass\b/i', (string) $e['title']);
+    return [
+        'id' => (int) $e['event_id'],
+        'date' => $e['event_date'],
+        'title' => $e['title'],
+        'backgroundColor' => $isMyMass ? '#2457a6' : null,
+        'borderColor' => $isMyMass ? '#1b4280' : null,
+    ];
+}, $allEvents);
 $calendarBlocked = array_map(fn($b) => ['date' => $b['calendar_date'], 'notes' => $b['notes']], $blocks);
 
 // Lookup of real (assigned) events by date+title to suppress duplicate virtual green blocks.
@@ -106,6 +122,37 @@ for ($massDay = clone $massStart; $massDay <= $massEnd; $massDay->modify('+1 day
 
 $locations = db()->query('SELECT * FROM locations WHERE is_active = TRUE ORDER BY name')->fetchAll();
 $priests = db()->query("SELECT * FROM priests WHERE status = 'active' ORDER BY full_name")->fetchAll();
+
+// This priest-linked admin's own confirmed (status 5) sacrament appointments — Baptisms, Weddings,
+// Funerals, and Blessings — shown on the calendar in the same blue as their assigned Masses above.
+$myAppointmentEvents = [];
+if ($priestId) {
+    $stmt = db()->prepare(
+        "SELECT a.appointment_date, a.appointment_time, a.guest_name, s.service_name,
+                COALESCE(u.firstname || ' ' || u.lastname, '') AS parishioner_name
+         FROM appointments a
+         JOIN services s ON a.service_id = s.service_id
+         LEFT JOIN parishioners par ON a.parishioner_id = par.parishioner_id
+         LEFT JOIN users u ON par.user_id = u.user_id
+         WHERE a.priest_id = ? AND a.status_id = 5 AND s.category IN ('Wedding', 'Baptism', 'Funeral', 'Blessing')
+         ORDER BY a.appointment_date, a.appointment_time"
+    );
+    $stmt->execute([$priestId]);
+    foreach ($stmt->fetchAll() as $a) {
+        $time = $a['appointment_time'] ? substr($a['appointment_time'], 0, 5) : '';
+        $myAppointmentEvents[] = [
+            'date' => $a['appointment_date'],
+            'title' => $a['service_name'] . ($time ? ' (' . date('g:i A', strtotime($time)) . ')' : ''),
+            'time' => $time,
+            'details' => [
+                'service' => $a['service_name'],
+                'parishioner' => $a['guest_name'] ?: ($a['parishioner_name'] ?: '—'),
+                'date' => formatDate($a['appointment_date']),
+                'time' => $time ? date('g:i A', strtotime($time)) : '—',
+            ],
+        ];
+    }
+}
 
 $stmt = db()->prepare(
     "SELECT e.*, l.name AS location_name, p.title AS priest_title, p.full_name AS priest_name
@@ -151,9 +198,12 @@ include __DIR__ . '/../includes/dash-start.php';
 <div style="margin-top: 22px; margin-bottom: 32px; padding: 16px; background-color: var(--cream); border-radius: var(--radius); border: 1px solid var(--border);">
   <div class="pcal-legend" style="margin-bottom: 8px;">
     <span><i class="pcal-dot pcal-dot-today"></i> Today</span>
-    <span><i class="pcal-dot" style="background:#2d7a46;border-radius:50%;display:inline-block;width:10px;height:10px;vertical-align:middle;"></i> Mass Schedule</span>
-    <span><i class="pcal-dot pcal-dot-event"></i> Event</span>
-    <span><i class="pcal-dot pcal-dot-blocked"></i> Unavailable</span>
+    <span><i class="pcal-dot pcal-dot-event"></i> Parish Events</span>
+    <span><i class="pcal-dot" style="background:#2d7a46;border-radius:50%;display:inline-block;width:10px;height:10px;vertical-align:middle;"></i> General Parish Masses</span>
+    <?php if ($priestId): ?>
+      <span><i class="pcal-dot" style="background:#2457a6;border-radius:50%;display:inline-block;width:10px;height:10px;vertical-align:middle;"></i> My Assigned Schedule / Mass</span>
+    <?php endif; ?>
+    <span><i class="pcal-dot pcal-dot-blocked"></i> Blocked Dates</span>
     <span><i class="pcal-dot pcal-dot-dayoff"></i> Staff day off</span>
   </div>
   <p class="helper-text" style="margin: 0; font-size: 13.5px;">
@@ -363,6 +413,7 @@ document.addEventListener('DOMContentLoaded', function () {
     events: <?= json_encode($calendarEvents, JSON_UNESCAPED_UNICODE) ?>,
     blocked: <?= json_encode($calendarBlocked, JSON_UNESCAPED_UNICODE) ?>,
     massSchedule: <?= json_encode($massScheduleEvents, JSON_UNESCAPED_UNICODE) ?>,
+    appointments: <?= json_encode($myAppointmentEvents, JSON_UNESCAPED_UNICODE) ?>,
     dayMaxEvents: 4,
     extraDayClassNames: function (dateStr) {
       // Tuesday is a full day off. Monday afternoon is also off, but that
@@ -391,6 +442,19 @@ document.addEventListener('DOMContentLoaded', function () {
       document.getElementById('eventTimeInput').value = fcEvent.extendedProps.time || '';
       document.getElementById('eventTitleInput').value = fcEvent.extendedProps.cleanTitle || '';
       document.getElementById('addEventModal').showModal();
+    },
+    onAppointmentClick: function (fcEvent) {
+      var d = fcEvent.extendedProps.details;
+      if (!d) return;
+      var list = document.getElementById('myAppointmentDetailList');
+      list.innerHTML = '';
+      [['Service', d.service], ['Parishioner', d.parishioner], ['Date', d.date], ['Time', d.time]].forEach(function (row) {
+        if (row[1] == null || row[1] === '') return;
+        var dt = document.createElement('dt'); dt.textContent = row[0];
+        var dd = document.createElement('dd'); dd.textContent = row[1];
+        list.appendChild(dt); list.appendChild(dd);
+      });
+      document.getElementById('myAppointmentDetailModal').showModal();
     }
   });
 });
@@ -458,6 +522,16 @@ document.querySelectorAll('.js-unblock-date').forEach(function(btn) {
   });
 });
 </script>
+
+<dialog class="modal" id="myAppointmentDetailModal" aria-labelledby="myAppointmentDetailTitle">
+  <div class="modal-head">
+    <h3 id="myAppointmentDetailTitle">Appointment Details</h3>
+    <button type="button" class="modal-close" onclick="document.getElementById('myAppointmentDetailModal').close()">✕</button>
+  </div>
+  <div class="modal-body">
+    <dl class="epanel-dl" id="myAppointmentDetailList"></dl>
+  </div>
+</dialog>
 
 <!-- =================== EVENT SLIDE-OVER PANEL =================== -->
 <div id="eventPanelOverlay" class="epanel-overlay" aria-hidden="true"></div>

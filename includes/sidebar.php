@@ -120,12 +120,6 @@ function renderNavSection(string $slug, string $title, array $items, string $act
         [url('treasurer/donations.php'), 'donations', 'hand-heart', 'Donations'],
         [url('admin/reports.php'), 'reports', 'bar-chart-3', 'Financial Reports'],
       ], $__active); ?>
-      <?php renderNavSection('priest-duties', 'Priest Duties & Schedule', [
-        [url('priest/calendar.php'), 'calendar', 'calendar-days', 'My Assigned Schedule'],
-        [url('secretary/priest-unavailability.php'), 'priest-unavailability', 'user-x', 'Priest Unavailability / Off Days'],
-        [url('priest/mass-intentions.php'), 'mass-intentions', 'flame', 'Mass Intentions to Read'],
-        [url('admin/priests.php'), 'priests', 'contact', 'Priest Roster'],
-      ], $__active); ?>
       <?php renderNavSection('system', 'System', [
         [url('admin/activity-logs.php'), 'logs', 'history', 'Activity Logs'],
         [url('admin/settings.php'), 'settings', 'settings', 'Settings'],

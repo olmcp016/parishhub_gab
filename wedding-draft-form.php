@@ -32,13 +32,15 @@ if ($user) {
     $profileQuery = $pdo->prepare('SELECT firstname, lastname, middlename, phone, address, birthdate, gender FROM users WHERE user_id = ?');
     $profileQuery->execute([$user['user_id']]);
     $profile = $profileQuery->fetch() ?: [];
-    $bookingContact = [
-        'name' => trim(implode(' ', array_filter([$profile['firstname'] ?? '', $profile['middlename'] ?? '', $profile['lastname'] ?? '']))),
-        'address' => trim((string) ($profile['address'] ?? '')),
-        'phone' => trim((string) ($profile['phone'] ?? '')),
-        'birthdate' => trim((string) ($profile['birthdate'] ?? '')),
-        'gender' => strtolower(trim((string) ($profile['gender'] ?? ''))),
-    ];
+    // guest_name is never set for a Parishioner, so the profile is the only
+    // source for name/birthdate/gender — but Step 1's own contact_phone /
+    // location_address (specific to this booking) take priority over the
+    // general profile, which is only a fallback when Step 1 left them blank.
+    $bookingContact['name'] = trim(implode(' ', array_filter([$profile['firstname'] ?? '', $profile['middlename'] ?? '', $profile['lastname'] ?? ''])));
+    if ($bookingContact['phone'] === '') $bookingContact['phone'] = trim((string) ($profile['phone'] ?? ''));
+    if ($bookingContact['address'] === '') $bookingContact['address'] = trim((string) ($profile['address'] ?? ''));
+    $bookingContact['birthdate'] = trim((string) ($profile['birthdate'] ?? ''));
+    $bookingContact['gender'] = strtolower(trim((string) ($profile['gender'] ?? '')));
 }
 $data = weddingPrefillFormData($pdo, $draftId, 0, $type, $data, $bookingContact, $draft);
 $matrimonyFormData = null;
@@ -152,10 +154,14 @@ include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 
 input[type="text"], textarea {
     text-transform: uppercase;
 }
+.form-section { background:#fff; padding:24px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.05); margin-bottom:24px; border:1px solid var(--cream-dark); }
+.form-section h3 { margin-top:0; color:var(--brown); margin-bottom:20px; font-size:1.1rem; border-bottom:2px solid var(--cream); padding-bottom:10px; }
+.choice-row { display:flex; flex-wrap:wrap; gap:18px; margin-top:8px; }
+.field-translation { display:block; font-size:0.85em; color:#6c757d; font-weight:normal; margin-top:2px; line-height:1.2; }
 </style>
-<div class="card" style="max-width:900px;margin:auto;">
-    <p style="margin-top:0;"><a href="<?= $backLink ?>" class="back-link">← Back to Wedding Requirements</a></p>
-    <h2><?= e($definition['title']) ?></h2>
+<div style="max-width:850px; margin:0 auto; padding:20px;">
+    <a href="<?= $backLink ?>" class="back-link">← Back to Wedding Requirements</a>
+    <div style="text-align:center; margin-bottom:30px;"><h1 style="margin:0 0 10px; color:var(--brown);"><?= e($definition['title']) ?></h1></div>
     <?php if (in_array($type, ['matrimony_application', 'cluster_clearance'])): ?><p class="text-muted">Susiha ug tul-ira ang impormasyon sa aplikante sa dili pa himoon ang opisyal nga PDF. Ang edad kwentahon base sa petsa sa pagkatawo ug petsa sa kasal. <span class="generated-form-guide-translation">(Review and correct the applicant information before generating the official PDF. Ages are calculated from each birth date as of the wedding date.)</span></p><?php endif; ?>
     <?php if ($error): ?><div class="alert"><?= e($error) ?></div><?php endif; ?>
     <?php if ($previewDocumentId): ?>
@@ -205,8 +211,8 @@ input[type="text"], textarea {
                 'groom' => 'Groom / Male Information',
                 'bride' => 'Bride / Female Information',
             ] as $prefix => $heading): ?>
-                <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">
-                    <legend style="font-weight:700; padding:0 8px;"><?= e($heading) ?></legend>
+                <div class="form-section">
+                    <h3><?= e($heading) ?></h3>
                     <div class="form-group">
                         <label for="<?= $prefix ?>_name">Full Name *</label>
                         <input id="<?= $prefix ?>_name" name="<?= $prefix ?>_name" type="text" value="<?= e($data[$prefix.'_name'] ?? '') ?>" maxlength="150" required>
@@ -239,104 +245,101 @@ input[type="text"], textarea {
                         <label for="<?= $prefix ?>_address">Address *</label>
                         <input id="<?= $prefix ?>_address" name="<?= $prefix ?>_address" type="text" value="<?= e($data[$prefix.'_address'] ?? '') ?>" maxlength="255" required>
                     </div>
-                </fieldset>
+                </div>
             <?php endforeach; ?>
-            <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">
-                <legend style="font-weight:700; padding:0 8px;">Wedding Information</legend>
+            <div class="form-section">
+                <h3>Wedding Information</h3>
                 <div class="form-row">
                     <div class="form-group"><label for="wedding_date">Date of Wedding *</label><input id="wedding_date" name="wedding_date" type="date" value="<?= e($data['wedding_date'] ?? '') ?>" required></div>
                     <div class="form-group"><label for="wedding_time">Time of Wedding *</label><input id="wedding_time" name="wedding_time" type="time" value="<?= e($data['wedding_time'] ?? '') ?>" required></div>
                 </div>
-            </fieldset>
+            </div>
         <?php elseif ($type === 'cluster_clearance'): ?>
-            <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">
-                <legend style="font-weight:700; padding:0 8px;">APPLICANT / KASLONON INFORMATION</legend>
-                <div class="form-group"><label for="kaslonon_name">Ngalan sa Kaslonon *</label><input id="kaslonon_name" name="kaslonon_name" type="text" value="<?= e($data['kaslonon_name'] ?? '') ?>" maxlength="150" required></div>
+            <div class="form-section">
+                <h3>Applicant / Kaslonon Information</h3>
+                <div class="form-group"><label for="kaslonon_name">NGALAN SA KASLONON *<span class="field-translation">Name of the person getting married (applicant)</span></label><input id="kaslonon_name" name="kaslonon_name" type="text" value="<?= e($data['kaslonon_name'] ?? '') ?>" maxlength="150" required></div>
                 <div class="form-row">
-                    <div class="form-group"><label for="kaslonon_birth_date">Petsa Natawo *</label><input id="kaslonon_birth_date" name="kaslonon_birth_date" type="date" value="<?= e($data['kaslonon_birth_date'] ?? '') ?>" required data-label="Kaslonon Date of Birth" data-past data-min-age="18" data-age-on="<?= e((string) ($draft['appointment_date'] ?? '')) ?>" data-age-label="the wedding date"></div>
-                    <div class="form-group"><label for="kaslonon_status">Estado *</label><input id="kaslonon_status" name="kaslonon_status" type="text" value="<?= e($data['kaslonon_status'] ?? '') ?>" maxlength="50" required></div>
-                    <div class="form-group"><label for="kaslonon_religion">Relihiyon *</label><input id="kaslonon_religion" name="kaslonon_religion" type="text" value="<?= e($data['kaslonon_religion'] ?? '') ?>" maxlength="50" required></div>
+                    <div class="form-group"><label for="kaslonon_birth_date">PETSA NATAWO *<span class="field-translation">Date of birth</span></label><input id="kaslonon_birth_date" name="kaslonon_birth_date" type="date" value="<?= e($data['kaslonon_birth_date'] ?? '') ?>" required data-label="Kaslonon Date of Birth" data-past data-min-age="18" data-age-on="<?= e((string) ($draft['appointment_date'] ?? '')) ?>" data-age-label="the wedding date"></div>
+                    <div class="form-group"><label for="kaslonon_status">ESTADO *<span class="field-translation">Civil status</span></label><input id="kaslonon_status" name="kaslonon_status" type="text" value="<?= e($data['kaslonon_status'] ?? '') ?>" maxlength="50" required></div>
+                    <div class="form-group"><label for="kaslonon_religion">RELIHIYON *<span class="field-translation">Religion</span></label><input id="kaslonon_religion" name="kaslonon_religion" type="text" value="<?= e($data['kaslonon_religion'] ?? '') ?>" maxlength="50" required></div>
                 </div>
-            </fieldset>
+            </div>
 
-            <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">
-                <legend style="font-weight:700; padding:0 8px;">SPOUSE INFORMATION</legend>
-                <div class="form-group"><label for="spouse_name">Ngalan sa Pamanhunon/Pangasaw-onon *</label><input id="spouse_name" name="spouse_name" type="text" value="<?= e($data['spouse_name'] ?? '') ?>" maxlength="150" required></div>
+            <div class="form-section">
+                <h3>Spouse Information</h3>
+                <div class="form-group"><label for="spouse_name">NGALAN SA PAMANHUNON/PANGASAW-ONON *<span class="field-translation">Name of the groom/bride (spouse)</span></label><input id="spouse_name" name="spouse_name" type="text" value="<?= e($data['spouse_name'] ?? '') ?>" maxlength="150" required></div>
                 <div class="form-row">
-                    <div class="form-group"><label for="spouse_birth_date">Petsa Natawo (Spouse) *</label><input id="spouse_birth_date" name="spouse_birth_date" type="date" value="<?= e($data['spouse_birth_date'] ?? '') ?>" required data-label="Spouse Date of Birth" data-past data-min-age="18" data-age-on="<?= e((string) ($draft['appointment_date'] ?? '')) ?>" data-age-label="the wedding date"></div>
-                    <div class="form-group"><label for="spouse_status">Estado *</label><input id="spouse_status" name="spouse_status" type="text" value="<?= e($data['spouse_status'] ?? '') ?>" maxlength="50" required></div>
-                    <div class="form-group"><label for="spouse_religion">Relihiyon *</label><input id="spouse_religion" name="spouse_religion" type="text" value="<?= e($data['spouse_religion'] ?? '') ?>" maxlength="50" required></div>
+                    <div class="form-group"><label for="spouse_birth_date">PETSA NATAWO (SPOUSE) *<span class="field-translation">Spouse's date of birth</span></label><input id="spouse_birth_date" name="spouse_birth_date" type="date" value="<?= e($data['spouse_birth_date'] ?? '') ?>" required data-label="Spouse Date of Birth" data-past data-min-age="18" data-age-on="<?= e((string) ($draft['appointment_date'] ?? '')) ?>" data-age-label="the wedding date"></div>
+                    <div class="form-group"><label for="spouse_status">ESTADO *<span class="field-translation">Civil status</span></label><input id="spouse_status" name="spouse_status" type="text" value="<?= e($data['spouse_status'] ?? '') ?>" maxlength="50" required></div>
+                    <div class="form-group"><label for="spouse_religion">RELIHIYON *<span class="field-translation">Religion</span></label><input id="spouse_religion" name="spouse_religion" type="text" value="<?= e($data['spouse_religion'] ?? '') ?>" maxlength="50" required></div>
                 </div>
-            </fieldset>
+            </div>
 
-            <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">
-                <legend style="font-weight:700; padding:0 8px;">PARENTS</legend>
+            <div class="form-section">
+                <h3>Parents</h3>
                 <div class="form-row">
-                    <div class="form-group"><label for="father_name">Amahan *</label><input id="father_name" name="father_name" type="text" value="<?= e($data['father_name'] ?? '') ?>" maxlength="150" required></div>
-                    <div class="form-group"><label for="father_religion">Relihiyon (Amahan) *</label><input id="father_religion" name="father_religion" type="text" value="<?= e($data['father_religion'] ?? '') ?>" maxlength="50" required></div>
+                    <div class="form-group"><label for="father_name">AMAHAN *<span class="field-translation">Father</span></label><input id="father_name" name="father_name" type="text" value="<?= e($data['father_name'] ?? '') ?>" maxlength="150" required></div>
+                    <div class="form-group"><label for="father_religion">RELIHIYON *<span class="field-translation">Father's religion</span></label><input id="father_religion" name="father_religion" type="text" value="<?= e($data['father_religion'] ?? '') ?>" maxlength="50" required></div>
                 </div>
                 <div class="form-row">
-                    <div class="form-group"><label for="mother_name">Inahan *</label><input id="mother_name" name="mother_name" type="text" value="<?= e($data['mother_name'] ?? '') ?>" maxlength="150" required></div>
-                    <div class="form-group"><label for="mother_religion">Relihiyon (Inahan) *</label><input id="mother_religion" name="mother_religion" type="text" value="<?= e($data['mother_religion'] ?? '') ?>" maxlength="50" required></div>
+                    <div class="form-group"><label for="mother_name">INAHAN *<span class="field-translation">Mother</span></label><input id="mother_name" name="mother_name" type="text" value="<?= e($data['mother_name'] ?? '') ?>" maxlength="150" required></div>
+                    <div class="form-group"><label for="mother_religion">RELIHIYON *<span class="field-translation">Mother's religion</span></label><input id="mother_religion" name="mother_religion" type="text" value="<?= e($data['mother_religion'] ?? '') ?>" maxlength="50" required></div>
                 </div>
-            </fieldset>
+            </div>
 
-            <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">
-                <legend style="font-weight:700; padding:0 8px;">MARRIAGE STATUS OF PARENTS</legend>
-                <div class="form-group">
-                    <label>Unsang Kasala ang Nadawat sa Ginikanan? *</label>
-                    <div class="form-row" role="group" aria-label="Unsang Kasala ang Nadawat sa Ginikanan?">
-                        <?php foreach (['Simbahan', 'Sibil', 'Wala'] as $option): ?>
-                            <label><input type="radio" name="parent_marriage" value="<?= e($option) ?>" <?= ($data['parent_marriage'] ?? '') === $option ? 'checked' : '' ?> required> <?= e($option) ?></label>
+            <div class="form-section">
+                <h3>Marriage Status of Parents</h3>
+                <div class="form-group"><label>UNSANG KASALA ANG NADAWAT SA GINIKANAN? *<span class="field-translation">Marriage type received by the parents</span></label><div class="choice-row">
+                        <?php foreach (['Simbahan' => 'Church marriage', 'Sibil' => 'Civil marriage', 'Wala' => 'None'] as $option => $eng): ?>
+                            <label><input type="radio" name="parent_marriage" value="<?= e($option) ?>" <?= ($data['parent_marriage'] ?? '') === $option ? 'checked' : '' ?> required> <?= e($option) ?> <span class="text-muted" style="font-size:0.9em;">— <?= e($eng) ?></span></label>
                         <?php endforeach; ?>
-                    </div>
-                </div>
+                    </div></div>
                 <div class="form-row">
-                    <div class="form-group"><label for="marriage_place">Diin (Place) <span data-marriage-required>*</span></label><input id="marriage_place" name="marriage_place" type="text" value="<?= e($data['marriage_place'] ?? '') ?>" maxlength="150"></div>
-                    <div class="form-group"><label for="marriage_date">Kanus-a (Date) <span data-marriage-required>*</span></label><input id="marriage_date" name="marriage_date" type="date" value="<?= e($data['marriage_date'] ?? '') ?>"></div>
+                    <div class="form-group"><label for="marriage_place">DIIN <span data-marriage-required>*</span><span class="field-translation">Place of marriage</span></label><input id="marriage_place" name="marriage_place" type="text" value="<?= e($data['marriage_place'] ?? '') ?>" maxlength="150"></div>
+                    <div class="form-group"><label for="marriage_date">KANUS-A <span data-marriage-required>*</span><span class="field-translation">Date of marriage</span></label><input id="marriage_date" name="marriage_date" type="date" value="<?= e($data['marriage_date'] ?? '') ?>"></div>
                 </div>
-            </fieldset>
+            </div>
 
-            <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">
-                <legend style="font-weight:700; padding:0 8px;">ADDRESS / CHAPEL / CLUSTER</legend>
-                <div class="form-group"><label for="address">Pinuy-anan (Applicant Address) *</label><input id="address" name="address" type="text" value="<?= e($data['address'] ?? '') ?>" maxlength="255" required></div>
-                <div class="form-group"><label for="spouse_address">Pinuy-anan (Spouse Address) *</label><input id="spouse_address" name="spouse_address" type="text" value="<?= e($data['spouse_address'] ?? '') ?>" maxlength="255" required></div>
+            <div class="form-section">
+                <h3>Address / Chapel / Cluster</h3>
+                <div class="form-group"><label for="address">PINUY-ANAN *<span class="field-translation">Applicant's home address</span></label><input id="address" name="address" type="text" value="<?= e($data['address'] ?? '') ?>" maxlength="255" required></div>
+                <div class="form-group"><label for="spouse_address">PINUY-ANAN (SPOUSE) *<span class="field-translation">Spouse's home address</span></label><input id="spouse_address" name="spouse_address" type="text" value="<?= e($data['spouse_address'] ?? '') ?>" maxlength="255" required></div>
                 <div class="form-row">
-                    <div class="form-group"><label for="chapel">Sakop sa Kapilya sa *</label><input id="chapel" name="chapel" type="text" value="<?= e($data['chapel'] ?? '') ?>" maxlength="150" required></div>
-                    <div class="form-group"><label for="cluster_name">Ngalan sa Cluster *</label><input id="cluster_name" name="cluster_name" type="text" value="<?= e($data['cluster_name'] ?? '') ?>" maxlength="150" required></div>
+                    <div class="form-group"><label for="chapel">SAKOP SA KAPILYA SA *<span class="field-translation">Parish / chapel membership</span></label><input id="chapel" name="chapel" type="text" value="<?= e($data['chapel'] ?? '') ?>" maxlength="150" required></div>
+                    <div class="form-group"><label for="cluster_name">NGALAN SA CLUSTER *<span class="field-translation">Cluster name</span></label><input id="cluster_name" name="cluster_name" type="text" value="<?= e($data['cluster_name'] ?? '') ?>" maxlength="150" required></div>
                 </div>
-            </fieldset>
+            </div>
 
-            <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">
-                <legend style="font-weight:700; padding:0 8px;">SPONSORS</legend>
+            <div class="form-section">
+                <h3>Sponsors</h3>
                 <div class="form-row">
-                    <div class="form-group"><label for="sponsor_1">Sponsor 1 *</label><input id="sponsor_1" name="sponsor_1" type="text" value="<?= e($data['sponsor_1'] ?? '') ?>" maxlength="150" required></div>
-                    <div class="form-group"><label for="sponsor_2">Sponsor 2 *</label><input id="sponsor_2" name="sponsor_2" type="text" value="<?= e($data['sponsor_2'] ?? '') ?>" maxlength="150" required></div>
+                    <div class="form-group"><label for="sponsor_1">SPONSOR 1 *<span class="field-translation">Wedding sponsor 1</span></label><input id="sponsor_1" name="sponsor_1" type="text" value="<?= e($data['sponsor_1'] ?? '') ?>" maxlength="150" required></div>
+                    <div class="form-group"><label for="sponsor_2">SPONSOR 2 *<span class="field-translation">Wedding sponsor 2</span></label><input id="sponsor_2" name="sponsor_2" type="text" value="<?= e($data['sponsor_2'] ?? '') ?>" maxlength="150" required></div>
                 </div>
-            </fieldset>
+            </div>
         <?php elseif ($type === 'wedding_sponsor_clearance'): ?>
-            <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">
-                <legend style="font-weight:700; padding:0 8px;">SPONSOR INFORMATION</legend>
+            <div class="form-section">
+                <h3>Sponsor Information</h3>
                 <div class="form-group"><label for="recipient_name">Name of Recipient *</label><input id="recipient_name" name="recipient_name" type="text" value="<?= e($data['recipient_name'] ?? '') ?>" maxlength="150" required></div>
                 <div class="form-group"><label for="address">Address / Pinuy-anan *</label><input id="address" name="address" type="text" value="<?= e($data['address'] ?? '') ?>" maxlength="255" required></div>
-            </fieldset>
+            </div>
 
-            <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">
-                <legend style="font-weight:700; padding:0 8px;">WEDDING INFORMATION</legend>
+            <div class="form-section">
+                <h3>Wedding Information</h3>
                 <div class="form-row">
                     <div class="form-group"><label for="groom_name">Groom *</label><input id="groom_name" name="groom_name" type="text" value="<?= e($data['groom_name'] ?? '') ?>" maxlength="150" required></div>
                     <div class="form-group"><label for="bride_name">Bride *</label><input id="bride_name" name="bride_name" type="text" value="<?= e($data['bride_name'] ?? '') ?>" maxlength="150" required></div>
                 </div>
                 <div class="form-group"><label for="service_date">Date of Service *</label><input id="service_date" name="service_date" type="date" value="<?= e($data['service_date'] ?? '') ?>" required></div>
-            </fieldset>
+            </div>
 
-            <fieldset style="border:1px solid var(--cream-dark); border-radius:8px; padding:16px; margin:18px 0;">
-                <legend style="font-weight:700; padding:0 8px;">CLUSTER INFORMATION</legend>
+            <div class="form-section">
+                <h3>Cluster Information</h3>
                 <div class="form-row">
                     <div class="form-group"><label for="cluster_number">Member of Cluster No. *</label><input id="cluster_number" name="cluster_number" type="number" min="1" max="9999" step="1" value="<?= e($data['cluster_number'] ?? '') ?>" required></div>
                     <div class="form-group"><label for="cluster_name">Cluster Name *</label><input id="cluster_name" name="cluster_name" type="text" value="<?= e($data['cluster_name'] ?? '') ?>" maxlength="150" required></div>
                 </div>
-            </fieldset>
+            </div>
         <?php else: ?>
         <?php foreach ($definition['fields'] as $key => $label): ?>
             <div class="form-group">

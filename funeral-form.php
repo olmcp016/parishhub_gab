@@ -275,7 +275,7 @@ input[type="text"], textarea {
     <div class="form-section">
       <h3>Death and Burial</h3>
       <div class="form-row">
-        <div class="form-group"><label for="kanus_a_namatay">KANUS-A NAMATAY *<span class="field-translation">Date of death</span></label><input id="kanus_a_namatay" name="kanus_a_namatay" type="date" data-pastvalue="<?= e($data['kanus_a_namatay']) ?>" required></div>
+        <div class="form-group"><label for="kanus_a_namatay">KANUS-A NAMATAY *<span class="field-translation">Date of death</span></label><input id="kanus_a_namatay" name="kanus_a_namatay" type="date" value="<?= e($data['kanus_a_namatay']) ?>" data-past required></div>
         <div class="form-group"><label for="unsay_namatyan">UNSAY NAMATYAN *<span class="field-translation">Cause of death</span></label><input id="unsay_namatyan" name="unsay_namatyan" type="text" maxlength="255" value="<?= e($data['unsay_namatyan']) ?>" placeholder="Enter cause of death" required></div>
       </div>
       <div class="form-row">

@@ -34,9 +34,10 @@ function renderParishCalendar(elId, options) {
       title: ev.title,
       start: ev.date,
       allDay: true,
-      backgroundColor: '#c99b2f',
-      borderColor: '#a5791f',
-      textColor: '#241611',
+      // Optional per-event colors (e.g. the admin calendar shows the viewer's own assigned Masses in blue).
+      backgroundColor: ev.backgroundColor || '#c99b2f',
+      borderColor: ev.borderColor || '#a5791f',
+      textColor: ev.textColor || '#241611',
       extendedProps: { kind: 'event', eventId: ev.id || null, details: ev.details || null }
     };
   });
