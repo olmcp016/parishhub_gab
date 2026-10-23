@@ -71,9 +71,12 @@ function requireAnyRole(array $roles): void
  * Matches by user_id first (the normal Priest-login link, and also how an
  * Admin who is also a serving priest gets linked — see "Link to My Admin
  * Account" on admin/priests.php). Falls back to an exact, case-insensitive
- * email match only when that priest row has no user_id of its own (so it
- * never steals a different account's login), and persists that link once
- * found so the lookup is a one-time cost, not a guess repeated on every call.
+ * email match, then — because this parish has exactly one Admin and that
+ * Admin is always the Parish Priest (Rev. Fr. Al John Miñoza) — to a
+ * one-time name/title lookup for that specific record. Every match persists
+ * the link (guarded by "no user_id yet", so it can never steal a different
+ * account's existing login), so this runs the extra lookups at most once
+ * ever per priest row, not on every call.
  */
 function currentPriestId(): ?int
 {
@@ -92,9 +95,21 @@ function currentPriestId(): ?int
         $stmt = $pdo->prepare('SELECT priest_id FROM priests WHERE user_id IS NULL AND LOWER(email) = LOWER(?) LIMIT 1');
         $stmt->execute([$user['email']]);
         $priestId = $stmt->fetchColumn();
-        if ($priestId) {
-            $pdo->prepare('UPDATE priests SET user_id = ? WHERE priest_id = ? AND user_id IS NULL')->execute([$userId, $priestId]);
-        }
+    }
+
+    if (!$priestId && ($user['role_name'] ?? '') === 'Admin') {
+        $stmt = $pdo->prepare(
+            "SELECT priest_id FROM priests
+             WHERE user_id IS NULL
+               AND (full_name ILIKE '%Al John%' OR full_name ILIKE '%Minoza%' OR full_name ILIKE '%Miñoza%' OR title ILIKE '%Parish Priest%')
+             ORDER BY priest_id ASC LIMIT 1"
+        );
+        $stmt->execute();
+        $priestId = $stmt->fetchColumn();
+    }
+
+    if ($priestId) {
+        $pdo->prepare('UPDATE priests SET user_id = ? WHERE priest_id = ? AND user_id IS NULL')->execute([$userId, $priestId]);
     }
 
     return $cache[$userId] = ($priestId ?: null);

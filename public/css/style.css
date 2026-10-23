@@ -45,6 +45,8 @@
   --ease: cubic-bezier(.4, 0, .2, 1);
   --font-heading: 'Cormorant Garamond', 'Georgia', serif;
   --font-body: 'Montserrat', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  accent-color: #9e7c2a;
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; }
@@ -1678,3 +1680,182 @@ input.amount-no-spinner {
   padding: 8px 16px; font-size: 13px; text-transform: none; letter-spacing: normal; margin-bottom: 0;
 }
 .baptism-submit-blockers { margin:0 0 16px; padding-left:22px; color:var(--brown-mid); }
+
+
+/* ==========================================================
+   PARISHHUB THEMED CONTROLS (Custom Select & Themed Datepicker)
+   Replaces native browser controls with cohesive Parish styling
+   ========================================================== */
+
+.ph-custom-select {
+  position: relative;
+  width: 100%;
+}
+
+.ph-select-trigger {
+  width: 100%;
+  min-height: 46px;
+  padding: 11px 14px;
+  border: 1.5px solid #ddd5bb;
+  border-radius: 10px;
+  font-size: 15px;
+  font-family: var(--font-body, inherit);
+  background: #fdfaf4;
+  color: var(--brown-darkest, #1e1a0a);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  text-align: left;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  user-select: none;
+}
+
+.ph-select-trigger:hover:not(.is-disabled) {
+  border-color: var(--gold, #c9a84c);
+  background: #ffffff;
+}
+
+.ph-select-trigger:focus-visible,
+.ph-select-trigger.is-open {
+  outline: none;
+  border-color: var(--gold, #c9a84c);
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(201, 168, 76, 0.22);
+}
+
+.ph-select-trigger.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: #f5f0e6;
+  border-color: #e5ded0;
+}
+
+.ph-select-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+  color: inherit;
+}
+
+.ph-select-label.is-placeholder {
+  color: var(--brown-muted, #9b8f6f);
+}
+
+.ph-select-arrow {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  stroke: var(--gold-dark, #9e7c2a);
+  transition: transform 0.2s ease;
+}
+
+.ph-select-trigger.is-open .ph-select-arrow {
+  transform: rotate(180deg);
+}
+
+.ph-select-dropdown {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  background: #ffffff;
+  border: 1.5px solid var(--gold, #c9a84c);
+  border-radius: 10px;
+  box-shadow: 0 10px 32px rgba(43, 29, 12, 0.18);
+  padding: 6px 0;
+  max-height: 250px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--gold, #c9a84c) #fdfaf4;
+  animation: phFadeSlideDown 0.16s ease-out;
+}
+
+@keyframes phFadeSlideDown {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.ph-select-dropdown::-webkit-scrollbar {
+  width: 6px;
+}
+.ph-select-dropdown::-webkit-scrollbar-track {
+  background: #fdfaf4;
+  border-radius: 10px;
+}
+.ph-select-dropdown::-webkit-scrollbar-thumb {
+  background: var(--gold, #c9a84c);
+  border-radius: 10px;
+}
+
+.ph-select-optgroup {
+  padding: 4px 0;
+}
+.ph-select-optgroup:not(:first-child) {
+  border-top: 1px dashed var(--cream-dark, #f3eedf);
+  margin-top: 4px;
+  padding-top: 6px;
+}
+
+.ph-select-optgroup-title {
+  padding: 6px 14px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--gold-dark, #9e7c2a);
+}
+
+.ph-select-option {
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--brown-darkest, #1e1a0a);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background 0.14s ease, color 0.14s ease;
+  line-height: 1.35;
+}
+
+.ph-select-option:hover {
+  background: var(--cream, #f7f4ea);
+  color: var(--brown-darkest, #1e1a0a);
+}
+
+.ph-select-option.is-selected {
+  background: var(--brown-darkest, #1e1a0a);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.ph-select-option.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: transparent !important;
+  color: var(--brown-muted, #9b8f6f) !important;
+}
+
+.ph-native-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  border: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  z-index: -1 !important;
+}
+
+.mini-dp-popup {
+  z-index: 9999 !important;
+}
