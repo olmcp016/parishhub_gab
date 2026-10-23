@@ -408,7 +408,9 @@ input:focus, select:focus, textarea:focus {
   background: #fff;
   box-shadow: 0 0 0 3px rgba(201, 168, 76, 0.15);
 }
-.form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+.form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; align-items: start; }
+.form-row > .form-group { min-width: 0; }
+.form-group > input, .form-group > select, .form-group > textarea { box-sizing: border-box; min-height: 46px; }
 .helper-text { font-size: 12px; color: var(--brown-muted); margin-top: 4px; }
 
 /* Supporting document requirement labels (Row 6) */

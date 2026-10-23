@@ -51,7 +51,7 @@
             status.querySelector('[data-upload-filename]').textContent = result.file_name || file.name;
             if (result.view_url) status.querySelector('[data-upload-view]').href = result.view_url;
             if (result.document_id) card.dataset.documentId = String(result.document_id);
-            if (pickerLabel) pickerLabel.textContent = 'Choose Replacement';
+            if (pickerLabel) pickerLabel.textContent = 'Upload Replacement';
           } else {
             status.innerHTML = oldStatus;
             error.textContent = '✕ Upload failed. ' + (result.message || 'Please try again.');

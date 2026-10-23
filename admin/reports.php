@@ -60,7 +60,7 @@ include __DIR__ . '/../includes/dash-start.php';
     <div class="card-header"><h3>Income Summary — By Payment Method</h3></div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Method</th><th>Transactions</th><th>Total</th></tr></thead>
+        <thead><tr><th>Payment Method</th><th>Transactions</th><th>Total</th></tr></thead>
         <tbody>
           <?php foreach ($revenueByMethod as $r): ?>
             <tr><td><?= e($r['method_name']) ?></td><td><?= $r['count'] ?></td><td><?= money($r['total']) ?></td></tr>

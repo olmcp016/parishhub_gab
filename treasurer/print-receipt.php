@@ -26,6 +26,18 @@ if (!$payment || !$payment['receipt_number']) {
     die("Receipt not found or payment not verified.");
 }
 
+// Parish identity block, matching the official sacrament form headers.
+$parishSettings = [];
+foreach (db()->query("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('parish_name','parish_address','contact_number','contact_email')")->fetchAll() as $row) {
+    $parishSettings[$row['setting_key']] = trim((string) $row['setting_value']);
+}
+$parishName    = $parishSettings['parish_name'] ?: 'Our Lady of Mt. Carmel Parish';
+$parishAddress = $parishSettings['parish_address'] ?: '6342 Balilihan, Bohol, Philippines';
+$parishContact = array_filter([
+    $parishSettings['contact_number'] ?? '',
+    $parishSettings['contact_email'] ?? '',
+]);
+
 // Donations: where the gift went (general purpose or one ongoing project).
 $donationAllocation = null;
 if ($payment['category'] === 'Donation') {
@@ -139,13 +151,20 @@ if ($payment['category'] === 'Donation') {
 <body>
   <div class="receipt-container">
     
-    <div class="header" style="display: flex; align-items: center; justify-content: center; gap: 16px; text-align: left;">
-      <img src="<?= url('public/img/logo.png') ?>" alt="ParishHub Logo" style="width: 64px; height: auto;">
-      <div>
-        <h1 style="margin-bottom: 2px;">ParishHub</h1>
-        <p>Official Receipt</p>
-        <p style="margin-top: 6px; font-weight: bold; color: #333;">OR #: <?= e($payment['receipt_number']) ?></p>
+    <div class="header" style="display: flex; align-items: center; justify-content: center; gap: 16px; text-align: left; color: #145c12; font-family: 'Times New Roman', Times, serif;">
+      <img src="<?= url('public/img/logo.png') ?>" alt="<?= e($parishName) ?> Logo" style="width: 64px; height: auto;">
+      <div style="text-align: center;">
+        <h1 style="margin: 0 0 2px 0; font-size: 20px; color: #145c12;"><?= e($parishName) ?></h1>
+        <p style="margin: 0; font-weight: bold; font-size: 11px; color: #333; text-transform: uppercase;"><?= e($parishAddress) ?></p>
+        <?php if ($parishContact): ?>
+        <p style="margin: 0; font-size: 11px; color: #333;"><?= e(implode(' | ', $parishContact)) ?></p>
+        <?php endif; ?>
       </div>
+    </div>
+
+    <div style="text-align: center; margin-bottom: 20px;">
+      <div style="font-family: 'Times New Roman', Times, serif; font-size: 16px; font-weight: bold; letter-spacing: 1px; color: #333;">OFFICIAL RECEIPT</div>
+      <div style="font-size: 13px; font-weight: bold; color: #333; margin-top: 4px;">OR #: <?= e($payment['receipt_number']) ?></div>
     </div>
 
     <div class="receipt-details">

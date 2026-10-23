@@ -102,8 +102,8 @@ function sendPrecanaCertificateRevisionEmail(int $appointmentId, int $documentId
         $h = static fn($v): string => htmlspecialchars((string) $v);
         $title = 'Your Pre-Cana Seminar Certificate Needs Revision';
         $how = $r['is_guest']
-            ? 'Open your booking with the button below, find <strong>' . $h(PRECANA_CERTIFICATE_LABEL) . '</strong>, and choose <strong>Choose Replacement</strong> to upload a corrected copy (PDF, JPG or PNG).'
-            : 'Log in to ParishHub, open this appointment, and under <strong>' . $h(PRECANA_CERTIFICATE_LABEL) . '</strong> choose <strong>Choose Replacement</strong> to upload a corrected copy (PDF, JPG or PNG).';
+            ? 'Open your booking with the button below, find <strong>' . $h(PRECANA_CERTIFICATE_LABEL) . '</strong>, and choose <strong>Upload Replacement</strong> to upload a corrected copy (PDF, JPG or PNG).'
+            : 'Log in to ParishHub, open this appointment, and under <strong>' . $h(PRECANA_CERTIFICATE_LABEL) . '</strong> choose <strong>Upload Replacement</strong> to upload a corrected copy (PDF, JPG or PNG).';
         $body = '<p>Dear ' . $h($r['name'] ?: 'Parishioner') . ',</p>'
             . '<p>The Parish Office reviewed the ' . $h(PRECANA_CERTIFICATE_LABEL) . ' you submitted and it needs revision.</p>'
             . '<ul style="padding-left:20px;margin:0 0 16px;">'

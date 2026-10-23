@@ -91,7 +91,7 @@ function renderSupportingDocumentCards(array $requirements, array $documents, st
           </div>
           <?php if ($allowUpload): ?>
             <label class="btn btn-outline btn-sm supporting-document-picker">
-              <span data-upload-picker-label><?= $fileName ? 'Choose Replacement' : 'Choose File' ?></span>
+              <span data-upload-picker-label><?= $fileName ? 'Upload Replacement' : 'Choose File' ?></span>
               <input type="file" data-supporting-upload-input accept=".pdf,.jpg,.jpeg,.png,image/*,application/pdf" hidden>
             </label>
             <div class="supporting-document-progress" data-upload-progress hidden>
