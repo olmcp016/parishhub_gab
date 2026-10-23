@@ -1010,36 +1010,37 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
         <div class="form-group" id="priestFieldGroup">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:6px;">
             <label style="margin:0;">Preferred Priest (optional)</label>
-            <button type="button" class="btn btn-outline btn-sm" id="btnPriestOthers" style="display:none; font-size:12px; padding:3px 10px;">
-              Other (Preferred Priest)
+            <button type="button" class="btn btn-outline btn-sm" id="btnAddAnotherPriest" style="display:none; font-size:12px; padding:3px 10px; border-radius:6px;">
+              <span style="font-weight:700; font-size:13px; line-height:1; margin-right:3px;">+</span> Add Preferred Priest
             </button>
           </div>
-          <select name="priest_id" id="priestSelect">
-            <option value="">No preference</option>
-            <?php foreach ($priests as $p): ?>
-              <option value="<?= $p['priest_id'] ?>"><?= e($p['title']) ?>   <?= e($p['full_name']) ?></option>
-            <?php endforeach; ?>
-            <option value="other" id="priestOtherOption" style="display:none;">Other (Preferred Priest)</option>
-          </select>
-          <div id="outsidePriestGroup" style="display:none; margin-top:10px; background:var(--cream, #f9f6f0); padding:12px; border-radius:8px; border:1px solid var(--cream-dark, #e5dec9);">
-            <label for="outsidePriestInput" style="font-weight:600; font-size:13px; margin-bottom:6px; display:block;">
-              Preferred Priest Name <span style="color:var(--danger, #dc2626);">*</span>
-            </label>
-            <div style="display:flex; align-items:center;">
-              <span style="background:var(--cream-dark, #e8dfcb); border:1px solid #c9be9f; border-right:none; padding:8px 14px; border-radius:6px 0 0 6px; font-weight:700; color:var(--text, #333); font-size:14px; user-select:none;">Fr.</span>
-              <input type="text" id="outsidePriestInput" name="outside_priest_name" placeholder="Enter priest's name (e.g. Juan Dela Cruz)" maxlength="150" style="border-top-left-radius:0; border-bottom-left-radius:0; flex:1;" autocomplete="off" disabled>
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px; flex-wrap:wrap; gap:6px;">
-              <p class="helper-text" style="margin:0; font-size:12px;">
-                Title &ldquo;Fr.&rdquo; is automatically added. Type only the name of your priest.
-              </p>
-              <button type="button" id="btnCancelOutsidePriest" class="btn btn-outline btn-sm" style="font-size:12px; padding:2px 8px;">
-                &larr; Choose from Parish Priests
-              </button>
+
+          <div id="priestRowsContainer" style="display:flex; flex-direction:column; gap:10px;">
+            <!-- Priest Row 1 -->
+            <div class="priest-row" data-row="0" style="background:var(--cream, #f9f6f0); border:1px solid var(--cream-dark, #e5dec9); border-radius:8px; padding:10px;">
+              <div style="display:flex; gap:8px; align-items:center;">
+                <select name="priest_id" id="priestSelect" class="priest-select" style="flex:1;">
+                  <option value="">No preference</option>
+                  <?php foreach ($priests as $p): ?>
+                    <option value="<?= $p['priest_id'] ?>"><?= e($p['title']) ?>   <?= e($p['full_name']) ?></option>
+                  <?php endforeach; ?>
+                  <option value="other" id="priestOtherOption" style="display:none;">Other (Preferred Priest)</option>
+                </select>
+              </div>
+              <div class="outside-priest-input-group" id="outsidePriestGroup" style="display:none; margin-top:8px;">
+                <div style="display:flex; align-items:center;">
+                  <span style="background:var(--cream-dark, #e8dfcb); border:1px solid #c9be9f; border-right:none; padding:8px 14px; border-radius:6px 0 0 6px; font-weight:700; color:var(--text, #333); font-size:14px; user-select:none;">Fr.</span>
+                  <input type="text" id="outsidePriestInput" name="outside_priest_names[]" class="outside-priest-input" placeholder="ENTER PRIEST'S NAME (E.G. JUAN DELA CRUZ)" maxlength="150" style="border-top-left-radius:0; border-bottom-left-radius:0; flex:1; text-transform:uppercase;" autocomplete="off" disabled>
+                </div>
+                <p class="helper-text" style="margin:4px 0 0; font-size:11px;">
+                  Title &ldquo;Fr.&rdquo; is automatically added. Type only the name of your priest.
+                </p>
+              </div>
             </div>
           </div>
-          <p class="helper-text" id="priestHelpText" style="margin-top:6px;">Choosing a specific priest is subject to his availability — in case of unavoidable
-            priest emergencies or pastoral duties, the parish office reserves the right to assign an available priest.
+
+          <p class="helper-text" id="priestHelpText" style="margin-top:6px; margin-bottom:0; font-size:12px;">Choosing a specific priest is subject to his availability — in case of unavoidable
+            priest emergencies or pastoral duties, the parish office reserves the right to assign an available priest. Click <strong>+ Add Preferred Priest</strong> if you wish to request additional priests.
           </p>
         </div>
 
@@ -1823,28 +1824,116 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     document.getElementById('specialRequestsHint').style.display = isOthers ? 'block' : 'none';
   }
 
+  var _cachedPriestOptionsHtml = '';
+
+  function getPriestOptionsMarkup(currentVal) {
+    if (_cachedPriestOptionsHtml) {
+      var div = document.createElement('div');
+      div.innerHTML = '<select>' + _cachedPriestOptionsHtml + '</select>';
+      var sel = div.querySelector('select');
+      sel.value = currentVal || '';
+      return sel.innerHTML;
+    }
+    var selOrig = document.getElementById('priestSelect');
+    if (!selOrig) return '<option value="">No preference</option><option value="other">Other (Preferred Priest)</option>';
+    return selOrig.innerHTML;
+  }
+
+  function addPriestRow(defaultToOther) {
+    var container = document.getElementById('priestRowsContainer');
+    if (!container) return;
+    var rows = container.querySelectorAll('.priest-row');
+    var rowIdx = rows.length;
+
+    var rowDiv = document.createElement('div');
+    rowDiv.className = 'priest-row';
+    rowDiv.dataset.row = String(rowIdx);
+    rowDiv.style.cssText = 'background:var(--cream, #f9f6f0); border:1px solid var(--cream-dark, #e5dec9); border-radius:8px; padding:10px; position:relative;';
+
+    var headerDiv = document.createElement('div');
+    headerDiv.style.cssText = 'display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;';
+    headerDiv.innerHTML = '<span style="font-weight:600; font-size:12px; color:var(--brown-dark, #5c4033);">Preferred Priest #' + (rowIdx + 1) + '</span>' +
+      '<button type="button" class="btn btn-outline btn-sm btn-remove-priest-row" title="Remove this priest" style="padding:2px 8px; font-size:12px; color:var(--danger, #dc2626); border-color:#fca5a5; line-height:1; cursor:pointer;">✕ Remove</button>';
+
+    var selectWrap = document.createElement('div');
+    selectWrap.style.cssText = 'display:flex; gap:8px; align-items:center;';
+    var selectEl = document.createElement('select');
+    selectEl.name = 'additional_priest_ids[]';
+    selectEl.className = 'priest-select';
+    selectEl.style.cssText = 'flex:1;';
+    selectEl.innerHTML = getPriestOptionsMarkup(defaultToOther ? 'other' : '');
+    if (defaultToOther) selectEl.value = 'other';
+    selectWrap.appendChild(selectEl);
+
+    var inputGroup = document.createElement('div');
+    inputGroup.className = 'outside-priest-input-group';
+    inputGroup.style.cssText = 'margin-top:8px; display:' + (defaultToOther ? 'block' : 'none') + ';';
+    inputGroup.innerHTML = '<div style="display:flex; align-items:center;">' +
+      '<span style="background:var(--cream-dark, #e8dfcb); border:1px solid #c9be9f; border-right:none; padding:8px 14px; border-radius:6px 0 0 6px; font-weight:700; color:var(--text, #333); font-size:14px; user-select:none;">Fr.</span>' +
+      '<input type="text" name="outside_priest_names[]" class="outside-priest-input" placeholder="ENTER PRIEST\'S NAME (E.G. JUAN DELA CRUZ)" maxlength="150" style="border-top-left-radius:0; border-bottom-left-radius:0; flex:1; text-transform:uppercase;" autocomplete="off"' + (defaultToOther ? '' : ' disabled') + '>' +
+      '</div>' +
+      '<p class="helper-text" style="margin:4px 0 0; font-size:11px;">Title &ldquo;Fr.&rdquo; is automatically added. Type only the name of your priest.</p>';
+
+    rowDiv.appendChild(headerDiv);
+    rowDiv.appendChild(selectWrap);
+    rowDiv.appendChild(inputGroup);
+    container.appendChild(rowDiv);
+
+    var inputEl = inputGroup.querySelector('.outside-priest-input');
+
+    selectEl.addEventListener('change', function () {
+      if (this.value === 'other') {
+        inputGroup.style.display = 'block';
+        inputEl.disabled = false;
+        inputEl.focus();
+      } else {
+        inputGroup.style.display = 'none';
+        inputEl.disabled = true;
+        inputEl.value = '';
+      }
+    });
+
+    headerDiv.querySelector('.btn-remove-priest-row').addEventListener('click', function () {
+      rowDiv.remove();
+      var remaining = container.querySelectorAll('.priest-row');
+      remaining.forEach(function (r, idx) {
+        r.dataset.row = String(idx);
+        var label = r.querySelector('span');
+        if (label && idx > 0) label.textContent = 'Preferred Priest #' + (idx + 1);
+      });
+    });
+
+    if (defaultToOther && inputEl) {
+      setTimeout(function () { inputEl.focus(); }, 50);
+    }
+  }
+
   /**
-   * Visiting / Outside Priest ("dili atoa nga pari"):
-   * Available only for Marriage (Wedding), Funeral, and Baptism.
-   * Shows the "Others" button and "Others" dropdown option, plus the "Fr." name input.
+   * Visiting / Outside / Preferred Priest ("dili atoa nga pari"):
+   * Allows selecting or typing 1, 2, or more preferred priests.
    */
   function updateOutsidePriestUI() {
     var select = document.getElementById('serviceSelect');
     var category = select.options[select.selectedIndex]?.dataset.category || '';
-    var allowsOutside = category !== '' && category !== 'Donation' && category !== 'Mass Intention';
-    var btn = document.getElementById('btnPriestOthers');
+    var allowsOutside = category !== '' && category !== 'Donation' && category !== 'Mass Intention' && category !== 'Certificate';
+    var btnAdd = document.getElementById('btnAddAnotherPriest');
     var opt = document.getElementById('priestOtherOption');
     var priestSelect = document.getElementById('priestSelect');
     var outsideGroup = document.getElementById('outsidePriestGroup');
     var outsideInput = document.getElementById('outsidePriestInput');
 
-    if (btn) btn.style.display = allowsOutside ? 'inline-block' : 'none';
+    if (btnAdd) btnAdd.style.display = allowsOutside ? 'inline-flex' : 'none';
     if (opt) opt.style.display = allowsOutside ? '' : 'none';
 
     if (!allowsOutside) {
       if (outsideGroup) outsideGroup.style.display = 'none';
       if (outsideInput) { outsideInput.value = ''; outsideInput.disabled = true; outsideInput.setCustomValidity(''); }
       if (priestSelect && priestSelect.value === 'other') priestSelect.value = '';
+      var container = document.getElementById('priestRowsContainer');
+      if (container) {
+        var extra = container.querySelectorAll('.priest-row:not([data-row="0"])');
+        extra.forEach(function (r) { r.remove(); });
+      }
     } else if (priestSelect && priestSelect.value === 'other') {
       if (outsideGroup) outsideGroup.style.display = 'block';
       if (outsideInput) outsideInput.disabled = false;
@@ -2423,9 +2512,10 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     }
     var sSelect = document.getElementById('serviceSelect');
     var category = sSelect.options[sSelect.selectedIndex]?.dataset.category || '';
-    if (category !== '' && category !== 'Donation' && category !== 'Mass Intention') {
+    if (category !== '' && category !== 'Donation' && category !== 'Mass Intention' && category !== 'Certificate') {
       html += '<option value="other" id="priestOtherOption"' + (current === 'other' ? ' selected' : '') + '>Other (Preferred Priest)</option>';
     }
+    _cachedPriestOptionsHtml = html;
     select.innerHTML = html;
 
     // Keep the parishioner's selection unless it just became unavailable.
@@ -2712,8 +2802,7 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     document.getElementById('scheduleTypeRegular').addEventListener('change', toggleServiceUI);
     document.getElementById('scheduleTypeSpecial').addEventListener('change', toggleServiceUI);
     var priestSelect = document.getElementById('priestSelect');
-    var btnPriestOthers = document.getElementById('btnPriestOthers');
-    var btnCancelOutside = document.getElementById('btnCancelOutsidePriest');
+    var btnAddAnotherPriest = document.getElementById('btnAddAnotherPriest');
     var outsideGroup = document.getElementById('outsidePriestGroup');
     var outsideInput = document.getElementById('outsidePriestInput');
 
@@ -2730,21 +2819,18 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
       });
     }
 
-    if (btnPriestOthers) {
-      btnPriestOthers.addEventListener('click', function () {
-        if (priestSelect) priestSelect.value = 'other';
-        if (outsideGroup) outsideGroup.style.display = 'block';
-        if (outsideInput) { outsideInput.disabled = false; outsideInput.focus(); }
-        refreshAvailability();
-      });
-    }
-
-    if (btnCancelOutside) {
-      btnCancelOutside.addEventListener('click', function () {
-        if (priestSelect) priestSelect.value = '';
-        if (outsideGroup) outsideGroup.style.display = 'none';
-        if (outsideInput) { outsideInput.value = ''; outsideInput.disabled = true; outsideInput.setCustomValidity(''); }
-        refreshAvailability();
+    if (btnAddAnotherPriest) {
+      btnAddAnotherPriest.addEventListener('click', function () {
+        var row0Select = document.getElementById('priestSelect');
+        var row0Group = document.getElementById('outsidePriestGroup');
+        var row0Input = document.getElementById('outsidePriestInput');
+        if (row0Select && (row0Select.value === '' || row0Select.value === null) && (!row0Group || row0Group.style.display === 'none')) {
+          row0Select.value = 'other';
+          if (row0Group) row0Group.style.display = 'block';
+          if (row0Input) { row0Input.disabled = false; row0Input.focus(); }
+        } else {
+          addPriestRow(true);
+        }
       });
     }
 
@@ -3053,15 +3139,25 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
       }
     }
 
-    var priestSel = document.getElementById('priestSelect');
-    if (priestSel && priestSel.offsetParent !== null && priestSel.value) {
-      if (priestSel.value === 'other') {
-        var outside = document.getElementById('outsidePriestInput')?.value.trim();
-        if (outside) detailsList.push('Preferred Priest: ' + outside);
-      } else {
-        var priestName = priestSel.options[priestSel.selectedIndex]?.textContent.trim();
-        if (priestName) detailsList.push('Priest: ' + priestName);
+    var preferredPriestsList = [];
+    var priestRows = document.querySelectorAll('#priestRowsContainer .priest-row');
+    priestRows.forEach(function (row) {
+      var sel = row.querySelector('.priest-select');
+      if (!sel || sel.offsetParent === null) return;
+      if (sel.value === 'other') {
+        var outsideInput = row.querySelector('.outside-priest-input');
+        var outside = outsideInput ? outsideInput.value.trim() : '';
+        if (outside) {
+          var clean = outside.replace(/^(?:rev(?:erend)?\.?\s*(?:fr\.?|father)?|fr\.?|father)\s+/i, '').trim();
+          if (clean) preferredPriestsList.push('Fr. ' + clean);
+        }
+      } else if (sel.value) {
+        var priestName = sel.options[sel.selectedIndex]?.textContent.trim();
+        if (priestName && priestName !== 'No preference') preferredPriestsList.push(priestName);
       }
+    });
+    if (preferredPriestsList.length > 0) {
+      detailsList.push((preferredPriestsList.length > 1 ? 'Preferred Priests: ' : 'Preferred Priest: ') + preferredPriestsList.join(', '));
     }
 
     var detailsWrap = document.getElementById('reviewDetailsWrap');
@@ -3110,6 +3206,24 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     if (!panel) return true;
     if (step === 1 && typeof bookingBeforeCheck === 'function') {
       bookingBeforeCheck();
+    }
+    if (step === 1) {
+      var priestRows = document.querySelectorAll('#priestRowsContainer .priest-row');
+      for (var p = 0; p < priestRows.length; p++) {
+        var row = priestRows[p];
+        var sel = row.querySelector('.priest-select');
+        if (sel && sel.value === 'other') {
+          var pInput = row.querySelector('.outside-priest-input');
+          if (pInput && !pInput.value.trim()) {
+            pInput.setCustomValidity('Please enter the name of your Preferred Priest or remove this field.');
+            pInput.reportValidity();
+            pInput.focus();
+            return false;
+          } else if (pInput) {
+            pInput.setCustomValidity('');
+          }
+        }
+      }
     }
     var inputs = panel.querySelectorAll('input, select, textarea');
     for (var i = 0; i < inputs.length; i++) {

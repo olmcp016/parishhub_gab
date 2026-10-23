@@ -126,14 +126,40 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
     // (birthday, thanksgiving, etc.), so it is identified by name within Wake.
     $isSpecialMass = ($category === 'Wake' && ($service['service_name'] ?? '') === 'Special Mass Request');
 
-    // Visiting / outside priest ("dili atoa nga pari") for Marriage, Funeral, and Baptism
+    // Visiting / outside priest ("dili atoa nga pari") for Marriage, Funeral, and Baptism (support multiple preferred priests)
+    $collectedOutside = [];
+    if (!empty($_POST['outside_priest_names']) && is_array($_POST['outside_priest_names'])) {
+        foreach ($_POST['outside_priest_names'] as $rawN) {
+            $rawN = trim((string) $rawN);
+            if ($rawN !== '') {
+                $norm = normalizeOutsidePriestName($rawN);
+                if ($norm) $collectedOutside[] = mb_strtoupper($norm, 'UTF-8');
+            }
+        }
+    }
+    if ($rawOutsidePriest !== '') {
+        $norm = normalizeOutsidePriestName($rawOutsidePriest);
+        if ($norm) $collectedOutside[] = mb_strtoupper($norm, 'UTF-8');
+    }
+    $additionalPriestIds = array_filter(array_map('intval', (array) ($_POST['additional_priest_ids'] ?? [])));
+    if (!empty($additionalPriestIds)) {
+        $inClause = implode(',', array_fill(0, count($additionalPriestIds), '?'));
+        $stmtExtra = db()->prepare("SELECT title, full_name FROM priests WHERE priest_id IN ($inClause)");
+        $stmtExtra->execute(array_values($additionalPriestIds));
+        foreach ($stmtExtra->fetchAll() as $ep) {
+            $epName = trim(($ep['title'] ? $ep['title'] . ' ' : '') . $ep['full_name']);
+            if ($epName !== '') $collectedOutside[] = mb_strtoupper($epName, 'UTF-8');
+        }
+    }
+    $collectedOutside = array_values(array_unique($collectedOutside));
+
     if (isOutsidePriestEligibleCategory($category)) {
-        if ($priestId === 'other' || $rawOutsidePriest !== '') {
-            if ($rawOutsidePriest === '') {
+        if ($priestId === 'other' || !empty($collectedOutside)) {
+            if (empty($collectedOutside)) {
                 bookRespondError($isAjax, 'Please enter the name of your priest.', url('parishioner/services.php'));
             }
-            $outsidePriestName = normalizeOutsidePriestName($rawOutsidePriest);
-            $priestId = null; // Visiting priest is not a parish priest record
+            $outsidePriestName = implode(', ', $collectedOutside);
+            if ($priestId === 'other') $priestId = null;
         }
     } else {
         if ($priestId === 'other') $priestId = null;

@@ -848,12 +848,17 @@ function outsidePriestAvailable(): bool
         $count = (int) db()->query("SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'appointments' AND column_name = 'outside_priest_name'")->fetchColumn();
         if ($count === 0) {
             try {
-                db()->exec("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS outside_priest_name VARCHAR(150) DEFAULT NULL");
-                db()->exec("ALTER TABLE appointment_drafts ADD COLUMN IF NOT EXISTS outside_priest_name VARCHAR(150) DEFAULT NULL");
+                db()->exec("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS outside_priest_name TEXT DEFAULT NULL");
+                db()->exec("ALTER TABLE appointment_drafts ADD COLUMN IF NOT EXISTS outside_priest_name TEXT DEFAULT NULL");
                 $count = 1;
             } catch (Throwable $e) {
                 // Ignore DDL errors if DB user lacks ALTER TABLE permissions
             }
+        } else {
+            try {
+                db()->exec("ALTER TABLE appointments ALTER COLUMN outside_priest_name TYPE TEXT");
+                db()->exec("ALTER TABLE appointment_drafts ALTER COLUMN outside_priest_name TYPE TEXT");
+            } catch (Throwable $e) {}
         }
         $available = ($count > 0);
     } catch (Throwable $e) {
