@@ -289,23 +289,24 @@ function certificateSearchMatches(string $name): array
     $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $name) . '%';
 
     $stmt = db()->prepare(
-        "SELECT a.appointment_id, s.category, a.appointment_date, a.patient_name,
+        "SELECT a.appointment_id, s.category, a.appointment_date, a.patient_name, a.guest_name,
                 COALESCE(u.firstname || ' ' || u.lastname, '') AS parishioner_name,
                 gf.form_type, gf.form_data
          FROM appointments a
          JOIN services s ON s.service_id = a.service_id
          LEFT JOIN parishioners par ON par.parishioner_id = a.parishioner_id
          LEFT JOIN users u ON u.user_id = par.user_id
-         LEFT JOIN generated_forms gf ON gf.appointment_id = a.appointment_id AND gf.service_category = s.category
+         LEFT JOIN generated_forms gf ON gf.appointment_id = a.appointment_id
          WHERE a.status_id = 6 AND s.category IN ('Wedding', 'Baptism', 'Confirmation', 'Funeral')
            AND (
              a.patient_name ILIKE ?
+             OR a.guest_name ILIKE ?
              OR (u.firstname || ' ' || u.lastname) ILIKE ?
              OR gf.form_data::text ILIKE ?
            )
          ORDER BY a.appointment_date DESC LIMIT 25"
     );
-    $stmt->execute([$like, $like, $like]);
+    $stmt->execute([$like, $like, $like, $like]);
 
     $results = [];
     foreach ($stmt->fetchAll() as $row) {

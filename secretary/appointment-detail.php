@@ -1307,17 +1307,20 @@ if (!$isAjax) {
       <?php if (!$officialCertType): ?>
         <p class="text-muted">This request's certificate type could not be determined from the remarks above.</p>
       <?php else: ?>
+        <p class="helper-text" style="margin-bottom:8px;">
+          Searching for completed <strong><?= e($officialCertType) ?></strong> parish records to autofill this certificate:
+        </p>
         <form method="GET" action="<?= url('secretary/appointment-detail.php') ?>" class="form-row" style="align-items:end; margin-bottom:12px;">
           <input type="hidden" name="id" value="<?= $id ?>">
           <div class="form-group">
             <label for="certSearchName">Search Parish Records by Name</label>
             <input type="text" id="certSearchName" name="cert_search" value="<?= e($officialCertSearchName) ?>" placeholder="e.g. Juan Dela Cruz">
           </div>
-          <div class="form-group"><button type="submit" class="btn btn-outline">🔎 Search &amp; Autofill from Parish Records</button></div>
+          <div class="form-group"><button type="submit" class="btn btn-outline">🔎 Search &amp; Autofill</button></div>
         </form>
         <?php if ($officialCertSearchName !== ''): ?>
           <?php if (empty($officialCertSearchResults)): ?>
-            <p class="text-muted" style="margin-bottom:16px;">No matching completed sacrament record found. You can type the registry details in manually below (e.g. from an older pre-system physical book).</p>
+            <p class="text-muted" style="margin-bottom:16px;">No matching completed sacrament record found for "<?= e($officialCertSearchName) ?>". You can type the registry details in manually below (e.g. from an older physical book).</p>
           <?php else: ?>
             <div class="table-wrap" style="margin-bottom:16px;">
               <table>
@@ -1326,15 +1329,19 @@ if (!$isAjax) {
                   <?php foreach ($officialCertSearchResults as $match): ?>
                     <tr>
                       <td><?= e($match['name']) ?></td>
-                      <td><?= e($match['category']) ?></td>
+                      <td><span class="badge badge-<?= strtolower($match['category']) ?>"><?= e($match['category']) ?></span></td>
                       <td><?= formatDate($match['date']) ?></td>
                       <td>
-                        <form method="POST" action="<?= e($redirectUrl) ?>">
-                          <?= csrfField() ?>
-                          <input type="hidden" name="action" value="use_certificate_match">
-                          <input type="hidden" name="source_appointment_id" value="<?= (int) $match['appointment_id'] ?>">
-                          <button type="submit" class="btn btn-outline btn-sm">Use This</button>
-                        </form>
+                        <?php if ($match['certificate_type'] === $officialCertType): ?>
+                          <form method="POST" action="<?= e($redirectUrl) ?>">
+                            <?= csrfField() ?>
+                            <input type="hidden" name="action" value="use_certificate_match">
+                            <input type="hidden" name="source_appointment_id" value="<?= (int) $match['appointment_id'] ?>">
+                            <button type="submit" class="btn btn-primary btn-sm">Use This</button>
+                          </form>
+                        <?php else: ?>
+                          <span class="text-muted" style="font-size:11.5px;"><?= e($match['category']) ?> (Request is <?= e($officialCertType) ?>)</span>
+                        <?php endif; ?>
                       </td>
                     </tr>
                   <?php endforeach; ?>

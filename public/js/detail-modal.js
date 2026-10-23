@@ -477,6 +477,22 @@
       // dialog is open: a genuine navigation just leaves the whole page,
       // dialog included, exactly as if the modal had never been there.
       if (form.dataset.plainSubmit) return;
+      if (form.getAttribute('method') && form.getAttribute('method').toUpperCase() === 'GET') {
+        e.preventDefault();
+        var action = form.getAttribute('action') || modal.dataset.currentUrl;
+        var query = new URLSearchParams(new FormData(form)).toString();
+        var targetUrl = action + (action.indexOf('?') === -1 ? '?' : '&') + query;
+        modal.dataset.currentUrl = targetUrl;
+        showLoading();
+        fetchFragment(targetUrl, detailAbortController && detailAbortController.signal)
+          .then(function (html) {
+            modalBody.innerHTML = html;
+          })
+          .catch(function () {
+            showLoadError();
+          });
+        return;
+      }
       if (form.dataset.submitting === '1') {
         e.preventDefault();
         return;
