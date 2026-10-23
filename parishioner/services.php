@@ -1421,7 +1421,7 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
   function updateOutsidePriestUI() {
     var select = document.getElementById('serviceSelect');
     var category = select.options[select.selectedIndex]?.dataset.category || '';
-    var allowsOutside = category !== '' && category !== 'Donation';
+    var allowsOutside = category !== '' && category !== 'Donation' && category !== 'Mass Intention';
     var btn = document.getElementById('btnPriestOthers');
     var opt = document.getElementById('priestOtherOption');
     var priestSelect = document.getElementById('priestSelect');
@@ -1560,12 +1560,24 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     var blessingPhone = document.getElementById('blessingPhoneInput');
     if (blessingPhone) blessingPhone.required = isBlessing;
 
-    // Priest selection (preferred parish priest or visiting priest) is available for all services
+    // Priest selection (preferred parish priest or visiting priest) is available for all services except Donation and Mass Intention
     var priestGroup = document.getElementById('priestFieldGroup');
     var priestSelect = document.getElementById('priestSelect');
-    priestGroup.style.display = category === 'Donation' ? 'none' : 'block';
-    priestSelect.disabled = category === 'Donation';
-    if (category === 'Donation') priestSelect.value = '';
+    var hidePriest = category === 'Donation' || isMassIntention;
+    priestGroup.style.display = hidePriest ? 'none' : 'block';
+    priestSelect.disabled = hidePriest;
+    if (hidePriest) {
+      priestSelect.value = '';
+      var outsideGroup = document.getElementById('outsidePriestGroup');
+      if (outsideGroup) outsideGroup.style.display = 'none';
+      var outsideInput = document.getElementById('outsidePriestInput');
+      if (outsideInput) {
+        outsideInput.value = '';
+        outsideInput.disabled = true;
+      }
+      var btnOthers = document.getElementById('btnPriestOthers');
+      if (btnOthers) btnOthers.style.display = 'none';
+    }
 
     // No documents for Mass Intentions, drafts (Baptism/Wedding/Funeral), or
     // services that handle documents separately (Anointing, Blessing, Wake).
@@ -1645,6 +1657,11 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
       massGroup.style.display = 'block';
       massHidden.disabled = false;
       autoAssignMassTime();
+      var priestGroup = document.getElementById('priestFieldGroup');
+      var priestSelect = document.getElementById('priestSelect');
+      priestGroup.style.display = 'none';
+      priestSelect.disabled = true;
+      priestSelect.value = '';
     } else if (usesToggle && scheduleType === 'Regular') {
       dateTimeRow.style.display = 'none';
       dateInput.disabled = true;
@@ -1981,7 +1998,7 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     }
     var sSelect = document.getElementById('serviceSelect');
     var category = sSelect.options[sSelect.selectedIndex]?.dataset.category || '';
-    if (category !== '' && category !== 'Donation') {
+    if (category !== '' && category !== 'Donation' && category !== 'Mass Intention') {
       html += '<option value="other" id="priestOtherOption"' + (current === 'other' ? ' selected' : '') + '>Others (Visiting / Guest Priest)</option>';
     }
     select.innerHTML = html;
