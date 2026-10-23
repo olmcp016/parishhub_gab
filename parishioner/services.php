@@ -1208,18 +1208,22 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
             <div style="font-weight:700; color:var(--brown-dark, #3d2b1f); font-size:14px; margin-bottom:10px; border-bottom:1px solid var(--cream-dark, #e8e0d5); padding-bottom:6px;">
               Booking Summary
             </div>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:13px;" id="bookReviewGrid">
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; font-size:13px;" id="bookReviewGrid">
               <div>
                 <span style="color:var(--text-muted, #7a6e65); display:block; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Service</span>
-                <strong id="reviewService" style="color:var(--brown-dark, #3d2b1f);">—</strong>
+                <strong id="reviewService" style="color:var(--brown-dark, #3d2b1f); font-size:13.5px;">—</strong>
               </div>
               <div>
                 <span style="color:var(--text-muted, #7a6e65); display:block; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Schedule</span>
-                <strong id="reviewSchedule" style="color:var(--brown-dark, #3d2b1f);">—</strong>
+                <strong id="reviewSchedule" style="color:var(--brown-dark, #3d2b1f); font-size:13.5px;">—</strong>
               </div>
-              <div id="reviewDetailsWrap" style="grid-column:1 / -1; display:none;">
-                <span style="color:var(--text-muted, #7a6e65); display:block; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Details</span>
-                <div id="reviewDetails" style="color:var(--brown-dark, #3d2b1f);"></div>
+              <div id="reviewPriestWrap" style="display:none;">
+                <span style="color:var(--text-muted, #7a6e65); display:block; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Preferred Priest</span>
+                <strong id="reviewPriest" style="color:var(--brown-dark, #3d2b1f); font-size:13.5px;">—</strong>
+              </div>
+              <div id="reviewDetailsWrap" style="grid-column:1 / -1; display:none; border-top:1px dashed var(--cream-dark, #e8e0d5); padding-top:10px; margin-top:2px;">
+                <span style="color:var(--text-muted, #7a6e65); display:block; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">Booking Details</span>
+                <div id="reviewDetails" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:8px 12px;"></div>
               </div>
             </div>
           </div>
@@ -3117,43 +3121,126 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     }
   }
 
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function formatDisplayDate(dateStr) {
+    if (!dateStr) return '';
+    var parts = String(dateStr).trim().split('-');
+    if (parts.length === 3) {
+      var y = parseInt(parts[0], 10);
+      var m = parseInt(parts[1], 10) - 1;
+      var d = parseInt(parts[2], 10);
+      var dt = new Date(y, m, d);
+      if (!isNaN(dt.getTime())) {
+        return dt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      }
+    }
+    return dateStr;
+  }
+
   function bookStepPopulateReview() {
     var serviceSelect = document.getElementById('serviceSelect');
     var opt = serviceSelect ? serviceSelect.options[serviceSelect.selectedIndex] : null;
-    var serviceName = opt ? opt.textContent.trim() : '—';
+    var serviceName = opt ? (opt.dataset.serviceName || opt.textContent.trim()) : '—';
     var category = opt ? (opt.dataset.category || '') : '';
+    var isSpecialMass = category === 'Wake' && serviceName === 'Special Mass Request';
+    var isWakeMass = category === 'Wake' && !isSpecialMass;
+    var isMassIntention = category === 'Mass Intention';
 
-    var dateVal = document.getElementById('appointmentDateInput') ? document.getElementById('appointmentDateInput').value : '';
+    // 1. Resolve date and time
+    var dateVal = '';
     var timeVal = '';
-    var fixedBox = document.getElementById('regularFixedTimeBox');
-    if (fixedBox && fixedBox.style.display !== 'none') {
-      var fixedTxt = document.getElementById('regularFixedTimeText');
-      if (fixedTxt) timeVal = fixedTxt.textContent.trim();
-    }
-    if (!timeVal) {
-      var massTime = document.getElementById('massTimeSelect');
-      if (massTime && massTime.offsetParent !== null && massTime.value) {
-        timeVal = massTime.options[massTime.selectedIndex]?.textContent || massTime.value;
-      }
-    }
-    if (!timeVal) {
-      var freeTime = document.getElementById('freeTimeInput');
-      if (freeTime && freeTime.offsetParent !== null && freeTime.value) {
-        timeVal = freeTime.options ? (freeTime.options[freeTime.selectedIndex]?.textContent || freeTime.value) : freeTime.value;
-      }
-    }
-    var schedText = dateVal ? (dateVal + (timeVal ? ' at ' + timeVal : '')) : 'To be confirmed';
-    if (category === 'Funeral') {
-      var burialDate = document.getElementById('funeralPreferredDateInput')?.value;
-      var burialTimeEl = document.getElementById('funeralPreferredTimeInput');
-      var burialTime = burialTimeEl?.options ? (burialTimeEl.options[burialTimeEl.selectedIndex]?.textContent || burialTimeEl.value) : burialTimeEl?.value;
-      if (burialDate) {
-        schedText = 'Preferred: ' + burialDate + (burialTime ? ' at ' + burialTime : '');
+    var isToBeConfirmed = false;
+    var isRegularSlot = false;
+
+    // Regular fixed slot calendar
+    var regDateInput = document.getElementById('regularDateInput');
+    if (regDateInput && !regDateInput.disabled && regDateInput.value) {
+      dateVal = regDateInput.value;
+      var regFixedTxt = document.getElementById('regularFixedTimeText');
+      if (regFixedTxt && regFixedTxt.textContent.trim()) {
+        timeVal = regFixedTxt.textContent.trim();
       } else {
-        schedText = 'To be confirmed';
+        var regTimeInput = document.getElementById('regularTimeInput');
+        if (regTimeInput && regTimeInput.value) timeVal = regTimeInput.value;
       }
-    } else if (category === 'Confirmation' || category === 'First Communion') {
-      schedText = 'To be scheduled by parish office';
+      isRegularSlot = true;
+    }
+
+    // Funeral preferred burial schedule
+    if (!dateVal && category === 'Funeral') {
+      var burialDateInput = document.getElementById('funeralPreferredDateInput');
+      if (burialDateInput && burialDateInput.value) {
+        dateVal = burialDateInput.value;
+        var burialTimeEl = document.getElementById('funeralPreferredTimeInput');
+        if (burialTimeEl && burialTimeEl.value) {
+          timeVal = burialTimeEl.options ? (burialTimeEl.options[burialTimeEl.selectedIndex]?.textContent || burialTimeEl.value) : burialTimeEl.value;
+        }
+        isToBeConfirmed = true;
+      }
+    }
+
+    // Standard appointment date & time
+    if (!dateVal) {
+      var apptDateInput = document.getElementById('appointmentDateInput');
+      if (apptDateInput && !apptDateInput.disabled && apptDateInput.value) {
+        dateVal = apptDateInput.value;
+
+        // Fixed time display
+        var fixedInput = document.getElementById('fixedTimeInput');
+        var fixedDisplay = document.getElementById('fixedTimeDisplay');
+        if (fixedInput && !fixedInput.disabled && (fixedDisplay?.value || fixedInput.value)) {
+          timeVal = fixedDisplay?.value || fixedInput.value;
+        }
+
+        // Mass time
+        if (!timeVal) {
+          var massSelect = document.getElementById('massTimeSelect');
+          var massHidden = document.getElementById('massTimeInput');
+          if (massHidden && !massHidden.disabled && massSelect && massSelect.value) {
+            timeVal = massSelect.options[massSelect.selectedIndex]?.textContent || massSelect.value;
+          }
+        }
+
+        // Free custom time
+        if (!timeVal) {
+          var freeInput = document.getElementById('freeTimeInput');
+          if (freeInput && !freeInput.disabled && freeInput.value) {
+            timeVal = freeInput.options ? (freeInput.options[freeInput.selectedIndex]?.textContent || freeInput.value) : freeInput.value;
+          }
+        }
+
+        // Services subject to parish office confirmation
+        var usesToggle = ['Baptism', 'Wedding'].indexOf(category) !== -1;
+        var schedType = document.querySelector('input[name="schedule_type"]:checked')?.value || 'Regular';
+        if (isSpecialMass || isWakeMass || category === 'Blessing' || category === 'Anointing' || (usesToggle && schedType === 'Special')) {
+          isToBeConfirmed = true;
+        }
+      }
+    }
+
+    // Build Schedule text
+    var schedText = 'To be confirmed by Parish Office';
+    if (category === 'Confirmation' || category === 'First Communion') {
+      schedText = 'To be scheduled by Parish Office';
+    } else if (dateVal) {
+      var formattedDate = formatDisplayDate(dateVal);
+      var timePart = timeVal ? ' at ' + timeVal : '';
+      if (isToBeConfirmed) {
+        schedText = formattedDate + timePart + ' (To be confirmed)';
+      } else if (isRegularSlot) {
+        schedText = formattedDate + timePart + ' (Regular Slot)';
+      } else {
+        schedText = formattedDate + timePart + (timeVal ? '' : ' (Time to be confirmed)');
+      }
     }
 
     var elService = document.getElementById('reviewService');
@@ -3161,100 +3248,188 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     var elSched = document.getElementById('reviewSchedule');
     if (elSched) elSched.textContent = schedText;
 
-    var detailsList = [];
-    if (['Baptism', 'Wedding', 'Funeral'].indexOf(category) !== -1) {
-      var pssSelect = document.getElementById('pssClaimInput');
-      if (pssSelect && pssSelect.value) {
-        detailsList.push(pssSelect.value === 'pss' ? 'PSS: PSS Giver (Subject to verification)' : 'PSS: Non-PSS Giver');
+    // 2. Resolve Preferred Priest
+    var priestGroup = document.getElementById('priestFieldGroup');
+    var priestSelect = document.getElementById('priestSelect');
+    var isPriestApplicable = priestGroup && priestGroup.style.display !== 'none' && priestSelect && !priestSelect.disabled;
+    var priestWrap = document.getElementById('reviewPriestWrap');
+    var elPriest = document.getElementById('reviewPriest');
+    var priestList = [];
+
+    if (isPriestApplicable) {
+      var priestRows = document.querySelectorAll('#priestRowsContainer .priest-row');
+      priestRows.forEach(function (row) {
+        var sel = row.querySelector('.priest-select');
+        if (!sel || sel.disabled) return;
+        if (sel.value === 'other') {
+          var outsideInput = row.querySelector('.outside-priest-input');
+          var outside = outsideInput ? outsideInput.value.trim() : '';
+          if (outside) {
+            var clean = outside.replace(/^(?:rev(?:erend)?\.?\s*(?:fr\.?|father)?|fr\.?|father)\s+/i, '').trim();
+            if (clean) priestList.push('Fr. ' + clean.toUpperCase() + ' (Visiting Priest)');
+          }
+        } else if (sel.value) {
+          var priestName = sel.options[sel.selectedIndex]?.textContent.trim();
+          if (priestName && priestName !== 'No preference') {
+            priestList.push(priestName.replace(/\s+/g, ' '));
+          }
+        }
+      });
+
+      var priestDisplayText = priestList.length > 0
+        ? priestList.join(', ')
+        : 'Parish Assigned (No preference)';
+
+      if (priestWrap && elPriest) {
+        priestWrap.style.display = 'block';
+        elPriest.textContent = priestDisplayText;
       }
+    } else if (priestWrap) {
+      priestWrap.style.display = 'none';
     }
-    if (category === 'Mass Intention') {
+
+    // 3. Resolve Detailed Fields
+    var detailsList = [];
+
+    // Special Mass Request
+    if (isSpecialMass) {
+      var req = document.getElementById('specialRequesterInput')?.value.trim();
+      var occ = document.getElementById('occasionSelect')?.value;
+      var addr = document.getElementById('specialMassAddressInput')?.value.trim();
+      var specReq = document.getElementById('specialRequestsInput')?.value.trim();
+      if (req) detailsList.push({ label: 'Requester', value: req });
+      if (occ) detailsList.push({ label: 'Occasion', value: occ });
+      if (addr) detailsList.push({ label: 'Location / Address', value: addr });
+      if (specReq) detailsList.push({ label: 'Special Requests', value: specReq });
+      detailsList.push({ label: 'Fixed Fee', value: '₱1,500.00' });
+    } else if (isWakeMass) {
+      var dec = document.getElementById('patientNameInput')?.value.trim();
+      var req = document.getElementById('requesterNameInput')?.value.trim();
+      var addr = document.getElementById('anointingAddressInput')?.value.trim();
+      if (dec) detailsList.push({ label: 'Deceased Person', value: dec });
+      if (req) detailsList.push({ label: 'Requester', value: req });
+      if (addr) detailsList.push({ label: 'Location / Address', value: addr });
+      detailsList.push({ label: 'Fixed Fee', value: '₱1,500.00' });
+    } else if (category === 'Anointing') {
+      var sick = document.getElementById('patientNameInput')?.value.trim();
+      var req = document.getElementById('requesterNameInput')?.value.trim();
+      var addr = document.getElementById('anointingAddressInput')?.value.trim();
+      if (sick) detailsList.push({ label: 'Sick Person', value: sick });
+      if (req) detailsList.push({ label: 'Requester', value: req });
+      if (addr) detailsList.push({ label: 'Location / Address', value: addr });
+      detailsList.push({ label: 'Fee', value: 'Free of charge' });
+    } else if (category === 'Blessing') {
+      var bAddr = document.getElementById('blessingAddressInput')?.value.trim();
+      var bPhone = document.getElementById('blessingPhoneInput')?.value.trim();
+      if (bAddr) detailsList.push({ label: 'Location to Bless', value: bAddr });
+      if (bPhone) detailsList.push({ label: 'Contact Phone', value: bPhone });
+    } else if (isMassIntention) {
       var offerer = document.getElementById('offererNameInput')?.value.trim();
       var intentionFor = document.getElementById('intentionForInput')?.value.trim();
+      var intType = document.querySelector('select[name="intention_type"]')?.value;
       var purpose = document.getElementById('massPurposeSelect')?.value;
       var offering = document.getElementById('offeringAmount')?.value;
-      if (offerer) detailsList.push('Offered by: ' + offerer);
-      if (intentionFor) detailsList.push('Intention for: ' + intentionFor);
-      if (purpose) detailsList.push('Purpose: ' + purpose);
-      if (offering) detailsList.push('Offering: ₱' + Number(offering).toLocaleString());
+      if (offerer) detailsList.push({ label: 'Offered by', value: offerer });
+      if (intentionFor) detailsList.push({ label: 'Intention for', value: intentionFor });
+      if (intType) detailsList.push({ label: 'Intention Type', value: intType });
+      if (purpose) detailsList.push({ label: 'Purpose', value: purpose });
+      if (offering) detailsList.push({ label: 'Offering Amount', value: '₱' + Number(offering).toLocaleString() });
     } else if (category === 'Funeral') {
       var deceased = document.getElementById('patientNameInput')?.value.trim();
       var dod = document.getElementById('dateOfDeathInput')?.value;
-      if (deceased) detailsList.push('Deceased: ' + deceased);
-      if (dod) detailsList.push('Date of Death: ' + dod);
-    } else if (category === 'Anointing') {
-      var sick = document.getElementById('patientNameInput')?.value.trim();
-      var addr = document.getElementById('anointingAddressInput')?.value.trim();
-      if (sick) detailsList.push('Patient: ' + sick);
-      if (addr) detailsList.push('Address: ' + addr);
-    } else if (category === 'Blessing') {
-      var bAddr = document.getElementById('blessingAddressInput')?.value.trim();
-      if (bAddr) detailsList.push('Location: ' + bAddr);
+      var pssSelect = document.getElementById('pssClaimInput');
+      if (deceased) detailsList.push({ label: 'Deceased Person', value: deceased });
+      if (dod) detailsList.push({ label: 'Date of Death', value: formatDisplayDate(dod) });
+      if (pssSelect && pssSelect.value) {
+        detailsList.push({ label: 'PSS Classification', value: pssSelect.value === 'pss' ? 'PSS Giver' : 'Non-PSS Giver' });
+      }
+    } else if (category === 'Baptism') {
+      var schedType = document.querySelector('input[name="schedule_type"]:checked')?.value || 'Regular';
+      var pssSelect = document.getElementById('pssClaimInput');
+      var sponsors = document.getElementById('sponsorCountInput')?.value;
+      detailsList.push({ label: 'Schedule Type', value: schedType + ' Schedule' });
+      if (pssSelect && pssSelect.value) {
+        detailsList.push({ label: 'PSS Classification', value: pssSelect.value === 'pss' ? 'PSS Giver' : 'Non-PSS Giver' });
+      }
+      if (sponsors && parseInt(sponsors, 10) > 0) {
+        detailsList.push({ label: 'Sponsors', value: sponsors });
+      }
+    } else if (category === 'Wedding') {
+      var schedType = document.querySelector('input[name="schedule_type"]:checked')?.value || 'Regular';
+      var pssSelect = document.getElementById('pssClaimInput');
+      var wSponsors = document.getElementById('weddingSponsorCountInput')?.value;
+      detailsList.push({ label: 'Schedule Type', value: schedType + ' Schedule' });
+      if (pssSelect && pssSelect.value) {
+        detailsList.push({ label: 'PSS Classification', value: pssSelect.value === 'pss' ? 'PSS Giver' : 'Non-PSS Giver' });
+      }
+      if (wSponsors && parseInt(wSponsors, 10) > 0) {
+        detailsList.push({ label: 'Individual Sponsors', value: wSponsors });
+      }
+      var precanaRadio = document.querySelector('input[name="precana_option"]:checked')?.value;
+      if (precanaRadio === 'regular') {
+        var pcDate = document.getElementById('precanaRegularDateSelect')?.value;
+        var pcTime = document.getElementById('precanaRegularTimeText')?.textContent.trim();
+        if (pcDate) detailsList.push({ label: 'Pre-Cana Seminar', value: formatDisplayDate(pcDate) + (pcTime ? ' at ' + pcTime : '') });
+      } else if (precanaRadio === 'special') {
+        var pcDate = document.getElementById('precanaSpecialDateInput')?.value;
+        var pcTime = document.getElementById('precanaTimeInput')?.value;
+        if (pcDate) detailsList.push({ label: 'Pre-Cana Seminar', value: formatDisplayDate(pcDate) + (pcTime ? ' at ' + pcTime : '') + ' (Special)' });
+      }
     } else if (category === 'Certificate') {
       var certType = document.getElementById('certificateTypeSelect')?.value;
-      if (certType) detailsList.push('Certificate: ' + certType);
-      detailsList.push('Fee: ₱100.00');
+      if (certType) detailsList.push({ label: 'Certificate Type', value: certType });
+      detailsList.push({ label: 'Certificate Fee', value: '₱100.00' });
       var req = document.getElementById('certRequestorInput')?.value.trim();
-      if (req && (certType === 'Baptismal Certificate' || certType === 'Confirmation Certificate' || certType === 'Death Certificate')) {
-        detailsList.push('Requestor: ' + req);
-      }
+      if (req) detailsList.push({ label: 'Requestor', value: req });
       if (certType === 'Baptismal Certificate') {
         var reg = document.getElementById('certBaptismRegistrantInput')?.value.trim();
         var birth = document.getElementById('certBaptismBirthInput')?.value.trim();
         var byear = document.getElementById('certBaptismYearInput')?.value.trim();
-        if (reg) detailsList.push('Registrant: ' + reg);
-        if (birth) detailsList.push('Birth: ' + birth);
-        if (byear) detailsList.push('Baptism Year: ' + byear);
+        if (reg) detailsList.push({ label: 'Registrant', value: reg });
+        if (birth) detailsList.push({ label: 'Date of Birth', value: formatDisplayDate(birth) });
+        if (byear) detailsList.push({ label: 'Baptism Year', value: byear });
       } else if (certType === 'Confirmation Certificate') {
         var reg = document.getElementById('certConfirmRegistrantInput')?.value.trim();
         var birth = document.getElementById('certConfirmBirthInput')?.value.trim();
         var cyear = document.getElementById('certConfirmYearInput')?.value.trim();
-        if (reg) detailsList.push('Registrant: ' + reg);
-        if (birth) detailsList.push('Birth: ' + birth);
-        if (cyear) detailsList.push('Confirmation Year: ' + cyear);
+        if (reg) detailsList.push({ label: 'Registrant', value: reg });
+        if (birth) detailsList.push({ label: 'Date of Birth', value: formatDisplayDate(birth) });
+        if (cyear) detailsList.push({ label: 'Confirmation Year', value: cyear });
       } else if (certType === 'Death Certificate') {
         var dec = document.getElementById('certDeceasedNameInput')?.value.trim();
         var dyear = document.getElementById('certDeathYearInput')?.value.trim();
-        if (dec) detailsList.push('Deceased: ' + dec);
-        if (dyear) detailsList.push('Death Year: ' + dyear);
+        if (dec) detailsList.push({ label: 'Deceased Person', value: dec });
+        if (dyear) detailsList.push({ label: 'Death Year', value: dyear });
       } else if (certType === 'Marriage Certificate') {
         var groom = document.getElementById('certGroomNameInput')?.value.trim();
         var bride = document.getElementById('certBrideNameInput')?.value.trim();
         var myear = document.getElementById('certMarriageYearInput')?.value.trim();
-        if (groom) detailsList.push('Groom: ' + groom);
-        if (bride) detailsList.push('Bride: ' + bride);
-        if (myear) detailsList.push('Marriage Year: ' + myear);
+        if (groom) detailsList.push({ label: 'Groom', value: groom });
+        if (bride) detailsList.push({ label: 'Bride', value: bride });
+        if (myear) detailsList.push({ label: 'Marriage Year', value: myear });
       }
     }
 
-    var preferredPriestsList = [];
-    var priestRows = document.querySelectorAll('#priestRowsContainer .priest-row');
-    priestRows.forEach(function (row) {
-      var sel = row.querySelector('.priest-select');
-      if (!sel || sel.offsetParent === null) return;
-      if (sel.value === 'other') {
-        var outsideInput = row.querySelector('.outside-priest-input');
-        var outside = outsideInput ? outsideInput.value.trim() : '';
-        if (outside) {
-          var clean = outside.replace(/^(?:rev(?:erend)?\.?\s*(?:fr\.?|father)?|fr\.?|father)\s+/i, '').trim();
-          if (clean) preferredPriestsList.push('Fr. ' + clean);
-        }
-      } else if (sel.value) {
-        var priestName = sel.options[sel.selectedIndex]?.textContent.trim();
-        if (priestName && priestName !== 'No preference') preferredPriestsList.push(priestName);
-      }
-    });
-    if (preferredPriestsList.length > 0) {
-      detailsList.push((preferredPriestsList.length > 1 ? 'Preferred Priests: ' : 'Preferred Priest: ') + preferredPriestsList.join(', '));
+    // Guest details
+    var gFirst = document.getElementById('guestFirstNameInput')?.value.trim() || '';
+    var gLast = document.getElementById('guestLastNameInput')?.value.trim() || '';
+    var gPhone = document.getElementById('guestPhoneInput')?.value.trim() || '';
+    if (gFirst || gLast) {
+      var gName = (gFirst + ' ' + gLast).trim();
+      detailsList.push({ label: 'Contact Person', value: gName + (gPhone ? ' (' + gPhone + ')' : '') });
     }
 
+    // Render Details
     var detailsWrap = document.getElementById('reviewDetailsWrap');
     var elDetails = document.getElementById('reviewDetails');
     if (detailsWrap && elDetails) {
       if (detailsList.length > 0) {
         detailsWrap.style.display = 'block';
         elDetails.innerHTML = detailsList.map(function (d) {
-          return '<span style="display:inline-block; margin-right:8px; margin-bottom:4px; background:rgba(0,0,0,0.05); padding:2px 8px; border-radius:4px;">' + d + '</span>';
+          return '<div style="background:#fff; border:1px solid var(--cream-dark, #e8e0d5); border-radius:6px; padding:6px 10px;">' +
+            '<span style="font-size:10.5px; color:var(--text-muted, #7a6e65); display:block; text-transform:uppercase; letter-spacing:0.4px; font-weight:600;">' + escapeHtml(d.label) + '</span>' +
+            '<strong style="color:var(--brown-dark, #3d2b1f); font-size:13px; word-break:break-word;">' + escapeHtml(d.value) + '</strong>' +
+            '</div>';
         }).join('');
       } else {
         detailsWrap.style.display = 'none';
