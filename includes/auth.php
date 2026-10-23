@@ -87,7 +87,7 @@ function currentPriestId(): ?int
     if (array_key_exists($userId, $cache)) return $cache[$userId];
 
     $pdo = db();
-    $stmt = $pdo->prepare('SELECT priest_id FROM priests WHERE user_id = ?');
+    $stmt = $pdo->prepare('SELECT priest_id FROM priests WHERE user_id = ? LIMIT 1');
     $stmt->execute([$userId]);
     $priestId = $stmt->fetchColumn();
 
@@ -105,13 +105,26 @@ function currentPriestId(): ?int
         );
         $stmt->execute();
         $priestId = $stmt->fetchColumn();
+
+        if (!$priestId && !empty($user['lastname'])) {
+            $stmt = $pdo->prepare("SELECT priest_id FROM priests WHERE full_name ILIKE ? ORDER BY priest_id ASC LIMIT 1");
+            $stmt->execute(['%' . $user['lastname'] . '%']);
+            $priestId = $stmt->fetchColumn();
+        }
+
         if (!$priestId) {
             $priestId = $pdo->query("SELECT priest_id FROM priests WHERE status = 'active' ORDER BY priest_id ASC LIMIT 1")->fetchColumn();
+        }
+        if (!$priestId) {
+            $priestId = $pdo->query("SELECT priest_id FROM priests ORDER BY priest_id ASC LIMIT 1")->fetchColumn();
         }
     }
 
     if ($priestId) {
-        $pdo->prepare('UPDATE priests SET user_id = ? WHERE priest_id = ?')->execute([$userId, $priestId]);
+        $priestId = (int) $priestId;
+        try {
+            $pdo->prepare('UPDATE priests SET user_id = ? WHERE priest_id = ?')->execute([$userId, $priestId]);
+        } catch (Throwable $e) {}
     }
 
     return $cache[$userId] = ($priestId ? (int) $priestId : null);

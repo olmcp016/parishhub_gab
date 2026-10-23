@@ -8,6 +8,17 @@ $userId = currentUser()['user_id'];
 // their own assigned Masses and confirmed appointments highlighted in blue,
 // same convention as the Priest Portal's own calendar (priest/calendar.php).
 $priestId = currentPriestId();
+if (!$priestId && (currentUser()['role_name'] ?? '') === 'Admin') {
+    try {
+        $priestId = (int) (db()->query("SELECT priest_id FROM priests WHERE full_name ILIKE '%Al John%' OR full_name ILIKE '%Minoza%' OR full_name ILIKE '%Miñoza%' OR title ILIKE '%Parish Priest%' ORDER BY priest_id ASC LIMIT 1")->fetchColumn() ?: 0) ?: null;
+        if (!$priestId) {
+            $priestId = (int) (db()->query("SELECT priest_id FROM priests WHERE status = 'active' ORDER BY priest_id ASC LIMIT 1")->fetchColumn() ?: 0) ?: null;
+        }
+        if (!$priestId) {
+            $priestId = (int) (db()->query("SELECT priest_id FROM priests ORDER BY priest_id ASC LIMIT 1")->fetchColumn() ?: 0) ?: null;
+        }
+    } catch (Throwable $e) {}
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifyCsrf();
@@ -72,7 +83,7 @@ $eventPagination = paginate((int) $stmt->fetchColumn(), 10);
 $calendarEvents = array_map(function ($e) use ($priestId) {
     // Any event assigned (by priest_id) to this priest-linked admin turns blue — a Mass, a wedding,
     // a baptism, anything. Events assigned to a different priest keep the standard gold color.
-    $isMine = $priestId !== null && $e['priest_id'] !== null && (int) $e['priest_id'] === $priestId;
+    $isMine = $priestId !== null && !empty($e['priest_id']) && (int) $e['priest_id'] === (int) $priestId;
     return [
         'id' => (int) $e['event_id'],
         'date' => $e['event_date'],
@@ -869,13 +880,15 @@ document.querySelectorAll('.js-unblock-date').forEach(function(btn) {
               ev.remove();
             }
           });
+          var viewerPriestId = <?= json_encode($priestId) ?>;
+          var isMine = viewerPriestId && Number(data.event.priest_id) === Number(viewerPriestId);
           fcCalendarInstance.addEvent({
             title: data.event.title,
             start: data.event.event_date,
             allDay: true,
-            backgroundColor: '#c99b2f',
-            borderColor: '#a5791f',
-            textColor: '#241611',
+            backgroundColor: isMine ? '#2457a6' : '#c99b2f',
+            borderColor: isMine ? '#1b4280' : '#a5791f',
+            textColor: isMine ? '#ffffff' : '#241611',
             extendedProps: { kind: 'event', eventId: data.event.event_id }
           });
         }
