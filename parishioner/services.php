@@ -107,6 +107,16 @@ $precanaEnabled = precanaAvailable();
 $funeralScheduleEnabled = funeralPreferredScheduleAvailable();
 $precanaSessions = $precanaEnabled ? precanaRegularSessions(null, 18) : [];
 
+// 30-minute interval options for scheduling dropdowns (6:00 AM to 9:00 PM)
+$halfHourSlots = [];
+for ($m = 6 * 60; $m <= 21 * 60; $m += 30) {
+    $h = (int) floor($m / 60);
+    $min = $m % 60;
+    $val = sprintf('%02d:%02d', $h, $min);
+    $lbl = date('g:i A', strtotime("2000-01-01 $val:00"));
+    $halfHourSlots[$val] = $lbl;
+}
+
 $active = 'services';
 $pageTitle = 'Available Services';
 $hidePageHeading = true; // the nav bar already names this page
@@ -552,6 +562,8 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
           #funeralScheduleRow input[type="date"],
           #funeralScheduleRow input[type="time"],
           #dateTimeRow select,
+          #funeralScheduleRow select,
+          #precanaSpecialFields select,
           #priestSelect {
             width: 100%;
             box-sizing: border-box;
@@ -821,7 +833,12 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
           </div>
           <div class="form-group">
             <label for="funeralPreferredTimeInput">Preferred Burial Time</label>
-            <input type="time" name="preferred_burial_time" id="funeralPreferredTimeInput" step="1800" disabled>
+            <select name="preferred_burial_time" id="funeralPreferredTimeInput" disabled>
+              <option value="">-- Select Time (30-min intervals) --</option>
+              <?php foreach ($halfHourSlots as $val => $lbl): ?>
+                <option value="<?= $val ?>"><?= $lbl ?></option>
+              <?php endforeach; ?>
+            </select>
           </div>
         </div>
         <?php endif; ?>
@@ -915,7 +932,12 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
             <label>Preferred Time</label>
 
             <div id="freeTimeGroup">
-              <input type="time" name="appointment_time" id="freeTimeInput" step="1800">
+              <select name="appointment_time" id="freeTimeInput">
+                <option value="">-- Select Time (30-min intervals) --</option>
+                <?php foreach ($halfHourSlots as $val => $lbl): ?>
+                  <option value="<?= $val ?>"><?= $lbl ?></option>
+                <?php endforeach; ?>
+              </select>
               <p class="helper-text" id="occupiedTimesHint"></p>
             </div>
 
@@ -998,7 +1020,12 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
               </div>
               <div class="form-group">
                 <label for="precanaTimeInput">Preferred Seminar Time</label>
-                <input type="time" name="precana_time" id="precanaTimeInput" step="1800" disabled>
+                <select name="precana_time" id="precanaTimeInput" disabled>
+                  <option value="">-- Select Time (30-min intervals) --</option>
+                  <?php foreach ($halfHourSlots as $val => $lbl): ?>
+                    <option value="<?= $val ?>"><?= $lbl ?></option>
+                  <?php endforeach; ?>
+                </select>
               </div>
             </div>
             <p class="precana-notice">Your preferred Pre-Cana schedule is subject to Parish Office approval.</p>
@@ -1635,7 +1662,12 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
 
     Object.keys(snapshot.values).forEach(function (id) {
       var el = document.getElementById(id);
-      if (el && el.type !== 'file') el.value = snapshot.values[id];
+      if (el && el.type !== 'file') {
+        el.value = snapshot.values[id];
+        if (el.tagName === 'SELECT' && el.selectedIndex === -1 && typeof snapshot.values[id] === 'string' && snapshot.values[id].length >= 5) {
+          el.value = snapshot.values[id].substring(0, 5);
+        }
+      }
     });
 
     if (snapshot.values['priestSelect'] === 'other' || snapshot.values['outsidePriestInput']) {
@@ -1675,7 +1707,7 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
         'priestSelect' => $resumeDraft['priest_id'] !== null ? (string) $resumeDraft['priest_id'] : (!empty($resumeDraft['outside_priest_name']) ? 'other' : null),
         'outsidePriestInput' => !empty($resumeDraft['outside_priest_name']) ? preg_replace('/^(?:rev(?:erend)?\.?\s*(?:fr\.?|father)?|fr\.?|father)\s+/i', '', $resumeDraft['outside_priest_name']) : null,
         'appointmentDateInput' => $resumeDraft['date'],
-        'freeTimeInput' => $resumeDraft['time'],
+        'freeTimeInput' => !empty($resumeDraft['time']) ? substr($resumeDraft['time'], 0, 5) : null,
         'pssClaimInput' => $resumeDraft['pss_claim'],
         'sponsorCountInput' => $resumeDraft['sponsor_count'] !== null ? (string) $resumeDraft['sponsor_count'] : null,
         'weddingSponsorCountInput' => $resumeDraft['wedding_sponsor_count'] !== null ? (string) $resumeDraft['wedding_sponsor_count'] : null,
@@ -1683,11 +1715,11 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
         'dateOfDeathInput' => $resumeDraft['date_of_death'],
         // Funeral preferred burial / Funeral Mass schedule.
         'funeralPreferredDateInput' => $resumeDraft['preferred_burial_date'] ?? null,
-        'funeralPreferredTimeInput' => $resumeDraft['preferred_burial_time'] ?? null,
+        'funeralPreferredTimeInput' => !empty($resumeDraft['preferred_burial_time']) ? substr($resumeDraft['preferred_burial_time'], 0, 5) : null,
         // Pre-Cana seminar: Regular keeps its session, Special its preferred date/time.
         'precanaSessionSelect' => ($resumeDraft['precana_type'] ?? null) === 'Regular' ? $resumeDraft['precana_date'] : null,
         'precanaDateInput' => ($resumeDraft['precana_type'] ?? null) === 'Special' ? $resumeDraft['precana_date'] : null,
-        'precanaTimeInput' => ($resumeDraft['precana_type'] ?? null) === 'Special' ? $resumeDraft['precana_time'] : null,
+        'precanaTimeInput' => (($resumeDraft['precana_type'] ?? null) === 'Special' && !empty($resumeDraft['precana_time'])) ? substr($resumeDraft['precana_time'], 0, 5) : null,
       ], fn($v) => $v !== null && $v !== ''),
     ],
   ] : null, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
@@ -2851,6 +2883,24 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
       else updateOccupiedTimesHint();
     });
     document.getElementById('freeTimeInput').addEventListener('change', refreshAvailability);
+    var funeralDate = document.getElementById('funeralPreferredDateInput');
+    var funeralTime = document.getElementById('funeralPreferredTimeInput');
+    if (funeralDate) {
+      funeralDate.addEventListener('change', function () {
+        funeralScheduleBeforeCheck();
+        refreshAvailability();
+      });
+    }
+    if (funeralTime) {
+      funeralTime.addEventListener('change', function () {
+        funeralScheduleBeforeCheck();
+        refreshAvailability();
+      });
+    }
+    var precanaDate = document.getElementById('precanaDateInput');
+    var precanaTime = document.getElementById('precanaTimeInput');
+    if (precanaDate) precanaDate.addEventListener('change', precanaBeforeCheck);
+    if (precanaTime) precanaTime.addEventListener('change', precanaBeforeCheck);
 
     // Auto-compose the hidden guest_name from the split first/last/middle fields
     var guestLast = document.getElementById('guestLastNameInput');
@@ -3089,13 +3139,14 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     if (!timeVal) {
       var freeTime = document.getElementById('freeTimeInput');
       if (freeTime && freeTime.offsetParent !== null && freeTime.value) {
-        timeVal = freeTime.value;
+        timeVal = freeTime.options ? (freeTime.options[freeTime.selectedIndex]?.textContent || freeTime.value) : freeTime.value;
       }
     }
     var schedText = dateVal ? (dateVal + (timeVal ? ' at ' + timeVal : '')) : 'To be confirmed';
     if (category === 'Funeral') {
       var burialDate = document.getElementById('funeralPreferredDateInput')?.value;
-      var burialTime = document.getElementById('funeralPreferredTimeInput')?.value;
+      var burialTimeEl = document.getElementById('funeralPreferredTimeInput');
+      var burialTime = burialTimeEl?.options ? (burialTimeEl.options[burialTimeEl.selectedIndex]?.textContent || burialTimeEl.value) : burialTimeEl?.value;
       if (burialDate) {
         schedText = 'Preferred: ' + burialDate + (burialTime ? ' at ' + burialTime : '');
       } else {
