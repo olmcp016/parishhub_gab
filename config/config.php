@@ -31,16 +31,13 @@ define(
         : (SUPABASE_URL !== '' && SUPABASE_SECRET_KEY !== '' ? 'supabase' : 'local')
 );
 
-$isRenderEnv = getenv('RENDER') !== false || getenv('RENDER_SERVICE_ID') !== false || getenv('RENDER_INSTANCE_ID') !== false;
-$defaultSessionDriver = ($isRenderEnv || (DB_PASS !== '' && DB_HOST !== 'localhost')) ? 'database' : 'files';
-$configuredSessionDriver = strtolower(trim((string) getenv('SESSION_DRIVER')));
-define('SESSION_DRIVER', $configuredSessionDriver !== '' ? $configuredSessionDriver : $defaultSessionDriver);
+define('SESSION_DRIVER', strtolower(trim((string) (getenv('SESSION_DRIVER') ?: 'files'))));
 define('SESSION_GC_MAXLIFETIME', max(300, (int) (getenv('SESSION_GC_MAXLIFETIME') ?: 7200)));
 
 /**
  * Database-backed sessions for deployments where local PHP session files are
- * not durable (for example, Render containers). Sessions survive container
- * restarts, auto-scaling, and redeployments seamlessly.
+ * not durable (for example, Render containers). The handler is opt-in so a
+ * deployment only uses it when SESSION_DRIVER=database is explicitly set.
  */
 final class ParishHubDatabaseSessionHandler implements SessionUpdateTimestampHandlerInterface
 {
