@@ -15,7 +15,9 @@ function appointmentCategoryRequiresPriest(?string $category): bool
 {
     // Mass Intentions are read at the scheduled Mass and are handled by the
     // Cashier workflow. Donations are not parish-service appointments.
-    return $category !== null && !in_array($category, ['Mass Intention', 'Donation'], true);
+    // Certificate Requests are a document-fulfillment workflow (no priest
+    // or ceremony involved), so they never require one either.
+    return $category !== null && !in_array($category, ['Mass Intention', 'Donation', 'Certificate'], true);
 }
 
 function appointmentWorkflowBoolean(mixed $value): bool

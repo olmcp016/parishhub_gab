@@ -2230,6 +2230,18 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
       priestGroup.style.display = 'none';
       priestSelect.disabled = true;
       priestSelect.value = '';
+    } else if (category === 'Certificate') {
+      // A Certificate Request is a document pick-up, not a scheduled
+      // ceremony — no appointment slot or priest is needed.
+      dateTimeRow.style.display = 'none';
+      dateInput.disabled = true;
+      dateInput.required = false;
+
+      var priestGroup = document.getElementById('priestFieldGroup');
+      var priestSelect = document.getElementById('priestSelect');
+      priestGroup.style.display = 'none';
+      priestSelect.disabled = true;
+      priestSelect.value = '';
     } else if (usesToggle && scheduleType === 'Regular') {
       dateTimeRow.style.display = 'none';
       dateInput.disabled = true;

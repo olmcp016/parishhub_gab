@@ -195,7 +195,9 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
 
     // Confirmation, First Communion, and Funeral have no parishioner-selected date/time.
     // Wake services (Wake Mass, Special Mass Request) now accept a proposed date/time like Anointing.
-    $isNoScheduleCategory = in_array($category, ['Confirmation', 'First Communion', 'Funeral'], true);
+    // Certificate Requests are a document pick-up, not a scheduled ceremony — no
+    // appointment slot is booked for them either.
+    $isNoScheduleCategory = in_array($category, ['Confirmation', 'First Communion', 'Funeral', 'Certificate'], true);
     
     if (!$category || (!$isNoScheduleCategory && (!$date || !$time))) {
         bookRespondError($isAjax, $isMassIntention

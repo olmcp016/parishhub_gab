@@ -668,6 +668,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($certCategory !== 'Certificate' && $currentStatusId !== 6) {
             respondAjaxOrRedirect($isAjax, false, 'The sacrament appointment must be marked Completed first.', $redirectUrl);
         }
+        // FLOW 2 (Certificate Request): the certificate may only be generated or
+        // released once the request itself has been approved, confirmed, and paid
+        // for — never while it is still Pending/Approved-unpaid.
+        if ($certCategory === 'Certificate'
+            && in_array($action, ['generate_certificate', 'mark_certificate_ready'], true)
+            && !in_array($currentStatusId, [5, 6], true)) {
+            respondAjaxOrRedirect($isAjax, false, 'This Certificate Request must be approved and confirmed (payment verified) before the certificate can be generated or released.', $redirectUrl);
+        }
 
         if ($action === 'use_certificate_match') {
             $sourceId = (int) ($_POST['source_appointment_id'] ?? 0);
@@ -719,6 +727,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (Throwable $e) {
             error_log('Certificate generation failed: ' . $e->getMessage());
             respondAjaxOrRedirect($isAjax, false, 'The certificate could not be generated. Please try again.', $redirectUrl);
+        }
+    } elseif ($action === 'mark_certificate_claimed') {
+        try {
+            issuedCertificateMarkClaimed($id, $userId);
+            logActivity($userId, "Marked certificate as claimed/picked up for appointment #$id", 'Certificates');
+            respondAjaxOrRedirect($isAjax, true, 'Certificate marked as claimed. The request is now completed.', $redirectUrl);
+        } catch (Throwable $e) {
+            error_log('Certificate claim failed: ' . $e->getMessage());
+            respondAjaxOrRedirect($isAjax, false, 'Could not mark the certificate as claimed. Please try again.', $redirectUrl);
         }
     }
     redirect($redirectUrl);
@@ -786,7 +803,9 @@ if ($officialCertIsRequest) {
     $officialCertType = certificateTypeForCategory($officialCertCategory);
 }
 $officialCertEligible = $officialCertType !== null
-    && ($officialCertIsRequest || (int) $appointment['status_id'] === 6);
+    && ($officialCertIsRequest
+        ? in_array((int) $appointment['status_id'], [5, 6], true)
+        : (int) $appointment['status_id'] === 6);
 $officialCert = $officialCertEligible ? issuedCertificateLoad($id) : null;
 $officialCertData = $officialCert['form_data'] ?? [];
 if ($officialCertEligible && !$officialCertData && !$officialCertIsRequest) {
@@ -1435,6 +1454,13 @@ if (!$isAjax) {
             </form>
           <?php elseif ($officialCertIsRequest && ($officialCert['status'] ?? '') === 'ready_for_pickup'): ?>
             <span class="badge badge-verified">Ready for Pick-up</span>
+            <form method="POST" action="<?= e($redirectUrl) ?>">
+              <?= csrfField() ?>
+              <input type="hidden" name="action" value="mark_certificate_claimed">
+              <button type="submit" class="btn btn-success">✔ Mark as Claimed / Picked Up</button>
+            </form>
+          <?php elseif ($officialCertIsRequest && ($officialCert['status'] ?? '') === 'claimed'): ?>
+            <span class="badge badge-verified">Claimed<?= !empty($officialCert['claimed_at']) ? ' — ' . e(formatDateTime((string) $officialCert['claimed_at'])) : '' ?></span>
           <?php endif; ?>
         </div>
       <?php endif; ?>
@@ -1512,7 +1538,7 @@ if (!$isAjax) {
       <?php endif; ?>
     </div>
 
-    <?php if (($appointment['category'] ?? '') !== 'Donation' && in_array((int) $appointment['status_id'], [1, 2, 4, 5], true)): ?>
+    <?php if (appointmentCategoryRequiresPriest($appointment['category'] ?? null) && in_array((int) $appointment['status_id'], [1, 2, 4, 5], true)): ?>
     <?php
       $hasOutsidePriest = !empty($appointment['outside_priest_name']) && isOutsidePriestEligibleCategory($appointment['category'] ?? '');
       $priestAlreadySet = !empty($appointment['priest_id']);

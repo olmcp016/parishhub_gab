@@ -11,6 +11,7 @@ require_once __DIR__ . '/../includes/requirements-review.php';
 require_once __DIR__ . '/../includes/funeral-schedule.php';
 require_once __DIR__ . '/../includes/service-fees.php'; // appointmentNoPaymentRequired(), NO_PAYMENT_REQUIRED_LABEL
 require_once __DIR__ . '/../includes/certificate-workflow.php';
+require_once __DIR__ . '/../includes/appointment-workflow.php';
 requireRole('Parishioner');
 
 $userId = currentUser()['user_id'];
@@ -34,6 +35,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'cancel') {
+        $certStmt = db()->prepare(
+            "SELECT ic.status FROM issued_certificates ic
+             JOIN appointments a ON a.appointment_id = ic.appointment_id
+             WHERE ic.appointment_id = ? AND a.parishioner_id = ?"
+        );
+        $certStmt->execute([$id, $parishionerId]);
+        if (in_array($certStmt->fetchColumn(), ['generated', 'ready_for_pickup', 'claimed'], true)) {
+            respondAjaxOrRedirect(
+                $isAjax,
+                false,
+                'This request cannot be cancelled because the official certificate has already been issued. Please contact the Parish Office.',
+                $redirectUrl
+            );
+        }
         $stmt = db()->prepare(
             "UPDATE appointments
              SET status_id = 7, cancelled_reason = ?
@@ -322,7 +337,7 @@ if (!$isAjax) {
       </div>
     </div>
     <p><strong>Booking Reference:</strong> <?= e($appointment['guest_reference'] ?: 'Appointment #' . (int) $appointment['appointment_id']) ?></p>
-    <?php if (!empty($officialCertificate['document_id'])): ?>
+    <?php if (!empty($officialCertificate['document_id']) && in_array((int) $appointment['status_id'], [5, 6], true)): ?>
       <div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">
         <strong>📜 Official Certificate of <?= e($officialCertificate['certificate_type']) ?></strong> is ready.
         <div class="flex gap-2" style="margin-top:8px; flex-wrap:wrap;">
@@ -355,7 +370,9 @@ if (!$isAjax) {
     <?php if ($paymentDeadline && !$isPastDateUnpaid && (int) $appointment['status_id'] === 2): ?>
       <p><strong>Payment Deadline:</strong> <span style="color:#b45309; font-weight:600;"><?= e($paymentDeadline->format('F j, Y \a\t g:i A')) ?></span></p>
     <?php endif; ?>
+    <?php if (appointmentCategoryRequiresPriest($appointment['category'] ?? null)): ?>
     <p><strong>Priest:</strong> <?= !empty($appointment['outside_priest_name']) ? e($appointment['outside_priest_name']) . ' <span class="badge badge-info" style="font-size:11px; margin-left:4px;">Preferred Priest</span>' : e($appointment['priest_name'] ?? 'Not yet assigned') ?></p>
+    <?php endif; ?>
     <?php if ($appointment['category'] === 'Wedding'): ?>
       <hr style="border-color:var(--cream-dark); margin:18px 0;"><h4>Wedding Forms</h4>
       <?php foreach ($generatedForms as $gf): $state = generatedFormWorkflowState($gf, $gf, false); ?>

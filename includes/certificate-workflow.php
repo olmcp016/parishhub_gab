@@ -53,6 +53,23 @@ function certificateRequestParseRemarks(?string $remarks): array
     return $out;
 }
 
+/**
+ * FLOW 2 guard: whether a paid "Certificate Request" appointment actually has
+ * a verified payment on record. Used before the certificate can be generated
+ * or released — a Certificate Request must not skip the payment step just
+ * because it reuses the general appointment pipeline.
+ */
+function certificateRequestPaymentVerified(array $appointment): bool
+{
+    $appointmentId = (int) ($appointment['appointment_id'] ?? 0);
+    if ($appointmentId < 1) return false;
+    $stmt = db()->prepare(
+        "SELECT 1 FROM payments WHERE appointment_id = ? AND payment_status = 'verified' LIMIT 1"
+    );
+    $stmt->execute([$appointmentId]);
+    return (bool) $stmt->fetchColumn();
+}
+
 function issuedCertificateLoad(int $appointmentId): ?array
 {
     $stmt = db()->prepare('SELECT * FROM issued_certificates WHERE appointment_id = ?');
@@ -360,7 +377,12 @@ function issuedCertificateMarkReadyForPickup(int $appointmentId): void
     $row = $stmt->fetch();
     if (!$row) throw new RuntimeException('Certificate not found for this appointment.');
 
-    db()->prepare("UPDATE issued_certificates SET status = 'ready_for_pickup' WHERE appointment_id = ?")->execute([$appointmentId]);
+    $current = issuedCertificateLoad($appointmentId);
+    if (!$current || $current['status'] !== 'generated' || empty($current['document_id'])) {
+        throw new RuntimeException('Generate the certificate before marking it ready for pick-up.');
+    }
+
+    db()->prepare("UPDATE issued_certificates SET status = 'ready_for_pickup' WHERE appointment_id = ? AND status = 'generated'")->execute([$appointmentId]);
 
     $certLabel = 'Certificate of ' . $row['certificate_type'];
     $title = 'Certificate Ready for Pick-up';
@@ -384,5 +406,36 @@ function issuedCertificateMarkReadyForPickup(int $appointmentId): void
     if (!empty($row['email'])) {
         $html = '<p>Good day ' . e($row['firstname'] ?: '') . ',</p><p>' . e($message) . '</p>';
         sendEmail((string) $row['email'], trim(($row['firstname'] ?? '') . ' ' . ($row['lastname'] ?? '')), $title, emailTemplate($title, $html));
+    }
+}
+
+/**
+ * FLOW 2 lifecycle closure: the requester physically picked up the printed,
+ * stamped certificate at the parish office. Marks the certificate 'claimed'
+ * (with who/when) and — since nothing else ever advances a Certificate
+ * Request's own appointment status — closes the appointment out as
+ * Completed too, so it stops sitting open indefinitely.
+ */
+function issuedCertificateMarkClaimed(int $appointmentId, int $actorUserId): void
+{
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        $update = $pdo->prepare(
+            "UPDATE issued_certificates
+             SET status = 'claimed', claimed_at = CURRENT_TIMESTAMP, claimed_by_user_id = ?
+             WHERE appointment_id = ? AND status = 'ready_for_pickup'"
+        );
+        $update->execute([$actorUserId, $appointmentId]);
+        if ($update->rowCount() !== 1) {
+            $pdo->rollBack();
+            throw new RuntimeException('Certificate is not awaiting pick-up.');
+        }
+        $pdo->prepare("UPDATE appointments SET status_id = 6 WHERE appointment_id = ? AND status_id = 5")
+            ->execute([$appointmentId]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
     }
 }
