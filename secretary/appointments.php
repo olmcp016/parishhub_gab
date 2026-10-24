@@ -91,42 +91,39 @@ function renderAppointmentsTable(array $appointments, bool $isSecretaryViewer): 
     ?>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Parishioner</th><th>Service</th><th>Date</th><th>Priest</th><th>Status</th><th>Processing</th><th></th></tr></thead>
+        <thead><tr><th>Parishioner</th><th>Service</th><th>Status</th><th>Processing</th><th style="text-align:right;">Action</th></tr></thead>
         <tbody>
           <?php foreach ($appointments as $a):
             $isCertEligible = in_array($a['category'], ['Wedding', 'Baptism', 'Confirmation', 'Funeral'], true) || str_contains($a['service_name'], 'Certificate');
             $hasDocs = !in_array($a['category'], ['Mass Intention', 'Donation'], true);
             $certDone = !empty($a['cert_document_id']) && in_array($a['cert_status'], ['generated', 'ready_for_pickup', 'claimed'], true);
             $needsCert = $isCertEligible && in_array((int) $a['status_id'], [2, 4], true) && !$certDone;
-            $needsDocs = (int) $a['status_id'] === 1 && $hasDocs;
             $needsAction = (int) $a['status_id'] === 1 || $needsCert || ($a['requirements_review_status'] ?? '') === 'ready_for_rereview';
+            $bookedDate = !empty($a['created_at']) ? date('M d, Y', strtotime($a['created_at'])) : '—';
           ?>
             <tr>
               <td>
-                <div style="display:flex; align-items:flex-start; gap:6px;">
+                <div style="display:flex; align-items:flex-start; gap:8px;">
                   <?php if ($needsAction): ?>
-                    <span title="Incomplete: action needed" style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#d97706; margin-top:5px; flex-shrink:0;"></span>
+                    <span title="Action needed" style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#d97706; margin-top:5px; flex-shrink:0;"></span>
                   <?php else: ?>
-                    <span title="Processing complete" style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#16a34a; margin-top:5px; flex-shrink:0;"></span>
+                    <span title="Complete" style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#16a34a; margin-top:5px; flex-shrink:0;"></span>
                   <?php endif; ?>
                   <div>
-                    <?php if ($a['guest_name']): ?>
-                      <?= e($a['guest_name']) ?> <span class="text-muted">(guest)</span><br><span class="text-muted" style="font-size:12px;"><?= e($a['guest_email'] ?: $a['guest_phone']) ?></span>
-                    <?php else: ?>
-                      <?= e($a['firstname']) ?> <?= e($a['lastname']) ?><br><span class="text-muted" style="font-size:12px;"><?= e($a['email']) ?></span>
-                    <?php endif; ?>
+                    <div style="font-weight:600; font-size:13.5px; color:#2c3e50;">
+                      <?php if ($a['guest_name']): ?>
+                        <?= e($a['guest_name']) ?> <span class="text-muted" style="font-weight:normal; font-size:12px;">(guest)</span>
+                      <?php else: ?>
+                        <?= e($a['firstname']) ?> <?= e($a['lastname']) ?>
+                      <?php endif; ?>
+                    </div>
+                    <div class="text-muted" style="font-size:12px; margin-top:2px;">
+                      Booked: <?= e($bookedDate) ?><?php if (!empty($a['appointment_date']) && in_array($a['category'], ['Wedding', 'Baptism', 'Funeral'], true)): ?> &bull; Sched: <?= e(date('M d, Y', strtotime($a['appointment_date']))) ?><?php endif; ?>
+                    </div>
                   </div>
                 </div>
               </td>
-              <td><?= e($a['service_name']) ?></td>
-              <td><?= !empty($a['appointment_date']) ? e(date('M d, Y', strtotime($a['appointment_date']))) : '—' ?></td>
-              <td>
-                <?php if (!empty($a['outside_priest_name'])): ?>
-                  <?= e($a['outside_priest_name']) ?> <span class="text-muted" style="font-size:11px;">(Preferred Priest)</span>
-                <?php else: ?>
-                  <?= e($a['priest_name'] ?? '—') ?>
-                <?php endif; ?>
-              </td>
+              <td><strong><?= e($a['service_name']) ?></strong></td>
               <td>
                 <div style="display:flex; flex-wrap:wrap; gap:4px; align-items:center;">
                   <?php if ($a['schedule_type']): ?><span class="badge badge-<?= strtolower($a['schedule_type']) ?>"><?= e($a['schedule_type']) ?></span><?php endif; ?>
@@ -143,33 +140,51 @@ function renderAppointmentsTable(array $appointments, bool $isSecretaryViewer): 
                 </div>
               </td>
               <td>
-                <div style="display:flex; flex-direction:column; gap:4px; align-items:flex-start;">
+                <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
                   <?php if ((int) $a['status_id'] === 1): ?>
                     <?php if (($a['requirements_review_status'] ?? '') === 'ready_for_rereview'): ?>
-                      <span class="badge" style="background:#0284c7; color:#fff; font-size:11px; padding:2px 6px;" title="Applicant submitted updated documents">🔄 Re-Review Ready</span>
+                      <span class="badge" style="background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; font-size:11.5px; padding:3px 8px; font-weight:500; display:inline-flex; align-items:center; gap:5px;" title="Applicant submitted updated documents">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                        Re-Review Ready
+                      </span>
                     <?php elseif (($a['requirements_review_status'] ?? '') === 'awaiting_revision'): ?>
-                      <span class="badge badge-rejected" style="font-size:11px; padding:2px 6px;" title="Awaiting applicant revision">⏳ Awaiting Revision</span>
+                      <span class="badge" style="background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; font-size:11.5px; padding:3px 8px; font-weight:500; display:inline-flex; align-items:center; gap:5px;" title="Awaiting applicant revision">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        Awaiting Revision
+                      </span>
                     <?php elseif ($hasDocs): ?>
-                      <span class="badge badge-pending" style="font-size:11px; padding:2px 6px;" title="Documents not yet verified">⚠️ Docs Pending</span>
+                      <span class="badge" style="background:#fffbeb; color:#92400e; border:1px solid #fde68a; font-size:11.5px; padding:3px 8px; font-weight:500; display:inline-flex; align-items:center; gap:5px;" title="Documents not yet verified">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        Docs Pending
+                      </span>
                     <?php else: ?>
-                      <span class="badge badge-pending" style="font-size:11px; padding:2px 6px;">Pending Approval</span>
+                      <span class="badge badge-pending" style="font-size:11.5px; padding:3px 8px;">Pending Approval</span>
                     <?php endif; ?>
                   <?php else: ?>
                     <?php if ($hasDocs): ?>
-                      <span class="badge badge-approved" style="font-size:11px; padding:2px 6px;" title="All documents verified">✓ Docs Verified</span>
+                      <span class="badge badge-approved" style="font-size:11.5px; padding:3px 8px; display:inline-flex; align-items:center; gap:5px;" title="All documents verified">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        Docs Verified
+                      </span>
                     <?php endif; ?>
                   <?php endif; ?>
 
                   <?php if ($isCertEligible): ?>
                     <?php if ($certDone): ?>
-                      <span class="badge badge-verified" style="font-size:11px; padding:2px 6px;" title="Official Certificate generated">✓ Cert Ready</span>
+                      <span class="badge badge-verified" style="font-size:11.5px; padding:3px 8px; display:inline-flex; align-items:center; gap:5px;" title="Official Certificate generated">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        Cert Ready
+                      </span>
                     <?php elseif (in_array((int) $a['status_id'], [2, 4], true)): ?>
-                      <span class="badge" style="background:#ea580c; color:#fff; font-size:11px; padding:2px 6px;" title="Certificate not yet generated">⏳ Cert Pending</span>
+                      <span class="badge" style="background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; font-size:11.5px; padding:3px 8px; font-weight:500; display:inline-flex; align-items:center; gap:5px;" title="Certificate not yet generated">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        Cert Needed
+                      </span>
                     <?php endif; ?>
                   <?php endif; ?>
                 </div>
               </td>
-              <td><a href="<?= url('secretary/appointment-detail.php?id=' . $a['appointment_id']) ?>" class="btn btn-outline btn-sm js-view-modal" data-url="<?= url('secretary/appointment-detail.php?id=' . $a['appointment_id']) ?>" data-title="<?= e('Appointment #' . $a['appointment_id'] . ' — ' . $a['service_name']) ?>">Review</a></td>
+              <td style="text-align:right;"><a href="<?= url('secretary/appointment-detail.php?id=' . $a['appointment_id']) ?>" class="btn btn-outline btn-sm js-view-modal" data-url="<?= url('secretary/appointment-detail.php?id=' . $a['appointment_id']) ?>" data-title="<?= e('Appointment #' . $a['appointment_id'] . ' — ' . $a['service_name']) ?>">Review</a></td>
             </tr>
           <?php endforeach; ?>
         </tbody>
