@@ -153,6 +153,14 @@ function certificatePdfLongDate(string $date): string
     return $day . $suffix . ' day of ' . $parsed->format('F') . ', ' . $parsed->format('Y');
 }
 
+/** Church-style date, e.g. "October 22, 2026". */
+function certificatePdfHumanDate(string $date): string
+{
+    $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+    if (!$parsed || $parsed->format('Y-m-d') !== $date) return $date;
+    return $parsed->format('F j, Y');
+}
+
 /** @return array{day:string, month:string, year:string} */
 function certificatePdfDateParts(string $date): array
 {
@@ -218,21 +226,23 @@ function certificateBaptismPdf(array $data): string
     $pdf->SetTitle(certificatePdfText('Certificate of Baptism - ' . $v('child_name')), true);
     $at = certificateStampTemplate($pdf, 'Baptism');
 
-    [$x, $y] = $at(0.315, 0.198); certificateDrawField($pdf, $v('parish_of'), $x, $y, 48, 13, 'L');
-    [$x, $y] = $at(0.10, 0.39); certificateDrawField($pdf, $v('child_name'), $x, $y, 73, 14, 'C', 'B');
-    [$x, $y] = $at(0.104, 0.4365); certificateDrawField($pdf, $v('father_name'), $x, $y, 37, 12);
-    [$x, $y] = $at(0.544, 0.4365); certificateDrawField($pdf, $v('mother_name'), $x, $y, 35, 12);
-    [$x, $y] = $at(0.104, 0.4965); certificateDrawField($pdf, certificatePdfText($v('birth_date')), $x, $y, 37, 11);
-    [$x, $y] = $at(0.544, 0.4965); certificateDrawField($pdf, $v('birth_place'), $x, $y, 35, 11);
-    [$x, $y] = $at(0.104, 0.5585); certificateDrawField($pdf, certificatePdfText($v('baptism_date')), $x, $y, 37, 11);
-    [$x, $y] = $at(0.544, 0.5585); certificateDrawField($pdf, $v('baptism_place'), $x, $y, 35, 11);
-    [$x, $y] = $at(0.104, 0.649); certificateDrawField($pdf, $v('godparent_1'), $x, $y, 35, 11);
-    [$x, $y] = $at(0.544, 0.649); certificateDrawField($pdf, $v('godparent_2'), $x, $y, 35, 11);
-    [$x, $y] = $at(0.285, 0.769); certificateDrawField($pdf, $v('officiating_priest'), $x, $y, 37, 11);
-    [$x, $y] = $at(0.285, 0.845); certificateDrawField($pdf, $v('parish_priest'), $x, $y, 37, 11);
-    [$x, $y] = $at(0.172, 0.884); certificateDrawField($pdf, $v('book_no'), $x, $y, 18, 9, 'L');
-    [$x, $y] = $at(0.172, 0.898); certificateDrawField($pdf, $v('page_no'), $x, $y, 18, 9, 'L');
-    [$x, $y] = $at(0.178, 0.9115); certificateDrawField($pdf, $v('line_no'), $x, $y, 18, 9, 'L');
+    // Lift text ~1.75mm above each printed rule so descenders don't touch the line.
+    $lift = 1.75;
+    [$x, $y] = $at(0.315, 0.198); certificateDrawField($pdf, $v('parish_of'), $x, $y - $lift, 80, 13, 'L', 'B');
+    [$x, $y] = $at(0.10, 0.39); certificateDrawField($pdf, $v('child_name'), $x, $y - $lift, 80, 14, 'C', 'B');
+    [$x, $y] = $at(0.104, 0.4365); certificateDrawField($pdf, $v('father_name'), $x, $y - $lift, 60, 12, 'L', 'B');
+    [$x, $y] = $at(0.544, 0.4365); certificateDrawField($pdf, $v('mother_name'), $x, $y - $lift, 80, 12, 'L', 'B');
+    [$x, $y] = $at(0.104, 0.4965); certificateDrawField($pdf, certificatePdfHumanDate($v('birth_date')), $x, $y - $lift, 60, 11);
+    [$x, $y] = $at(0.544, 0.4965); certificateDrawField($pdf, $v('birth_place'), $x, $y - $lift, 80, 11);
+    [$x, $y] = $at(0.104, 0.5585); certificateDrawField($pdf, certificatePdfHumanDate($v('baptism_date')), $x, $y - $lift, 60, 11);
+    [$x, $y] = $at(0.544, 0.5585); certificateDrawField($pdf, $v('baptism_place'), $x, $y - $lift, 80, 11);
+    [$x, $y] = $at(0.104, 0.649); certificateDrawField($pdf, $v('godparent_1'), $x, $y - $lift, 60, 11, 'C', 'B');
+    [$x, $y] = $at(0.544, 0.649); certificateDrawField($pdf, $v('godparent_2'), $x, $y - $lift, 80, 11, 'C', 'B');
+    [$x, $y] = $at(0.285, 0.769); certificateDrawField($pdf, $v('officiating_priest'), $x, $y - $lift, 80, 11, 'C', 'B');
+    [$x, $y] = $at(0.285, 0.845); certificateDrawField($pdf, $v('parish_priest'), $x, $y - $lift, 80, 11, 'C', 'B');
+    [$x, $y] = $at(0.172, 0.884); certificateDrawField($pdf, $v('book_no'), $x, $y - $lift, 18, 9, 'L');
+    [$x, $y] = $at(0.172, 0.898); certificateDrawField($pdf, $v('page_no'), $x, $y - $lift, 18, 9, 'L');
+    [$x, $y] = $at(0.178, 0.9155); certificateDrawField($pdf, $v('line_no'), $x, $y - $lift, 18, 9, 'L');
 
     return $pdf->Output('S');
 }
