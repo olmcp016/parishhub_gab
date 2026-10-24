@@ -8,6 +8,7 @@ require_once __DIR__ . '/includes/generated-form-workflow.php';
 require_once __DIR__ . '/includes/requirements-review.php';
 require_once __DIR__ . '/includes/funeral-schedule.php';
 require_once __DIR__ . '/includes/service-fees.php'; // feeTotalNeedsNoPayment(), NO_PAYMENT_REQUIRED_LABEL
+require_once __DIR__ . '/includes/certificate-workflow.php';
 
 /**
  * Public, no-account status lookup for a guest booking/Mass Intention/
@@ -35,6 +36,7 @@ $documents = [];
 $generatedForms = [];
 $intention = null;
 $donation = null;
+$officialCertificate = null;
 
 if ($searched) {
     $code = strtoupper($reference);
@@ -117,6 +119,13 @@ if ($searched) {
         );
         $stmt->execute([$appointment['appointment_id']]);
         $payment = $stmt->fetch() ?: null;
+
+        // Official Parish Certificate (Certificate Request or a completed
+        // sacrament's auto-issued copy) — guest equivalent of the same block
+        // on parishioner/appointment-detail.php. document.php already honors
+        // $_SESSION['guest_status_verification'] (set just above) for this
+        // appointment, so the link below works for a guest with no account.
+        $officialCertificate = issuedCertificateLoad((int) $appointment['appointment_id']);
     }
 }
 
@@ -180,6 +189,22 @@ include __DIR__ . '/includes/header.php';
         <?php endif; ?>
       </div>
       <p><strong>Booking Reference:</strong> <?= e($appointment['guest_reference']) ?></p>
+      <?php if (!empty($officialCertificate['document_id']) && in_array((int) $appointment['status_id'], [5, 6], true)): ?>
+        <div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">
+          <strong>📜 Official Certificate of <?= e($officialCertificate['certificate_type']) ?></strong>
+          <?= ($officialCertificate['status'] ?? '') === 'claimed' ? 'was claimed.' : 'is ready.' ?>
+          <div class="flex gap-2" style="margin-top:8px; flex-wrap:wrap;">
+            <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $officialCertificate['document_id']) ?>">View / Download Official Certificate</a>
+          </div>
+          <?php if (($officialCertificate['status'] ?? '') === 'ready_for_pickup'): ?>
+            <p class="helper-text" style="margin:8px 0 0;">Your certified copy is ready for pick-up at the parish office. Please bring a valid ID to claim the stamped and dry-sealed original.</p>
+          <?php elseif (($officialCertificate['status'] ?? '') === 'claimed'): ?>
+            <p class="helper-text" style="margin:8px 0 0;">You've already claimed the stamped and dry-sealed original at the parish office<?= !empty($officialCertificate['claimed_at']) ? ' on ' . e(formatDate((string) $officialCertificate['claimed_at'])) : '' ?>. The link above is a digital copy for your records.</p>
+          <?php else: ?>
+            <p class="helper-text" style="margin:8px 0 0;">This is a digital preview. Visit the parish office to claim the stamped and dry-sealed original.</p>
+          <?php endif; ?>
+        </div>
+      <?php endif; ?>
       <?php if ($appointment['status_name'] === 'Payment Verified'): ?>
         <p class="text-muted">Payment verified — awaiting appointment confirmation.</p>
       <?php endif; ?>
