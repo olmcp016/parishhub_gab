@@ -220,12 +220,6 @@ $thankYouIsGuest = false; include __DIR__ . '/../includes/thank-you-modal.php'; 
           <p><?= e($s['requirements']) ?></p>
         </details>
       <?php endif; ?>
-      <?php if ($s['category'] === 'Baptism'): ?>
-        <div style="background: rgba(197, 168, 76, 0.12); border-left: 3px solid var(--gold); padding: 8px 10px; border-radius: 6px; font-size: 12.5px; margin-bottom: 12px; color: var(--brown-dark); line-height: 1.4;">
-          <strong>📌 Pre-Jordan Seminar Note:</strong><br>
-          Kinahanglan anaa na sa simbahan <strong>1 ka oras sa dili pa ang gitakdang oras</strong> sa bunyag kay adunay himoon nga <strong>Pre-Jordan Seminar</strong> (Bayad: <strong>₱50.00</strong>).
-        </div>
-      <?php endif; ?>
       <div style="margin-top:auto; padding-top:16px;">
         <div style="margin-bottom:12px;">
           <span class="text-gold" style="font-weight:700; font-size:14px; display:block;">
@@ -298,10 +292,17 @@ $noFeesLabel = fn(float $amount): string => $amount > 0 ? money($amount) : 'No F
             </div>
           <?php endforeach; ?>
           <?php if ($feeCategory === 'Baptism'): ?>
-            <div style="margin-top: 14px; background: rgba(197, 168, 76, 0.12); border-left: 4px solid var(--gold); padding: 10px 14px; border-radius: 6px; font-size: 13px; color: var(--brown-dark); line-height: 1.5;">
-              <strong>📌 Importante nga Pahibalo (Pre-Jordan Seminar):</strong><br>
-              Palihug hinumdumi nga kinahanglan anaa na kamo sa simbahan <strong>1 ka oras sa dili pa ang gitakdang oras</strong> sa bunyag kay adunay pagahimoong <strong>Pre-Jordan Seminar</strong>.<br>
-              <strong>Pre-Jordan Seminar Fee:</strong> ₱50.00
+            <div style="margin-top: 14px; background: #fffdf7; border: 1px solid rgba(197, 160, 89, 0.35); border-left: 4px solid var(--gold); padding: 12px 14px; border-radius: 6px; font-size: 13px; color: var(--brown-dark); line-height: 1.5;">
+              <div style="display: flex; gap: 8px; align-items: flex-start;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--gold-dark); flex-shrink: 0; margin-top: 2px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                <div>
+                  <strong style="color: var(--brown-dark);">Note:</strong><br>
+                  Kinahanglan anaa na sa simbahan <strong>1 ka oras sa dili pa ang gitakdang oras</strong> sa bunyag kay adunay himoon nga <strong>Pre-Jordan Seminar</strong>
+                  <div style="margin-top: 8px; font-weight: 600; color: #855d14;">
+                    (Bayad: ₱50.00).
+                  </div>
+                </div>
+              </div>
             </div>
           <?php endif; ?>
         </div>
@@ -690,10 +691,21 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
         </div>
 
         <div id="baptismSeminarNote"
-          style="display:none; background: #fff8ec; border: 1px solid #e8d49a; border-left: 4px solid var(--gold); padding: 12px 14px; border-radius: 8px; margin-bottom: 16px; color: var(--brown-dark); font-size: 13.5px; line-height: 1.5;">
-          <strong>🕊️ Importante nga Pahibalo (Pre-Jordan Seminar):</strong><br>
-          Palihug timan-i nga kinahanglan <strong>anaa na sa simbahan 1 ka oras sa dili pa ang gitakdang oras</strong> sa bunyag kay adunay pagahimoong <strong>Pre-Jordan Seminar</strong>.<br>
-          <span style="font-weight: 600; color: #855d14;">Pre-Jordan Seminar Fee: ₱50.00</span>
+          style="display:none; background: #fffdf7; border: 1px solid rgba(197, 160, 89, 0.35); border-left: 4px solid var(--gold); padding: 12px 14px; border-radius: 8px; margin-bottom: 16px; color: var(--brown-dark); font-size: 13.5px; line-height: 1.55;">
+          <div style="display: flex; gap: 10px; align-items: flex-start;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--gold-dark); flex-shrink: 0; margin-top: 2px;">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+            <div>
+              <strong style="color: var(--brown-dark);">Note:</strong><br>
+              Kinahanglan anaa na sa simbahan <strong>1 ka oras sa dili pa ang gitakdang oras</strong> sa bunyag kay adunay himoon nga <strong>Pre-Jordan Seminar</strong>
+              <div style="margin-top: 8px; font-weight: 600; color: #855d14;">
+                (Bayad: ₱50.00).
+              </div>
+            </div>
+          </div>
         </div>
 
         <div id="anointingFields"
@@ -995,8 +1007,7 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
           <label>Number of Sponsors</label><input type="number" class="numeric-no-spinner numeric-zero-friendly"
             name="sponsor_count" id="sponsorCountInput" min="0" max="100" step="1" value="0">
           <p class="helper-text" style="margin: 6px 0 0;">
-            The first 2 sponsors are included in the baptism fee. Additional sponsors: ₱100.00 each.<br>
-            <strong>Pre-Jordan Seminar:</strong> Attendees must arrive at the church 1 hour before the baptism schedule (Seminar fee: ₱50.00).
+            The first 2 sponsors are included in the baptism fee. Additional sponsors: ₱100.00 each.
           </p>
         </div>
         <div id="weddingSponsorCountGroup" class="form-group"

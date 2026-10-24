@@ -174,10 +174,17 @@ $usesPublicShell = !$user;
 include __DIR__ . '/includes/header.php';
 include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 'dash-start.php');
 ?>
-<div style="background:#fff8ec; border:1px solid #e8d49a; border-left:4px solid var(--gold); padding:12px 14px; border-radius:8px; margin-bottom:16px; color:#5c4e24; font-size:13.5px; line-height:1.5;">
-  <strong>🕊️ Importante nga Pahibalo (Pre-Jordan Seminar):</strong><br>
-  Palihug timan-i nga kinahanglan <strong>anaa na kamo sa simbahan 1 ka oras sa dili pa ang gitakdang oras</strong> sa bunyag kay adunay pagahimoong <strong>Pre-Jordan Seminar</strong>.<br>
-  <span style="font-weight:600; color:#855d14;">Pre-Jordan Seminar Fee: ₱50.00</span>
+<div style="background: #fffdf7; border: 1px solid rgba(197, 160, 89, 0.35); border-left: 4px solid var(--gold); padding: 12px 14px; border-radius: 8px; margin-bottom: 16px; color: var(--brown-dark); font-size: 13.5px; line-height: 1.55;">
+  <div style="display: flex; gap: 10px; align-items: flex-start;">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--gold-dark); flex-shrink: 0; margin-top: 2px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+    <div>
+      <strong style="color: var(--brown-dark);">Note:</strong><br>
+      Kinahanglan anaa na sa simbahan <strong>1 ka oras sa dili pa ang gitakdang oras</strong> sa bunyag kay adunay himoon nga <strong>Pre-Jordan Seminar</strong>
+      <div style="margin-top: 8px; font-weight: 600; color: #855d14;">
+        (Bayad: ₱50.00).
+      </div>
+    </div>
+  </div>
 </div>
 <div class="card"><h2>Supporting Documents</h2>
 <?php renderBookingBackButton('baptism', $id); ?>
