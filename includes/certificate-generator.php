@@ -224,42 +224,132 @@ function certificateBaptismPdf(array $data): string
     $v = static fn(string $key): string => trim((string) ($data[$key] ?? ''));
     $pdf = new FPDF('P', 'mm', 'A4');
     $pdf->SetTitle(certificatePdfText('Certificate of Baptism - ' . $v('child_name')), true);
-    $at = certificateStampTemplate($pdf, 'Baptism');
 
-    // Lift text ~2.2mm above each printed rule so descenders don't touch the line
-    // and letters have ample breathing room.
-    $lift = 2.2;
+    // Template dimensions & scaling (A4 portrait)
+    $pageW = 210.0;
+    $pageH = 297.0;
+    $imgW = 1370;
+    $imgH = 1860;
+    $scale = min($pageW / $imgW, $pageH / $imgH);
+    $drawW = $imgW * $scale;
+    $drawH = $imgH * $scale;
+    $offsetX = ($pageW - $drawW) / 2;
+    $offsetY = ($pageH - $drawH) / 2;
 
-    // Header parish name (centered over the line following PARISH OF)
-    [$x, $y] = $at(0.28, 0.198); certificateDrawField($pdf, $v('parish_of'), $x, $y - $lift, 105, 13, 'C', 'B');
+    $pdf->AddPage('P', 'A4');
+    $pdf->SetMargins(0, 0, 0);
+    $pdf->SetAutoPageBreak(false);
 
-    // Child's Full Name (prominently centered across the full child name underline)
-    [$x, $y] = $at(0.11, 0.39); certificateDrawField($pdf, $v('child_name'), $x, $y - 2.5, 138, 15, 'C', 'B');
+    // 1. Stamp the pristine template containing the original green clover borders and Diocese header
+    $templatePath = dirname(__DIR__) . '/public/img/certificates/Certificate of Baptism Template.jpg';
+    if (!file_exists($templatePath)) {
+        $templatePath = certificateTemplatePath('Baptism');
+    }
+    $pdf->Image($templatePath, $offsetX, $offsetY, $drawW, $drawH, 'JPG');
 
-    // Parents (centered over Left / Right column lines)
-    [$x, $y] = $at(0.07, 0.4365); certificateDrawField($pdf, $v('father_name'), $x, $y - $lift, 80, 12, 'C', 'B');
-    [$x, $y] = $at(0.53, 0.4365); certificateDrawField($pdf, $v('mother_name'), $x, $y - $lift, 80, 12, 'C', 'B');
+    // Helper to draw a crisp vector underline with centered value above it and label below it
+    $drawField = function(string $label, string $value, float $x, float $y, float $w, float $fs = 11.5, string $style = 'B', string $align = 'C') use ($pdf) {
+        $value = certificatePdfText($value);
 
-    // Birth (Date & Place, centered over respective columns)
-    [$x, $y] = $at(0.07, 0.4965); certificateDrawField($pdf, certificatePdfHumanDate($v('birth_date')), $x, $y - $lift, 80, 11.5, 'C', 'B');
-    [$x, $y] = $at(0.53, 0.4965); certificateDrawField($pdf, $v('birth_place'), $x, $y - $lift, 80, 11.5, 'C', 'B');
+        // Auto-shrink font if value is too long so it stays on one line
+        if ($value !== '') {
+            $currentFs = $fs;
+            $pdf->SetFont('Times', $style, $currentFs);
+            while ($currentFs > 6.5 && $pdf->GetStringWidth($value) > ($w - 2)) {
+                $currentFs -= 0.5;
+                $pdf->SetFont('Times', $style, $currentFs);
+            }
+            // Value sits neatly above the underline with breathing room
+            $pdf->SetXY($x, $y - 5.2);
+            $pdf->Cell($w, 5.0, $value, 0, 0, $align);
+        }
 
-    // Baptism (Date & Place, centered over respective columns)
-    [$x, $y] = $at(0.07, 0.5585); certificateDrawField($pdf, certificatePdfHumanDate($v('baptism_date')), $x, $y - $lift, 80, 11.5, 'C', 'B');
-    [$x, $y] = $at(0.53, 0.5585); certificateDrawField($pdf, $v('baptism_place'), $x, $y - $lift, 80, 11.5, 'C', 'B');
+        // Draw crisp horizontal line
+        $pdf->SetDrawColor(30, 30, 30);
+        $pdf->SetLineWidth(0.35);
+        $pdf->Line($x, $y, $x + $w, $y);
 
-    // Godparents (centered over Left / Right column lines)
-    [$x, $y] = $at(0.07, 0.649); certificateDrawField($pdf, $v('godparent_1'), $x, $y - $lift, 80, 11.5, 'C', 'B');
-    [$x, $y] = $at(0.53, 0.649); certificateDrawField($pdf, $v('godparent_2'), $x, $y - $lift, 80, 11.5, 'C', 'B');
+        // Draw label below line
+        if ($label !== '') {
+            $pdf->SetFont('Times', '', 9.5);
+            $pdf->SetTextColor(70, 70, 70);
+            $pdf->SetXY($x, $y + 0.8);
+            $pdf->Cell($w, 4.5, certificatePdfText($label), 0, 0, 'C');
+            $pdf->SetTextColor(0, 0, 0);
+        }
+    };
 
-    // Priests (centered across the solemnization lines)
-    [$x, $y] = $at(0.235, 0.769); certificateDrawField($pdf, $v('officiating_priest'), $x, $y - 2.5, 84, 12, 'C', 'B');
-    [$x, $y] = $at(0.235, 0.845); certificateDrawField($pdf, $v('parish_priest'), $x, $y - 2.5, 84, 12, 'C', 'B');
+    // 2. PARISH OF line & value
+    $drawField('', $v('parish_of'), 64.0, 58.0, 110.0, 12.0, 'B', 'C');
 
-    // Canonical Book Registry (bottom left, sits directly on respective short rules)
-    [$x, $y] = $at(0.165, 0.887); certificateDrawField($pdf, $v('book_no'), $x, $y, 22, 10, 'C', 'B');
-    [$x, $y] = $at(0.165, 0.902); certificateDrawField($pdf, $v('page_no'), $x, $y, 22, 10, 'C', 'B');
-    [$x, $y] = $at(0.170, 0.917); certificateDrawField($pdf, $v('line_no'), $x, $y, 22, 10, 'C', 'B');
+    // 3. Child's Full Name (Centered line under "of")
+    $drawField('', $v('child_name'), 35.0, 114.0, 140.0, 14.5, 'B', 'C');
+
+    // 4. Parents (Two clean columns)
+    $leftX = 22.0;
+    $rightX = 110.0;
+    $colW = 78.0;
+
+    $drawField('Father', $v('father_name'), $leftX, 131.0, $colW, 11.5, 'B');
+    $drawField('Mother', $v('mother_name'), $rightX, 131.0, $colW, 11.5, 'B');
+
+    // 5. Birth Details
+    $drawField('Date of Birth', certificatePdfHumanDate($v('birth_date')), $leftX, 148.5, $colW, 11.0, 'B');
+    $drawField('Place of Birth', $v('birth_place'), $rightX, 148.5, $colW, 11.0, 'B');
+
+    // 6. Baptism Details
+    $drawField('Date of Baptism', certificatePdfHumanDate($v('baptism_date')), $leftX, 166.0, $colW, 11.0, 'B');
+    $drawField('Place of Baptism', $v('baptism_place'), $rightX, 166.0, $colW, 11.0, 'B');
+
+    // 7. Godparents Header
+    $pdf->SetFont('Times', 'B', 11);
+    $pdf->SetTextColor(40, 40, 40);
+    $pdf->SetXY(0, 175.5);
+    $pdf->Cell(210, 5, 'Godparents', 0, 0, 'C');
+    $pdf->SetTextColor(0, 0, 0);
+
+    // Godparents Lines
+    $drawField('', $v('godparent_1'), $leftX, 189.0, $colW, 11.0, 'B');
+    $drawField('', $v('godparent_2'), $rightX, 189.0, $colW, 11.0, 'B');
+
+    // Extra blank godparent lines (for canonical format)
+    $pdf->SetLineWidth(0.35);
+    $pdf->Line($leftX, 201.0, $leftX + $colW, 201.0);
+    $pdf->Line($rightX, 201.0, $rightX + $colW, 201.0);
+
+    // 8. Priests (Centered solemnization lines)
+    $centerLineW = 86.0;
+    $centerX = ($pageW - $centerLineW) / 2;
+
+    $drawField('Officiating Priest', $v('officiating_priest'), $centerX, 222.0, $centerLineW, 11.5, 'B');
+    $drawField('Parish Priest', $v('parish_priest'), $centerX, 243.0, $centerLineW, 11.5, 'B');
+
+    // 9. Canonical Registry (Bottom-Left)
+    $regX = 22.0;
+    $regLabelW = 20.0;
+    $regLineX = $regX + $regLabelW;
+    $regLineW = 26.0;
+
+    $drawReg = function(string $lbl, string $val, float $y) use ($pdf, $regX, $regLabelW, $regLineX, $regLineW) {
+        $pdf->SetFont('Times', '', 9.5);
+        $pdf->SetXY($regX, $y - 3.5);
+        $pdf->Cell($regLabelW, 4.5, $lbl, 0, 0, 'L');
+
+        $val = certificatePdfText(trim($val));
+        if ($val !== '') {
+            $pdf->SetFont('Times', 'B', 10);
+            $pdf->SetXY($regLineX, $y - 4.2);
+            $pdf->Cell($regLineW, 4.0, $val, 0, 0, 'C');
+        }
+
+        $pdf->SetDrawColor(30, 30, 30);
+        $pdf->SetLineWidth(0.35);
+        $pdf->Line($regLineX, $y, $regLineX + $regLineW, $y);
+    };
+
+    $drawReg('Book No.', $v('book_no'), 257.0);
+    $drawReg('Page No.', $v('page_no'), 263.5);
+    $drawReg('Serial No.', $v('line_no'), 270.0);
 
     return $pdf->Output('S');
 }
