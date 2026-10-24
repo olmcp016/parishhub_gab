@@ -14,6 +14,18 @@ if ($__showBell) {
             require_once __DIR__ . '/secretary-notifications.php';
             $__unread = parishionerUnreadNotificationCount(parishionerVisibleNotifications((int) $__user['user_id']));
         } else {
+            // Auto-clean duplicate notification spam
+            try {
+                db()->query("
+                    DELETE FROM notifications n1
+                    USING notifications n2
+                    WHERE n1.notification_id < n2.notification_id
+                      AND n1.user_id = n2.user_id
+                      AND n1.title = n2.title
+                      AND n1.message = n2.message
+                      AND n1.is_read = FALSE
+                ");
+            } catch (Throwable $e) {}
             $bellStmt = db()->prepare('SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = FALSE');
             $bellStmt->execute([(int) $__user['user_id']]);
             $__unread = (int) $bellStmt->fetchColumn();

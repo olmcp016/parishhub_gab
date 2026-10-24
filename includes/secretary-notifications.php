@@ -50,6 +50,11 @@ function notifySecretaries(string $title, string $message, ?int $appointmentId):
             ? "INSERT INTO notifications (user_id, type, category, title, message, appointment_id) VALUES (?, 'website', 'appointment', ?, ?, ?)"
             : "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', ?, ?)");
         foreach ($secretaries as $secretaryId) {
+            if ($appointmentId !== null) {
+                $dupCheck = db()->prepare("SELECT 1 FROM notifications WHERE user_id = ? AND title = ? AND message LIKE ? AND is_read = FALSE LIMIT 1");
+                $dupCheck->execute([(int) $secretaryId, $title, "%#$appointmentId%"]);
+                if ($dupCheck->fetchColumn()) continue;
+            }
             $insert->execute($withLink ? [(int) $secretaryId, $title, $message, $appointmentId] : [(int) $secretaryId, $title, $message]);
         }
         return count($secretaries);

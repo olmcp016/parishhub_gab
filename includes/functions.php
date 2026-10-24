@@ -380,17 +380,21 @@ function handlePastDateUnpaidAppointments(): void
                 }
             }
 
-            // 2. Notify Secretary bell
-            notifySecretaries(
-                'Appointment Needs Reschedule',
-                "Appointment #$appointmentId ($service) scheduled on $dateStr has passed while unpaid. It is kept active for rescheduling.",
-                $appointmentId
-            );
+            // 2. Notify Secretary bell (only once per appointment)
+            $checkSec = db()->prepare("SELECT 1 FROM notifications WHERE title = 'Appointment Needs Reschedule' AND message LIKE ? LIMIT 1");
+            $checkSec->execute(["%#$appointmentId%"]);
+            if (!$checkSec->fetchColumn()) {
+                notifySecretaries(
+                    'Appointment Needs Reschedule',
+                    "Appointment #$appointmentId ($service) scheduled on $dateStr has passed while unpaid. It is kept active for rescheduling.",
+                    $appointmentId
+                );
 
-            // 3. Send email notice via Brevo
-            notifyPastDateReschedule($appointmentId);
+                // 3. Send email notice via Brevo (only once!)
+                notifyPastDateReschedule($appointmentId);
 
-            logActivity(null, "Flagged appointment #$appointmentId for reschedule (scheduled date passed without payment; kept active)", 'Appointments');
+                logActivity(null, "Flagged appointment #$appointmentId for reschedule (scheduled date passed without payment; kept active)", 'Appointments');
+            }
         }
     } catch (Throwable $e) {
         error_log('handlePastDateUnpaidAppointments error: ' . $e->getMessage());
