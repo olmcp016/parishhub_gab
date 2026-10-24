@@ -19,7 +19,7 @@ function renderNavSection(string $slug, string $title, array $items, string $act
           [$href, $key, $icon, $label] = $item;
           $badge = $item[4] ?? null;
         ?>
-          <li><a href="<?= $href ?>" class="<?= $activeKey === $key ? 'active' : '' ?>"><span class="nav-icon"><i data-lucide="<?= e($icon) ?>"></i></span> <?= e($label) ?><?php if ($badge): ?><span class="nav-badge" style="margin-left:6px;background:var(--danger,#c62828);color:#fff;border-radius:10px;padding:1px 6px;font-size:11px;font-weight:700;line-height:1.4;"><?= (int) $badge ?></span><?php endif; ?></a></li>
+          <li><a href="<?= $href ?>" class="<?= $activeKey === $key ? 'active' : '' ?>"><span class="nav-icon"><i data-lucide="<?= e($icon) ?>"></i></span> <?= e($label) ?><?php if ($badge): ?><span class="nav-badge" style="margin-left:auto; background:var(--danger,#dc2626); color:#fff; border-radius:10px; padding:1px 7px; font-size:11px; font-weight:700; line-height:1.4; display:inline-flex; align-items:center; justify-content:center;"><?= (int) $badge ?></span><?php endif; ?></a></li>
         <?php endforeach; ?>
       </ul>
     </div>
@@ -58,6 +58,29 @@ function renderNavSection(string $slug, string $title, array $items, string $act
         [url('parishioner/profile.php'), 'profile', 'user-circle', 'My Profile'],
       ], $__active); ?>
     <?php elseif ($__user['role_name'] === 'Secretary'): ?>
+      <?php
+      $__secretaryAppointmentBadge = null;
+      try {
+          $__secretaryAppointmentBadge = (int) db()->query("
+              SELECT COUNT(DISTINCT a.appointment_id)
+              FROM appointments a
+              JOIN services s ON a.service_id = s.service_id
+              LEFT JOIN issued_certificates ic ON ic.appointment_id = a.appointment_id
+              WHERE s.category != 'Donation'
+                AND (
+                  a.status_id = 1
+                  OR a.requirements_review_status = 'ready_for_rereview'
+                  OR (
+                    (s.category IN ('Wedding', 'Baptism', 'Confirmation', 'Funeral') OR s.service_name LIKE '%Certificate%')
+                    AND a.status_id IN (2, 4)
+                    AND (ic.document_id IS NULL OR ic.status NOT IN ('generated', 'ready_for_pickup', 'claimed'))
+                  )
+                )
+          ")->fetchColumn();
+      } catch (Throwable $e) {
+          $__secretaryAppointmentBadge = 0;
+      }
+      ?>
       <?php renderNavSection('overview', 'Overview', [
         [url('secretary/dashboard.php'), 'dashboard', 'layout-dashboard', 'Dashboard'],
       ], $__active); ?>
@@ -71,7 +94,7 @@ function renderNavSection(string $slug, string $title, array $items, string $act
         [url('secretary/locations.php'), 'locations', 'map-pin', 'Manage Locations'],
         [url('admin/service-schedules.php'), 'service-schedules', 'calendar-clock', 'Service Schedules'],
         [url('secretary/calendar.php'), 'calendar', 'calendar-days', 'Calendar'],
-        [url('secretary/appointments.php'), 'appointments', 'calendar-check', 'Appointments'],
+        [url('secretary/appointments.php'), 'appointments', 'calendar-check', 'Appointments', $__secretaryAppointmentBadge > 0 ? $__secretaryAppointmentBadge : null],
       ], $__active); ?>
       <?php renderNavSection('parish-content', 'Parish Content', [
         [url('secretary/announcements.php'), 'announcements', 'megaphone', 'Announcements'],
