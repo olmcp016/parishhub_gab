@@ -90,6 +90,7 @@ function renderAppointmentsTable(array $appointments, bool $isSecretaryViewer): 
                 <?php endif; ?>
               </td>
               <td><?= e($a['service_name']) ?></td>
+              <td><?= !empty($a['appointment_date']) ? e(date('M d, Y', strtotime($a['appointment_date']))) : '—' ?></td>
               <td>
                 <?php if (!empty($a['outside_priest_name'])): ?>
                   <?= e($a['outside_priest_name']) ?> <span class="text-muted" style="font-size:11px;">(Preferred Priest)</span>
