@@ -226,23 +226,40 @@ function certificateBaptismPdf(array $data): string
     $pdf->SetTitle(certificatePdfText('Certificate of Baptism - ' . $v('child_name')), true);
     $at = certificateStampTemplate($pdf, 'Baptism');
 
-    // Lift text ~1.75mm above each printed rule so descenders don't touch the line.
-    $lift = 1.75;
-    [$x, $y] = $at(0.315, 0.198); certificateDrawField($pdf, $v('parish_of'), $x, $y - $lift, 80, 13, 'L', 'B');
-    [$x, $y] = $at(0.10, 0.39); certificateDrawField($pdf, $v('child_name'), $x, $y - $lift, 80, 14, 'C', 'B');
-    [$x, $y] = $at(0.104, 0.4365); certificateDrawField($pdf, $v('father_name'), $x, $y - $lift, 60, 12, 'L', 'B');
-    [$x, $y] = $at(0.544, 0.4365); certificateDrawField($pdf, $v('mother_name'), $x, $y - $lift, 80, 12, 'L', 'B');
-    [$x, $y] = $at(0.104, 0.4965); certificateDrawField($pdf, certificatePdfHumanDate($v('birth_date')), $x, $y - $lift, 60, 11);
-    [$x, $y] = $at(0.544, 0.4965); certificateDrawField($pdf, $v('birth_place'), $x, $y - $lift, 80, 11);
-    [$x, $y] = $at(0.104, 0.5585); certificateDrawField($pdf, certificatePdfHumanDate($v('baptism_date')), $x, $y - $lift, 60, 11);
-    [$x, $y] = $at(0.544, 0.5585); certificateDrawField($pdf, $v('baptism_place'), $x, $y - $lift, 80, 11);
-    [$x, $y] = $at(0.104, 0.649); certificateDrawField($pdf, $v('godparent_1'), $x, $y - $lift, 60, 11, 'C', 'B');
-    [$x, $y] = $at(0.544, 0.649); certificateDrawField($pdf, $v('godparent_2'), $x, $y - $lift, 80, 11, 'C', 'B');
-    [$x, $y] = $at(0.285, 0.769); certificateDrawField($pdf, $v('officiating_priest'), $x, $y - $lift, 80, 11, 'C', 'B');
-    [$x, $y] = $at(0.285, 0.845); certificateDrawField($pdf, $v('parish_priest'), $x, $y - $lift, 80, 11, 'C', 'B');
-    [$x, $y] = $at(0.172, 0.884); certificateDrawField($pdf, $v('book_no'), $x, $y - $lift, 18, 9, 'L');
-    [$x, $y] = $at(0.172, 0.898); certificateDrawField($pdf, $v('page_no'), $x, $y - $lift, 18, 9, 'L');
-    [$x, $y] = $at(0.178, 0.9155); certificateDrawField($pdf, $v('line_no'), $x, $y - $lift, 18, 9, 'L');
+    // Lift text ~2.2mm above each printed rule so descenders don't touch the line
+    // and letters have ample breathing room.
+    $lift = 2.2;
+
+    // Header parish name (centered over the line following PARISH OF)
+    [$x, $y] = $at(0.28, 0.198); certificateDrawField($pdf, $v('parish_of'), $x, $y - $lift, 105, 13, 'C', 'B');
+
+    // Child's Full Name (prominently centered across the full child name underline)
+    [$x, $y] = $at(0.11, 0.39); certificateDrawField($pdf, $v('child_name'), $x, $y - 2.5, 138, 15, 'C', 'B');
+
+    // Parents (centered over Left / Right column lines)
+    [$x, $y] = $at(0.07, 0.4365); certificateDrawField($pdf, $v('father_name'), $x, $y - $lift, 80, 12, 'C', 'B');
+    [$x, $y] = $at(0.53, 0.4365); certificateDrawField($pdf, $v('mother_name'), $x, $y - $lift, 80, 12, 'C', 'B');
+
+    // Birth (Date & Place, centered over respective columns)
+    [$x, $y] = $at(0.07, 0.4965); certificateDrawField($pdf, certificatePdfHumanDate($v('birth_date')), $x, $y - $lift, 80, 11.5, 'C', 'B');
+    [$x, $y] = $at(0.53, 0.4965); certificateDrawField($pdf, $v('birth_place'), $x, $y - $lift, 80, 11.5, 'C', 'B');
+
+    // Baptism (Date & Place, centered over respective columns)
+    [$x, $y] = $at(0.07, 0.5585); certificateDrawField($pdf, certificatePdfHumanDate($v('baptism_date')), $x, $y - $lift, 80, 11.5, 'C', 'B');
+    [$x, $y] = $at(0.53, 0.5585); certificateDrawField($pdf, $v('baptism_place'), $x, $y - $lift, 80, 11.5, 'C', 'B');
+
+    // Godparents (centered over Left / Right column lines)
+    [$x, $y] = $at(0.07, 0.649); certificateDrawField($pdf, $v('godparent_1'), $x, $y - $lift, 80, 11.5, 'C', 'B');
+    [$x, $y] = $at(0.53, 0.649); certificateDrawField($pdf, $v('godparent_2'), $x, $y - $lift, 80, 11.5, 'C', 'B');
+
+    // Priests (centered across the solemnization lines)
+    [$x, $y] = $at(0.235, 0.769); certificateDrawField($pdf, $v('officiating_priest'), $x, $y - 2.5, 84, 12, 'C', 'B');
+    [$x, $y] = $at(0.235, 0.845); certificateDrawField($pdf, $v('parish_priest'), $x, $y - 2.5, 84, 12, 'C', 'B');
+
+    // Canonical Book Registry (bottom left, sits directly on respective short rules)
+    [$x, $y] = $at(0.165, 0.887); certificateDrawField($pdf, $v('book_no'), $x, $y, 22, 10, 'C', 'B');
+    [$x, $y] = $at(0.165, 0.902); certificateDrawField($pdf, $v('page_no'), $x, $y, 22, 10, 'C', 'B');
+    [$x, $y] = $at(0.170, 0.917); certificateDrawField($pdf, $v('line_no'), $x, $y, 22, 10, 'C', 'B');
 
     return $pdf->Output('S');
 }
