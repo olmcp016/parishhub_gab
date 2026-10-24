@@ -212,8 +212,8 @@ function renderCertificateEditFragment(
         </div>
 
         <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
-          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark); display:flex; align-items:center; gap:8px;">
-            <span>🤵 Groom's Information</span>
+          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark);">
+            Groom's Information
           </h4>
           <div class="form-row" style="margin-bottom:14px;">
             <?php $renderField('groom_name', 'Groom Full Name'); ?>
@@ -228,8 +228,8 @@ function renderCertificateEditFragment(
         </div>
 
         <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
-          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark); display:flex; align-items:center; gap:8px;">
-            <span>👰 Bride's Information</span>
+          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark);">
+            Bride's Information
           </h4>
           <div class="form-row" style="margin-bottom:14px;">
             <?php $renderField('bride_name', 'Bride Full Name'); ?>
@@ -266,8 +266,8 @@ function renderCertificateEditFragment(
         </div>
       <?php elseif ($officialCertType === 'Baptism'): ?>
         <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
-          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark); display:flex; align-items:center; gap:8px;">
-            <span>👶 Child &amp; Birth Details</span>
+          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark);">
+            Child &amp; Birth Details
           </h4>
           <div class="form-row" style="margin-bottom:14px;">
             <?php $renderField('child_name', "Child's Full Name"); ?>
@@ -277,8 +277,8 @@ function renderCertificateEditFragment(
         </div>
 
         <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
-          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark); display:flex; align-items:center; gap:8px;">
-            <span>👪 Parents' Information</span>
+          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark);">
+            Parents' Information
           </h4>
           <div class="form-row">
             <?php $renderField('father_name', 'Father'); ?>
@@ -287,8 +287,8 @@ function renderCertificateEditFragment(
         </div>
 
         <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
-          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark); display:flex; align-items:center; gap:8px;">
-            <span>⛪ Baptism &amp; Parish Details</span>
+          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark);">
+            Baptism &amp; Parish Details
           </h4>
           <div class="form-row" style="margin-bottom:14px;">
             <?php $renderField('parish_of', 'Parish Of'); ?>
@@ -302,8 +302,8 @@ function renderCertificateEditFragment(
         </div>
 
         <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
-          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark); display:flex; align-items:center; gap:8px;">
-            <span>🕊️ Godparents / Sponsors</span>
+          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark);">
+            Godparents / Sponsors
           </h4>
           <div class="form-row">
             <?php $renderField('godparent_1', 'Godparent 1 (Ninong/Ninang)'); ?>
@@ -312,8 +312,8 @@ function renderCertificateEditFragment(
         </div>
       <?php elseif ($officialCertType === 'Confirmation'): ?>
         <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
-          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark); display:flex; align-items:center; gap:8px;">
-            <span>🕊️ Confirmed Person &amp; Sacrament Details</span>
+          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark);">
+            Confirmed Person &amp; Sacrament Details
           </h4>
           <div class="form-row" style="margin-bottom:14px;">
             <?php $renderField('confirmed_name', 'Confirmed Person'); ?>
@@ -323,8 +323,8 @@ function renderCertificateEditFragment(
         </div>
 
         <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
-          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark); display:flex; align-items:center; gap:8px;">
-            <span>👪 Parents &amp; Officiating Bishop</span>
+          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark);">
+            Parents &amp; Officiating Bishop
           </h4>
           <div class="form-row" style="margin-bottom:14px;">
             <?php $renderField('father_name', 'Father'); ?>
@@ -398,7 +398,10 @@ function renderCertificateEditFragment(
       <div class="certificate-modal-footer" style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
         <button type="button" class="btn btn-outline certificate-modal-close">Cancel</button>
         <button type="submit" name="action" value="save_certificate_registry" class="btn btn-outline">Save Draft</button>
-        <button type="submit" name="action" value="generate_certificate" class="btn btn-primary">📄 Generate Official Certificate</button>
+        <button type="submit" name="action" value="generate_certificate" class="btn btn-primary" style="display:inline-flex; align-items:center; gap:6px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          Generate Official Certificate
+        </button>
       </div>
     </form>
 
@@ -1742,7 +1745,7 @@ if (!$isAjax) {
   <div>
   <?php if ($officialCertEligible): ?>
   <div class="card" style="margin-top:16px;">
-    <div class="card-header"><h3>📜 Canonical Registry &amp; Official Certificate</h3></div>
+    <div class="card-header"><h3>Canonical Registry &amp; Official Certificate</h3></div>
     <?php if (!$officialCertType): ?>
       <?php if ($officialCertIsRequest): ?>
         <p class="helper-text" style="margin-top:0;">Certificate Request details submitted by the applicant:</p>
@@ -1772,14 +1775,18 @@ if (!$isAjax) {
         };
       ?>
       <p><strong>Status:</strong> <span class="badge <?= e($certStatusBadge[0]) ?>"><?= e($certStatusBadge[1]) ?></span></p>
-      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:4px;">
+      <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:center; align-items:center; margin-top:16px;">
         <?php if (!empty($officialCert['document_id'])): ?>
-          <a href="<?= url('document.php?id=' . (int) $officialCert['document_id']) ?>" target="_blank" rel="noopener" class="btn btn-outline">Preview / Print</a>
+          <a href="<?= url('document.php?id=' . (int) $officialCert['document_id']) ?>" target="_blank" rel="noopener" class="btn btn-outline" style="display:inline-flex; align-items:center; gap:6px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            Preview / Print
+          </a>
         <?php endif; ?>
-        <button type="button" class="btn btn-primary js-open-certificate-modal"
+        <button type="button" class="btn btn-primary js-open-certificate-modal" style="display:inline-flex; align-items:center; gap:6px;"
           data-url="<?= e(url('secretary/appointment-detail.php?id=' . $id . '&section=certificate')) ?>"
           data-title="<?= e('Certificate — ' . $officialCertType . ' (Appointment #' . $id . ')') ?>">
-          ✍️ Edit Canonical Registry &amp; Generate
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Edit Canonical Registry &amp; Generate
         </button>
       </div>
     <?php endif; ?>
