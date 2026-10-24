@@ -264,6 +264,128 @@ function renderCertificateEditFragment(
             <?php $renderField('certificate_dated', 'Dated'); ?>
           </div>
         </div>
+      <?php elseif ($officialCertType === 'Baptism'): ?>
+        <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
+          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark); display:flex; align-items:center; gap:8px;">
+            <span>👶 Child &amp; Birth Details</span>
+          </h4>
+          <div class="form-row" style="margin-bottom:14px;">
+            <?php $renderField('child_name', "Child's Full Name"); ?>
+            <?php $renderField('birth_date', 'Date of Birth'); ?>
+            <?php $renderField('birth_place', 'Place of Birth'); ?>
+          </div>
+        </div>
+
+        <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
+          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark); display:flex; align-items:center; gap:8px;">
+            <span>👪 Parents' Information</span>
+          </h4>
+          <div class="form-row">
+            <?php $renderField('father_name', 'Father'); ?>
+            <?php $renderField('mother_name', 'Mother'); ?>
+          </div>
+        </div>
+
+        <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
+          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark); display:flex; align-items:center; gap:8px;">
+            <span>⛪ Baptism &amp; Parish Details</span>
+          </h4>
+          <div class="form-row" style="margin-bottom:14px;">
+            <?php $renderField('parish_of', 'Parish Of'); ?>
+            <?php $renderField('baptism_date', 'Date of Baptism'); ?>
+            <?php $renderField('baptism_place', 'Place of Baptism'); ?>
+          </div>
+          <div class="form-row">
+            <?php $renderField('officiating_priest', 'Officiating Priest'); ?>
+            <?php $renderField('parish_priest', 'Parish Priest'); ?>
+          </div>
+        </div>
+
+        <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
+          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark); display:flex; align-items:center; gap:8px;">
+            <span>🕊️ Godparents / Sponsors</span>
+          </h4>
+          <div class="form-row">
+            <?php $renderField('godparent_1', 'Godparent 1 (Ninong/Ninang)'); ?>
+            <?php $renderField('godparent_2', 'Godparent 2 (Ninong/Ninang)'); ?>
+          </div>
+        </div>
+      <?php elseif ($officialCertType === 'Confirmation'): ?>
+        <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
+          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark); display:flex; align-items:center; gap:8px;">
+            <span>🕊️ Confirmed Person &amp; Sacrament Details</span>
+          </h4>
+          <div class="form-row" style="margin-bottom:14px;">
+            <?php $renderField('confirmed_name', 'Confirmed Person'); ?>
+            <?php $renderField('confirmation_date', 'Date of Confirmation'); ?>
+            <?php $renderField('parish_of', 'Parish Of'); ?>
+          </div>
+        </div>
+
+        <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
+          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark); display:flex; align-items:center; gap:8px;">
+            <span>👪 Parents &amp; Officiating Bishop</span>
+          </h4>
+          <div class="form-row" style="margin-bottom:14px;">
+            <?php $renderField('father_name', 'Father'); ?>
+            <?php $renderField('mother_name', 'Mother'); ?>
+            <?php $renderField('officiating_bishop', 'Officiating Bishop/Priest (Most Rev. Msgr.)'); ?>
+          </div>
+        </div>
+
+        <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
+          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark); display:flex; align-items:center; gap:8px;">
+            <span>Sponsors &amp; Issuance Date</span>
+          </h4>
+          <div class="form-row">
+            <?php $renderField('sponsor_1', 'Sponsor 1'); ?>
+            <?php $renderField('sponsor_2', 'Sponsor 2'); ?>
+            <?php $renderField('given_date', 'Given at the Parish Rectory (Date)'); ?>
+          </div>
+        </div>
+      <?php elseif ($officialCertType === 'Death'): ?>
+        <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
+          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark); display:flex; align-items:center; gap:8px;">
+            <span>Deceased Details</span>
+          </h4>
+          <div class="form-row" style="margin-bottom:14px;">
+            <?php $renderField('deceased_name', 'Full Name of the Deceased'); ?>
+            <?php $renderField('death_date', 'Date of Death'); ?>
+            <?php $renderField('death_age', 'Age at Death'); ?>
+            <?php $renderField('cause_of_death', 'Cause of Death'); ?>
+          </div>
+          <div class="form-row">
+            <?php $renderField('civil_status', 'Civil Status'); ?>
+            <?php $renderField('relation_names', 'Parents (if single) / Spouse (if married)'); ?>
+          </div>
+        </div>
+
+        <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
+          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark); display:flex; align-items:center; gap:8px;">
+            <span>Residence</span>
+          </h4>
+          <div class="form-row">
+            <?php $renderField('barangay', 'Resident of Barangay'); ?>
+            <?php $renderField('municipality', 'Municipality'); ?>
+            <?php $renderField('province', 'Province'); ?>
+          </div>
+        </div>
+
+        <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
+          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark); display:flex; align-items:center; gap:8px;">
+            <span>Burial &amp; Parish Details</span>
+          </h4>
+          <div class="form-row" style="margin-bottom:14px;">
+            <?php $renderField('burial_type', 'Burial'); ?>
+            <?php $renderField('municipal_cemetery_name', 'Municipal Cemetery Name (if not parish)'); ?>
+            <?php $renderField('burial_date', 'Date of Burial'); ?>
+          </div>
+          <div class="form-row">
+            <?php $renderField('sacraments_received', 'Sacraments Received Before Death'); ?>
+            <?php $renderField('parish_name', 'Parish (seal)'); ?>
+            <?php $renderField('certificate_dated', 'Dated'); ?>
+          </div>
+        </div>
       <?php else: ?>
         <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
           <h4 style="margin-top:0; margin-bottom:14px;">C. Sacramental Record Details</h4>

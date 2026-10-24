@@ -1643,6 +1643,8 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
 
     var select = document.getElementById('serviceSelect');
     select.value = serviceId;
+    if (select._phSync) select._phSync();
+    select.dispatchEvent(new Event('change', { bubbles: true }));
     var category = select.options[select.selectedIndex]?.dataset.category || '';
     document.getElementById('bookModalTitle').textContent = category === 'Mass Intention' ? 'Enter Mass Intentions' : 'Book a Service';
     document.getElementById('scheduleTypeRegular').checked = true;
@@ -1656,6 +1658,7 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     toggleServiceUI();
     bookStepReset();
     initAllParishModalControls();
+    if (select._phSync) select._phSync();
     modal.showModal();
     var mBody = modal.querySelector('.modal-body');
     if (mBody) mBody.scrollTop = 0;
