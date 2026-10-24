@@ -34,24 +34,10 @@ function buildAppointmentsQuery(string $statusFilter, string $search): array
                 AND (ic.document_id IS NULL OR ic.status NOT IN ('generated', 'ready_for_pickup', 'claimed'))
             )
         )";
-    } elseif ($statusFilter === 'cert_needed') {
-        $sql .= " AND (s.category IN ('Wedding', 'Baptism', 'Confirmation', 'Funeral') OR s.service_name LIKE '%Certificate%')
-                  AND a.status_id IN (2, 4)
-                  AND (ic.document_id IS NULL OR ic.status NOT IN ('generated', 'ready_for_pickup', 'claimed'))";
-    } elseif (isset(REQUIREMENTS_REVIEW_FILTERS[$statusFilter])) {
-        // Same rules as the dashboard cards: pending appointments the Secretary reviews.
-        $sql .= " AND a.status_id = 1 AND s.category NOT IN ('Mass Intention', 'Donation')";
-        $reviewStatus = substr($statusFilter, strlen('review:'));
-        if ($reviewStatus === 'pending_review') {
-            if (requirementsReviewAvailable()) $sql .= ' AND a.requirements_review_status IS NULL';
-        } elseif (requirementsReviewAvailable()) {
-            $sql .= ' AND a.requirements_review_status = ?';
-            $params[] = $reviewStatus;
-        } else {
-            $sql .= ' AND 1 = 0'; // queue does not exist until the database update is run
-        }
+    } elseif ($statusFilter === 'Cancelled') {
+        $sql .= " AND st.status_name IN ('Cancelled', 'Rejected')";
     } elseif ($statusFilter) {
-        $sql .= ' AND st.status_name = ?';
+        $sql .= " AND st.status_name = ?";
         $params[] = $statusFilter;
     }
     if ($search) {
@@ -123,21 +109,23 @@ function renderAppointmentsTable(array $appointments, bool $isSecretaryViewer): 
                   </div>
                 </div>
               </td>
-              <td><strong><?= e($a['service_name']) ?></strong></td>
               <td>
-                <div style="display:flex; flex-wrap:wrap; gap:4px; align-items:center;">
-                  <?php if ($a['schedule_type']): ?><span class="badge badge-<?= strtolower($a['schedule_type']) ?>"><?= e($a['schedule_type']) ?></span><?php endif; ?>
-                  <?php if ($a['category'] === 'Mass Intention'):
-                    $display = massIntentionStatusDisplay($a['status_name'], true, $isSecretaryViewer);
-                  ?>
-                    <span class="badge badge-<?= $display[1] ?>"><?= $display[0] ?></span>
-                  <?php else: ?>
-                    <span class="badge badge-<?= badgeClass($a['status_name']) ?>"><?= e($a['status_name']) ?></span>
-                  <?php endif; ?>
-                  <?php if ((int) $a['status_id'] === 2 && !empty($a['appointment_date']) && $a['appointment_date'] < date('Y-m-d')): ?>
-                    <span class="badge badge-warning" style="background:#b45309;color:#fff;">Needs Reschedule</span>
-                  <?php endif; ?>
-                </div>
+                <div style="font-weight:600; font-size:13.5px;"><?= e($a['service_name']) ?></div>
+                <?php if (!empty($a['schedule_type'])): ?>
+                  <span class="text-muted" style="font-size:11px;"><?= e($a['schedule_type']) ?> Schedule</span>
+                <?php endif; ?>
+              </td>
+              <td>
+                <?php if ($a['category'] === 'Mass Intention'):
+                  $display = massIntentionStatusDisplay($a['status_name'], true, $isSecretaryViewer);
+                ?>
+                  <span class="badge badge-<?= $display[1] ?>"><?= $display[0] ?></span>
+                <?php else: ?>
+                  <span class="badge badge-<?= badgeClass($a['status_name']) ?>"><?= e($a['status_name']) ?></span>
+                <?php endif; ?>
+                <?php if ((int) $a['status_id'] === 2 && !empty($a['appointment_date']) && $a['appointment_date'] < date('Y-m-d')): ?>
+                  <div style="margin-top:3px;"><span class="badge badge-warning" style="background:#b45309; color:#fff; font-size:10px;">Needs Reschedule</span></div>
+                <?php endif; ?>
               </td>
               <td>
                 <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
@@ -194,8 +182,6 @@ function renderAppointmentsTable(array $appointments, bool $isSecretaryViewer): 
     <?php
 }
 
-$statuses = db()->query('SELECT * FROM appointment_status')->fetchAll();
-
 [$appointments, $pagination] = fetchAppointmentsPage($statusFilter, $search);
 $paginationUrl = url('secretary/appointments.php') . '?' . http_build_query(array_filter(['status' => $statusFilter, 'search' => $search]));
 
@@ -212,17 +198,15 @@ include __DIR__ . '/../includes/dash-start.php';
 
   <form method="GET" style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; margin-bottom:16px;">
     <div class="form-group" style="flex: 1 1 180px; margin-bottom:0;">
-      <label>Filter by Status / Processing</label>
+      <label>Filter by Status</label>
       <select name="status" onchange="this.form.submit()">
         <option value="">All Appointments</option>
-        <option value="action_needed" <?= $statusFilter === 'action_needed' ? 'selected' : '' ?>>● Incomplete / Action Needed</option>
-        <option value="cert_needed" <?= $statusFilter === 'cert_needed' ? 'selected' : '' ?>>⏳ Pending Certificate Generation</option>
-        <?php foreach ($statuses as $s): ?>
-          <option value="<?= e($s['status_name']) ?>" <?= $statusFilter===$s['status_name']?'selected':'' ?>><?= e($s['status_name']) ?></option>
-        <?php endforeach; ?>
-        <?php foreach (REQUIREMENTS_REVIEW_FILTERS as $value => $label): ?>
-          <option value="<?= e($value) ?>" <?= $statusFilter === $value ? 'selected' : '' ?>>Requirements: <?= e($label) ?></option>
-        <?php endforeach; ?>
+        <option value="action_needed" <?= $statusFilter === 'action_needed' ? 'selected' : '' ?>>● Action Needed</option>
+        <option value="Pending" <?= $statusFilter === 'Pending' ? 'selected' : '' ?>>Pending Review</option>
+        <option value="Approved" <?= $statusFilter === 'Approved' ? 'selected' : '' ?>>Approved</option>
+        <option value="Confirmed" <?= $statusFilter === 'Confirmed' ? 'selected' : '' ?>>Confirmed</option>
+        <option value="Completed" <?= $statusFilter === 'Completed' ? 'selected' : '' ?>>Completed</option>
+        <option value="Cancelled" <?= in_array($statusFilter, ['Cancelled', 'Rejected'], true) ? 'selected' : '' ?>>Cancelled / Rejected</option>
       </select>
     </div>
     <div class="form-group" style="flex: 2 1 250px; margin-bottom:0;">
