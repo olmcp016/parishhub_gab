@@ -56,7 +56,25 @@
   function fetchFragment(url, signal) {
     var options = { headers: { 'X-Requested-With': 'XMLHttpRequest' } };
     if (signal) options.signal = signal;
-    return fetch(url, options).then(function (res) { return res.text(); });
+    return fetch(url, options).then(function (res) {
+      if (res.status === 401) {
+        return res.json().catch(function () { return {}; }).then(function (data) {
+          window.location.href = data.redirect || (window.location.pathname.indexOf('/parishioner') !== -1 ? '/auth/login.php' : '/staff/login.php');
+          return Promise.reject(new Error('Session expired'));
+        });
+      }
+      if (res.redirected && (res.url.indexOf('login') !== -1 || res.url.indexOf('auth') !== -1)) {
+        window.location.href = res.url;
+        return Promise.reject(new Error('Redirected to login'));
+      }
+      return res.text().then(function (text) {
+        if (text.indexOf('Parish Staff & Priest Portal') !== -1 || text.indexOf('staff-btn-submit') !== -1 || text.indexOf('id="loginForm"') !== -1) {
+          window.location.reload();
+          return Promise.reject(new Error('Session expired'));
+        }
+        return text;
+      });
+    });
   }
 
   function closeChildModals() {
@@ -749,6 +767,14 @@
         headers: { 'X-Requested-With': 'XMLHttpRequest' }
       })
         .then(function (res) {
+          if (res.status === 401) {
+            window.location.href = window.location.pathname.indexOf('/parishioner') !== -1 ? '/auth/login.php' : '/staff/login.php';
+            return Promise.reject(new Error('Session expired'));
+          }
+          if (res.redirected && (res.url.indexOf('login') !== -1 || res.url.indexOf('auth') !== -1)) {
+            window.location.href = res.url;
+            return Promise.reject(new Error('Redirected to login'));
+          }
           return res.json().then(function (data) {
             if (!res.ok) throw new Error(data.message || 'The request could not be completed.');
             return data;

@@ -112,6 +112,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $pageTitle = 'Staff & Priest Portal';
 include __DIR__ . '/../includes/header.php';
 ?>
+<script>
+  if (window.top !== window.self) {
+    window.top.location.href = window.self.location.href;
+  }
+</script>
 
 <style>
 /* ── Staff portal accents ────────────────────────────────── */

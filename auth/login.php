@@ -133,6 +133,11 @@ if (!empty($_SESSION['flash']['success'])) {
 $pageTitle = 'Log In';
 include __DIR__ . '/../includes/header.php';
 ?>
+<script>
+  if (window.top !== window.self) {
+    window.top.location.href = window.self.location.href;
+  }
+</script>
 <div class="auth-split">
   <div class="auth-split-panel" style="background-image: url('<?= url('public/img/login_bg.jpg') ?>');">
     <a href="<?= url('index.php') ?>" style="display:contents; text-decoration:none; color:inherit;" title="Back to Home">

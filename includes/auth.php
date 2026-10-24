@@ -37,8 +37,15 @@ function requireLogin(): void
 {
     sendNoCacheHeaders();
     if (!isLoggedIn()) {
+        $targetUrl = url('auth/login.php');
+        if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest' || (function_exists('isDetailModalRequest') && isDetailModalRequest())) {
+            http_response_code(401);
+            header('Content-Type: application/json');
+            echo json_encode(['ok' => false, 'session_expired' => true, 'redirect' => $targetUrl]);
+            exit;
+        }
         flash('error', 'Your session has expired or you are not signed in. Please log in again.');
-        redirect(url('auth/login.php'));
+        redirect($targetUrl);
     }
 }
 
@@ -47,10 +54,17 @@ function requireRole(string ...$roles): void
 {
     sendNoCacheHeaders();
     if (!isLoggedIn()) {
-        flash('error', 'Your session has expired or you are not signed in. Please log in again.');
         // If every required role is a staff/clergy role, send to the Staff Portal.
         $allStaff = !empty($roles) && count(array_diff($roles, STAFF_ROLES)) === 0;
-        redirect($allStaff ? url('staff/login.php') : url('auth/login.php'));
+        $targetUrl = $allStaff ? url('staff/login.php') : url('auth/login.php');
+        if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest' || (function_exists('isDetailModalRequest') && isDetailModalRequest())) {
+            http_response_code(401);
+            header('Content-Type: application/json');
+            echo json_encode(['ok' => false, 'session_expired' => true, 'redirect' => $targetUrl]);
+            exit;
+        }
+        flash('error', 'Your session has expired or you are not signed in. Please log in again.');
+        redirect($targetUrl);
     }
     autoCancelExpiredUnpaidAppointments();
     if (!in_array($_SESSION['user']['role_name'], $roles, true)) {

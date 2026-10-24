@@ -31,85 +31,137 @@ define(
         : (SUPABASE_URL !== '' && SUPABASE_SECRET_KEY !== '' ? 'supabase' : 'local')
 );
 
-define('SESSION_DRIVER', strtolower(trim((string) (getenv('SESSION_DRIVER') ?: 'files'))));
+$isRenderEnv = getenv('RENDER') !== false || getenv('RENDER_SERVICE_ID') !== false || getenv('RENDER_INSTANCE_ID') !== false;
+$defaultSessionDriver = ($isRenderEnv || (DB_PASS !== '' && DB_HOST !== 'localhost')) ? 'database' : 'files';
+$configuredSessionDriver = strtolower(trim((string) getenv('SESSION_DRIVER')));
+define('SESSION_DRIVER', $configuredSessionDriver !== '' ? $configuredSessionDriver : $defaultSessionDriver);
 define('SESSION_GC_MAXLIFETIME', max(300, (int) (getenv('SESSION_GC_MAXLIFETIME') ?: 7200)));
 
 /**
  * Database-backed sessions for deployments where local PHP session files are
- * not durable (for example, Render containers). The handler is opt-in so a
- * local installation does not require the session table until it selects the
- * database driver.
+ * not durable (for example, Render containers). Sessions survive container
+ * restarts, auto-scaling, and redeployments seamlessly.
  */
 final class ParishHubDatabaseSessionHandler implements SessionUpdateTimestampHandlerInterface
 {
-    public function open(string $path, string $name): bool { return true; }
+    private static bool $tableChecked = false;
+
+    private function ensureTable(): void
+    {
+        if (self::$tableChecked) return;
+        try {
+            db()->exec(
+                "CREATE TABLE IF NOT EXISTS app_sessions (
+                    session_id VARCHAR(128) PRIMARY KEY,
+                    session_data TEXT NOT NULL,
+                    last_activity TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    expires_at TIMESTAMP WITH TIME ZONE NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_app_sessions_expires_at ON app_sessions(expires_at);"
+            );
+            self::$tableChecked = true;
+        } catch (Throwable $e) {
+            // Ignore if permissions or already exists
+        }
+    }
+
+    public function open(string $path, string $name): bool
+    {
+        $this->ensureTable();
+        return true;
+    }
+
     public function close(): bool { return true; }
 
     public function read(string $id): string
     {
-        $stmt = db()->prepare(
-            'SELECT session_data FROM app_sessions WHERE session_id = ? AND expires_at > CURRENT_TIMESTAMP'
-        );
-        $stmt->execute([$id]);
-        $data = $stmt->fetchColumn();
-        if ($data === false) return '';
+        try {
+            $stmt = db()->prepare(
+                'SELECT session_data FROM app_sessions WHERE session_id = ? AND expires_at > CURRENT_TIMESTAMP'
+            );
+            $stmt->execute([$id]);
+            $data = $stmt->fetchColumn();
+            if ($data === false) return '';
 
-        // PHP may skip write() for an unchanged read-only session when
-        // session.lazy_write is enabled. Refresh the sliding expiry here so
-        // normal navigation keeps an active session alive.
-        db()->prepare(
-            "UPDATE app_sessions
-             SET last_activity = CURRENT_TIMESTAMP,
-                 expires_at = CURRENT_TIMESTAMP + (? * INTERVAL '1 second')
-             WHERE session_id = ?"
-        )->execute([SESSION_GC_MAXLIFETIME, $id]);
-        return (string) $data;
+            // PHP may skip write() for an unchanged read-only session when
+            // session.lazy_write is enabled. Refresh the sliding expiry here so
+            // normal navigation keeps an active session alive.
+            db()->prepare(
+                "UPDATE app_sessions
+                 SET last_activity = CURRENT_TIMESTAMP,
+                     expires_at = CURRENT_TIMESTAMP + (? * INTERVAL '1 second')
+                 WHERE session_id = ?"
+            )->execute([SESSION_GC_MAXLIFETIME, $id]);
+            return (string) $data;
+        } catch (Throwable $e) {
+            return '';
+        }
     }
 
     public function write(string $id, string $data): bool
     {
-        $stmt = db()->prepare(
-            "INSERT INTO app_sessions (session_id, session_data, last_activity, expires_at)
-             VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + (? * INTERVAL '1 second'))
-             ON CONFLICT (session_id) DO UPDATE SET
-                 session_data = EXCLUDED.session_data,
-                 last_activity = CURRENT_TIMESTAMP,
-                 expires_at = EXCLUDED.expires_at"
-        );
-        return $stmt->execute([$id, $data, SESSION_GC_MAXLIFETIME]);
+        try {
+            $stmt = db()->prepare(
+                "INSERT INTO app_sessions (session_id, session_data, last_activity, expires_at)
+                 VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + (? * INTERVAL '1 second'))
+                 ON CONFLICT (session_id) DO UPDATE SET
+                     session_data = EXCLUDED.session_data,
+                     last_activity = CURRENT_TIMESTAMP,
+                     expires_at = EXCLUDED.expires_at"
+            );
+            return (bool) $stmt->execute([$id, $data, SESSION_GC_MAXLIFETIME]);
+        } catch (Throwable $e) {
+            return false;
+        }
     }
 
     public function destroy(string $id): bool
     {
-        $stmt = db()->prepare('DELETE FROM app_sessions WHERE session_id = ?');
-        return $stmt->execute([$id]);
+        try {
+            $stmt = db()->prepare('DELETE FROM app_sessions WHERE session_id = ?');
+            return (bool) $stmt->execute([$id]);
+        } catch (Throwable $e) {
+            return false;
+        }
     }
 
     public function validateId(string $id): bool
     {
-        $stmt = db()->prepare(
-            'SELECT 1 FROM app_sessions WHERE session_id = ? AND expires_at > CURRENT_TIMESTAMP'
-        );
-        $stmt->execute([$id]);
-        return (bool) $stmt->fetchColumn();
+        try {
+            $stmt = db()->prepare(
+                'SELECT 1 FROM app_sessions WHERE session_id = ? AND expires_at > CURRENT_TIMESTAMP'
+            );
+            $stmt->execute([$id]);
+            return (bool) $stmt->fetchColumn();
+        } catch (Throwable $e) {
+            return false;
+        }
     }
 
     public function updateTimestamp(string $id, string $data): bool
     {
-        $stmt = db()->prepare(
-            "UPDATE app_sessions
-             SET last_activity = CURRENT_TIMESTAMP,
-                 expires_at = CURRENT_TIMESTAMP + (? * INTERVAL '1 second')
-             WHERE session_id = ?"
-        );
-        return $stmt->execute([SESSION_GC_MAXLIFETIME, $id]);
+        try {
+            $stmt = db()->prepare(
+                "UPDATE app_sessions
+                 SET last_activity = CURRENT_TIMESTAMP,
+                     expires_at = CURRENT_TIMESTAMP + (? * INTERVAL '1 second')
+                 WHERE session_id = ?"
+            );
+            return (bool) $stmt->execute([SESSION_GC_MAXLIFETIME, $id]);
+        } catch (Throwable $e) {
+            return false;
+        }
     }
 
     public function gc(int $max_lifetime): int|false
     {
-        $stmt = db()->prepare('DELETE FROM app_sessions WHERE expires_at <= CURRENT_TIMESTAMP');
-        $stmt->execute();
-        return $stmt->rowCount();
+        try {
+            $stmt = db()->prepare('DELETE FROM app_sessions WHERE expires_at <= CURRENT_TIMESTAMP');
+            $stmt->execute();
+            return $stmt->rowCount();
+        } catch (Throwable $e) {
+            return 0;
+        }
     }
 }
 
