@@ -115,18 +115,67 @@ if ($payment['category'] === 'Donation') {
       margin-top: 40px;
     }
     @media print {
-      body {
+      @page {
+        size: 90mm 135mm;
+        margin: 4mm 5mm;
+      }
+      html, body {
+        width: 90mm;
         background: #fff;
+        margin: 0;
         padding: 0;
       }
       .receipt-container {
         box-shadow: none;
         border: none;
+        border-radius: 0;
         max-width: 100%;
-        padding: 20px;
+        width: 100%;
+        margin: 0;
+        padding: 0;
       }
       .no-print {
         display: none !important;
+      }
+      /* Condensed type scale so the full receipt fits the 135mm pad without
+         spilling onto a second page. */
+      .header {
+        margin-bottom: 10px;
+        padding-bottom: 10px;
+      }
+      .header-logo {
+        width: 40px !important;
+      }
+      .header h1 {
+        font-size: 14px !important;
+      }
+      .header-address {
+        font-size: 8px !important;
+      }
+      .or-block {
+        margin-bottom: 10px;
+      }
+      .or-title {
+        font-size: 13px !important;
+      }
+      .or-number {
+        font-size: 10px !important;
+      }
+      .receipt-details {
+        margin-bottom: 10px;
+      }
+      .row {
+        font-size: 10px;
+        margin-bottom: 6px;
+      }
+      .row.total {
+        font-size: 13px;
+        padding-top: 8px;
+        margin-top: 8px;
+      }
+      .footer {
+        font-size: 8px;
+        margin-top: 14px;
       }
     }
     .print-btn {
@@ -152,19 +201,19 @@ if ($payment['category'] === 'Donation') {
   <div class="receipt-container">
     
     <div class="header" style="display: flex; align-items: center; justify-content: center; gap: 16px; text-align: left; color: #145c12; font-family: 'Times New Roman', Times, serif;">
-      <img src="<?= url('public/img/logo.png') ?>" alt="<?= e($parishName) ?> Logo" style="width: 64px; height: auto;">
+      <img class="header-logo" src="<?= url('public/img/logo.png') ?>" alt="<?= e($parishName) ?> Logo" style="width: 64px; height: auto;">
       <div style="text-align: center;">
         <h1 style="margin: 0 0 2px 0; font-size: 20px; color: #145c12;"><?= e($parishName) ?></h1>
-        <p style="margin: 0; font-weight: bold; font-size: 11px; color: #333; text-transform: uppercase;"><?= e($parishAddress) ?></p>
+        <p class="header-address" style="margin: 0; font-weight: bold; font-size: 11px; color: #333; text-transform: uppercase;"><?= e($parishAddress) ?></p>
         <?php if ($parishContact): ?>
-        <p style="margin: 0; font-size: 11px; color: #333;"><?= e(implode(' | ', $parishContact)) ?></p>
+        <p class="header-address" style="margin: 0; font-size: 11px; color: #333;"><?= e(implode(' | ', $parishContact)) ?></p>
         <?php endif; ?>
       </div>
     </div>
 
-    <div style="text-align: center; margin-bottom: 20px;">
-      <div style="font-family: 'Times New Roman', Times, serif; font-size: 16px; font-weight: bold; letter-spacing: 1px; color: #333;">OFFICIAL RECEIPT</div>
-      <div style="font-size: 13px; font-weight: bold; color: #333; margin-top: 4px;">OR #: <?= e($payment['receipt_number']) ?></div>
+    <div class="or-block" style="text-align: center; margin-bottom: 20px;">
+      <div class="or-title" style="font-family: 'Times New Roman', Times, serif; font-size: 16px; font-weight: bold; letter-spacing: 1px; color: #333;">OFFICIAL RECEIPT</div>
+      <div class="or-number" style="font-size: 13px; font-weight: bold; color: #333; margin-top: 4px;">OR #: <?= e($payment['receipt_number']) ?></div>
     </div>
 
     <div class="receipt-details">
