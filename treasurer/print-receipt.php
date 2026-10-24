@@ -124,27 +124,34 @@ $copyLabels = ['Customer Copy', 'Parish Office Copy', 'Accounting / Audit Copy']
 <head>
   <meta charset="UTF-8">
   <title>Official Receipt - <?= e($payment['receipt_number']) ?></title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     body {
-      font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      color: #333;
+      font-family: 'Montserrat', 'Segoe UI', system-ui, -apple-system, sans-serif;
+      color: #3e3418;
       margin: 0;
-      padding: 14px 10px;
-      background: #f9f9f9;
+      padding: 14px 12px;
+      background: #f7f4ea;
     }
     .toolbar {
       max-width: 650px;
-      margin: 0 auto 14px;
-      padding: 8px 12px;
-      background: #fff;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      margin: 0 auto 16px;
+      padding: 12px 14px;
+      background: #ffffff;
+      border: 1px solid rgba(62, 52, 24, 0.12);
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(62, 52, 24, 0.05);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .toolbar-row {
       display: flex;
       flex-wrap: wrap;
-      gap: 10px;
       align-items: center;
-      justify-content: space-between;
+      gap: 12px;
     }
     .toolbar-group {
       display: inline-flex;
@@ -154,42 +161,61 @@ $copyLabels = ['Customer Copy', 'Parish Office Copy', 'Accounting / Audit Copy']
     .toolbar-group label {
       font-size: 12px;
       font-weight: 600;
-      color: #475569;
+      color: #5c4e24;
       white-space: nowrap;
     }
     .toolbar-select {
       padding: 6px 10px;
       font-size: 12px;
       font-weight: 500;
-      color: #1e293b;
-      background: #f8fafc;
-      border: 1px solid #cbd5e1;
-      border-radius: 6px;
+      font-family: inherit;
+      color: #1e1a0a;
+      background: #fffdf7;
+      border: 1px solid rgba(62, 52, 24, 0.22);
+      border-radius: 8px;
       cursor: pointer;
       outline: none;
-      transition: border-color 0.15s;
+      transition: all 0.2s ease;
+    }
+    .toolbar-select:hover {
+      border-color: #b8962e;
     }
     .toolbar-select:focus {
-      border-color: #caa15a;
-      background: #fff;
+      border-color: #b8962e;
+      box-shadow: 0 0 0 3px rgba(184, 150, 46, 0.15);
+      background: #ffffff;
+    }
+    .toolbar-actions {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      padding-top: 8px;
+      border-top: 1px dashed rgba(62, 52, 24, 0.14);
     }
     .print-btn {
-      padding: 6px 14px;
-      background: #caa15a;
-      color: #fff;
+      padding: 7px 18px;
+      background: #b8962e;
+      color: #ffffff;
       border: none;
-      border-radius: 6px;
+      border-radius: 8px;
       font-size: 12.5px;
       font-weight: 600;
+      font-family: inherit;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      transition: background 0.15s;
+      box-shadow: 0 2px 6px rgba(184, 150, 46, 0.28);
+      transition: all 0.15s ease;
       white-space: nowrap;
     }
     .print-btn:hover {
-      background: #b58d47;
+      background: #9e7c2a;
+      box-shadow: 0 4px 10px rgba(158, 124, 42, 0.35);
+      transform: translateY(-1px);
+    }
+    .print-btn:active {
+      transform: translateY(0);
     }
     .sheet {
       display: flex;
@@ -387,25 +413,29 @@ $copyLabels = ['Customer Copy', 'Parish Office Copy', 'Accounting / Audit Copy']
 </head>
 <body>
   <div class="toolbar no-print">
-    <div class="toolbar-group">
-      <label for="destSelect">Destination:</label>
-      <select id="destSelect" class="toolbar-select">
-        <option value="thermal">80mm Thermal Printer</option>
-        <option value="bond">Bond Paper (3-in-1)</option>
-        <option value="pad">Receipt Pad (9×13.5cm)</option>
-      </select>
+    <div class="toolbar-row">
+      <div class="toolbar-group">
+        <label for="destSelect">Destination:</label>
+        <select id="destSelect" class="toolbar-select">
+          <option value="thermal">80mm Thermal Printer</option>
+          <option value="bond">Bond Paper (3-in-1)</option>
+          <option value="pad">Receipt Pad (9×13.5cm)</option>
+        </select>
+      </div>
+      <div class="toolbar-group">
+        <label for="copiesSelect">Copies:</label>
+        <select id="copiesSelect" class="toolbar-select">
+          <option value="1">1</option>
+          <option value="3">3</option>
+        </select>
+      </div>
     </div>
-    <div class="toolbar-group">
-      <label for="copiesSelect">Copies:</label>
-      <select id="copiesSelect" class="toolbar-select">
-        <option value="1">1</option>
-        <option value="3">3</option>
-      </select>
+    <div class="toolbar-actions">
+      <button type="button" class="print-btn" onclick="window.print()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Print Receipt
+      </button>
     </div>
-    <button type="button" class="print-btn" onclick="window.print()">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-      Print Receipt
-    </button>
   </div>
 
   <div class="sheet" id="receiptSheet">
