@@ -129,42 +129,64 @@ $copyLabels = ['Customer Copy', 'Parish Office Copy', 'Accounting / Audit Copy']
       font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       color: #333;
       margin: 0;
-      padding: 40px;
+      padding: 14px 10px;
       background: #f9f9f9;
     }
     .toolbar {
-      max-width: 760px;
-      margin: 0 auto 20px;
+      max-width: 650px;
+      margin: 0 auto 14px;
+      padding: 8px 12px;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
       align-items: center;
-      justify-content: center;
+      justify-content: space-between;
     }
-    .mode-btn {
-      padding: 10px 16px;
-      background: #fff;
-      color: #555;
-      border: 2px solid #ddd;
-      border-radius: 6px;
-      font-size: 13px;
+    .toolbar-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .toolbar-group label {
+      font-size: 12px;
       font-weight: 600;
-      cursor: pointer;
+      color: #475569;
+      white-space: nowrap;
     }
-    .mode-btn.active {
-      background: #fff8ec;
+    .toolbar-select {
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 500;
+      color: #1e293b;
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      cursor: pointer;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .toolbar-select:focus {
       border-color: #caa15a;
-      color: #8a6416;
+      background: #fff;
     }
     .print-btn {
-      padding: 10px 20px;
+      padding: 6px 14px;
       background: #caa15a;
       color: #fff;
       border: none;
       border-radius: 6px;
-      font-size: 14px;
+      font-size: 12.5px;
       font-weight: 600;
       cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s;
+      white-space: nowrap;
     }
     .print-btn:hover {
       background: #b58d47;
@@ -365,17 +387,25 @@ $copyLabels = ['Customer Copy', 'Parish Office Copy', 'Accounting / Audit Copy']
 </head>
 <body>
   <div class="toolbar no-print">
-    <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
-      <button type="button" class="mode-btn" data-mode="thermal">🧾 80mm Thermal Printer</button>
-      <button type="button" class="mode-btn" data-mode="bond">📄 Bond Paper (3-in-1)</button>
-      <button type="button" class="mode-btn" data-mode="pad">📋 Receipt Pad (9×13.5cm)</button>
+    <div class="toolbar-group">
+      <label for="destSelect">Destination:</label>
+      <select id="destSelect" class="toolbar-select">
+        <option value="thermal">80mm Thermal Printer</option>
+        <option value="bond">Bond Paper (3-in-1)</option>
+        <option value="pad">Receipt Pad (9×13.5cm)</option>
+      </select>
     </div>
-    <div style="display:flex; gap:6px; align-items:center;">
-      <label style="font-size:12px; font-weight:600; color:#555;">Copies:</label>
-      <button type="button" class="mode-btn copy-btn" data-copies="1">1 Copy</button>
-      <button type="button" class="mode-btn copy-btn" data-copies="3">3 Copies (Triplicate)</button>
-      <button type="button" class="print-btn" onclick="window.print()">🖨️ Print Receipt</button>
+    <div class="toolbar-group">
+      <label for="copiesSelect">Copies:</label>
+      <select id="copiesSelect" class="toolbar-select">
+        <option value="1">1</option>
+        <option value="3">3</option>
+      </select>
     </div>
+    <button type="button" class="print-btn" onclick="window.print()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      Print Receipt
+    </button>
   </div>
 
   <div class="sheet" id="receiptSheet">
@@ -393,8 +423,8 @@ $copyLabels = ['Customer Copy', 'Parish Office Copy', 'Accounting / Audit Copy']
     (function () {
       var body = document.body;
       var pageStyle = document.getElementById('pageSizeStyle');
-      var modeButtons = document.querySelectorAll('.mode-btn:not(.copy-btn)');
-      var copyButtons = document.querySelectorAll('.copy-btn');
+      var destSelect = document.getElementById('destSelect');
+      var copiesSelect = document.getElementById('copiesSelect');
 
       var PAGE_RULES = {
         thermal: '@page { size: 80mm auto; margin: 0; }',
@@ -407,9 +437,9 @@ $copyLabels = ['Customer Copy', 'Parish Office Copy', 'Accounting / Audit Copy']
         body.classList.remove('mode-bond', 'mode-pad', 'mode-thermal');
         body.classList.add('mode-' + mode);
         pageStyle.textContent = PAGE_RULES[mode];
-        modeButtons.forEach(function (b) {
-          b.classList.toggle('active', b.dataset.mode === mode);
-        });
+        if (destSelect && destSelect.value !== mode) {
+          destSelect.value = mode;
+        }
         try { localStorage.setItem('receiptPrintMode', mode); } catch (e) {}
       }
 
@@ -417,19 +447,23 @@ $copyLabels = ['Customer Copy', 'Parish Office Copy', 'Accounting / Audit Copy']
         count = String(count) === '1' ? '1' : '3';
         body.classList.remove('copies-1', 'copies-3');
         body.classList.add('copies-' + count);
-        copyButtons.forEach(function (b) {
-          b.classList.toggle('active', b.dataset.copies === count);
-        });
+        if (copiesSelect && copiesSelect.value !== count) {
+          copiesSelect.value = count;
+        }
         try { localStorage.setItem('receiptPrintCopies', count); } catch (e) {}
       }
 
-      modeButtons.forEach(function (b) {
-        b.addEventListener('click', function () { setMode(b.dataset.mode); });
-      });
+      if (destSelect) {
+        destSelect.addEventListener('change', function () {
+          setMode(destSelect.value);
+        });
+      }
 
-      copyButtons.forEach(function (b) {
-        b.addEventListener('click', function () { setCopies(b.dataset.copies); });
-      });
+      if (copiesSelect) {
+        copiesSelect.addEventListener('change', function () {
+          setCopies(copiesSelect.value);
+        });
+      }
 
       var savedMode = 'thermal';
       try { savedMode = localStorage.getItem('receiptPrintMode') || 'thermal'; } catch (e) {}
