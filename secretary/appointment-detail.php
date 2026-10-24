@@ -201,20 +201,76 @@ function renderCertificateEditFragment(
         <?php endif; ?>
       </div>
 
-      <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
-        <h4 style="margin-top:0;">C. Sacramental Record Details</h4>
-        <div class="form-row">
-          <?php foreach ($recordFields as $key => $label) $renderField($key, $label); ?>
+      <?php if ($officialCertType === 'Marriage'): ?>
+        <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
+          <h4 style="margin-top:0; margin-bottom:14px;">C. Church &amp; Place of Marriage</h4>
+          <div class="form-row">
+            <?php $renderField('church_of', 'Church Of'); ?>
+            <?php $renderField('place', 'Place'); ?>
+            <?php $renderField('province', 'Province'); ?>
+          </div>
         </div>
-      </div>
 
-      <?php if ($licenseFields): ?>
-      <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
-        <h4 style="margin-top:0;">D. Marriage License &amp; Civil Details</h4>
-        <div class="form-row">
-          <?php foreach ($licenseFields as $key => $label) $renderField($key, $label); ?>
+        <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
+          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark); display:flex; align-items:center; gap:8px;">
+            <span>🤵 Groom's Information</span>
+          </h4>
+          <div class="form-row" style="margin-bottom:14px;">
+            <?php $renderField('groom_name', 'Groom Full Name'); ?>
+            <?php $renderField('groom_age', 'Groom Age'); ?>
+            <?php $renderField('groom_nationality', 'Groom Nationality'); ?>
+          </div>
+          <div class="form-row">
+            <?php $renderField('groom_residence', 'Groom Residence'); ?>
+            <?php $renderField('groom_father', "Groom's Father"); ?>
+            <?php $renderField('groom_mother', "Groom's Mother (Maiden Name)"); ?>
+          </div>
         </div>
-      </div>
+
+        <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
+          <h4 style="margin-top:0; margin-bottom:14px; color:var(--brown-dark); display:flex; align-items:center; gap:8px;">
+            <span>👰 Bride's Information</span>
+          </h4>
+          <div class="form-row" style="margin-bottom:14px;">
+            <?php $renderField('bride_name', 'Bride Full Name'); ?>
+            <?php $renderField('bride_age', 'Bride Age'); ?>
+            <?php $renderField('bride_nationality', 'Bride Nationality'); ?>
+          </div>
+          <div class="form-row">
+            <?php $renderField('bride_residence', 'Bride Residence'); ?>
+            <?php $renderField('bride_father', "Bride's Father"); ?>
+            <?php $renderField('bride_mother', "Bride's Mother (Maiden Name)"); ?>
+          </div>
+        </div>
+
+        <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
+          <h4 style="margin-top:0; margin-bottom:14px;">Solemnization &amp; Witnesses</h4>
+          <div class="form-row" style="margin-bottom:14px;">
+            <?php $renderField('marriage_date', 'Date of Marriage'); ?>
+            <?php $renderField('officiating_priest', 'Officiating Priest (Rev.)'); ?>
+          </div>
+          <div class="form-row">
+            <?php $renderField('witness_name', 'Principal Sponsor / Witness'); ?>
+            <?php $renderField('witness_residence', 'Witness Residence'); ?>
+          </div>
+        </div>
+
+        <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
+          <h4 style="margin-top:0; margin-bottom:14px;">D. Marriage License &amp; Civil Details</h4>
+          <div class="form-row">
+            <?php $renderField('marriage_license_no', 'Marriage License No.'); ?>
+            <?php $renderField('license_issued_at', 'License Issued At'); ?>
+            <?php $renderField('license_issued_date', 'License Issued Date'); ?>
+            <?php $renderField('certificate_dated', 'Dated'); ?>
+          </div>
+        </div>
+      <?php else: ?>
+        <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
+          <h4 style="margin-top:0; margin-bottom:14px;">C. Sacramental Record Details</h4>
+          <div class="form-row">
+            <?php foreach ($recordFields as $key => $label) $renderField($key, $label); ?>
+          </div>
+        </div>
       <?php endif; ?>
 
       <div class="certificate-modal-footer" style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
