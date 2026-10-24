@@ -1775,18 +1775,18 @@ if (!$isAjax) {
         };
       ?>
       <p><strong>Status:</strong> <span class="badge <?= e($certStatusBadge[0]) ?>"><?= e($certStatusBadge[1]) ?></span></p>
-      <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:center; align-items:center; margin-top:16px;">
+      <div style="display:flex; gap:8px; align-items:stretch; margin-top:16px;">
         <?php if (!empty($officialCert['document_id'])): ?>
-          <a href="<?= url('document.php?id=' . (int) $officialCert['document_id']) ?>" target="_blank" rel="noopener" class="btn btn-outline" style="display:inline-flex; align-items:center; gap:6px;">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-            Preview / Print
+          <a href="<?= url('document.php?id=' . (int) $officialCert['document_id']) ?>" target="_blank" rel="noopener" class="btn btn-outline" style="flex:1; display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:8px 10px; font-size:12.5px; font-weight:600; text-align:center; text-decoration:none; white-space:nowrap;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <span>Preview / Print</span>
           </a>
         <?php endif; ?>
-        <button type="button" class="btn btn-primary js-open-certificate-modal" style="display:inline-flex; align-items:center; gap:6px;"
+        <button type="button" class="btn btn-primary js-open-certificate-modal" style="flex:<?= !empty($officialCert['document_id']) ? '1.3' : '1' ?>; display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:8px 10px; font-size:12.5px; font-weight:600; text-align:center; line-height:1.25;"
           data-url="<?= e(url('secretary/appointment-detail.php?id=' . $id . '&section=certificate')) ?>"
           data-title="<?= e('Certificate — ' . $officialCertType . ' (Appointment #' . $id . ')') ?>">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          Edit Canonical Registry &amp; Generate
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          <span>Edit Canonical Registry &amp; Generate</span>
         </button>
       </div>
     <?php endif; ?>
