@@ -353,59 +353,108 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
 
         if ($certType === 'Baptismal Certificate') {
             $req = mb_strtoupper(trim($_POST['cert_requestor'] ?? ''), 'UTF-8');
-            $reg = mb_strtoupper(trim($_POST['cert_baptism_registrant'] ?? ''), 'UTF-8');
+            $first = mb_strtoupper(trim($_POST['cert_baptism_first_name'] ?? ''), 'UTF-8');
+            $mid = mb_strtoupper(trim($_POST['cert_baptism_middle_name'] ?? ''), 'UTF-8');
+            $last = mb_strtoupper(trim($_POST['cert_baptism_last_name'] ?? ''), 'UTF-8');
+            $reg = trim(implode(' ', array_filter([$first, $mid, $last])));
+            if ($reg === '') {
+                $reg = mb_strtoupper(trim($_POST['cert_baptism_registrant'] ?? ''), 'UTF-8');
+            }
             $birth = mb_strtoupper(trim($_POST['cert_baptism_birth'] ?? ''), 'UTF-8');
             $year = trim($_POST['cert_baptism_year'] ?? '');
 
-            if ($req === '' || $reg === '' || $birth === '' || $year === '') {
-                bookRespondError($isAjax, 'Please provide the Requestor, Registrant full name, Birthday/Year of birth, and Year of baptism.', url('parishioner/services.php'));
+            if ($req === '' || ($first === '' && $reg === '') || $birth === '' || $year === '') {
+                bookRespondError($isAjax, 'Please provide the Requestor, Registrant First & Last name, Birthday/Year of birth, and Year of baptism.', url('parishioner/services.php'));
             }
             $requesterName = $req;
             $certDetails[] = "Requestor: " . $req;
             $certDetails[] = "Registrant: " . $reg;
+            if ($first !== '') $certDetails[] = "Registrant First Name: " . $first;
+            if ($mid !== '') $certDetails[] = "Registrant Middle Name: " . $mid;
+            if ($last !== '') $certDetails[] = "Registrant Last Name: " . $last;
             $certDetails[] = "Birthday/Birth Year: " . $birth;
             $certDetails[] = "Year of Baptism: " . $year;
 
         } elseif ($certType === 'Confirmation Certificate') {
             $req = mb_strtoupper(trim($_POST['cert_requestor'] ?? ''), 'UTF-8');
-            $reg = mb_strtoupper(trim($_POST['cert_confirm_registrant'] ?? ''), 'UTF-8');
+            $first = mb_strtoupper(trim($_POST['cert_confirm_first_name'] ?? ''), 'UTF-8');
+            $mid = mb_strtoupper(trim($_POST['cert_confirm_middle_name'] ?? ''), 'UTF-8');
+            $last = mb_strtoupper(trim($_POST['cert_confirm_last_name'] ?? ''), 'UTF-8');
+            $reg = trim(implode(' ', array_filter([$first, $mid, $last])));
+            if ($reg === '') {
+                $reg = mb_strtoupper(trim($_POST['cert_confirm_registrant'] ?? ''), 'UTF-8');
+            }
             $birth = mb_strtoupper(trim($_POST['cert_confirm_birth'] ?? ''), 'UTF-8');
             $year = trim($_POST['cert_confirm_year'] ?? '');
 
-            if ($req === '' || $reg === '' || $birth === '' || $year === '') {
-                bookRespondError($isAjax, 'Please provide the Requestor, Registrant full name, Birthday/Year of birth, and Year of confirmation.', url('parishioner/services.php'));
+            if ($req === '' || ($first === '' && $reg === '') || $birth === '' || $year === '') {
+                bookRespondError($isAjax, 'Please provide the Requestor, Registrant First & Last name, Birthday/Year of birth, and Year of confirmation.', url('parishioner/services.php'));
             }
             $requesterName = $req;
             $certDetails[] = "Requestor: " . $req;
             $certDetails[] = "Registrant: " . $reg;
+            if ($first !== '') $certDetails[] = "Registrant First Name: " . $first;
+            if ($mid !== '') $certDetails[] = "Registrant Middle Name: " . $mid;
+            if ($last !== '') $certDetails[] = "Registrant Last Name: " . $last;
             $certDetails[] = "Birthday/Birth Year: " . $birth;
             $certDetails[] = "Year of Confirmation: " . $year;
 
         } elseif ($certType === 'Death Certificate') {
             $req = mb_strtoupper(trim($_POST['cert_requestor'] ?? ''), 'UTF-8');
-            $dec = mb_strtoupper(trim($_POST['cert_deceased_name'] ?? ''), 'UTF-8');
+            $first = mb_strtoupper(trim($_POST['cert_deceased_first_name'] ?? ''), 'UTF-8');
+            $mid = mb_strtoupper(trim($_POST['cert_deceased_middle_name'] ?? ''), 'UTF-8');
+            $last = mb_strtoupper(trim($_POST['cert_deceased_last_name'] ?? ''), 'UTF-8');
+            $dec = trim(implode(' ', array_filter([$first, $mid, $last])));
+            if ($dec === '') {
+                $dec = mb_strtoupper(trim($_POST['cert_deceased_name'] ?? ''), 'UTF-8');
+            }
             $year = trim($_POST['cert_death_year'] ?? '');
 
-            if ($req === '' || $dec === '' || $year === '') {
-                bookRespondError($isAjax, 'Please provide the Requestor, Full name of the deceased, and Year of death.', url('parishioner/services.php'));
+            if ($req === '' || ($first === '' && $dec === '') || $year === '') {
+                bookRespondError($isAjax, 'Please provide the Requestor, Deceased First & Last name, and Year of death.', url('parishioner/services.php'));
             }
             $requesterName = $req;
             $patientName = $dec;
             $certDetails[] = "Requestor: " . $req;
             $certDetails[] = "Deceased: " . $dec;
+            if ($first !== '') $certDetails[] = "Deceased First Name: " . $first;
+            if ($mid !== '') $certDetails[] = "Deceased Middle Name: " . $mid;
+            if ($last !== '') $certDetails[] = "Deceased Last Name: " . $last;
             $certDetails[] = "Year of Death: " . $year;
 
         } elseif ($certType === 'Marriage Certificate') {
-            $groom = mb_strtoupper(trim($_POST['cert_groom_name'] ?? ''), 'UTF-8');
-            $bride = mb_strtoupper(trim($_POST['cert_bride_name'] ?? ''), 'UTF-8');
+            $gFirst = mb_strtoupper(trim($_POST['cert_groom_first_name'] ?? ''), 'UTF-8');
+            $gMid = mb_strtoupper(trim($_POST['cert_groom_middle_name'] ?? ''), 'UTF-8');
+            $gLast = mb_strtoupper(trim($_POST['cert_groom_last_name'] ?? ''), 'UTF-8');
+            $groom = trim(implode(' ', array_filter([$gFirst, $gMid, $gLast])));
+            if ($groom === '') {
+                $groom = mb_strtoupper(trim($_POST['cert_groom_name'] ?? ''), 'UTF-8');
+            }
+
+            $bFirst = mb_strtoupper(trim($_POST['cert_bride_first_name'] ?? ''), 'UTF-8');
+            $bMid = mb_strtoupper(trim($_POST['cert_bride_middle_name'] ?? ''), 'UTF-8');
+            $bLast = mb_strtoupper(trim($_POST['cert_bride_last_name'] ?? ''), 'UTF-8');
+            $bride = trim(implode(' ', array_filter([$bFirst, $bMid, $bLast])));
+            if ($bride === '') {
+                $bride = mb_strtoupper(trim($_POST['cert_bride_name'] ?? ''), 'UTF-8');
+            }
+
             $year = trim($_POST['cert_marriage_year'] ?? '');
 
-            if ($groom === '' || $bride === '' || $year === '') {
-                bookRespondError($isAjax, 'Please provide the Groom full name, Bride full name, and Year of marriage.', url('parishioner/services.php'));
+            if (($gFirst === '' && $groom === '') || ($bFirst === '' && $bride === '') || $year === '') {
+                bookRespondError($isAjax, 'Please provide the Groom (First & Last name), Bride (First & Last name), and Year of marriage.', url('parishioner/services.php'));
             }
             $requesterName = $isGuest ? $guestName : (currentUser()['firstname'] . ' ' . currentUser()['lastname']);
             $certDetails[] = "Groom: " . $groom;
+            if ($gFirst !== '') $certDetails[] = "Groom First Name: " . $gFirst;
+            if ($gMid !== '') $certDetails[] = "Groom Middle Name: " . $gMid;
+            if ($gLast !== '') $certDetails[] = "Groom Last Name: " . $gLast;
+
             $certDetails[] = "Bride: " . $bride;
+            if ($bFirst !== '') $certDetails[] = "Bride First Name: " . $bFirst;
+            if ($bMid !== '') $certDetails[] = "Bride Middle Name: " . $bMid;
+            if ($bLast !== '') $certDetails[] = "Bride Last Name: " . $bLast;
+
             $certDetails[] = "Year of Marriage: " . $year;
         }
 

@@ -782,48 +782,88 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
 
           <!-- 1. Baptismal certificate - 100 -->
           <div id="certBaptismalFields" style="display:none;">
-            <div class="form-group">
-              <label>Full Name of Registrant <span style="color:var(--danger);">*</span></label>
-              <input type="text" name="cert_baptism_registrant" id="certBaptismRegistrantInput"
-                placeholder="Full name of registrant" disabled>
+            <div class="form-row">
+              <div class="form-group">
+                <label>First Name <span style="color:var(--danger);">*</span></label>
+                <input type="text" name="cert_baptism_first_name" id="certBaptismFirstNameInput"
+                  placeholder="First name" disabled>
+              </div>
+              <div class="form-group">
+                <label>Middle Name <small style="color:var(--text-muted);">(Optional)</small></label>
+                <input type="text" name="cert_baptism_middle_name" id="certBaptismMiddleNameInput"
+                  placeholder="Middle name" disabled>
+              </div>
+              <div class="form-group">
+                <label>Last Name <span style="color:var(--danger);">*</span></label>
+                <input type="text" name="cert_baptism_last_name" id="certBaptismLastNameInput"
+                  placeholder="Last name" disabled>
+              </div>
             </div>
-            <div class="form-group">
-              <label>Birthday / Year of Birth <span style="color:var(--danger);">*</span></label>
-              <input type="text" name="cert_baptism_birth" id="certBaptismBirthInput"
-                placeholder="e.g. October 24, 1995 or 1995" disabled>
-            </div>
-            <div class="form-group">
-              <label>Year of Baptism <span style="color:var(--danger);">*</span></label>
-              <input type="text" name="cert_baptism_year" id="certBaptismYearInput"
-                placeholder="e.g. 1996" maxlength="4" disabled>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Birthday / Year of Birth <span style="color:var(--danger);">*</span></label>
+                <input type="text" name="cert_baptism_birth" id="certBaptismBirthInput"
+                  placeholder="e.g. October 24, 1995 or 1995" disabled>
+              </div>
+              <div class="form-group">
+                <label>Year of Baptism <span style="color:var(--danger);">*</span></label>
+                <input type="text" name="cert_baptism_year" id="certBaptismYearInput"
+                  placeholder="e.g. 1996" maxlength="4" disabled>
+              </div>
             </div>
           </div>
 
           <!-- 2. Confirmation certificate - 100 -->
           <div id="certConfirmationFields" style="display:none;">
-            <div class="form-group">
-              <label>Full Name of Registrant <span style="color:var(--danger);">*</span></label>
-              <input type="text" name="cert_confirm_registrant" id="certConfirmRegistrantInput"
-                placeholder="Full name of registrant" disabled>
+            <div class="form-row">
+              <div class="form-group">
+                <label>First Name <span style="color:var(--danger);">*</span></label>
+                <input type="text" name="cert_confirm_first_name" id="certConfirmFirstNameInput"
+                  placeholder="First name" disabled>
+              </div>
+              <div class="form-group">
+                <label>Middle Name <small style="color:var(--text-muted);">(Optional)</small></label>
+                <input type="text" name="cert_confirm_middle_name" id="certConfirmMiddleNameInput"
+                  placeholder="Middle name" disabled>
+              </div>
+              <div class="form-group">
+                <label>Last Name <span style="color:var(--danger);">*</span></label>
+                <input type="text" name="cert_confirm_last_name" id="certConfirmLastNameInput"
+                  placeholder="Last name" disabled>
+              </div>
             </div>
-            <div class="form-group">
-              <label>Birthday / Year of Birth <span style="color:var(--danger);">*</span></label>
-              <input type="text" name="cert_confirm_birth" id="certConfirmBirthInput"
-                placeholder="e.g. October 24, 1995 or 1995" disabled>
-            </div>
-            <div class="form-group">
-              <label>Year of Confirmation <span style="color:var(--danger);">*</span></label>
-              <input type="text" name="cert_confirm_year" id="certConfirmYearInput"
-                placeholder="e.g. 2008" maxlength="4" disabled>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Birthday / Year of Birth <span style="color:var(--danger);">*</span></label>
+                <input type="text" name="cert_confirm_birth" id="certConfirmBirthInput"
+                  placeholder="e.g. October 24, 1995 or 1995" disabled>
+              </div>
+              <div class="form-group">
+                <label>Year of Confirmation <span style="color:var(--danger);">*</span></label>
+                <input type="text" name="cert_confirm_year" id="certConfirmYearInput"
+                  placeholder="e.g. 2008" maxlength="4" disabled>
+              </div>
             </div>
           </div>
 
           <!-- 3. Death certificate - 100 -->
           <div id="certDeathFields" style="display:none;">
-            <div class="form-group">
-              <label>Full Name of the Deceased <span style="color:var(--danger);">*</span></label>
-              <input type="text" name="cert_deceased_name" id="certDeceasedNameInput"
-                placeholder="Full name of the deceased" disabled>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Deceased First Name <span style="color:var(--danger);">*</span></label>
+                <input type="text" name="cert_deceased_first_name" id="certDeceasedFirstNameInput"
+                  placeholder="First name" disabled>
+              </div>
+              <div class="form-group">
+                <label>Middle Name <small style="color:var(--text-muted);">(Optional)</small></label>
+                <input type="text" name="cert_deceased_middle_name" id="certDeceasedMiddleNameInput"
+                  placeholder="Middle name" disabled>
+              </div>
+              <div class="form-group">
+                <label>Last Name <span style="color:var(--danger);">*</span></label>
+                <input type="text" name="cert_deceased_last_name" id="certDeceasedLastNameInput"
+                  placeholder="Last name" disabled>
+              </div>
             </div>
             <div class="form-group">
               <label>Year of Death <span style="color:var(--danger);">*</span></label>
@@ -834,17 +874,45 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
 
           <!-- 4. Marriage certificate - 100 -->
           <div id="certMarriageFields" style="display:none;">
-            <div class="form-group">
-              <label>Full Name (Groom) <span style="color:var(--danger);">*</span></label>
-              <input type="text" name="cert_groom_name" id="certGroomNameInput"
-                placeholder="Full name of groom" disabled>
+            <h5 style="margin: 10px 0 6px; font-weight:600; font-size:13px; color:var(--brown-dark);">Groom Details</h5>
+            <div class="form-row">
+              <div class="form-group">
+                <label>First Name <span style="color:var(--danger);">*</span></label>
+                <input type="text" name="cert_groom_first_name" id="certGroomFirstNameInput"
+                  placeholder="First name of groom" disabled>
+              </div>
+              <div class="form-group">
+                <label>Middle Name <small style="color:var(--text-muted);">(Optional)</small></label>
+                <input type="text" name="cert_groom_middle_name" id="certGroomMiddleNameInput"
+                  placeholder="Middle name" disabled>
+              </div>
+              <div class="form-group">
+                <label>Last Name <span style="color:var(--danger);">*</span></label>
+                <input type="text" name="cert_groom_last_name" id="certGroomLastNameInput"
+                  placeholder="Last name of groom" disabled>
+              </div>
             </div>
-            <div class="form-group">
-              <label>Full Name (Bride) <span style="color:var(--danger);">*</span></label>
-              <input type="text" name="cert_bride_name" id="certBrideNameInput"
-                placeholder="Full name of bride" disabled>
+
+            <h5 style="margin: 12px 0 6px; font-weight:600; font-size:13px; color:var(--brown-dark);">Bride Details</h5>
+            <div class="form-row">
+              <div class="form-group">
+                <label>First Name <span style="color:var(--danger);">*</span></label>
+                <input type="text" name="cert_bride_first_name" id="certBrideFirstNameInput"
+                  placeholder="First name of bride" disabled>
+              </div>
+              <div class="form-group">
+                <label>Middle Name <small style="color:var(--text-muted);">(Optional)</small></label>
+                <input type="text" name="cert_bride_middle_name" id="certBrideMiddleNameInput"
+                  placeholder="Middle name" disabled>
+              </div>
+              <div class="form-group">
+                <label>Last Name <span style="color:var(--danger);">*</span></label>
+                <input type="text" name="cert_bride_last_name" id="certBrideLastNameInput"
+                  placeholder="Last name of bride" disabled>
+              </div>
             </div>
-            <div class="form-group">
+
+            <div class="form-group" style="margin-top: 10px;">
               <label>Year of Marriage <span style="color:var(--danger);">*</span></label>
               <input type="text" name="cert_marriage_year" id="certMarriageYearInput"
                 placeholder="e.g. 2015" maxlength="4" disabled>
@@ -1826,36 +1894,48 @@ foreach ($feeRulesByCategory['Funeral'] ?? [] as $r) $funeralFeeRules[$r['pss_cl
     var baptBox = document.getElementById('certBaptismalFields');
     if (baptBox) {
       baptBox.style.display = isBaptismal ? 'block' : 'none';
-      ['certBaptismRegistrantInput', 'certBaptismBirthInput', 'certBaptismYearInput'].forEach(function(id) {
+      ['certBaptismFirstNameInput', 'certBaptismMiddleNameInput', 'certBaptismLastNameInput', 'certBaptismBirthInput', 'certBaptismYearInput'].forEach(function(id) {
         var el = document.getElementById(id);
-        if (el) { el.required = isBaptismal; el.disabled = !isBaptismal; }
+        if (el) {
+          el.disabled = !isBaptismal;
+          if (id !== 'certBaptismMiddleNameInput') el.required = isBaptismal;
+        }
       });
     }
 
     var confBox = document.getElementById('certConfirmationFields');
     if (confBox) {
       confBox.style.display = isConfirmation ? 'block' : 'none';
-      ['certConfirmRegistrantInput', 'certConfirmBirthInput', 'certConfirmYearInput'].forEach(function(id) {
+      ['certConfirmFirstNameInput', 'certConfirmMiddleNameInput', 'certConfirmLastNameInput', 'certConfirmBirthInput', 'certConfirmYearInput'].forEach(function(id) {
         var el = document.getElementById(id);
-        if (el) { el.required = isConfirmation; el.disabled = !isConfirmation; }
+        if (el) {
+          el.disabled = !isConfirmation;
+          if (id !== 'certConfirmMiddleNameInput') el.required = isConfirmation;
+        }
       });
     }
 
     var deathBox = document.getElementById('certDeathFields');
     if (deathBox) {
       deathBox.style.display = isDeath ? 'block' : 'none';
-      ['certDeceasedNameInput', 'certDeathYearInput'].forEach(function(id) {
+      ['certDeceasedFirstNameInput', 'certDeceasedMiddleNameInput', 'certDeceasedLastNameInput', 'certDeathYearInput'].forEach(function(id) {
         var el = document.getElementById(id);
-        if (el) { el.required = isDeath; el.disabled = !isDeath; }
+        if (el) {
+          el.disabled = !isDeath;
+          if (id !== 'certDeceasedMiddleNameInput') el.required = isDeath;
+        }
       });
     }
 
     var marrBox = document.getElementById('certMarriageFields');
     if (marrBox) {
       marrBox.style.display = isMarriage ? 'block' : 'none';
-      ['certGroomNameInput', 'certBrideNameInput', 'certMarriageYearInput'].forEach(function(id) {
+      ['certGroomFirstNameInput', 'certGroomMiddleNameInput', 'certGroomLastNameInput', 'certBrideFirstNameInput', 'certBrideMiddleNameInput', 'certBrideLastNameInput', 'certMarriageYearInput'].forEach(function(id) {
         var el = document.getElementById(id);
-        if (el) { el.required = isMarriage; el.disabled = !isMarriage; }
+        if (el) {
+          el.disabled = !isMarriage;
+          if (id !== 'certGroomMiddleNameInput' && id !== 'certBrideMiddleNameInput') el.required = isMarriage;
+        }
       });
     }
   }

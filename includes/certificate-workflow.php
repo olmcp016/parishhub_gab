@@ -357,6 +357,236 @@ function certificateSearchMatches(string $name): array
 }
 
 /**
+ * Automatically searches for an exact completed sacrament appointment match
+ * using the structured name fields and optional year from a Certificate Request.
+ * Returns the matched row if exactly one confident match is found, null otherwise.
+ *
+ * @param string $certType 'Marriage', 'Baptism', 'Confirmation', 'Death'
+ * @param array $fields Parsed request fields from remarks
+ * @return array{appointment_id:int, date:string, name:string, category:string, certificate_type:string}|null
+ */
+function certificateFindExactMatch(string $certType, array $fields): ?array
+{
+    $pdo = db();
+    $targetCategory = match ($certType) {
+        'Marriage' => 'Wedding',
+        'Baptism' => 'Baptism',
+        'Confirmation' => 'Confirmation',
+        'Death' => 'Funeral',
+        default => null,
+    };
+    if (!$targetCategory) return null;
+
+    if ($certType === 'Marriage') {
+        $gFirst = trim((string) ($fields['Groom First Name'] ?? ''));
+        $gLast = trim((string) ($fields['Groom Last Name'] ?? ''));
+        $bFirst = trim((string) ($fields['Bride First Name'] ?? ''));
+        $bLast = trim((string) ($fields['Bride Last Name'] ?? ''));
+        $year = trim((string) ($fields['Year of Marriage'] ?? ''));
+        $groomFull = trim((string) ($fields['Groom'] ?? ''));
+        $brideFull = trim((string) ($fields['Bride'] ?? ''));
+
+        if (($gLast === '' || $gFirst === '') && $groomFull === '') return null;
+
+        $sql = "SELECT a.appointment_id, s.category, a.appointment_date,
+                       gf.form_type, gf.form_data
+                FROM appointments a
+                JOIN services s ON s.service_id = a.service_id
+                LEFT JOIN generated_forms gf ON gf.appointment_id = a.appointment_id AND gf.form_type = 'matrimony_application'
+                WHERE a.status_id = 6 AND s.category = 'Wedding'";
+        $params = [];
+        if ($year !== '' && preg_match('/^\d{4}$/', $year)) {
+            $sql .= " AND EXTRACT(YEAR FROM a.appointment_date) = ?";
+            $params[] = (int) $year;
+        }
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $matches = [];
+
+        foreach ($stmt->fetchAll() as $row) {
+            $formData = $row['form_data'] ? (json_decode((string) $row['form_data'], true) ?: []) : [];
+            $recordGroom = strtolower(trim((string) ($formData['groom_name'] ?? '')));
+            $recordBride = strtolower(trim((string) ($formData['bride_name'] ?? '')));
+
+            $groomMatch = false;
+            if ($gLast !== '' && $gFirst !== '') {
+                $groomMatch = str_contains($recordGroom, strtolower($gLast)) && str_contains($recordGroom, strtolower($gFirst));
+            } elseif ($groomFull !== '') {
+                $groomMatch = str_contains($recordGroom, strtolower($groomFull));
+            }
+
+            $brideMatch = false;
+            if ($bLast !== '' && $bFirst !== '') {
+                $brideMatch = str_contains($recordBride, strtolower($bLast)) && str_contains($recordBride, strtolower($bFirst));
+            } elseif ($brideFull !== '') {
+                $brideMatch = str_contains($recordBride, strtolower($brideFull));
+            }
+
+            if ($groomMatch && $brideMatch) {
+                $matches[(int) $row['appointment_id']] = [
+                    'appointment_id' => (int) $row['appointment_id'],
+                    'category' => 'Wedding',
+                    'certificate_type' => 'Marriage',
+                    'name' => trim(($formData['groom_name'] ?? '') . ' & ' . ($formData['bride_name'] ?? '')),
+                    'date' => (string) $row['appointment_date'],
+                ];
+            }
+        }
+        return count($matches) === 1 ? reset($matches) : null;
+    }
+
+    if ($certType === 'Baptism') {
+        $first = trim((string) ($fields['Registrant First Name'] ?? ''));
+        $last = trim((string) ($fields['Registrant Last Name'] ?? ''));
+        $regFull = trim((string) ($fields['Registrant'] ?? ''));
+        $year = trim((string) ($fields['Year of Baptism'] ?? ''));
+
+        if (($first === '' || $last === '') && $regFull === '') return null;
+
+        $sql = "SELECT a.appointment_id, s.category, a.appointment_date,
+                       COALESCE(u.firstname || ' ' || u.lastname, '') AS parishioner_name,
+                       gf.form_type, gf.form_data
+                FROM appointments a
+                JOIN services s ON s.service_id = a.service_id
+                LEFT JOIN parishioners par ON par.parishioner_id = a.parishioner_id
+                LEFT JOIN users u ON u.user_id = par.user_id
+                LEFT JOIN generated_forms gf ON gf.appointment_id = a.appointment_id AND gf.form_type = 'katin_awan_bunyag'
+                WHERE a.status_id = 6 AND s.category = 'Baptism'";
+        $params = [];
+        if ($year !== '' && preg_match('/^\d{4}$/', $year)) {
+            $sql .= " AND EXTRACT(YEAR FROM a.appointment_date) = ?";
+            $params[] = (int) $year;
+        }
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $matches = [];
+
+        foreach ($stmt->fetchAll() as $row) {
+            $formData = $row['form_data'] ? (json_decode((string) $row['form_data'], true) ?: []) : [];
+            $childName = strtolower(trim((string) ($formData['child_name'] ?? $row['parishioner_name'] ?? '')));
+
+            $matched = false;
+            if ($first !== '' && $last !== '') {
+                $matched = str_contains($childName, strtolower($first)) && str_contains($childName, strtolower($last));
+            } elseif ($regFull !== '') {
+                $matched = str_contains($childName, strtolower($regFull));
+            }
+
+            if ($matched) {
+                $matches[(int) $row['appointment_id']] = [
+                    'appointment_id' => (int) $row['appointment_id'],
+                    'category' => 'Baptism',
+                    'certificate_type' => 'Baptism',
+                    'name' => (string) ($formData['child_name'] ?? $row['parishioner_name']),
+                    'date' => (string) $row['appointment_date'],
+                ];
+            }
+        }
+        return count($matches) === 1 ? reset($matches) : null;
+    }
+
+    if ($certType === 'Confirmation') {
+        $first = trim((string) ($fields['Registrant First Name'] ?? ''));
+        $last = trim((string) ($fields['Registrant Last Name'] ?? ''));
+        $regFull = trim((string) ($fields['Registrant'] ?? ''));
+        $year = trim((string) ($fields['Year of Confirmation'] ?? ''));
+
+        if (($first === '' || $last === '') && $regFull === '') return null;
+
+        $sql = "SELECT a.appointment_id, s.category, a.appointment_date, a.patient_name,
+                       COALESCE(u.firstname || ' ' || u.lastname, '') AS parishioner_name
+                FROM appointments a
+                JOIN services s ON s.service_id = a.service_id
+                LEFT JOIN parishioners par ON par.parishioner_id = a.parishioner_id
+                LEFT JOIN users u ON u.user_id = par.user_id
+                WHERE a.status_id = 6 AND s.category = 'Confirmation'";
+        $params = [];
+        if ($year !== '' && preg_match('/^\d{4}$/', $year)) {
+            $sql .= " AND EXTRACT(YEAR FROM a.appointment_date) = ?";
+            $params[] = (int) $year;
+        }
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $matches = [];
+
+        foreach ($stmt->fetchAll() as $row) {
+            $target = strtolower(trim((string) ($row['parishioner_name'] ?: $row['patient_name'])));
+            $matched = false;
+            if ($first !== '' && $last !== '') {
+                $matched = str_contains($target, strtolower($first)) && str_contains($target, strtolower($last));
+            } elseif ($regFull !== '') {
+                $matched = str_contains($target, strtolower($regFull));
+            }
+
+            if ($matched) {
+                $matches[(int) $row['appointment_id']] = [
+                    'appointment_id' => (int) $row['appointment_id'],
+                    'category' => 'Confirmation',
+                    'certificate_type' => 'Confirmation',
+                    'name' => (string) ($row['parishioner_name'] ?: $row['patient_name']),
+                    'date' => (string) $row['appointment_date'],
+                ];
+            }
+        }
+        return count($matches) === 1 ? reset($matches) : null;
+    }
+
+    if ($certType === 'Death') {
+        $first = trim((string) ($fields['Deceased First Name'] ?? ''));
+        $last = trim((string) ($fields['Deceased Last Name'] ?? ''));
+        $decFull = trim((string) ($fields['Deceased'] ?? ''));
+        $year = trim((string) ($fields['Year of Death'] ?? ''));
+
+        if (($first === '' || $last === '') && $decFull === '') return null;
+
+        $sql = "SELECT a.appointment_id, s.category, a.appointment_date, a.patient_name,
+                       gf.form_type, gf.form_data
+                FROM appointments a
+                JOIN services s ON s.service_id = a.service_id
+                LEFT JOIN generated_forms gf ON gf.appointment_id = a.appointment_id AND gf.form_type = 'katin_awan_paglubong'
+                WHERE a.status_id = 6 AND s.category = 'Funeral'";
+        $params = [];
+        if ($year !== '' && preg_match('/^\d{4}$/', $year)) {
+            $sql .= " AND (EXTRACT(YEAR FROM a.appointment_date) = ? OR EXTRACT(YEAR FROM a.date_of_death) = ?)";
+            $params[] = (int) $year;
+            $params[] = (int) $year;
+        }
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $matches = [];
+
+        foreach ($stmt->fetchAll() as $row) {
+            $formData = $row['form_data'] ? (json_decode((string) $row['form_data'], true) ?: []) : [];
+            $target = strtolower(trim((string) ($formData['ngalan_sa_ilubong'] ?? $row['patient_name'] ?? '')));
+
+            $matched = false;
+            if ($first !== '' && $last !== '') {
+                $matched = str_contains($target, strtolower($first)) && str_contains($target, strtolower($last));
+            } elseif ($decFull !== '') {
+                $matched = str_contains($target, strtolower($decFull));
+            }
+
+            if ($matched) {
+                $matches[(int) $row['appointment_id']] = [
+                    'appointment_id' => (int) $row['appointment_id'],
+                    'category' => 'Funeral',
+                    'certificate_type' => 'Death',
+                    'name' => (string) ($formData['ngalan_sa_ilubong'] ?? $row['patient_name']),
+                    'date' => (string) $row['appointment_date'],
+                ];
+            }
+        }
+        return count($matches) === 1 ? reset($matches) : null;
+    }
+
+    return null;
+}
+
+/**
  * FLOW 2: marks a generated certificate "Ready for Pick-up" and tells the
  * requester — an in-app notification for a logged-in parishioner, an email
  * for a guest (no account to notify in-app) — same split as the rest of the

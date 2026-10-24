@@ -74,11 +74,16 @@ function renderCertificateEditFragment(
             <?php foreach ($officialCertRequestFields as $label => $value): ?>
               <li><strong><?= e($label) ?>:</strong> <?= e($value) ?></li>
             <?php endforeach; ?>
-          </ul>
+          <?php if (!empty($officialCert['source_appointment_id'])): ?>
+            <div class="alert alert-success" style="background:#e8f5e9; color:#2e7d32; border:1.5px solid #a5d6a7; padding:12px 16px; border-radius:8px; margin-bottom:16px;">
+              <strong>✅ Automatically matched with completed parish record #<?= (int) $officialCert['source_appointment_id'] ?></strong>
+              <p style="margin:4px 0 0; font-size:13px;">All sacramental records have been pulled and pre-filled into the form below. Review or make edits if needed, then click Generate.</p>
+            </div>
+          <?php endif; ?>
           <?php if (!$officialCertType): ?>
             <p class="text-muted" style="margin-bottom:0;">This request's certificate type could not be determined from the remarks above.</p>
           <?php else: ?>
-            <p class="helper-text" style="margin-bottom:8px;">Searching for completed <strong><?= e($officialCertType) ?></strong> parish records to autofill this certificate:</p>
+            <p class="helper-text" style="margin-bottom:8px;"><strong><?= !empty($officialCert['source_appointment_id']) ? 'Switch match or search other records:' : 'Search completed ' . e($officialCertType) . ' parish records to autofill:' ?></strong></p>
             <form method="GET" action="<?= url('secretary/appointment-detail.php') ?>" class="form-row" style="align-items:end; margin-bottom:12px;">
               <input type="hidden" name="id" value="<?= $id ?>">
               <input type="hidden" name="section" value="certificate">
@@ -1017,8 +1022,34 @@ if ($officialCertEligible && !$officialCertData && !$officialCertIsRequest) {
     // FLOW 1, first time opening this card: pre-fill from the appointment's own
     // requirement forms/profile. Not saved until the Secretary saves/generates.
     $officialCertData = certificateAutoFillFromAppointment($id);
+} elseif ($officialCertEligible && $officialCertIsRequest && $officialCertType) {
+    // FLOW 2: Check for automatic record matching from completed sacrament appointments
+    $sourceId = (int) ($officialCert['source_appointment_id'] ?? 0);
+    if ($sourceId === 0 && empty($officialCertData)) {
+        $exactMatch = certificateFindExactMatch($officialCertType, $officialCertRequestFields);
+        if ($exactMatch) {
+            $matchedSourceId = (int) $exactMatch['appointment_id'];
+            $autofill = certificateAutoFillFromAppointment($matchedSourceId);
+            if ($autofill) {
+                issuedCertificateSaveFields($id, $officialCertType, [
+                    'form_data' => $autofill,
+                    'source_appointment_id' => $matchedSourceId,
+                ]);
+                $officialCert = issuedCertificateLoad($id);
+                $officialCertData = array_merge($autofill, $officialCert['form_data'] ?? []);
+            }
+        }
+    }
 }
+
 $officialCertSearchName = trim((string) ($_GET['cert_search'] ?? ''));
+if ($officialCertSearchName === '' && $officialCertIsRequest && empty($officialCert['source_appointment_id'])) {
+    if ($officialCertType === 'Marriage') {
+        $officialCertSearchName = trim(($officialCertRequestFields['Groom Last Name'] ?? '') ?: ($officialCertRequestFields['Groom'] ?? ''));
+    } else {
+        $officialCertSearchName = trim(($officialCertRequestFields['Registrant Last Name'] ?? '') ?: ($officialCertRequestFields['Deceased Last Name'] ?? '') ?: ($officialCertRequestFields['Registrant'] ?? '') ?: ($officialCertRequestFields['Deceased'] ?? ''));
+    }
+}
 $officialCertSearchResults = ($officialCertEligible && $officialCertIsRequest && $officialCertSearchName !== '')
     ? certificateSearchMatches($officialCertSearchName)
     : [];
