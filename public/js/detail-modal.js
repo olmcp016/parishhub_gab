@@ -619,10 +619,21 @@
         });
       }
 
+      // new FormData(form) alone does NOT include the clicked submit
+      // button's own name/value (e.g. a form with two submit buttons that
+      // each set a different name="action" value="..." directly on
+      // themselves, like the certificate Save Draft / Generate buttons).
+      // e.submitter is the button that was actually clicked/activated —
+      // append it explicitly so the server always receives the right action.
+      var formData = new FormData(form);
+      if (e.submitter && e.submitter.name) {
+        formData.append(e.submitter.name, e.submitter.value);
+      }
+
       modalRequestBusy = true;
       fetch(form.getAttribute('action'), {
         method: 'POST',
-        body: new FormData(form),
+        body: formData,
         headers: { 'X-Requested-With': 'XMLHttpRequest' }
       })
         .then(function (res) {
@@ -667,7 +678,15 @@
             showRejectionFormError(form, 'The requirement could not be rejected. Please check your connection and try again.');
             return;
           }
-          alert('Something went wrong submitting that. Please try again.');
+          // A real server-provided message (thrown above from a non-OK JSON
+          // response) is shown as-is; a parse/network failure (e.g. the
+          // response wasn't JSON at all) gets a friendly fallback instead of
+          // the raw "Unexpected token..." text. Either way this is an inline
+          // banner inside the modal, not a disruptive browser alert() popup.
+          var friendlyMessage = (error && error.message && !(error instanceof SyntaxError))
+            ? error.message
+            : 'Something went wrong submitting that. Please check your connection and try again.';
+          prependBanner(false, friendlyMessage);
         });
     });
   });

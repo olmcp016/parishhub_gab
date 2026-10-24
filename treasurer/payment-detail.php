@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/paymongo.php';
 requireRole('Treasurer', 'Admin');
 
 $id = (int) ($_GET['id'] ?? 0);
@@ -27,6 +28,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'verif
         }
         flash('error', $result['message']);
     }
+    redirect(url('treasurer/payment-detail.php?id=' . $id));
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'recheck_paymongo') {
+    // Manual recovery for a PayMongo payment stuck 'pending': the payer's
+    // browser may never have made it back to the return page, and the
+    // webhook (if configured at all for this deployment) may never have
+    // fired either. This re-checks directly with PayMongo instead of
+    // waiting on either of those.
+    verifyCsrf();
+    $result = paymongoRecheckPayment($id);
+    if ($result['outcome'] === 'verified') {
+        logActivity($userId, "Re-checked payment #$id with PayMongo — verified", 'Payments');
+    } elseif (in_array($result['outcome'], ['failed', 'cancelled'], true)) {
+        logActivity($userId, "Re-checked payment #$id with PayMongo — " . $result['outcome'], 'Payments');
+    }
+    if ($isModalRequest) {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => $result['ok'], 'message' => $result['message']]);
+        exit;
+    }
+    flash($result['ok'] ? 'success' : 'error', $result['message']);
     redirect(url('treasurer/payment-detail.php?id=' . $id));
 }
 
@@ -185,7 +208,12 @@ if (!$isModalRequest) {
     <?php endif; ?>
 
     <?php if ($awaitingGateway): ?>
-      <p class="helper-text">This online payment hasn't been completed on PayMongo yet. It verifies automatically once the parishioner pays — nothing to do here until then.</p>
+      <p class="helper-text">This online payment normally verifies automatically once the parishioner pays and their browser returns to our site (or via PayMongo's webhook). If they already paid but it's still showing as pending — e.g. they closed the GCash/Maya app without being redirected back — use this to check directly with PayMongo instead of waiting.</p>
+      <form method="POST" action="<?= url('treasurer/payment-detail.php?id=' . $id) ?>" class="mt-3">
+        <?= csrfField() ?>
+        <input type="hidden" name="action" value="recheck_paymongo">
+        <button type="submit" class="btn btn-outline">🔄 Re-check with PayMongo</button>
+      </form>
     <?php elseif ($payment['payment_status'] === 'pending'): ?>
       <form method="POST" action="<?= url('treasurer/payment-detail.php?id=' . $id) ?>" class="mt-3" id="verifyForm" style="display: flex; align-items: flex-end; gap: 12px; width: 100%;">
         <?= csrfField() ?>

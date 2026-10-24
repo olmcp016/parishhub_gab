@@ -173,6 +173,69 @@ function paymongoStatusToLocal(string $paymongoStatus): string
 }
 
 /**
+ * Staff-triggered manual reconciliation for a payment stuck 'pending' on a
+ * PayMongo checkout. Online verification normally happens one of two ways —
+ * the payer's browser landing back on guest-payment-return.php /
+ * parishioner/payment-return.php, or PayMongo's webhook — and if BOTH miss
+ * (browser never returns, e.g. after an e-wallet app-switch; webhook not
+ * configured for this deployment) the payment sits pending forever with
+ * nothing to recover it. This button is that recovery path: it re-checks the
+ * checkout session directly with PayMongo and applies whatever it reports,
+ * using the exact same verification/failure handling as the return pages and
+ * the webhook — this is not a separate decision, just a manual trigger for
+ * the same reconciliation. Requires includes/functions.php to already be
+ * loaded (verifyPaymentAndIssueReceipt(), markPaymentUnsuccessful(),
+ * resolvePaymentMethodName(), db()).
+ *
+ * @return array{ok: bool, outcome: string, message: string} outcome: verified|pending|failed|cancelled|not_paymongo|error
+ */
+function paymongoRecheckPayment(int $paymentId): array
+{
+    $stmt = db()->prepare(
+        "SELECT p.payment_id, p.payment_status, t.gateway_transaction_id
+         FROM payments p
+         LEFT JOIN transactions t ON t.payment_id = p.payment_id AND t.gateway = 'paymongo'
+         WHERE p.payment_id = ?"
+    );
+    $stmt->execute([$paymentId]);
+    $row = $stmt->fetch();
+    if (!$row || !$row['gateway_transaction_id']) {
+        return ['ok' => false, 'outcome' => 'not_paymongo', 'message' => 'This payment was not made through PayMongo online checkout, so there is nothing to re-check with PayMongo.'];
+    }
+    if ($row['payment_status'] !== 'pending') {
+        return ['ok' => true, 'outcome' => (string) $row['payment_status'], 'message' => 'This payment is already ' . $row['payment_status'] . ' — nothing to recheck.'];
+    }
+
+    $session = paymongoGetCheckoutSession($row['gateway_transaction_id']);
+    if (!$session['ok']) {
+        return ['ok' => false, 'outcome' => 'error', 'message' => 'Could not reach PayMongo to check this payment right now. Please try again shortly.'];
+    }
+    $localStatus = paymongoStatusToLocal((string) $session['status']);
+    db()->prepare('UPDATE transactions SET status = ?, raw_response = ? WHERE payment_id = ?')
+        ->execute([$session['status'], json_encode($session['raw'] ?? []), $paymentId]);
+
+    if ($localStatus === 'verified') {
+        $resolvedMethod = resolvePaymentMethodName('PayMongo (Online)', json_encode($session['raw'] ?? []));
+        $methodMap = ['GCash' => 2, 'Maya' => 3, 'Credit/Debit Card' => 5];
+        if (isset($methodMap[$resolvedMethod])) {
+            try {
+                db()->prepare('UPDATE payments SET method_id = ? WHERE payment_id = ?')->execute([$methodMap[$resolvedMethod], $paymentId]);
+            } catch (Throwable $e) {}
+        }
+        $result = verifyPaymentAndIssueReceipt($paymentId, null, $row['gateway_transaction_id']);
+        if ($result['ok']) {
+            return ['ok' => true, 'outcome' => 'verified', 'message' => 'PayMongo confirms this payment was paid. ' . $result['message']];
+        }
+        return ['ok' => false, 'outcome' => 'error', 'message' => 'PayMongo confirms this was paid, but the appointment could not be updated: ' . $result['message']];
+    }
+    if (in_array($localStatus, ['failed', 'cancelled'], true)) {
+        markPaymentUnsuccessful($paymentId, $localStatus);
+        return ['ok' => true, 'outcome' => $localStatus, 'message' => 'PayMongo reports this checkout was ' . $localStatus . '. The payment has been marked accordingly.'];
+    }
+    return ['ok' => true, 'outcome' => 'pending', 'message' => "PayMongo still shows this payment as pending/awaiting the payer's action. Nothing has changed yet — try again later."];
+}
+
+/**
  * A donor came back through a donation checkout's cancel_url. Only the browser
  * session that started that checkout (donate.php sets the marker) may cancel
  * it, and only a still-pending payment is touched. PayMongo stays the
