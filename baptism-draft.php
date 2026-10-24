@@ -174,6 +174,11 @@ $usesPublicShell = !$user;
 include __DIR__ . '/includes/header.php';
 include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 'dash-start.php');
 ?>
+<div style="background:#fff8ec; border:1px solid #e8d49a; border-left:4px solid var(--gold); padding:12px 14px; border-radius:8px; margin-bottom:16px; color:#5c4e24; font-size:13.5px; line-height:1.5;">
+  <strong>🕊️ Importante nga Pahibalo (Pre-Jordan Seminar):</strong><br>
+  Palihug timan-i nga kinahanglan <strong>anaa na kamo sa simbahan 1 ka oras sa dili pa ang gitakdang oras</strong> sa bunyag kay adunay pagahimoong <strong>Pre-Jordan Seminar</strong>.<br>
+  <span style="font-weight:600; color:#855d14;">Pre-Jordan Seminar Fee: ₱50.00</span>
+</div>
 <div class="card"><h2>Supporting Documents</h2>
 <?php renderBookingBackButton('baptism', $id); ?>
 <?php renderSupportingDocumentCards(baptismDraftAllDocuments($draft), $uploadedDocuments, 'baptism_draft', $id); ?>

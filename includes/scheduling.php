@@ -729,10 +729,17 @@ function schedulingPolicyText(string $category, ?int $serviceId = null): string
             // No date/time is chosen when booking; the office schedules it (see book.php).
             return "You may submit your booking request and required documents without selecting a date or time. The Parish Office will arrange the Confirmation schedule based on the Bishop's availability and notify you once the final schedule is confirmed.";
         case 'Baptism':
+            if ($serviceId === null) {
+                $stmt = db()->prepare('SELECT service_id FROM services WHERE category = ? AND is_active = TRUE LIMIT 1');
+                $stmt->execute(['Baptism']);
+                $serviceId = (int) $stmt->fetchColumn() ?: null;
+            }
+            $regularText = $serviceId ? describeRegularSchedule($serviceId) : 'No Regular schedule has been configured yet.';
+            return "Choose Regular for the parish's fixed schedule ($regularText) or Special to request a custom date and time. Availability is checked automatically.<br><br><strong>📌 Important Note:</strong> Kinahanglan anaa na sa simbahan <strong>1 ka oras sa dili pa ang gitakdang oras</strong> sa bunyag kay adunay himoon nga <strong>Pre-Jordan Seminar</strong> (Bayad: ₱50.00).";
         case 'Wedding':
             if ($serviceId === null) {
                 $stmt = db()->prepare('SELECT service_id FROM services WHERE category = ? AND is_active = TRUE LIMIT 1');
-                $stmt->execute([$category]);
+                $stmt->execute(['Wedding']);
                 $serviceId = (int) $stmt->fetchColumn() ?: null;
             }
             $regularText = $serviceId ? describeRegularSchedule($serviceId) : 'No Regular schedule has been configured yet.';
