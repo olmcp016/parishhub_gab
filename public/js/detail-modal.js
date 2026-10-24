@@ -27,6 +27,10 @@
   var detailAbortController = null;
   var activeScheduleRequest = 0;
   var scheduleAbortController = null;
+  var detailPollTimer = null;
+  var modalRequestBusy = false;
+  var lastDetailFragmentHtml = null;
+  var DETAIL_POLL_INTERVAL_MS = 6000;
 
   function refs() {
     modal = document.getElementById('detailModal');
@@ -72,12 +76,18 @@
     modal.dataset.currentUrl = url;
     showLoading();
     if (!modal.open) modal.showModal();
+    stopDetailPolling();
+    modalRequestBusy = true;
     fetchFragment(url, detailAbortController && detailAbortController.signal)
       .then(function (html) {
+        modalRequestBusy = false;
         if (requestId !== activeDetailRequest || !modal.open) return;
         modalBody.innerHTML = html;
+        lastDetailFragmentHtml = html;
+        startDetailPolling();
       })
       .catch(function (error) {
+        modalRequestBusy = false;
         if (error && error.name === 'AbortError') return;
         if (requestId === activeDetailRequest && modal.open) showLoadError();
       });
@@ -113,11 +123,76 @@
     return hasUnsavedReviewAction() || hasIncompleteReview();
   }
 
+  /**
+   * True while the Secretary/Treasurer is actively typing/selecting inside
+   * the open modal, or has an unsaved rejection reason chosen
+   * (hasUnsavedReviewAction()) — the live-update poll below must never
+   * clobber either, so it skips its cycle entirely while this is true.
+   */
+  function isUserEditingDetailModal() {
+    if (hasUnsavedReviewAction()) return true;
+    var active = document.activeElement;
+    if (!active || !modalBody || !modalBody.contains(active)) return false;
+    var tag = active.tagName;
+    if (tag === 'TEXTAREA' || tag === 'SELECT') return true;
+    if (tag === 'INPUT') {
+      var type = (active.type || 'text').toLowerCase();
+      return ['button', 'submit', 'checkbox', 'radio', 'hidden', 'file', 'reset'].indexOf(type) === -1;
+    }
+    return false;
+  }
+
+  function stopDetailPolling() {
+    if (detailPollTimer) { clearInterval(detailPollTimer); detailPollTimer = null; }
+    lastDetailFragmentHtml = null;
+  }
+
+  function startDetailPolling() {
+    if (detailPollTimer) clearInterval(detailPollTimer);
+    detailPollTimer = setInterval(pollDetailModal, DETAIL_POLL_INTERVAL_MS);
+  }
+
+  /**
+   * Every few seconds while this modal stays open, quietly re-fetches its
+   * own content in the background and swaps it in only if something on the
+   * server actually changed (e.g. a payment just got verified and the
+   * status badge moved from "Approved" to "Payment Verified"). Skips the
+   * cycle entirely while the tab is hidden, another modal request is
+   * already in flight, or the user is mid-edit (isUserEditingDetailModal()),
+   * so it can never interrupt typing or collide with a real submission.
+   */
+  function pollDetailModal() {
+    if (!modal || !modal.open || document.hidden) return;
+    if (modalRequestBusy) return;
+    if (isUserEditingDetailModal()) return;
+    var url = modal.dataset.currentUrl;
+    if (!url) return;
+
+    modalRequestBusy = true;
+    var requestId = activeDetailRequest;
+    fetchFragment(url)
+      .then(function (html) {
+        modalRequestBusy = false;
+        if (requestId !== activeDetailRequest || !modal.open || document.hidden) return;
+        if (isUserEditingDetailModal()) return;
+        if (lastDetailFragmentHtml !== null && html === lastDetailFragmentHtml) return;
+        lastDetailFragmentHtml = html;
+        var scrollTop = modalBody.scrollTop;
+        modalBody.innerHTML = html;
+        modalBody.scrollTop = scrollTop;
+      })
+      .catch(function () {
+        modalRequestBusy = false;
+        // Silent — the next tick simply tries again.
+      });
+  }
+
   function finishCloseDetailModal() {
     if (!refs()) return;
     var trigger = detailTrigger;
     detailTrigger = null;
     activeDetailRequest += 1;
+    stopDetailPolling();
     if (detailAbortController) detailAbortController.abort();
     detailAbortController = null;
     closeChildModals();
@@ -209,6 +284,7 @@
           return;
         }
         activeDetailRequest += 1;
+        stopDetailPolling();
         if (detailAbortController) detailAbortController.abort();
         detailAbortController = null;
         closeChildModals();
@@ -484,11 +560,15 @@
         var targetUrl = action + (action.indexOf('?') === -1 ? '?' : '&') + query;
         modal.dataset.currentUrl = targetUrl;
         showLoading();
+        modalRequestBusy = true;
         fetchFragment(targetUrl, detailAbortController && detailAbortController.signal)
           .then(function (html) {
+            modalRequestBusy = false;
             modalBody.innerHTML = html;
+            lastDetailFragmentHtml = html;
           })
           .catch(function () {
+            modalRequestBusy = false;
             showLoadError();
           });
         return;
@@ -539,6 +619,7 @@
         });
       }
 
+      modalRequestBusy = true;
       fetch(form.getAttribute('action'), {
         method: 'POST',
         body: new FormData(form),
@@ -551,28 +632,33 @@
           });
         })
         .then(function (data) {
-          if (submitRequestId !== activeDetailRequest || !modal.open) return;
+          if (submitRequestId !== activeDetailRequest || !modal.open) { modalRequestBusy = false; return; }
           if (data.redirect) {
             // The record this modal was showing no longer exists in the
             // underlying list the way it did (e.g. it was cancelled) —
             // there's nothing left to refresh in place, so just go there.
+            modalRequestBusy = false;
             window.location.href = data.redirect;
             return;
           }
           if (isRequirementRejection && !data.success) {
             // Not saved: keep the form open with the chosen reason so the Secretary can retry.
+            modalRequestBusy = false;
             restoreSubmitButtons();
             showRejectionFormError(form, data.message || 'The requirement could not be rejected. Please try again.');
             return;
           }
           if (data.success) dirty = true;
           return fetchFragment(submitUrl, detailAbortController && detailAbortController.signal).then(function (html) {
+            modalRequestBusy = false;
             if (submitRequestId !== activeDetailRequest || !modal.open) return;
             modalBody.innerHTML = html;
+            lastDetailFragmentHtml = html;
             if (data.message) prependBanner(!!data.success, data.message);
           });
         })
         .catch(function (error) {
+          modalRequestBusy = false;
           if (error && error.name === 'AbortError') return;
           if (submitRequestId !== activeDetailRequest || !modal.open) return;
           restoreSubmitButtons();

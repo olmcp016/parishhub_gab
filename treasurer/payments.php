@@ -180,28 +180,31 @@ include __DIR__ . '/../includes/dash-start.php';
     <div class="form-group" style="flex: 0 0 auto; margin-bottom:0;"><button class="btn btn-primary" style="height:47.5px; padding: 0 24px;">Search</button></div>
   </form>
 
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Parishioner</th><th>Service</th><th>Amount</th><th>Payment Method</th><th>Status</th><th></th></tr></thead>
-      <tbody>
-        <?php foreach ($payments as $p): ?>
-          <tr>
-            <td><?= $p['guest_name'] ? e($p['guest_name']) . ' <span class="text-muted">(guest)</span>' : e($p['firstname']) . ' ' . e($p['lastname']) ?></td>
-            <td><?= e($p['service_name']) ?></td>
-            <td><?= money($p['amount']) ?></td>
-            <td><?= e($p['method_name']) ?></td>
-            <td><span class="badge badge-<?= e($p['payment_status']) ?>"><?= e($p['payment_status']) ?></span></td>
-            <td><a href="#" data-url="<?= url('treasurer/payment-detail.php?id=' . $p['payment_id']) ?>" class="btn btn-outline btn-sm js-view-modal">View</a></td>
-          </tr>
-        <?php endforeach; ?>
-      </tbody>
-    </table>
+  <div data-live-refresh-id="treasurer-payments-table">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Parishioner</th><th>Service</th><th>Amount</th><th>Payment Method</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          <?php foreach ($payments as $p): ?>
+            <tr>
+              <td><?= $p['guest_name'] ? e($p['guest_name']) . ' <span class="text-muted">(guest)</span>' : e($p['firstname']) . ' ' . e($p['lastname']) ?></td>
+              <td><?= e($p['service_name']) ?></td>
+              <td><?= money($p['amount']) ?></td>
+              <td><?= e($p['method_name']) ?></td>
+              <td><span class="badge badge-<?= e($p['payment_status']) ?>"><?= e($p['payment_status']) ?></span></td>
+              <td><a href="#" data-url="<?= url('treasurer/payment-detail.php?id=' . $p['payment_id']) ?>" class="btn btn-outline btn-sm js-view-modal">View</a></td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <?php if (empty($payments)): ?><p class="text-muted text-center mt-3">No payments found.</p><?php else: ?>
+      <?= renderPagination($pagination, $paginationUrl) ?>
+    <?php endif; ?>
   </div>
-  <?php if (empty($payments)): ?><p class="text-muted text-center mt-3">No payments found.</p><?php else: ?>
-    <?= renderPagination($pagination, $paginationUrl) ?>
-  <?php endif; ?>
 </div>
 
 <?php include __DIR__ . '/../includes/detail-modal.php'; ?>
+<script src="<?= url('public/js/live-refresh.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/live-refresh.js') ?>"></script>
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

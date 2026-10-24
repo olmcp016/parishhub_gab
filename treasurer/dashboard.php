@@ -36,14 +36,14 @@ include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/dash-start.php';
 ?>
 
-<div class="stat-grid">
+<div class="stat-grid" data-live-refresh-id="treasurer-stats">
   <div class="stat-card"><div class="stat-label">Today's Income</div><div class="stat-value"><?= money((float)$daily) ?></div></div>
   <div class="stat-card"><div class="stat-label">This Week's Income</div><div class="stat-value"><?= money((float)$weekly) ?></div></div>
   <div class="stat-card"><div class="stat-label">This Month's Income</div><div class="stat-value"><?= money((float)$monthly) ?></div></div>
   <div class="stat-card"><div class="stat-label">This Year's Income</div><div class="stat-value"><?= money((float)$yearly) ?></div></div>
 </div>
 
-<div class="card">
+<div class="card" data-live-refresh-id="treasurer-pending-card">
   <div class="card-header">
     <h3>Pending Verifications (<?= (int)$pendingCount ?>)</h3>
     <?php if ($pendingCount > 0): ?>
@@ -76,7 +76,7 @@ include __DIR__ . '/../includes/dash-start.php';
 
 <div class="card">
   <div class="card-header"><h3>Recent Payments</h3></div>
-  <div class="table-wrap">
+  <div class="table-wrap" data-live-refresh-id="treasurer-recent-table">
     <table>
       <thead><tr><th>Parishioner</th><th>Service</th><th>Amount</th><th>Status</th><th>View</th></tr></thead>
       <tbody>
@@ -97,5 +97,6 @@ include __DIR__ . '/../includes/dash-start.php';
 </div>
 
 <?php include __DIR__ . '/../includes/detail-modal.php'; ?>
+<script src="<?= url('public/js/live-refresh.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/live-refresh.js') ?>"></script>
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

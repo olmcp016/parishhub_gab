@@ -167,15 +167,18 @@ include __DIR__ . '/../includes/dash-start.php';
     </div>
   </form>
 
-  <?php renderAppointmentsTable($appointments, $isSecretaryViewer); ?>
-  <?php if (!empty($appointments)): ?>
-    <?= renderPagination($pagination, $paginationUrl) ?>
-  <?php endif; ?>
+  <div data-live-refresh-id="secretary-appointments-table">
+    <?php renderAppointmentsTable($appointments, $isSecretaryViewer); ?>
+    <?php if (!empty($appointments)): ?>
+      <?= renderPagination($pagination, $paginationUrl) ?>
+    <?php endif; ?>
+  </div>
 </div>
 
 
 <?php include __DIR__ . '/../includes/detail-modal.php'; ?>
 <?php include __DIR__ . '/../includes/secretary-modal-shells.php'; ?>
+<script src="<?= url('public/js/live-refresh.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/live-refresh.js') ?>"></script>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

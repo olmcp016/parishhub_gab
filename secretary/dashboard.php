@@ -37,7 +37,7 @@ include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/dash-start.php';
 ?>
 
-<div class="stat-grid">
+<div class="stat-grid" data-live-refresh-id="secretary-stats-main">
   <div class="stat-card"><div class="stat-label">Pending Approvals</div><div class="stat-value"><?= (int)$pendingCount ?></div></div>
   <div class="stat-card"><div class="stat-label">Today's Appointments</div><div class="stat-value"><?= (int)$todayCount ?></div></div>
   <div class="stat-card"><div class="stat-label">This Week</div><div class="stat-value"><?= (int)$weekCount ?></div></div>
@@ -52,7 +52,7 @@ include __DIR__ . '/../includes/dash-start.php';
 
 <?php // Before the migration there are no real counts: show a dash, never a made-up 0.
 $reviewCount = fn(string $key) => $reviewEnabled ? (string) $reviewCounts[$key] : '—'; ?>
-<div class="stat-grid">
+<div class="stat-grid" data-live-refresh-id="secretary-stats-review">
   <a class="stat-card stat-card-link review-pending" href="<?= url('secretary/appointments.php?status=' . urlencode('review:pending_review')) ?>"><div class="stat-label">Pending Review</div><div class="stat-value"><?= $reviewCount('pending_review') ?></div></a>
   <a class="stat-card stat-card-link review-awaiting" href="<?= url('secretary/appointments.php?status=' . urlencode('review:awaiting_revision')) ?>"><div class="stat-label">Awaiting Revision</div><div class="stat-value"><?= $reviewCount('awaiting_revision') ?></div></a>
   <a class="stat-card stat-card-link review-ready" href="<?= url('secretary/appointments.php?status=' . urlencode('review:ready_for_rereview')) ?>"><div class="stat-label">Ready for Re-Review</div><div class="stat-value"><?= $reviewCount('ready_for_rereview') ?></div></a>
@@ -63,7 +63,7 @@ $reviewCount = fn(string $key) => $reviewEnabled ? (string) $reviewCounts[$key] 
     <h3>Recent Appointment Requests</h3>
     <a href="<?= url('secretary/appointments.php') ?>" class="btn btn-outline btn-sm">View All</a>
   </div>
-  <div class="table-wrap">
+  <div class="table-wrap" data-live-refresh-id="secretary-recent-table">
     <table>
       <thead><tr><th>#</th><th>Parishioner</th><th>Service</th><th>Date</th><th>Status</th><th></th></tr></thead>
       <tbody>
@@ -99,6 +99,7 @@ $reviewCount = fn(string $key) => $reviewEnabled ? (string) $reviewCounts[$key] 
 
 <?php include __DIR__ . '/../includes/detail-modal.php'; ?>
 <?php include __DIR__ . '/../includes/secretary-modal-shells.php'; ?>
+<script src="<?= url('public/js/live-refresh.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/live-refresh.js') ?>"></script>
 
 <?php include __DIR__ . '/../includes/dash-end.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
