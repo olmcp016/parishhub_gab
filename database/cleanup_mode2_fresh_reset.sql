@@ -2,56 +2,50 @@
 -- PARISHHUB — MODE 2: CLEAN TRANSACTIONAL RESET (Fresh Start for New Workflows)
 -- Target:  PostgreSQL / Supabase
 -- Purpose: Wipes all test transactional data (appointments, payments, certificates,
---          documents, drafts, receipts, notifications) while keeping 100% of:
+--          documents, receipts, notifications) while keeping 100% of:
 --          - users, roles, parishioners, priests, priest_unavailability
 --          - services, service_schedules, service_fee_rules
 --          - locations (chapels, barangays)
 --          - settings, payment_methods, appointment_status
 --
 -- NOTE: Uses RESTART IDENTITY to reset auto-increment counters back to #1.
+-- Safe: Checks whether each table exists before attempting to truncate.
 -- =============================================================================
 
 BEGIN;
 
--- 1. Truncate all transactional tables safely using RESTART IDENTITY CASCADE
--- This guarantees Foreign Key dependencies are handled cleanly and resets IDs to 1.
-TRUNCATE TABLE
-    wedding_booking_drafts,
-    baptism_booking_drafts,
-    official_receipts,
-    transactions,
-    payments,
-    issued_certificates,
-    uploaded_documents,
-    donations,
-    mass_intentions,
-    notifications,
-    activity_logs,
-    appointments
-RESTART IDENTITY CASCADE;
-
--- Also truncate optional/specialized generated form tables if they exist
 DO $$
+DECLARE
+    tbl text;
+    tables_to_truncate text[] := ARRAY[
+        'official_receipts',
+        'transactions',
+        'payments',
+        'issued_certificates',
+        'uploaded_documents',
+        'donations',
+        'mass_intentions',
+        'notifications',
+        'activity_logs',
+        'wedding_booking_drafts',
+        'baptism_booking_drafts',
+        'generated_wedding_forms',
+        'generated_funeral_forms',
+        'generated_forms',
+        'precana_requirements',
+        'chat_messages',
+        'appointments'
+    ];
 BEGIN
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'generated_wedding_forms') THEN
-        EXECUTE 'TRUNCATE TABLE generated_wedding_forms RESTART IDENTITY CASCADE;';
-    END IF;
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'generated_funeral_forms') THEN
-        EXECUTE 'TRUNCATE TABLE generated_funeral_forms RESTART IDENTITY CASCADE;';
-    END IF;
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'generated_forms') THEN
-        EXECUTE 'TRUNCATE TABLE generated_forms RESTART IDENTITY CASCADE;';
-    END IF;
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'precana_requirements') THEN
-        EXECUTE 'TRUNCATE TABLE precana_requirements RESTART IDENTITY CASCADE;';
-    END IF;
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'chat_messages') THEN
-        EXECUTE 'TRUNCATE TABLE chat_messages RESTART IDENTITY CASCADE;';
-    END IF;
+    FOREACH tbl IN ARRAY tables_to_truncate
+    LOOP
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = tbl) THEN
+            EXECUTE format('TRUNCATE TABLE %I RESTART IDENTITY CASCADE;', tbl);
+        END IF;
+    END LOOP;
 END $$;
 
--- 2. Verify all master data remains 100% intact
-SELECT 'VERIFICATION: Master & User Records Preserved' AS status;
+-- Verify master data remains 100% intact
 SELECT 'users' AS table_name, COUNT(*) AS count FROM users
 UNION ALL
 SELECT 'parishioners', COUNT(*) FROM parishioners
@@ -68,21 +62,4 @@ SELECT 'locations', COUNT(*) FROM locations
 UNION ALL
 SELECT 'settings', COUNT(*) FROM settings;
 
--- 3. Verify transactional tables are completely reset to 0
-SELECT 'VERIFICATION: Transactional Records Cleaned' AS status;
-SELECT 'appointments' AS table_name, COUNT(*) AS count FROM appointments
-UNION ALL
-SELECT 'payments', COUNT(*) FROM payments
-UNION ALL
-SELECT 'issued_certificates', COUNT(*) FROM issued_certificates
-UNION ALL
-SELECT 'uploaded_documents', COUNT(*) FROM uploaded_documents
-UNION ALL
-SELECT 'wedding_booking_drafts', COUNT(*) FROM wedding_booking_drafts
-UNION ALL
-SELECT 'baptism_booking_drafts', COUNT(*) FROM baptism_booking_drafts
-UNION ALL
-SELECT 'notifications', COUNT(*) FROM notifications;
-
--- Commit to apply changes
 COMMIT;
