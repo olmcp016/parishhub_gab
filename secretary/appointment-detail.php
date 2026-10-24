@@ -38,6 +38,211 @@ function renderDocumentRejectionReason(string $fieldId): void
     <?php
 }
 
+/**
+ * The full Official Certificate editing form — Parish Record Search (FLOW 2
+ * only), Canonical Book Registry, Sacramental Record Details, and (Marriage
+ * only) its own License & Civil Details section — rendered into the wide
+ * #certificateEditModal dialog instead of the narrow appointment-detail
+ * column, so the Secretary reviews it without the rest of the page crowding
+ * it. Requested as its own fragment via ?id=<id>&section=certificate (see
+ * the early-exit below) and loaded/submitted entirely by
+ * public/js/detail-modal.js's certificate-modal controller.
+ */
+function renderCertificateEditFragment(
+    int $id,
+    string $redirectUrl,
+    bool $officialCertEligible,
+    bool $officialCertIsRequest,
+    ?string $officialCertType,
+    array $officialCertRequestFields,
+    string $officialCertSearchName,
+    array $officialCertSearchResults,
+    ?array $officialCert,
+    array $officialCertData
+): void {
+    if (!$officialCertEligible) {
+        ?><p class="text-muted" style="padding:20px;">This certificate can no longer be edited here — the appointment's status has changed. Close this window and reopen the appointment to see its current state.</p><?php
+        return;
+    }
+
+    if ($officialCertIsRequest) {
+        ?>
+        <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
+          <h4 style="margin-top:0;">A. Parish Record Search &amp; Autofill</h4>
+          <p class="helper-text" style="margin-top:0;">Certificate Request details submitted by the applicant:</p>
+          <ul style="margin:0 0 16px; padding-left:20px; font-size:14px;">
+            <?php foreach ($officialCertRequestFields as $label => $value): ?>
+              <li><strong><?= e($label) ?>:</strong> <?= e($value) ?></li>
+            <?php endforeach; ?>
+          </ul>
+          <?php if (!$officialCertType): ?>
+            <p class="text-muted" style="margin-bottom:0;">This request's certificate type could not be determined from the remarks above.</p>
+          <?php else: ?>
+            <p class="helper-text" style="margin-bottom:8px;">Searching for completed <strong><?= e($officialCertType) ?></strong> parish records to autofill this certificate:</p>
+            <form method="GET" action="<?= url('secretary/appointment-detail.php') ?>" class="form-row" style="align-items:end; margin-bottom:12px;">
+              <input type="hidden" name="id" value="<?= $id ?>">
+              <input type="hidden" name="section" value="certificate">
+              <div class="form-group">
+                <label for="certSearchName">Search Parish Records by Name</label>
+                <input type="text" id="certSearchName" name="cert_search" value="<?= e($officialCertSearchName) ?>" placeholder="e.g. Juan Dela Cruz">
+              </div>
+              <div class="form-group"><button type="submit" class="btn btn-outline">🔎 Search &amp; Autofill</button></div>
+            </form>
+            <?php if ($officialCertSearchName !== ''): ?>
+              <?php if (empty($officialCertSearchResults)): ?>
+                <p class="text-muted" style="margin-bottom:0;">No matching completed sacrament record found for "<?= e($officialCertSearchName) ?>". You can type the registry details in manually below (e.g. from an older physical book).</p>
+              <?php else: ?>
+                <div class="table-wrap" style="margin-bottom:0;">
+                  <table>
+                    <thead><tr><th>Name</th><th>Sacrament</th><th>Date</th><th></th></tr></thead>
+                    <tbody>
+                      <?php foreach ($officialCertSearchResults as $match): ?>
+                        <tr>
+                          <td><?= e($match['name']) ?></td>
+                          <td><span class="badge badge-<?= strtolower($match['category']) ?>"><?= e($match['category']) ?></span></td>
+                          <td><?= formatDate($match['date']) ?></td>
+                          <td>
+                            <?php if ($match['certificate_type'] === $officialCertType): ?>
+                              <form method="POST" action="<?= e($redirectUrl) ?>">
+                                <?= csrfField() ?>
+                                <input type="hidden" name="action" value="use_certificate_match">
+                                <input type="hidden" name="source_appointment_id" value="<?= (int) $match['appointment_id'] ?>">
+                                <button type="submit" class="btn btn-primary btn-sm">Use This</button>
+                              </form>
+                            <?php else: ?>
+                              <span class="text-muted" style="font-size:11.5px;"><?= e($match['category']) ?> (Request is <?= e($officialCertType) ?>)</span>
+                            <?php endif; ?>
+                          </td>
+                        </tr>
+                      <?php endforeach; ?>
+                    </tbody>
+                  </table>
+                </div>
+              <?php endif; ?>
+            <?php endif; ?>
+          <?php endif; ?>
+        </div>
+        <?php
+    }
+
+    if (!$officialCertType) {
+        return;
+    }
+
+    $definition = certificateFormDefinition($officialCertType);
+    $dateKeys = ['birth_date', 'baptism_date', 'marriage_date', 'confirmation_date', 'death_date', 'burial_date', 'given_date', 'license_issued_date', 'certificate_dated'];
+    $lineLabel = match ($officialCertType) {
+        'Marriage' => 'Line No.',
+        'Baptism' => 'Serial No.',
+        'Confirmation' => 'Register No.',
+        'Death' => 'Folio No.',
+        default => 'Line / Serial No.',
+    };
+    // Marriage's own license/civil fields get their own section (D); every
+    // other certificate type has none of these keys, so Section C alone
+    // carries its whole field set and Section D never renders.
+    $licenseKeys = ['marriage_license_no', 'license_issued_at', 'license_issued_date', 'groom_nationality', 'bride_nationality'];
+    $licenseFields = $officialCertType === 'Marriage' ? array_intersect_key($definition['fields'], array_flip($licenseKeys)) : [];
+    $recordFields = array_diff_key($definition['fields'], $licenseFields);
+
+    $renderField = static function (string $key, string $label) use ($officialCertData, $dateKeys): void {
+        ?>
+        <div class="form-group">
+          <label for="certField_<?= e($key) ?>"><?= e($label) ?></label>
+          <?php if ($key === 'civil_status'): ?>
+            <select id="certField_<?= e($key) ?>" name="field_<?= e($key) ?>">
+              <option value="single" <?= ($officialCertData[$key] ?? '') === 'single' ? 'selected' : '' ?>>Single</option>
+              <option value="married" <?= ($officialCertData[$key] ?? '') === 'married' ? 'selected' : '' ?>>Married / Widowed</option>
+            </select>
+          <?php elseif ($key === 'burial_type'): ?>
+            <select id="certField_<?= e($key) ?>" name="field_<?= e($key) ?>">
+              <option value="parish" <?= ($officialCertData[$key] ?? '') === 'parish' ? 'selected' : '' ?>>Roman Catholic Cemetery of this Parish</option>
+              <option value="municipal" <?= ($officialCertData[$key] ?? '') === 'municipal' ? 'selected' : '' ?>>Municipal Cemetery</option>
+            </select>
+          <?php elseif ($key === 'sacraments_received'): ?>
+            <select id="certField_<?= e($key) ?>" name="field_<?= e($key) ?>">
+              <option value="received" <?= ($officialCertData[$key] ?? '') === 'received' ? 'selected' : '' ?>>Received last sacraments</option>
+              <option value="not_received" <?= ($officialCertData[$key] ?? '') === 'not_received' ? 'selected' : '' ?>>Not able to receive sacraments</option>
+            </select>
+          <?php else: ?>
+            <input type="<?= in_array($key, $dateKeys, true) ? 'date' : 'text' ?>" id="certField_<?= e($key) ?>" name="field_<?= e($key) ?>" value="<?= e((string) ($officialCertData[$key] ?? '')) ?>" maxlength="255">
+          <?php endif; ?>
+        </div>
+        <?php
+    };
+    ?>
+    <form method="POST" action="<?= e($redirectUrl) ?>" id="certificateEditForm">
+      <?= csrfField() ?>
+      <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
+        <h4 style="margin-top:0;">B. Canonical Book Registry</h4>
+        <div class="form-row">
+          <div class="form-group"><label for="certBookNo">Book No.</label><input type="text" id="certBookNo" name="book_no" value="<?= e((string) ($officialCert['book_no'] ?? '')) ?>" maxlength="50"></div>
+          <?php if ($officialCertType !== 'Confirmation'): ?>
+          <div class="form-group"><label for="certPageNo">Page No.</label><input type="text" id="certPageNo" name="page_no" value="<?= e((string) ($officialCert['page_no'] ?? '')) ?>" maxlength="50"></div>
+          <?php endif; ?>
+          <div class="form-group"><label for="certLineNo"><?= e($lineLabel) ?></label><input type="text" id="certLineNo" name="line_no" value="<?= e((string) ($officialCert['line_no'] ?? '')) ?>" maxlength="50"></div>
+          <div class="form-group"><label for="certRegistryDate">Registry Date</label><input type="date" id="certRegistryDate" name="registry_date" value="<?= e((string) ($officialCert['registry_date'] ?? '')) ?>"></div>
+        </div>
+        <?php if ($officialCertIsRequest): ?>
+          <div class="form-group">
+            <label for="certPurpose">Purpose</label>
+            <select id="certPurpose" name="certificate_purpose">
+              <option value="">Select purpose</option>
+              <?php foreach (['For Marriage Purposes', 'For School / Employment', 'For Identification / Passport', 'Reference / Legal'] as $purposeOption): ?>
+                <option value="<?= e($purposeOption) ?>" <?= ($officialCert['certificate_purpose'] ?? '') === $purposeOption ? 'selected' : '' ?>><?= e($purposeOption) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+        <?php endif; ?>
+      </div>
+
+      <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
+        <h4 style="margin-top:0;">C. Sacramental Record Details</h4>
+        <div class="form-row">
+          <?php foreach ($recordFields as $key => $label) $renderField($key, $label); ?>
+        </div>
+      </div>
+
+      <?php if ($licenseFields): ?>
+      <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
+        <h4 style="margin-top:0;">D. Marriage License &amp; Civil Details</h4>
+        <div class="form-row">
+          <?php foreach ($licenseFields as $key => $label) $renderField($key, $label); ?>
+        </div>
+      </div>
+      <?php endif; ?>
+
+      <div class="certificate-modal-footer" style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+        <button type="button" class="btn btn-outline certificate-modal-close">Cancel</button>
+        <button type="submit" name="action" value="save_certificate_registry" class="btn btn-outline">Save Draft</button>
+        <button type="submit" name="action" value="generate_certificate" class="btn btn-primary">📄 Generate Official Certificate</button>
+      </div>
+    </form>
+
+    <?php if (!empty($officialCert['document_id'])): ?>
+      <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <a href="<?= url('document.php?id=' . (int) $officialCert['document_id']) ?>" target="_blank" rel="noopener" class="btn btn-outline">Preview / Print</a>
+        <?php if ($officialCertIsRequest && ($officialCert['status'] ?? '') === 'generated'): ?>
+          <form method="POST" action="<?= e($redirectUrl) ?>">
+            <?= csrfField() ?>
+            <input type="hidden" name="action" value="mark_certificate_ready">
+            <button type="submit" class="btn btn-dark">✔ Mark Ready for Pick-up</button>
+          </form>
+        <?php elseif ($officialCertIsRequest && ($officialCert['status'] ?? '') === 'ready_for_pickup'): ?>
+          <span class="badge badge-verified">Ready for Pick-up</span>
+          <form method="POST" action="<?= e($redirectUrl) ?>">
+            <?= csrfField() ?>
+            <input type="hidden" name="action" value="mark_certificate_claimed">
+            <button type="submit" class="btn btn-success">✔ Mark as Claimed / Picked Up</button>
+          </form>
+        <?php elseif ($officialCertIsRequest && ($officialCert['status'] ?? '') === 'claimed'): ?>
+          <span class="badge badge-verified">Claimed<?= !empty($officialCert['claimed_at']) ? ' — ' . e(formatDateTime((string) $officialCert['claimed_at'])) : '' ?></span>
+        <?php endif; ?>
+      </div>
+    <?php endif; ?>
+    <?php
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifyCsrf();
     $action = $_POST['action'] ?? '';
@@ -817,7 +1022,27 @@ $officialCertSearchName = trim((string) ($_GET['cert_search'] ?? ''));
 $officialCertSearchResults = ($officialCertEligible && $officialCertIsRequest && $officialCertSearchName !== '')
     ? certificateSearchMatches($officialCertSearchName)
     : [];
-$officialCertNewDocId = (int) ($_GET['cert_doc'] ?? 0);
+
+// Dedicated #certificateEditModal fragment: opened from the certificate
+// summary card's "Edit Canonical Registry & Generate" button, this renders
+// ONLY the certificate form (see renderCertificateEditFragment() above) —
+// not the rest of the appointment page — so the wide modal shows a focused,
+// organized form instead of the whole detail view's narrow side column.
+if ($isAjax && ($_GET['section'] ?? '') === 'certificate') {
+    renderCertificateEditFragment(
+        $id,
+        $redirectUrl,
+        $officialCertEligible,
+        $officialCertIsRequest,
+        $officialCertType,
+        $officialCertRequestFields,
+        $officialCertSearchName,
+        $officialCertSearchResults,
+        $officialCert,
+        $officialCertData
+    );
+    exit;
+}
 
 // Each priest's upcoming schedule and declared unavailability, so the
 // secretary can check availability before assigning — directly at the
@@ -1309,161 +1534,45 @@ if (!$isAjax) {
   <?php if ($officialCertEligible): ?>
   <div class="card" style="margin-top:16px;">
     <div class="card-header"><h3>📜 Canonical Registry &amp; Official Certificate</h3></div>
-    <?php if ($officialCertNewDocId): ?>
-      <div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">
-        Certificate generated. <a href="<?= url('document.php?id=' . $officialCertNewDocId) ?>" target="_blank" rel="noopener"><strong>Preview / Print</strong></a>
-      </div>
-    <?php endif; ?>
-
-    <?php if ($officialCertIsRequest): ?>
-      <p class="helper-text" style="margin-top:0;">Certificate Request details submitted by the applicant:</p>
-      <ul style="margin:0 0 16px; padding-left:20px; font-size:14px;">
-        <?php foreach ($officialCertRequestFields as $label => $value): ?>
-          <li><strong><?= e($label) ?>:</strong> <?= e($value) ?></li>
-        <?php endforeach; ?>
-      </ul>
-
-      <?php if (!$officialCertType): ?>
-        <p class="text-muted">This request's certificate type could not be determined from the remarks above.</p>
-      <?php else: ?>
-        <p class="helper-text" style="margin-bottom:8px;">
-          Searching for completed <strong><?= e($officialCertType) ?></strong> parish records to autofill this certificate:
-        </p>
-        <form method="GET" action="<?= url('secretary/appointment-detail.php') ?>" class="form-row" style="align-items:end; margin-bottom:12px;">
-          <input type="hidden" name="id" value="<?= $id ?>">
-          <div class="form-group">
-            <label for="certSearchName">Search Parish Records by Name</label>
-            <input type="text" id="certSearchName" name="cert_search" value="<?= e($officialCertSearchName) ?>" placeholder="e.g. Juan Dela Cruz">
-          </div>
-          <div class="form-group"><button type="submit" class="btn btn-outline">🔎 Search &amp; Autofill</button></div>
-        </form>
-        <?php if ($officialCertSearchName !== ''): ?>
-          <?php if (empty($officialCertSearchResults)): ?>
-            <p class="text-muted" style="margin-bottom:16px;">No matching completed sacrament record found for "<?= e($officialCertSearchName) ?>". You can type the registry details in manually below (e.g. from an older physical book).</p>
-          <?php else: ?>
-            <div class="table-wrap" style="margin-bottom:16px;">
-              <table>
-                <thead><tr><th>Name</th><th>Sacrament</th><th>Date</th><th></th></tr></thead>
-                <tbody>
-                  <?php foreach ($officialCertSearchResults as $match): ?>
-                    <tr>
-                      <td><?= e($match['name']) ?></td>
-                      <td><span class="badge badge-<?= strtolower($match['category']) ?>"><?= e($match['category']) ?></span></td>
-                      <td><?= formatDate($match['date']) ?></td>
-                      <td>
-                        <?php if ($match['certificate_type'] === $officialCertType): ?>
-                          <form method="POST" action="<?= e($redirectUrl) ?>">
-                            <?= csrfField() ?>
-                            <input type="hidden" name="action" value="use_certificate_match">
-                            <input type="hidden" name="source_appointment_id" value="<?= (int) $match['appointment_id'] ?>">
-                            <button type="submit" class="btn btn-primary btn-sm">Use This</button>
-                          </form>
-                        <?php else: ?>
-                          <span class="text-muted" style="font-size:11.5px;"><?= e($match['category']) ?> (Request is <?= e($officialCertType) ?>)</span>
-                        <?php endif; ?>
-                      </td>
-                    </tr>
-                  <?php endforeach; ?>
-                </tbody>
-              </table>
-            </div>
-          <?php endif; ?>
+    <?php if (!$officialCertType): ?>
+      <?php if ($officialCertIsRequest): ?>
+        <p class="helper-text" style="margin-top:0;">Certificate Request details submitted by the applicant:</p>
+        <ul style="margin:0 0 16px; padding-left:20px; font-size:14px;">
+          <?php foreach ($officialCertRequestFields as $label => $value): ?>
+            <li><strong><?= e($label) ?>:</strong> <?= e($value) ?></li>
+          <?php endforeach; ?>
+        </ul>
+      <?php endif; ?>
+      <p class="text-muted">This request's certificate type could not be determined from the remarks above.</p>
+    <?php else: ?>
+      <p style="margin-top:0;"><strong>Certificate Type:</strong> <?= e($officialCertType) ?></p>
+      <p>
+        <strong>Registry Reference:</strong>
+        <?php if (!empty($officialCert['book_no']) || !empty($officialCert['page_no']) || !empty($officialCert['line_no'])): ?>
+          Book <?= e($officialCert['book_no'] ?: '—') ?>, Page <?= e($officialCert['page_no'] ?: '—') ?>, Line <?= e($officialCert['line_no'] ?: '—') ?>
+        <?php else: ?>
+          <span class="text-muted">Not yet entered in the registry</span>
         <?php endif; ?>
-      <?php endif; ?>
-    <?php endif; ?>
-
-    <?php if ($officialCertType):
-      $officialCertDefinition = certificateFormDefinition($officialCertType);
-      $officialCertDateKeys = ['birth_date', 'baptism_date', 'marriage_date', 'confirmation_date', 'death_date', 'burial_date', 'given_date', 'license_issued_date', 'certificate_dated'];
-      $officialCertLineLabel = match ($officialCertType) {
-          'Marriage' => 'Line No.',
-          'Baptism' => 'Serial No.',
-          'Confirmation' => 'Register No.',
-          'Death' => 'Folio No.',
-          default => 'Line / Serial No.',
-      };
-    ?>
-      <form method="POST" action="<?= e($redirectUrl) ?>">
-        <?= csrfField() ?>
-        <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
-          <h4 style="margin-top:0;">Church Book Registry</h4>
-          <div class="form-row">
-            <div class="form-group"><label for="certBookNo">Book No.</label><input type="text" id="certBookNo" name="book_no" value="<?= e((string) ($officialCert['book_no'] ?? '')) ?>" maxlength="50"></div>
-            <?php if ($officialCertType !== 'Confirmation'): ?>
-            <div class="form-group"><label for="certPageNo">Page No.</label><input type="text" id="certPageNo" name="page_no" value="<?= e((string) ($officialCert['page_no'] ?? '')) ?>" maxlength="50"></div>
-            <?php endif; ?>
-            <div class="form-group"><label for="certLineNo"><?= e($officialCertLineLabel) ?></label><input type="text" id="certLineNo" name="line_no" value="<?= e((string) ($officialCert['line_no'] ?? '')) ?>" maxlength="50"></div>
-            <div class="form-group"><label for="certRegistryDate">Registry Date</label><input type="date" id="certRegistryDate" name="registry_date" value="<?= e((string) ($officialCert['registry_date'] ?? '')) ?>"></div>
-          </div>
-          <?php if ($officialCertIsRequest): ?>
-            <div class="form-group">
-              <label for="certPurpose">Purpose</label>
-              <select id="certPurpose" name="certificate_purpose">
-                <option value="">Select purpose</option>
-                <?php foreach (['For Marriage Purposes', 'For School / Employment', 'For Identification / Passport', 'Reference / Legal'] as $purposeOption): ?>
-                  <option value="<?= e($purposeOption) ?>" <?= ($officialCert['certificate_purpose'] ?? '') === $purposeOption ? 'selected' : '' ?>><?= e($purposeOption) ?></option>
-                <?php endforeach; ?>
-              </select>
-            </div>
-          <?php endif; ?>
-        </div>
-
-        <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
-          <h4 style="margin-top:0;"><?= e($officialCertDefinition['title']) ?> Details</h4>
-          <div class="form-row">
-            <?php foreach ($officialCertDefinition['fields'] as $key => $label): ?>
-              <div class="form-group">
-                <label for="certField_<?= e($key) ?>"><?= e($label) ?></label>
-                <?php if ($key === 'civil_status'): ?>
-                  <select id="certField_<?= e($key) ?>" name="field_<?= e($key) ?>">
-                    <option value="single" <?= ($officialCertData[$key] ?? '') === 'single' ? 'selected' : '' ?>>Single</option>
-                    <option value="married" <?= ($officialCertData[$key] ?? '') === 'married' ? 'selected' : '' ?>>Married / Widowed</option>
-                  </select>
-                <?php elseif ($key === 'burial_type'): ?>
-                  <select id="certField_<?= e($key) ?>" name="field_<?= e($key) ?>">
-                    <option value="parish" <?= ($officialCertData[$key] ?? '') === 'parish' ? 'selected' : '' ?>>Roman Catholic Cemetery of this Parish</option>
-                    <option value="municipal" <?= ($officialCertData[$key] ?? '') === 'municipal' ? 'selected' : '' ?>>Municipal Cemetery</option>
-                  </select>
-                <?php elseif ($key === 'sacraments_received'): ?>
-                  <select id="certField_<?= e($key) ?>" name="field_<?= e($key) ?>">
-                    <option value="received" <?= ($officialCertData[$key] ?? '') === 'received' ? 'selected' : '' ?>>Received last sacraments</option>
-                    <option value="not_received" <?= ($officialCertData[$key] ?? '') === 'not_received' ? 'selected' : '' ?>>Not able to receive sacraments</option>
-                  </select>
-                <?php else: ?>
-                  <input type="<?= in_array($key, $officialCertDateKeys, true) ? 'date' : 'text' ?>" id="certField_<?= e($key) ?>" name="field_<?= e($key) ?>" value="<?= e((string) ($officialCertData[$key] ?? '')) ?>" maxlength="255">
-                <?php endif; ?>
-              </div>
-            <?php endforeach; ?>
-          </div>
-        </div>
-
-        <div style="display:flex; flex-direction:column; gap:10px;">
-          <button type="submit" name="action" value="save_certificate_registry" class="btn btn-outline btn-block">Save Draft</button>
-          <button type="submit" name="action" value="generate_certificate" class="btn btn-primary btn-block">📄 Generate Official Certificate</button>
-        </div>
-      </form>
-
-      <?php if (!empty($officialCert['document_id'])): ?>
-        <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
+      </p>
+      <?php
+        $certStatusBadge = match ($officialCert['status'] ?? null) {
+            'generated' => ['badge-approved', 'Generated'],
+            'ready_for_pickup' => ['badge-verified', 'Ready for Pick-up'],
+            'claimed' => ['badge-verified', 'Claimed'],
+            default => ['badge-pending', 'Draft / Not Started'],
+        };
+      ?>
+      <p><strong>Status:</strong> <span class="badge <?= e($certStatusBadge[0]) ?>"><?= e($certStatusBadge[1]) ?></span></p>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:4px;">
+        <?php if (!empty($officialCert['document_id'])): ?>
           <a href="<?= url('document.php?id=' . (int) $officialCert['document_id']) ?>" target="_blank" rel="noopener" class="btn btn-outline">Preview / Print</a>
-          <?php if ($officialCertIsRequest && ($officialCert['status'] ?? '') === 'generated'): ?>
-            <form method="POST" action="<?= e($redirectUrl) ?>">
-              <?= csrfField() ?>
-              <input type="hidden" name="action" value="mark_certificate_ready">
-              <button type="submit" class="btn btn-dark">✔ Mark Ready for Pick-up</button>
-            </form>
-          <?php elseif ($officialCertIsRequest && ($officialCert['status'] ?? '') === 'ready_for_pickup'): ?>
-            <span class="badge badge-verified">Ready for Pick-up</span>
-            <form method="POST" action="<?= e($redirectUrl) ?>">
-              <?= csrfField() ?>
-              <input type="hidden" name="action" value="mark_certificate_claimed">
-              <button type="submit" class="btn btn-success">✔ Mark as Claimed / Picked Up</button>
-            </form>
-          <?php elseif ($officialCertIsRequest && ($officialCert['status'] ?? '') === 'claimed'): ?>
-            <span class="badge badge-verified">Claimed<?= !empty($officialCert['claimed_at']) ? ' — ' . e(formatDateTime((string) $officialCert['claimed_at'])) : '' ?></span>
-          <?php endif; ?>
-        </div>
-      <?php endif; ?>
+        <?php endif; ?>
+        <button type="button" class="btn btn-primary js-open-certificate-modal"
+          data-url="<?= e(url('secretary/appointment-detail.php?id=' . $id . '&section=certificate')) ?>"
+          data-title="<?= e('Certificate — ' . $officialCertType . ' (Appointment #' . $id . ')') ?>">
+          ✍️ Edit Canonical Registry &amp; Generate
+        </button>
+      </div>
     <?php endif; ?>
   </div>
   <?php endif; ?>

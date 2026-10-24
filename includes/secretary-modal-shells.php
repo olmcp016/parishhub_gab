@@ -31,3 +31,11 @@
     </div>
   </div>
 </dialog>
+
+<dialog class="modal modal-xl" id="certificateEditModal" aria-labelledby="certificateEditModalTitle">
+  <div class="modal-head">
+    <h3 id="certificateEditModalTitle">Certificate</h3>
+    <button type="button" class="modal-close certificate-modal-close" aria-label="Close">✕</button>
+  </div>
+  <div class="modal-body" id="certificateEditModalBody"></div>
+</dialog>

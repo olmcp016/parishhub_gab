@@ -31,6 +31,11 @@
   var modalRequestBusy = false;
   var lastDetailFragmentHtml = null;
   var DETAIL_POLL_INTERVAL_MS = 6000;
+  var certModal, certModalBody;
+  var activeCertRequest = 0;
+  var certAbortController = null;
+  var certRequestBusy = false;
+  var certDirty = false;
 
   function refs() {
     modal = document.getElementById('detailModal');
@@ -62,6 +67,102 @@
     var rejectModal = document.getElementById('rejectApptModal');
     if (scheduleModal && scheduleModal.open) scheduleModal.close();
     if (rejectModal && rejectModal.open) rejectModal.close();
+    activeCertRequest += 1;
+    if (certAbortController) certAbortController.abort();
+    certAbortController = null;
+    certRequestBusy = false;
+    certDirty = false;
+    if (!certModal) certModal = document.getElementById('certificateEditModal');
+    if (certModal && certModal.open) certModal.close();
+  }
+
+  function certRefs() {
+    certModal = document.getElementById('certificateEditModal');
+    certModalBody = document.getElementById('certificateEditModalBody');
+    return !!(certModal && certModalBody);
+  }
+
+  function prependCertBanner(success, message) {
+    if (!certModalBody) return;
+    var banner = document.createElement('div');
+    banner.className = 'alert' + (success ? ' alert-success' : '');
+    if (!success) {
+      banner.style.background = 'var(--danger-bg)';
+      banner.style.color = 'var(--danger)';
+      banner.style.border = '1px solid #f5c2c2';
+    }
+    banner.style.marginBottom = '16px';
+    banner.textContent = message;
+    certModalBody.insertBefore(banner, certModalBody.firstChild);
+  }
+
+  /**
+   * Opens the wide Certificate editor dialog (secretary-modal-shells.php's
+   * #certificateEditModal — a sibling of #detailModal, never fetched into
+   * its body, for the same reason the priest-schedule/reject popups aren't:
+   * a refresh of #detailModal's content must never wipe out an open child
+   * dialog) and loads its form from url (see renderCertificateEditFragment()
+   * in secretary/appointment-detail.php).
+   */
+  function openCertificateModal(url, title) {
+    if (!certRefs()) return;
+    activeCertRequest += 1;
+    var requestId = activeCertRequest;
+    if (certAbortController) certAbortController.abort();
+    certAbortController = window.AbortController ? new AbortController() : null;
+    var heading = document.getElementById('certificateEditModalTitle');
+    if (heading) heading.textContent = title || 'Certificate';
+    certModal.dataset.currentUrl = url;
+    certModalBody.innerHTML = '<p class="text-muted" style="padding:30px; text-align:center;">Loading…</p>';
+    if (!certModal.open) certModal.showModal();
+    certRequestBusy = true;
+    fetchFragment(url, certAbortController && certAbortController.signal)
+      .then(function (html) {
+        certRequestBusy = false;
+        if (requestId !== activeCertRequest || !certModal.open) return;
+        certModalBody.innerHTML = html;
+      })
+      .catch(function (error) {
+        certRequestBusy = false;
+        if (error && error.name === 'AbortError') return;
+        if (requestId === activeCertRequest && certModal.open) {
+          certModalBody.innerHTML = '<p class="text-muted" style="padding:30px; text-align:center;">Could not load the certificate form. Please try again.</p>';
+        }
+      });
+  }
+
+  /**
+   * Closing the certificate editor, after something in it actually changed
+   * (certDirty), refreshes the appointment modal/card underneath it in
+   * place — the Secretary never needs to close everything and reopen just
+   * to see the updated registry/status.
+   */
+  function closeCertificateModal() {
+    if (!certRefs()) return;
+    activeCertRequest += 1;
+    if (certAbortController) certAbortController.abort();
+    certAbortController = null;
+    certRequestBusy = false;
+    if (certModal.open) certModal.close();
+    certModalBody.replaceChildren();
+    if (certDirty) {
+      certDirty = false;
+      if (modal && modal.open && modal.dataset.currentUrl) {
+        modalRequestBusy = true;
+        fetchFragment(modal.dataset.currentUrl, detailAbortController && detailAbortController.signal)
+          .then(function (html) {
+            modalRequestBusy = false;
+            modalBody.innerHTML = html;
+            lastDetailFragmentHtml = html;
+          })
+          .catch(function () { modalRequestBusy = false; });
+      } else {
+        // #detailModal isn't open (the certificate editor was reached some
+        // other way) — fall back to the existing "reload the list once, on
+        // close" convention so the change still shows up.
+        dirty = true;
+      }
+    }
   }
 
   function openDetailModal(url, title, trigger) {
@@ -321,6 +422,17 @@
       if (e.target.closest('.js-close-priest-schedule')) {
         var scheduleModal = document.getElementById('priestScheduleModal');
         if (scheduleModal && scheduleModal.open) scheduleModal.close();
+        return;
+      }
+      var certOpenButton = e.target.closest('.js-open-certificate-modal');
+      if (certOpenButton) {
+        e.preventDefault();
+        openCertificateModal(certOpenButton.dataset.url || certOpenButton.href, certOpenButton.dataset.title || '');
+        return;
+      }
+      if (e.target.closest('.certificate-modal-close')) {
+        e.preventDefault();
+        closeCertificateModal();
         return;
       }
       if (e.target.closest('#openRejectConfirmBtn')) {
@@ -689,6 +801,116 @@
           prependBanner(false, friendlyMessage);
         });
     });
+
+    var certModalEl = document.getElementById('certificateEditModal');
+    if (certModalEl) {
+      certModalEl.addEventListener('cancel', function () {
+        closeCertificateModal();
+      });
+      certModalEl.addEventListener('click', function (e) {
+        if (e.target === certModalEl) closeCertificateModal();
+      });
+      certModalEl.addEventListener('submit', function (e) {
+        if (e.defaultPrevented) return;
+        var form = e.target;
+        if (!(form instanceof HTMLFormElement)) return;
+        if (!certRefs()) return;
+        var method = (form.getAttribute('method') || 'GET').toUpperCase();
+
+        if (method === 'GET') {
+          // Parish Record Search & Autofill (Section A): refetch the
+          // certificate fragment with the search query instead of a real
+          // navigation, same pattern as #detailModal's own GET forms.
+          e.preventDefault();
+          var action = form.getAttribute('action') || certModal.dataset.currentUrl;
+          var query = new URLSearchParams(new FormData(form)).toString();
+          var targetUrl = action + (action.indexOf('?') === -1 ? '?' : '&') + query;
+          certModal.dataset.currentUrl = targetUrl;
+          certModalBody.innerHTML = '<p class="text-muted" style="padding:30px; text-align:center;">Loading…</p>';
+          certRequestBusy = true;
+          fetchFragment(targetUrl, certAbortController && certAbortController.signal)
+            .then(function (html) {
+              certRequestBusy = false;
+              certModalBody.innerHTML = html;
+            })
+            .catch(function (error) {
+              certRequestBusy = false;
+              if (error && error.name === 'AbortError') return;
+              certModalBody.innerHTML = '<p class="text-muted" style="padding:30px; text-align:center;">Could not load the certificate form. Please try again.</p>';
+            });
+          return;
+        }
+
+        if (form.dataset.submitting === '1') { e.preventDefault(); return; }
+        e.preventDefault();
+
+        var submitButtons = form.querySelectorAll('button[type="submit"]');
+        var requestId = activeCertRequest;
+        var refreshUrl = certModal.dataset.currentUrl;
+        form.dataset.submitting = '1';
+        submitButtons.forEach(function (btn) {
+          btn.disabled = true;
+          btn.dataset.originalText = btn.textContent;
+          btn.textContent = 'Processing…';
+        });
+        function restoreCertButtons() {
+          form.dataset.submitting = '0';
+          submitButtons.forEach(function (btn) {
+            btn.disabled = false;
+            if (btn.dataset.originalText) btn.textContent = btn.dataset.originalText;
+          });
+        }
+
+        // Same fix as the main detail form (see above): new FormData(form)
+        // alone does not include the clicked submit button's own
+        // name/value — Save Draft and Generate Official Certificate each
+        // set a different name="action" value="..." directly on
+        // themselves, so without this the server never learns which one
+        // was clicked and returns raw HTML instead of JSON.
+        var formData = new FormData(form);
+        if (e.submitter && e.submitter.name) {
+          formData.append(e.submitter.name, e.submitter.value);
+        }
+
+        certRequestBusy = true;
+        fetch(form.getAttribute('action'), {
+          method: 'POST',
+          body: formData,
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+          .then(function (res) {
+            return res.json().then(function (data) {
+              if (!res.ok) throw new Error(data.message || 'The request could not be completed.');
+              return data;
+            });
+          })
+          .then(function (data) {
+            if (requestId !== activeCertRequest || !certModal.open) { certRequestBusy = false; return; }
+            // A failure here is a legitimate, explained outcome (e.g. "Groom
+            // Full Name is required.") — not success, but not silent either:
+            // the fragment is still refreshed and the real message banner is
+            // still shown below, same as the success path.
+            if (data.success) certDirty = true;
+            return fetchFragment(refreshUrl, certAbortController && certAbortController.signal).then(function (html) {
+              certRequestBusy = false;
+              if (requestId !== activeCertRequest || !certModal.open) return;
+              certModalBody.innerHTML = html;
+              if (data.message) prependCertBanner(!!data.success, data.message);
+            });
+          })
+          .catch(function (error) {
+            certRequestBusy = false;
+            if (error && error.name === 'AbortError') return;
+            if (requestId !== activeCertRequest || !certModal.open) return;
+            restoreCertButtons();
+            if (window.console) console.error('Certificate form submission failed:', error);
+            var friendlyMessage = (error && error.message && !(error instanceof SyntaxError))
+              ? error.message
+              : 'Something went wrong saving the certificate. Please check your connection and try again.';
+            prependCertBanner(false, friendlyMessage);
+          });
+      });
+    }
   });
 
   window.closeDetailModal = closeDetailModal;
