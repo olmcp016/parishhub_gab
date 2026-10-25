@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $stmt = db()->prepare(
-    "SELECT u.*, p.parishioner_id, p.baptism_date, p.confirmation_date, p.marital_status
+    "SELECT u.*, p.parishioner_id, p.marital_status
      FROM users u JOIN parishioners p ON u.user_id = p.user_id WHERE p.parishioner_id = ?"
 );
 $stmt->execute([$id]);

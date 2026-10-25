@@ -27,13 +27,21 @@ function buildAppointmentsQuery(string $statusFilter, string $search): array
     if ($statusFilter === 'action_needed') {
         $sql .= " AND (
             a.status_id = 1
-            OR a.requirements_review_status IN ('pending_review', 'ready_for_rereview')
+            OR a.requirements_review_status = 'ready_for_rereview'
             OR (
                 (s.category IN ('Wedding', 'Baptism', 'Confirmation', 'Funeral') OR s.service_name LIKE '%Certificate%')
                 AND a.status_id IN (2, 4)
                 AND (ic.document_id IS NULL OR ic.status NOT IN ('generated', 'ready_for_pickup', 'claimed'))
             )
         )";
+    } elseif (str_starts_with($statusFilter, 'review:')) {
+        $review = substr($statusFilter, 7);
+        if ($review === 'pending_review') {
+            $sql .= " AND a.status_id = 1 AND a.requirements_review_status IS NULL AND s.category NOT IN ('Mass Intention', 'Donation')";
+        } elseif (in_array($review, ['awaiting_revision', 'ready_for_rereview'], true)) {
+            $sql .= " AND a.status_id = 1 AND a.requirements_review_status = ? AND s.category NOT IN ('Mass Intention', 'Donation')";
+            $params[] = $review;
+        }
     } elseif ($statusFilter === 'Cancelled') {
         $sql .= " AND st.status_name IN ('Cancelled', 'Rejected')";
     } elseif ($statusFilter) {

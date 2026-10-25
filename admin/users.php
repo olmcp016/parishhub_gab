@@ -160,6 +160,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('error', 'This is the only active Admin, so it cannot be deleted.');
             redirect(url('admin/users.php'));
         }
+        $chk = db()->prepare(
+            "SELECT (u.email LIKE '%@parishhub.internal') AS is_placeholder,
+                    EXISTS (
+                        SELECT 1 FROM parishioners p JOIN appointments a ON a.parishioner_id = p.parishioner_id
+                        WHERE p.user_id = u.user_id
+                    ) AS has_history
+             FROM users u WHERE u.user_id = ?"
+        );
+        $chk->execute([$targetId]);
+        $c = $chk->fetch();
+        if ($c && ($c['is_placeholder'] || $c['has_history'])) {
+            if ($c['is_placeholder']) {
+                flash('error', 'This system placeholder account cannot be deleted because guest and walk-in records depend on it.');
+            } else {
+                flash('error', 'This account has appointment or payment history and cannot be deleted. Set it to Inactive instead.');
+            }
+            redirect(url('admin/users.php'));
+        }
         $adminPw   = $_POST['admin_password'] ?? '';
         $row       = db()->prepare('SELECT password FROM users WHERE user_id = ?');
         $row->execute([$adminId]);
@@ -484,9 +502,11 @@ include __DIR__ . '/../includes/dash-start.php';
                 <input type="hidden" name="action" value="reset">
                 <input type="hidden" name="user_id" value="<?= $u['user_id'] ?>">
               </form>
+              <?php if (!str_ends_with($u['email'], '@parishhub.internal')): ?>
               <button type="button" class="btn btn-danger btn-sm js-delete-user"
                 data-id="<?= $u['user_id'] ?>"
                 data-name="<?= e($u['firstname'] . ' ' . $u['lastname']) ?>">Delete</button>
+              <?php endif; ?>
             </td>
           </tr>
         <?php endforeach; ?>

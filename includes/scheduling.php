@@ -146,7 +146,7 @@ function massIntentionSlotAvailability(string $date, string $time): array
         return ['available' => false, 'reason' => 'That Mass has already passed.'];
     }
 
-    $stmt = db()->prepare('SELECT 1 FROM calendar WHERE calendar_date = ? AND is_blocked = 1');
+    $stmt = db()->prepare('SELECT 1 FROM calendar WHERE calendar_date = ? AND is_blocked = TRUE');
     $stmt->execute([$date]);
     if ($stmt->fetchColumn()) {
         return ['available' => false, 'reason' => 'This date is not available (blocked on the parish calendar).'];
@@ -551,7 +551,7 @@ function lockedBookingConflict(PDO $pdo, int $serviceId, ?string $date, ?string 
         $pdo->prepare('SELECT pg_advisory_xact_lock(hashtext(?))')->execute(['priest:' . $priestId . ':' . $date]);
     }
     // Same blocked-date rule book.php applies (holidays etc. set by the Parish Office after the draft was made).
-    $blocked = $pdo->prepare('SELECT 1 FROM calendar WHERE calendar_date = ? AND is_blocked = 1');
+    $blocked = $pdo->prepare('SELECT 1 FROM calendar WHERE calendar_date = ? AND is_blocked = TRUE');
     $blocked->execute([$date]);
     if ($blocked->fetchColumn()) {
         return 'The selected date is not available for booking anymore.';

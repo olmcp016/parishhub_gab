@@ -7,7 +7,7 @@ require_once __DIR__ . '/../includes/functions.php';
 // shows the right dots), but the "Upcoming Parish Events" table below it is
 // paginated separately — a long unbounded list isn't useful there.
 $allEvents = db()->query('SELECT * FROM events ORDER BY event_date ASC')->fetchAll();
-$blocked = db()->query('SELECT * FROM calendar WHERE is_blocked = 1 ORDER BY calendar_date ASC')->fetchAll();
+$blocked = db()->query('SELECT * FROM calendar WHERE is_blocked = TRUE ORDER BY calendar_date ASC')->fetchAll();
 
 $today = date('Y-m-d');
 $stmt = db()->prepare('SELECT COUNT(*) FROM events WHERE event_date >= ?');

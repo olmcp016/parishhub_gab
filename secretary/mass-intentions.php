@@ -78,14 +78,8 @@ if ($dateFilter) {
     }
 }
 
-$countStmt = db()->prepare(str_replace(
-    'SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.status_id, a.guest_name,
-               st.status_name, u.firstname, u.lastname,
-               mi.intention_type, mi.offerer_name, mi.intention_for, mi.message,
-               p.payment_id, p.payment_status, p.amount, p.method_id',
-    'SELECT COUNT(*)',
-    $sql
-));
+$countSql = preg_replace('/^SELECT\s+.*?\s+FROM\s+/is', 'SELECT COUNT(*) FROM ', $sql, 1);
+$countStmt = db()->prepare($countSql);
 $countStmt->execute($params);
 $pagination = paginate((int) $countStmt->fetchColumn(), 10);
 

@@ -802,7 +802,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
 
         // Manually blocked dates (holidays, etc.) still apply on top of the fixed rules
         if ($date) {
-            $stmt = $pdo->prepare('SELECT * FROM calendar WHERE calendar_date = ? AND is_blocked = 1');
+            $stmt = $pdo->prepare('SELECT * FROM calendar WHERE calendar_date = ? AND is_blocked = TRUE');
             $stmt->execute([$date]);
             if ($stmt->fetch()) {
                 $pdo->rollBack();

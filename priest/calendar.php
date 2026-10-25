@@ -19,7 +19,7 @@ $allEvents = db()->query(
      LEFT JOIN priests p ON e.priest_id = p.priest_id
      ORDER BY e.event_date ASC, e.event_time ASC"
 )->fetchAll();
-$blocked = db()->query('SELECT * FROM calendar WHERE is_blocked = 1 ORDER BY calendar_date ASC')->fetchAll();
+$blocked = db()->query('SELECT * FROM calendar WHERE is_blocked = TRUE ORDER BY calendar_date ASC')->fetchAll();
 $calendarBlocked = array_map(fn($b) => ['date' => $b['calendar_date'], 'notes' => $b['notes']], $blocked);
 
 // Where church-held services and the regular Masses take place.

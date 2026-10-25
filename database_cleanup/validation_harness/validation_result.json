@@ -1,0 +1,585 @@
+{
+  "A_cleanup_audit_applied": {
+    "steps": [
+      {
+        "label": "seed synthetic records (member + guest booking chains)",
+        "ok": true,
+        "detail": {
+          "receipt_numbers": [
+            "OR-2026-000001",
+            "OR-2026-000002"
+          ]
+        }
+      },
+      {
+        "label": "receipt trigger formats OR-YYYY-NNNNNN",
+        "ok": true,
+        "detail": "OR-2026-000001"
+      },
+      {
+        "label": "preflight runs read-only and returns one result set",
+        "ok": true,
+        "detail": {
+          "rows": 159,
+          "flagged": [
+            "columns:parishioners.baptism_date=MISSING",
+            "columns:parishioners.confirmation_date=MISSING"
+          ]
+        }
+      },
+      {
+        "label": "BEFORE migration: deleting a member user cascades into financial/certificate records (risk confirmed)",
+        "ok": true,
+        "detail": {
+          "outcome": "DELETED (rolled back)",
+          "before": {
+            "appointments": 2,
+            "payments": 2,
+            "official_receipts": 2,
+            "issued_certificates": 2,
+            "uploaded_documents": 2
+          },
+          "after": {
+            "appointments": 1,
+            "payments": 1,
+            "official_receipts": 1,
+            "issued_certificates": 1,
+            "uploaded_documents": 1
+          }
+        }
+      },
+      {
+        "label": "BEFORE migration: deleting the guest placeholder cascades into ALL guest records (risk confirmed)",
+        "ok": true,
+        "detail": {
+          "outcome": "DELETED (rolled back)",
+          "before": {
+            "appointments": 2,
+            "payments": 2,
+            "official_receipts": 2,
+            "issued_certificates": 2,
+            "uploaded_documents": 2
+          },
+          "after": {
+            "appointments": 1,
+            "payments": 1,
+            "official_receipts": 1,
+            "issued_certificates": 1,
+            "uploaded_documents": 1
+          }
+        }
+      },
+      {
+        "label": "apply DATABASE_MIGRATION_SAFE.sql (Part A)",
+        "ok": true
+      },
+      {
+        "label": "re-apply Part A (idempotent)",
+        "ok": true
+      },
+      {
+        "label": "catalog changes made by Part A",
+        "ok": true,
+        "detail": {
+          "columns": {
+            "removed": [],
+            "added": [
+              "parishioners.baptism_date date YES",
+              "parishioners.confirmation_date date YES"
+            ]
+          },
+          "indexes": {
+            "removed": [
+              "CREATE INDEX idx_appt_guest_reference ON public.appointments USING btree (guest_reference)",
+              "CREATE INDEX idx_prot_email ON public.password_reset_otps USING btree (email)"
+            ],
+            "added": [
+              "CREATE INDEX idx_cleanup_activity_logs_user_created ON public.activity_logs USING btree (user_id, created_at)",
+              "CREATE INDEX idx_cleanup_appointments_parishioner ON public.appointments USING btree (parishioner_id)",
+              "CREATE INDEX idx_cleanup_appointments_priest_date ON public.appointments USING btree (priest_id, appointment_date)",
+              "CREATE INDEX idx_cleanup_appointments_service ON public.appointments USING btree (service_id)",
+              "CREATE INDEX idx_cleanup_donations_appointment ON public.donations USING btree (appointment_id)",
+              "CREATE INDEX idx_cleanup_donations_project ON public.donations USING btree (project_id)",
+              "CREATE INDEX idx_cleanup_drafts_parishioner ON public.appointment_drafts USING btree (parishioner_id)",
+              "CREATE INDEX idx_cleanup_mass_intentions_appointment ON public.mass_intentions USING btree (appointment_id)",
+              "CREATE INDEX idx_cleanup_notifications_appointment ON public.notifications USING btree (appointment_id)",
+              "CREATE INDEX idx_cleanup_payments_appointment ON public.payments USING btree (appointment_id)",
+              "CREATE INDEX idx_cleanup_transactions_payment ON public.transactions USING btree (payment_id)",
+              "CREATE INDEX idx_cleanup_uploaded_docs_appointment ON public.uploaded_documents USING btree (appointment_id)"
+            ]
+          },
+          "constraints": {
+            "removed": [],
+            "added": []
+          },
+          "triggers": {
+            "removed": [],
+            "added": [
+              "CREATE TRIGGER trg_protect_guest_placeholder BEFORE DELETE OR UPDATE OF email ON public.users FOR EACH ROW EXECUTE FUNCTION fn_protect_guest_placeholder()"
+            ]
+          },
+          "functions": {
+            "removed": [],
+            "added": [
+              "fn_protect_guest_placeholder()"
+            ]
+          },
+          "tables": {
+            "removed": [],
+            "added": []
+          }
+        }
+      },
+      {
+        "label": "all pre-existing rows identical after Part A (per-table count + md5)",
+        "ok": true,
+        "detail": {
+          "tables_checked": 34,
+          "changed": []
+        }
+      },
+      {
+        "label": "AFTER Part A: guest placeholder delete is blocked",
+        "ok": true,
+        "detail": {
+          "outcome": "BLOCKED",
+          "error": "System placeholder account guest@parishhub.internal cannot be deleted or renamed: guest and walk-in bookings, payments and certificates depend on it."
+        }
+      },
+      {
+        "label": "AFTER Part A: walk-in donor placeholder delete is blocked",
+        "ok": true,
+        "detail": {
+          "outcome": "BLOCKED",
+          "error": "System placeholder account walkin-donor@parishhub.internal cannot be deleted or renamed: guest and walk-in bookings, payments and certificates depend on it."
+        }
+      },
+      {
+        "label": "AFTER Part A: renaming the guest placeholder email is blocked",
+        "ok": true,
+        "detail": {
+          "outcome": "BLOCKED",
+          "error": "System placeholder account guest@parishhub.internal cannot be deleted or renamed: guest and walk-in bookings, payments and certificates depend on it."
+        }
+      },
+      {
+        "label": "AFTER Part A: ordinary users can still be renamed and deleted",
+        "ok": true,
+        "detail": {
+          "outcome": "DELETED (rolled back)",
+          "before": {
+            "appointments": 2,
+            "payments": 2,
+            "official_receipts": 2,
+            "issued_certificates": 2,
+            "uploaded_documents": 2
+          },
+          "after": {
+            "appointments": 2,
+            "payments": 2,
+            "official_receipts": 2,
+            "issued_certificates": 2,
+            "uploaded_documents": 2
+          }
+        }
+      },
+      {
+        "label": "EXPLAIN all extracted PHP SQL against post-migration schema",
+        "ok": true,
+        "detail": {
+          "counts": {
+            "42601": 39,
+            "42883": 7,
+            "OK": 678,
+            "42P01": 7
+          },
+          "schemaErrors": [
+            "includes/scheduling.php:149 [42883] operator does not exist: boolean = integer",
+            "includes/scheduling.php:554 [42883] operator does not exist: boolean = integer",
+            "parishioner/book.php:805 [42883] operator does not exist: boolean = integer",
+            "parishioner/calendar.php:10 [42883] operator does not exist: boolean = integer",
+            "parishioner/services.php:37 [42883] operator does not exist: boolean = integer",
+            "parishioner/services.php:65 [42883] operator does not exist: boolean = integer",
+            "priest/calendar.php:22 [42883] operator does not exist: boolean = integer"
+          ]
+        }
+      },
+      {
+        "label": "apply Part B (opt-in FK hardening)",
+        "ok": true
+      },
+      {
+        "label": "AFTER Part B: member delete with history is blocked",
+        "ok": true,
+        "detail": {
+          "outcome": "BLOCKED",
+          "error": "update or delete on table \"parishioners\" violates foreign key constraint \"appointments_parishioner_id_fkey\" on table \"appointments\""
+        }
+      },
+      {
+        "label": "rollback Part B",
+        "ok": true
+      },
+      {
+        "label": "apply Part C (archive unused tables)",
+        "ok": true,
+        "detail": {
+          "archived": [
+            "archive.chat_messages"
+          ]
+        }
+      },
+      {
+        "label": "rollback Part C (tables back in public, data intact)",
+        "ok": true,
+        "detail": {
+          "removed": [],
+          "added": []
+        }
+      },
+      {
+        "label": "apply Part D: RLS on every public table; anon sees 0 rows; owner (app) unaffected",
+        "ok": true,
+        "detail": {
+          "tables_without_rls": 0,
+          "anon_rows_before": 3,
+          "anon_rows_after": 0,
+          "owner_rows_after": 3
+        }
+      },
+      {
+        "label": "rollback Part D (RLS off again, comments restored)",
+        "ok": true,
+        "detail": {
+          "tables_with_rls": 0
+        }
+      },
+      {
+        "label": "rollback Part A restores the original catalog",
+        "ok": true,
+        "detail": {
+          "columns": {
+            "removed": [],
+            "added": []
+          },
+          "indexes": {
+            "removed": [],
+            "added": []
+          },
+          "constraints": {
+            "removed": [],
+            "added": []
+          },
+          "triggers": {
+            "removed": [],
+            "added": []
+          },
+          "functions": {
+            "removed": [],
+            "added": []
+          },
+          "tables": {
+            "removed": [],
+            "added": []
+          }
+        }
+      },
+      {
+        "label": "all pre-existing rows identical after full rollback",
+        "ok": true
+      }
+    ]
+  },
+  "B_cleanup_audit_not_applied": {
+    "steps": [
+      {
+        "label": "seed synthetic records (member + guest booking chains)",
+        "ok": true,
+        "detail": {
+          "receipt_numbers": [
+            "OR-2026-000001",
+            "OR-2026-000002"
+          ]
+        }
+      },
+      {
+        "label": "receipt trigger formats OR-YYYY-NNNNNN",
+        "ok": true,
+        "detail": "OR-2026-000001"
+      },
+      {
+        "label": "preflight runs read-only and returns one result set",
+        "ok": true,
+        "detail": {
+          "rows": 165,
+          "flagged": [
+            "tables:permissions=STILL PRESENT",
+            "tables:reports=STILL PRESENT",
+            "tables:role_permissions=STILL PRESENT"
+          ]
+        }
+      },
+      {
+        "label": "BEFORE migration: deleting a member user cascades into financial/certificate records (risk confirmed)",
+        "ok": true,
+        "detail": {
+          "outcome": "DELETED (rolled back)",
+          "before": {
+            "appointments": 2,
+            "payments": 2,
+            "official_receipts": 2,
+            "issued_certificates": 2,
+            "uploaded_documents": 2
+          },
+          "after": {
+            "appointments": 1,
+            "payments": 1,
+            "official_receipts": 1,
+            "issued_certificates": 1,
+            "uploaded_documents": 1
+          }
+        }
+      },
+      {
+        "label": "BEFORE migration: deleting the guest placeholder cascades into ALL guest records (risk confirmed)",
+        "ok": true,
+        "detail": {
+          "outcome": "DELETED (rolled back)",
+          "before": {
+            "appointments": 2,
+            "payments": 2,
+            "official_receipts": 2,
+            "issued_certificates": 2,
+            "uploaded_documents": 2
+          },
+          "after": {
+            "appointments": 1,
+            "payments": 1,
+            "official_receipts": 1,
+            "issued_certificates": 1,
+            "uploaded_documents": 1
+          }
+        }
+      },
+      {
+        "label": "apply DATABASE_MIGRATION_SAFE.sql (Part A)",
+        "ok": true
+      },
+      {
+        "label": "re-apply Part A (idempotent)",
+        "ok": true
+      },
+      {
+        "label": "catalog changes made by Part A",
+        "ok": true,
+        "detail": {
+          "columns": {
+            "removed": [],
+            "added": []
+          },
+          "indexes": {
+            "removed": [
+              "CREATE INDEX idx_appt_guest_reference ON public.appointments USING btree (guest_reference)",
+              "CREATE INDEX idx_prot_email ON public.password_reset_otps USING btree (email)"
+            ],
+            "added": [
+              "CREATE INDEX idx_cleanup_activity_logs_user_created ON public.activity_logs USING btree (user_id, created_at)",
+              "CREATE INDEX idx_cleanup_appointments_parishioner ON public.appointments USING btree (parishioner_id)",
+              "CREATE INDEX idx_cleanup_appointments_priest_date ON public.appointments USING btree (priest_id, appointment_date)",
+              "CREATE INDEX idx_cleanup_appointments_service ON public.appointments USING btree (service_id)",
+              "CREATE INDEX idx_cleanup_donations_appointment ON public.donations USING btree (appointment_id)",
+              "CREATE INDEX idx_cleanup_donations_project ON public.donations USING btree (project_id)",
+              "CREATE INDEX idx_cleanup_drafts_parishioner ON public.appointment_drafts USING btree (parishioner_id)",
+              "CREATE INDEX idx_cleanup_mass_intentions_appointment ON public.mass_intentions USING btree (appointment_id)",
+              "CREATE INDEX idx_cleanup_notifications_appointment ON public.notifications USING btree (appointment_id)",
+              "CREATE INDEX idx_cleanup_payments_appointment ON public.payments USING btree (appointment_id)",
+              "CREATE INDEX idx_cleanup_transactions_payment ON public.transactions USING btree (payment_id)",
+              "CREATE INDEX idx_cleanup_uploaded_docs_appointment ON public.uploaded_documents USING btree (appointment_id)"
+            ]
+          },
+          "constraints": {
+            "removed": [],
+            "added": []
+          },
+          "triggers": {
+            "removed": [],
+            "added": [
+              "CREATE TRIGGER trg_protect_guest_placeholder BEFORE DELETE OR UPDATE OF email ON public.users FOR EACH ROW EXECUTE FUNCTION fn_protect_guest_placeholder()"
+            ]
+          },
+          "functions": {
+            "removed": [],
+            "added": [
+              "fn_protect_guest_placeholder()"
+            ]
+          },
+          "tables": {
+            "removed": [],
+            "added": []
+          }
+        }
+      },
+      {
+        "label": "all pre-existing rows identical after Part A (per-table count + md5)",
+        "ok": true,
+        "detail": {
+          "tables_checked": 37,
+          "changed": []
+        }
+      },
+      {
+        "label": "AFTER Part A: guest placeholder delete is blocked",
+        "ok": true,
+        "detail": {
+          "outcome": "BLOCKED",
+          "error": "System placeholder account guest@parishhub.internal cannot be deleted or renamed: guest and walk-in bookings, payments and certificates depend on it."
+        }
+      },
+      {
+        "label": "AFTER Part A: walk-in donor placeholder delete is blocked",
+        "ok": true,
+        "detail": {
+          "outcome": "BLOCKED",
+          "error": "System placeholder account walkin-donor@parishhub.internal cannot be deleted or renamed: guest and walk-in bookings, payments and certificates depend on it."
+        }
+      },
+      {
+        "label": "AFTER Part A: renaming the guest placeholder email is blocked",
+        "ok": true,
+        "detail": {
+          "outcome": "BLOCKED",
+          "error": "System placeholder account guest@parishhub.internal cannot be deleted or renamed: guest and walk-in bookings, payments and certificates depend on it."
+        }
+      },
+      {
+        "label": "AFTER Part A: ordinary users can still be renamed and deleted",
+        "ok": true,
+        "detail": {
+          "outcome": "DELETED (rolled back)",
+          "before": {
+            "appointments": 2,
+            "payments": 2,
+            "official_receipts": 2,
+            "issued_certificates": 2,
+            "uploaded_documents": 2
+          },
+          "after": {
+            "appointments": 2,
+            "payments": 2,
+            "official_receipts": 2,
+            "issued_certificates": 2,
+            "uploaded_documents": 2
+          }
+        }
+      },
+      {
+        "label": "EXPLAIN all extracted PHP SQL against post-migration schema",
+        "ok": true,
+        "detail": {
+          "counts": {
+            "42601": 39,
+            "42883": 7,
+            "OK": 678,
+            "42P01": 7
+          },
+          "schemaErrors": [
+            "includes/scheduling.php:149 [42883] operator does not exist: boolean = integer",
+            "includes/scheduling.php:554 [42883] operator does not exist: boolean = integer",
+            "parishioner/book.php:805 [42883] operator does not exist: boolean = integer",
+            "parishioner/calendar.php:10 [42883] operator does not exist: boolean = integer",
+            "parishioner/services.php:37 [42883] operator does not exist: boolean = integer",
+            "parishioner/services.php:65 [42883] operator does not exist: boolean = integer",
+            "priest/calendar.php:22 [42883] operator does not exist: boolean = integer"
+          ]
+        }
+      },
+      {
+        "label": "apply Part B (opt-in FK hardening)",
+        "ok": true
+      },
+      {
+        "label": "AFTER Part B: member delete with history is blocked",
+        "ok": true,
+        "detail": {
+          "outcome": "BLOCKED",
+          "error": "update or delete on table \"parishioners\" violates foreign key constraint \"appointments_parishioner_id_fkey\" on table \"appointments\""
+        }
+      },
+      {
+        "label": "rollback Part B",
+        "ok": true
+      },
+      {
+        "label": "apply Part C (archive unused tables)",
+        "ok": true,
+        "detail": {
+          "archived": [
+            "archive.chat_messages",
+            "archive.permissions",
+            "archive.reports",
+            "archive.role_permissions"
+          ]
+        }
+      },
+      {
+        "label": "rollback Part C (tables back in public, data intact)",
+        "ok": true,
+        "detail": {
+          "removed": [],
+          "added": []
+        }
+      },
+      {
+        "label": "apply Part D: RLS on every public table; anon sees 0 rows; owner (app) unaffected",
+        "ok": true,
+        "detail": {
+          "tables_without_rls": 0,
+          "anon_rows_before": 3,
+          "anon_rows_after": 0,
+          "owner_rows_after": 3
+        }
+      },
+      {
+        "label": "rollback Part D (RLS off again, comments restored)",
+        "ok": true,
+        "detail": {
+          "tables_with_rls": 0
+        }
+      },
+      {
+        "label": "rollback Part A restores the original catalog",
+        "ok": true,
+        "detail": {
+          "columns": {
+            "removed": [],
+            "added": []
+          },
+          "indexes": {
+            "removed": [],
+            "added": []
+          },
+          "constraints": {
+            "removed": [],
+            "added": []
+          },
+          "triggers": {
+            "removed": [],
+            "added": []
+          },
+          "functions": {
+            "removed": [],
+            "added": []
+          },
+          "tables": {
+            "removed": [],
+            "added": []
+          }
+        }
+      },
+      {
+        "label": "all pre-existing rows identical after full rollback",
+        "ok": true
+      }
+    ]
+  }
+}

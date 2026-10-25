@@ -941,11 +941,6 @@ function outsidePriestAvailable(): bool
             } catch (Throwable $e) {
                 // Ignore DDL errors if DB user lacks ALTER TABLE permissions
             }
-        } else {
-            try {
-                db()->exec("ALTER TABLE appointments ALTER COLUMN outside_priest_name TYPE TEXT");
-                db()->exec("ALTER TABLE appointment_drafts ALTER COLUMN outside_priest_name TYPE TEXT");
-            } catch (Throwable $e) {}
         }
         $available = ($count > 0);
     } catch (Throwable $e) {

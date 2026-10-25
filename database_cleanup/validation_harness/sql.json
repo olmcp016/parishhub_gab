@@ -1,0 +1,3657 @@
+[
+    {
+        "file": "about.php",
+        "line": 6,
+        "sql": "SELECT * FROM settings"
+    },
+    {
+        "file": "admin/activity-logs.php",
+        "line": 13,
+        "sql": "SELECT l.*, u.firstname, u.lastname, r.role_name FROM activity_logs l\r\n        LEFT JOIN users u ON l.user_id = u.user_id\r\n        LEFT JOIN roles r ON u.role_id = r.role_id\r\n        WHERE NOT (l.module = 'Auth' AND r.role_name = 'Parishioner')"
+    },
+    {
+        "file": "admin/activity-logs.php",
+        "line": 21,
+        "sql": "SELECT l.*, u.firstname, u.lastname, r.role_name"
+    },
+    {
+        "file": "admin/activity-logs.php",
+        "line": 21,
+        "sql": "SELECT COUNT(*)"
+    },
+    {
+        "file": "admin/dashboard.php",
+        "line": 6,
+        "sql": "SELECT COUNT(*) FROM users"
+    },
+    {
+        "file": "admin/dashboard.php",
+        "line": 7,
+        "sql": "SELECT COUNT(*) FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE s.category != 'Donation'"
+    },
+    {
+        "file": "admin/dashboard.php",
+        "line": 8,
+        "sql": "SELECT COALESCE(SUM(amount),0) FROM payments WHERE payment_status='verified' AND EXTRACT(YEAR FROM payment_date) = EXTRACT(YEAR FROM CURRENT_DATE)"
+    },
+    {
+        "file": "admin/dashboard.php",
+        "line": 9,
+        "sql": "SELECT COUNT(*) FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.status_id = 1 AND s.category != 'Donation'"
+    },
+    {
+        "file": "admin/dashboard.php",
+        "line": 12,
+        "sql": "SELECT r.role_name, COUNT(*) AS total FROM users u JOIN roles r ON u.role_id = r.role_id GROUP BY r.role_name"
+    },
+    {
+        "file": "admin/dashboard.php",
+        "line": 16,
+        "sql": "SELECT l.*, u.firstname, u.lastname FROM activity_logs l LEFT JOIN users u ON l.user_id = u.user_id\r\n     ORDER BY l.created_at DESC LIMIT 10"
+    },
+    {
+        "file": "admin/priests.php",
+        "line": 35,
+        "sql": "SELECT 1 FROM users WHERE LOWER(email) = LOWER(?) UNION ALL SELECT 1 FROM priests WHERE LOWER(email) = LOWER(?) LIMIT 1"
+    },
+    {
+        "file": "admin/priests.php",
+        "line": 40,
+        "sql": "INSERT INTO priests (full_name, title, contact_number, email) VALUES (?, ?, ?, ?)"
+    },
+    {
+        "file": "admin/priests.php",
+        "line": 75,
+        "sql": "UPDATE priests SET title = ?, full_name = ?, contact_number = ?, status = ? WHERE priest_id = ?"
+    },
+    {
+        "file": "admin/priests.php",
+        "line": 77,
+        "sql": "delete"
+    },
+    {
+        "file": "admin/priests.php",
+        "line": 80,
+        "sql": "SELECT password FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "admin/priests.php",
+        "line": 89,
+        "sql": "SELECT COUNT(*) FROM appointments WHERE priest_id = ? AND status_id NOT IN (3, 6, 7)"
+    },
+    {
+        "file": "admin/priests.php",
+        "line": 97,
+        "sql": "SELECT user_id FROM priests WHERE priest_id = ? FOR UPDATE"
+    },
+    {
+        "file": "admin/priests.php",
+        "line": 102,
+        "sql": "UPDATE priests SET status = 'inactive' WHERE priest_id = ?"
+    },
+    {
+        "file": "admin/priests.php",
+        "line": 105,
+        "sql": "UPDATE users SET status = 'inactive' WHERE user_id = ?"
+    },
+    {
+        "file": "admin/priests.php",
+        "line": 128,
+        "sql": "SELECT * FROM priests WHERE priest_id = ? FOR UPDATE"
+    },
+    {
+        "file": "admin/priests.php",
+        "line": 146,
+        "sql": "SELECT user_id FROM users WHERE email = ?"
+    },
+    {
+        "file": "admin/priests.php",
+        "line": 154,
+        "sql": "SELECT role_id FROM roles WHERE role_name = 'Priest'"
+    },
+    {
+        "file": "admin/priests.php",
+        "line": 160,
+        "sql": "INSERT INTO users (role_id, firstname, lastname, email, password, phone, status, must_change_password) VALUES (?, ?, '', ?, ?, ?, 'active', 1)"
+    },
+    {
+        "file": "admin/priests.php",
+        "line": 165,
+        "sql": "UPDATE priests SET user_id = ?, email = ? WHERE priest_id = ? AND user_id IS NULL"
+    },
+    {
+        "file": "admin/priests.php",
+        "line": 190,
+        "sql": "SELECT p.title, p.full_name, p.user_id, u.email, u.status AS user_status, r.role_name FROM priests p LEFT JOIN users u ON u.user_id = p.user_id LEFT JOIN roles r ON u.role_id = r.role_id WHERE p.priest_id = ?"
+    },
+    {
+        "file": "admin/priests.php",
+        "line": 211,
+        "sql": "UPDATE users SET status = ? WHERE user_id = ?"
+    },
+    {
+        "file": "admin/priests.php",
+        "line": 220,
+        "sql": "UPDATE users SET password = ?, status = 'active', must_change_password = 1 WHERE user_id = ?"
+    },
+    {
+        "file": "admin/priests.php",
+        "line": 241,
+        "sql": "SELECT priest_id, user_id, title, full_name FROM priests WHERE priest_id = ? FOR UPDATE"
+    },
+    {
+        "file": "admin/priests.php",
+        "line": 255,
+        "sql": "UPDATE priests SET user_id = NULL WHERE user_id = ? AND priest_id != ?"
+    },
+    {
+        "file": "admin/priests.php",
+        "line": 256,
+        "sql": "UPDATE priests SET user_id = ? WHERE priest_id = ?"
+    },
+    {
+        "file": "admin/priests.php",
+        "line": 264,
+        "sql": "UPDATE priests SET user_id = NULL WHERE priest_id = ? AND user_id = ?"
+    },
+    {
+        "file": "admin/priests.php",
+        "line": 276,
+        "sql": "SELECT p.*, u.email AS login_email, u.status AS login_status FROM priests p LEFT JOIN users u ON u.user_id = p.user_id ORDER BY p.full_name"
+    },
+    {
+        "file": "admin/reports.php",
+        "line": 97,
+        "sql": "SELECT COALESCE(SUM(p.amount),0)\r\n                 FROM payments p\r\n                 WHERE p.payment_date::date BETWEEN ? AND ?\r\n                   AND p.payment_status = 'pending'"
+    },
+    {
+        "file": "admin/reports.php",
+        "line": 106,
+        "sql": "\r\n                SELECT\r\n                    p.payment_id,\r\n                    p.payment_date,\r\n                    p.reference_number,\r\n                    p.amount,\r\n                    p.payment_status,\r\n                    pm.method_name,\r\n                    t.raw_response AS gateway_raw_response,\r\n                    t.gateway,\r\n                    t.gateway_transaction_id,\r\n                    a.appointment_id,\r\n                    a.guest_name,\r\n                    a.guest_reference,\r\n                    s.service_name,\r\n                    s.category,\r\n                    TRIM(COALESCE(u.firstname,'') || ' ' || COALESCE(u.lastname,'')) AS par_name,\r\n                    mi.offerer_name,\r\n                    d.donor_name,\r\n                    d.purpose AS donation_purpose,\r\n                    d.project_id,\r\n                    pr.project_name,\r\n                    orec.receipt_number,\r\n                    TRIM(COALESCE(vu.firstname,'') || ' ' || COALESCE(vu.lastname,'')) AS verified_by_name\r\n                FROM payments p\r\n                JOIN payment_methods pm          ON pm.method_id = p.method_id\r\n                JOIN appointments a              ON a.appointment_id = p.appointment_id\r\n                JOIN services s                  ON s.service_id = a.service_id\r\n                LEFT JOIN parishioners par       ON par.parishioner_id = a.parishioner_id\r\n                LEFT JOIN users u                ON u.user_id = par.user_id\r\n                LEFT JOIN mass_intentions mi      ON mi.appointment_id = a.appointment_id\r\n                LEFT JOIN donations d             ON d.appointment_id = a.appointment_id\r\n                LEFT JOIN projects pr             ON pr.project_id = d.project_id\r\n                LEFT JOIN official_receipts orec ON orec.payment_id = p.payment_id\r\n                LEFT JOIN users vu               ON vu.user_id = p.verified_by\r\n                LEFT JOIN (\r\n                    SELECT payment_id, MAX(transaction_id) AS max_tx_id\r\n                    FROM transactions\r\n                    GROUP BY payment_id\r\n                ) t_max ON t_max.payment_id = p.payment_id\r\n                LEFT JOIN transactions t ON t.transaction_id = t_max.max_tx_id\r\n                WHERE  /*EXPR*/ \r\n                ORDER BY p.payment_date ASC, p.payment_id ASC\r\n            "
+    },
+    {
+        "file": "admin/reports.php",
+        "line": 236,
+        "sql": "\r\n                SELECT a.appointment_id, a.appointment_date, a.appointment_time,\r\n                       a.guest_name,  /*EXPR*/ ,\r\n                       s.service_name, s.category::text AS category, COALESCE(s.fee, 0) AS fee,\r\n                       st.status_name,\r\n                       pr.title AS priest_title, pr.full_name AS priest_name,\r\n                       u.firstname, u.lastname,\r\n                       COALESCE(pay.paid, 0) AS paid,\r\n                       d.project_id, proj.project_name, d.purpose AS donation_purpose\r\n                FROM appointments a\r\n                JOIN services s            ON s.service_id = a.service_id\r\n                JOIN appointment_status st ON st.status_id = a.status_id\r\n                LEFT JOIN priests pr       ON pr.priest_id = a.priest_id\r\n                LEFT JOIN parishioners par ON par.parishioner_id = a.parishioner_id\r\n                LEFT JOIN users u          ON u.user_id = par.user_id\r\n                LEFT JOIN donations d      ON d.appointment_id = a.appointment_id\r\n                LEFT JOIN projects proj    ON proj.project_id = d.project_id\r\n                LEFT JOIN (\r\n                    SELECT appointment_id, SUM(amount) AS paid\r\n                    FROM payments\r\n                    WHERE payment_status = 'verified'\r\n                    GROUP BY appointment_id\r\n                ) pay ON pay.appointment_id = a.appointment_id\r\n                WHERE a.appointment_date BETWEEN ? AND ?\r\n                ORDER BY a.appointment_date ASC, a.appointment_time ASC, a.appointment_id ASC\r\n            "
+    },
+    {
+        "file": "admin/service-schedules.php",
+        "line": 15,
+        "sql": "INSERT INTO service_schedules (service_id, weekday, occurrence, slot_time, created_by) VALUES (?, ?, ?, ?, ?)"
+    },
+    {
+        "file": "admin/service-schedules.php",
+        "line": 40,
+        "sql": "SELECT schedule_id FROM service_schedules\r\n             WHERE schedule_id = ? AND service_id IS NOT NULL"
+    },
+    {
+        "file": "admin/service-schedules.php",
+        "line": 50,
+        "sql": "SELECT service_id FROM services\r\n             WHERE service_id = ? AND category IN ('Baptism', 'Wedding', 'Blessing', 'Confirmation')"
+    },
+    {
+        "file": "admin/service-schedules.php",
+        "line": 60,
+        "sql": "SELECT schedule_id FROM service_schedules\r\n             WHERE service_id = ? AND weekday = ? AND occurrence IS NOT DISTINCT FROM ?\r\n               AND slot_time = ? AND schedule_id <> ? LIMIT 1"
+    },
+    {
+        "file": "admin/service-schedules.php",
+        "line": 71,
+        "sql": "UPDATE service_schedules SET service_id = ?, weekday = ?, occurrence = ?, slot_time = ?, is_active = ? WHERE schedule_id = ?"
+    },
+    {
+        "file": "admin/service-schedules.php",
+        "line": 75,
+        "sql": "UPDATE service_schedules SET is_active = ? WHERE schedule_id = ?"
+    },
+    {
+        "file": "admin/service-schedules.php",
+        "line": 78,
+        "sql": "delete"
+    },
+    {
+        "file": "admin/service-schedules.php",
+        "line": 79,
+        "sql": "DELETE FROM service_schedules WHERE schedule_id = ?"
+    },
+    {
+        "file": "admin/service-schedules.php",
+        "line": 86,
+        "sql": "SELECT service_id, service_name, category FROM services\r\n     WHERE category IN ('Baptism', 'Wedding', 'Blessing', 'Confirmation')\r\n       AND (is_active = TRUE OR service_id IN (SELECT service_id FROM service_schedules))\r\n     ORDER BY category, service_name"
+    },
+    {
+        "file": "admin/service-schedules.php",
+        "line": 93,
+        "sql": "SELECT ss.*, s.service_name, s.category FROM service_schedules ss\r\n     JOIN services s ON ss.service_id = s.service_id\r\n     ORDER BY s.category, ss.weekday, ss.occurrence NULLS FIRST"
+    },
+    {
+        "file": "admin/services.php",
+        "line": 13,
+        "sql": "delete"
+    },
+    {
+        "file": "admin/services.php",
+        "line": 15,
+        "sql": "SELECT COUNT(*) FROM appointments a WHERE a.service_id = ? AND a.status_id NOT IN (3,7)"
+    },
+    {
+        "file": "admin/services.php",
+        "line": 21,
+        "sql": "DELETE FROM services WHERE service_id = ?"
+    },
+    {
+        "file": "admin/services.php",
+        "line": 37,
+        "sql": "INSERT INTO services (service_name, category, description, fee, requirements, duration_minutes) VALUES (?, ?, ?, ?, ?, ?)"
+    },
+    {
+        "file": "admin/services.php",
+        "line": 47,
+        "sql": "SELECT * FROM services WHERE category != 'Donation' ORDER BY category, service_name"
+    },
+    {
+        "file": "admin/settings.php",
+        "line": 18,
+        "sql": "INSERT INTO settings (setting_key, setting_value) VALUES (?, ?)\r\n         ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value"
+    },
+    {
+        "file": "admin/settings.php",
+        "line": 30,
+        "sql": "SELECT * FROM settings"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 15,
+        "sql": "SELECT 1 FROM users u JOIN roles r ON r.role_id = u.role_id\r\n         WHERE u.user_id = ? AND r.role_name = 'Admin' AND u.status = 'active'"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 23,
+        "sql": "SELECT COUNT(*) FROM users u JOIN roles r ON r.role_id = u.role_id\r\n         WHERE r.role_name = 'Admin' AND u.status = 'active' AND u.user_id <> ?"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 33,
+        "sql": "SELECT password FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 60,
+        "sql": "SELECT 1 FROM roles WHERE role_id = ? AND role_name NOT IN ('Parishioner', 'Priest')"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 80,
+        "sql": "INSERT INTO users (role_id, firstname, lastname, email, password, phone, status, must_change_password)\r\n                 VALUES (?, ?, ?, ?, ?, ?, 'active', 1)"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 86,
+        "sql": "INSERT INTO parishioners (user_id) VALUES (?)"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 115,
+        "sql": "UPDATE users SET status = ? WHERE user_id = ?"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 131,
+        "sql": "SELECT 1 FROM roles WHERE role_id = ? AND role_name NOT IN ('Parishioner', 'Priest')"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 137,
+        "sql": "SELECT firstname, lastname FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 140,
+        "sql": "SELECT role_name FROM roles WHERE role_id = ?"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 147,
+        "sql": "UPDATE users SET role_id = ? WHERE user_id = ?"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 153,
+        "sql": "delete"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 164,
+        "sql": "SELECT password FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 171,
+        "sql": "DELETE FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 184,
+        "sql": "SELECT firstname, lastname, email FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 191,
+        "sql": "UPDATE users SET password = ?, must_change_password = 1 WHERE user_id = ?"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 216,
+        "sql": "SELECT 1 FROM users WHERE LOWER(email) = LOWER(?) UNION ALL SELECT 1 FROM priests WHERE LOWER(email) = LOWER(?) LIMIT 1"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 220,
+        "sql": "INSERT INTO priests (full_name, title, contact_number, email) VALUES (?, ?, ?, ?)"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 254,
+        "sql": "UPDATE priests SET title = ?, full_name = ?, contact_number = ?, status = ? WHERE priest_id = ?"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 261,
+        "sql": "SELECT password FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 269,
+        "sql": "SELECT COUNT(*) FROM appointments WHERE priest_id = ? AND status_id NOT IN (3, 6, 7)"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 277,
+        "sql": "SELECT user_id FROM priests WHERE priest_id = ? FOR UPDATE"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 281,
+        "sql": "UPDATE priests SET status = 'inactive' WHERE priest_id = ?"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 282,
+        "sql": "UPDATE users SET status = 'inactive' WHERE user_id = ?"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 300,
+        "sql": "SELECT * FROM priests WHERE priest_id = ? FOR UPDATE"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 306,
+        "sql": "SELECT user_id FROM users WHERE email = ?"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 310,
+        "sql": "SELECT role_id FROM roles WHERE role_name = 'Priest'"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 316,
+        "sql": "INSERT INTO users (role_id, firstname, lastname, email, password, phone, status, must_change_password) VALUES (?, ?, '', ?, ?, ?, 'active', 1)"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 319,
+        "sql": "UPDATE priests SET user_id = ?, email = ? WHERE priest_id = ? AND user_id IS NULL"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 345,
+        "sql": "SELECT p.title, p.full_name, p.user_id, u.email, u.status AS user_status FROM priests p LEFT JOIN users u ON u.user_id = p.user_id WHERE p.priest_id = ?"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 359,
+        "sql": "UPDATE users SET status = ? WHERE user_id = ?"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 370,
+        "sql": "UPDATE users SET password = ?, status = 'active', must_change_password = 1 WHERE user_id = ?"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 387,
+        "sql": "SELECT * FROM roles"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 391,
+        "sql": "SELECT COUNT(*) FROM users u JOIN roles r ON u.role_id = r.role_id WHERE r.role_name NOT IN ('Parishioner', 'Priest')"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 395,
+        "sql": "SELECT u.*, r.role_name FROM users u JOIN roles r ON u.role_id = r.role_id\r\n     WHERE r.role_name NOT IN ('Parishioner', 'Priest')\r\n     ORDER BY u.created_at DESC LIMIT ? OFFSET ?"
+    },
+    {
+        "file": "admin/users.php",
+        "line": 405,
+        "sql": "SELECT p.*, u.email AS login_email, u.status AS login_status\r\n     FROM priests p LEFT JOIN users u ON u.user_id = p.user_id\r\n     ORDER BY p.full_name"
+    },
+    {
+        "file": "announcement-image.php",
+        "line": 25,
+        "sql": "SELECT  /*EXPR*/  FROM announcements WHERE announcement_id = ?"
+    },
+    {
+        "file": "api/get_event.php",
+        "line": 17,
+        "sql": "SELECT e.event_id, e.title, e.description, e.event_date, e.event_time,\r\n            e.location_id, e.priest_id,\r\n            l.name AS location_name,\r\n            p.title AS priest_title, p.full_name AS priest_name\r\n     FROM events e\r\n     LEFT JOIN locations l ON e.location_id = l.location_id\r\n     LEFT JOIN priests p ON e.priest_id = p.priest_id\r\n     WHERE e.event_id = ?"
+    },
+    {
+        "file": "api/update_event.php",
+        "line": 34,
+        "sql": "SELECT 1 FROM priests WHERE priest_id = ? AND status = 'active'"
+    },
+    {
+        "file": "api/update_event.php",
+        "line": 44,
+        "sql": "SELECT event_date, event_time, priest_id FROM events WHERE event_id = ?"
+    },
+    {
+        "file": "api/update_event.php",
+        "line": 65,
+        "sql": "SELECT pg_advisory_xact_lock(hashtext(?))"
+    },
+    {
+        "file": "api/update_event.php",
+        "line": 76,
+        "sql": "UPDATE events SET event_time = ?, priest_id = ? WHERE event_id = ?"
+    },
+    {
+        "file": "api/update_event.php",
+        "line": 91,
+        "sql": "SELECT e.event_id, e.title, e.description, e.event_date, e.event_time,\r\n            e.location_id, e.priest_id,\r\n            l.name AS location_name,\r\n            p.title AS priest_title, p.full_name AS priest_name\r\n     FROM events e\r\n     LEFT JOIN locations l ON e.location_id = l.location_id\r\n     LEFT JOIN priests p ON e.priest_id = p.priest_id\r\n     WHERE e.event_id = ?"
+    },
+    {
+        "file": "auth/force_change_password.php",
+        "line": 22,
+        "sql": "UPDATE users SET password = ?, must_change_password = 0 WHERE user_id = ?"
+    },
+    {
+        "file": "auth/force_change_password.php",
+        "line": 32,
+        "sql": "Update Password"
+    },
+    {
+        "file": "auth/forgot-password.php",
+        "line": 47,
+        "sql": "SELECT created_at FROM password_reset_otps WHERE email = ?"
+    },
+    {
+        "file": "auth/forgot-password.php",
+        "line": 65,
+        "sql": "SELECT u.user_id, u.firstname, u.lastname\r\n         FROM users u\r\n         JOIN roles r ON r.role_id = u.role_id\r\n         WHERE u.email = ?\r\n           AND r.role_name = 'Parishioner'\r\n           AND u.email_verified_at IS NOT NULL\r\n           AND u.status = 'active'\r\n         LIMIT 1"
+    },
+    {
+        "file": "auth/forgot-password.php",
+        "line": 92,
+        "sql": "INSERT INTO password_reset_otps (email, otp_hash, expires_at, attempts)\r\n         VALUES (?, ?, ?, 0)\r\n         ON CONFLICT (email) DO UPDATE\r\n           SET otp_hash   = EXCLUDED.otp_hash,\r\n               expires_at = EXCLUDED.expires_at,\r\n               attempts   = 0,\r\n               created_at = NOW()"
+    },
+    {
+        "file": "auth/forgot-password.php",
+        "line": 138,
+        "sql": "SELECT otp_hash, expires_at, attempts FROM password_reset_otps WHERE email = ?"
+    },
+    {
+        "file": "auth/forgot-password.php",
+        "line": 153,
+        "sql": "DELETE FROM password_reset_otps WHERE email = ?"
+    },
+    {
+        "file": "auth/forgot-password.php",
+        "line": 163,
+        "sql": "DELETE FROM password_reset_otps WHERE email = ?"
+    },
+    {
+        "file": "auth/forgot-password.php",
+        "line": 174,
+        "sql": "UPDATE password_reset_otps SET attempts = attempts + 1 WHERE email = ?"
+    },
+    {
+        "file": "auth/forgot-password.php",
+        "line": 189,
+        "sql": "DELETE FROM password_reset_otps WHERE email = ?"
+    },
+    {
+        "file": "auth/forgot-password.php",
+        "line": 230,
+        "sql": "SELECT user_id FROM users WHERE email = ? AND status = 'active' LIMIT 1"
+    },
+    {
+        "file": "auth/forgot-password.php",
+        "line": 243,
+        "sql": "UPDATE users SET password = ?, must_change_password = 0, updated_at = NOW() WHERE user_id = ?"
+    },
+    {
+        "file": "auth/login.php",
+        "line": 48,
+        "sql": "SELECT u.*, r.role_name FROM users u JOIN roles r ON u.role_id = r.role_id WHERE u.email = ? LIMIT 1"
+    },
+    {
+        "file": "auth/register.php",
+        "line": 86,
+        "sql": "SELECT user_id, email_verified_at FROM users WHERE email = ?"
+    },
+    {
+        "file": "auth/register.php",
+        "line": 94,
+        "sql": "DELETE FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "auth/register.php",
+        "line": 105,
+        "sql": "INSERT INTO users\r\n               (role_id, firstname, lastname, middlename, email, password, phone, address, birthdate, gender,\r\n                status, verification_token, token_expires_at)\r\n             VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)"
+    },
+    {
+        "file": "auth/register.php",
+        "line": 113,
+        "sql": "INSERT INTO parishioners (user_id) VALUES (?)"
+    },
+    {
+        "file": "auth/register.php",
+        "line": 139,
+        "sql": "DELETE FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "auth/resend-verification.php",
+        "line": 12,
+        "sql": "SELECT user_id, firstname, lastname, email_verified_at FROM users WHERE email = ?"
+    },
+    {
+        "file": "auth/resend-verification.php",
+        "line": 29,
+        "sql": "UPDATE users SET verification_token = ?, token_expires_at = ? WHERE user_id = ?"
+    },
+    {
+        "file": "auth/verify-email.php",
+        "line": 18,
+        "sql": "SELECT user_id, firstname, email_verified_at, token_expires_at\r\n     FROM users\r\n     WHERE verification_token = ?\r\n     LIMIT 1"
+    },
+    {
+        "file": "auth/verify-email.php",
+        "line": 38,
+        "sql": "UPDATE users SET verification_token = NULL, token_expires_at = NULL WHERE user_id = ?"
+    },
+    {
+        "file": "auth/verify-email.php",
+        "line": 46,
+        "sql": "UPDATE users\r\n     SET email_verified_at = NOW(),\r\n         verification_token = NULL,\r\n         token_expires_at   = NULL\r\n     WHERE user_id = ?"
+    },
+    {
+        "file": "baptism-draft-form.php",
+        "line": 23,
+        "sql": "SELECT a.*, s.category FROM appointments a JOIN services s ON s.service_id = a.service_id WHERE a.appointment_id = ? AND s.category = 'Baptism'"
+    },
+    {
+        "file": "baptism-draft-form.php",
+        "line": 29,
+        "sql": "SELECT 1 FROM parishioners WHERE parishioner_id = ? AND user_id = ?"
+    },
+    {
+        "file": "baptism-draft-form.php",
+        "line": 41,
+        "sql": "SELECT g.*, d.review_status, d.verified, d.rejection_reason FROM generated_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.service_category = 'Baptism' AND g.appointment_id = ? AND g.form_type = ?"
+    },
+    {
+        "file": "baptism-draft-form.php",
+        "line": 50,
+        "sql": "SELECT g.*, d.review_status, d.verified, d.rejection_reason FROM generated_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.service_category = 'Baptism' AND g.draft_id = ? AND g.form_type = ?"
+    },
+    {
+        "file": "baptism-draft-form.php",
+        "line": 67,
+        "sql": "SELECT firstname, lastname, middlename, phone, gender FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "baptism-draft-form.php",
+        "line": 81,
+        "sql": "SELECT form_data FROM generated_forms WHERE service_category = 'Baptism' AND appointment_id = ? AND form_type = ?"
+    },
+    {
+        "file": "baptism-draft-form.php",
+        "line": 82,
+        "sql": "SELECT form_data FROM generated_forms WHERE service_category = 'Baptism' AND draft_id = ? AND form_type = ?"
+    },
+    {
+        "file": "baptism-draft-form.php",
+        "line": 115,
+        "sql": "SELECT * FROM generated_forms WHERE service_category = 'Baptism' AND appointment_id = ? AND form_type = ? FOR UPDATE"
+    },
+    {
+        "file": "baptism-draft-form.php",
+        "line": 116,
+        "sql": "SELECT * FROM generated_forms WHERE service_category = 'Baptism' AND draft_id = ? AND form_type = ? FOR UPDATE"
+    },
+    {
+        "file": "baptism-draft-form.php",
+        "line": 133,
+        "sql": "UPDATE generated_forms SET form_data = ?, document_id = ?, status = 'draft', updated_at = CURRENT_TIMESTAMP WHERE generated_form_id = ?"
+    },
+    {
+        "file": "baptism-draft-form.php",
+        "line": 136,
+        "sql": "INSERT INTO generated_forms (service_category, appointment_id, draft_id, form_type, form_data, document_id, status) VALUES ('Baptism', ?, ?, ?, ?, NULL, 'draft')"
+    },
+    {
+        "file": "baptism-draft-form.php",
+        "line": 146,
+        "sql": "SELECT document_id FROM uploaded_documents WHERE appointment_id = ? AND document_source = 'generated' AND generated_form_type = ? AND superseded_by IS NULL ORDER BY document_id DESC LIMIT 1 FOR UPDATE"
+    },
+    {
+        "file": "baptism-draft-form.php",
+        "line": 147,
+        "sql": "SELECT document_id FROM uploaded_documents WHERE draft_id = ? AND document_source = 'generated' AND generated_form_type = ? AND superseded_by IS NULL ORDER BY document_id DESC LIMIT 1 FOR UPDATE"
+    },
+    {
+        "file": "baptism-draft-form.php",
+        "line": 154,
+        "sql": "INSERT INTO uploaded_documents (appointment_id, draft_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source, generated_form_type) VALUES (?, ?, ?, ?, 'application/pdf', ?, 'pending', FALSE, 'generated', ?)"
+    },
+    {
+        "file": "baptism-draft-form.php",
+        "line": 159,
+        "sql": "UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ? AND appointment_id = ? AND superseded_by IS NULL"
+    },
+    {
+        "file": "baptism-draft-form.php",
+        "line": 160,
+        "sql": "UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ? AND draft_id = ? AND superseded_by IS NULL"
+    },
+    {
+        "file": "baptism-draft-form.php",
+        "line": 164,
+        "sql": "UPDATE generated_forms SET form_data = ?, document_id = ?, status = 'pending_review', updated_at = CURRENT_TIMESTAMP WHERE generated_form_id = ?"
+    },
+    {
+        "file": "baptism-draft-form.php",
+        "line": 167,
+        "sql": "INSERT INTO generated_forms (service_category, appointment_id, draft_id, form_type, form_data, document_id, status) VALUES ('Baptism', ?, ?, ?, ?, ?, 'pending_review')"
+    },
+    {
+        "file": "baptism-draft.php",
+        "line": 42,
+        "sql": "INSERT INTO uploaded_documents (appointment_id, draft_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source) VALUES (NULL, ?, ?, ?, ?, ?, 'pending', FALSE, 'uploaded')"
+    },
+    {
+        "file": "baptism-draft.php",
+        "line": 95,
+        "sql": "INSERT INTO appointments\r\n             (parishioner_id, service_id, priest_id, appointment_date, appointment_time,\r\n              status_id, remarks, schedule_type, pss_claim, pss_classification,\r\n              sponsor_count, guest_name, guest_email, guest_phone, guest_reference,\r\n              contact_phone, location_address, requirements_snapshot /*EXPR*/ )\r\n             VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 'pending_verification',\r\n                     ?, ?, ?, ?, ?, ?, ?, ? /*EXPR*/ )"
+    },
+    {
+        "file": "baptism-draft.php",
+        "line": 118,
+        "sql": "UPDATE uploaded_documents SET appointment_id = ?, draft_id = NULL WHERE draft_id = ?"
+    },
+    {
+        "file": "baptism-draft.php",
+        "line": 120,
+        "sql": "UPDATE generated_forms SET appointment_id = ?, draft_id = NULL WHERE service_category = 'Baptism' AND draft_id = ?"
+    },
+    {
+        "file": "baptism-draft.php",
+        "line": 122,
+        "sql": "UPDATE appointment_drafts SET status = 'finalized', finalized_appointment_id = ?, updated_at = CURRENT_TIMESTAMP WHERE draft_id = ? AND service_type = 'Baptism'"
+    },
+    {
+        "file": "baptism-draft.php",
+        "line": 152,
+        "sql": "SELECT requirement_label, document_id, file_name FROM uploaded_documents WHERE draft_id = ? AND superseded_by IS NULL AND document_source = 'uploaded' ORDER BY document_id DESC"
+    },
+    {
+        "file": "baptism-draft.php",
+        "line": 158,
+        "sql": "SELECT f.form_type, f.document_id, f.status, d.review_status, d.verified, d.rejection_reason FROM generated_forms f LEFT JOIN uploaded_documents d ON d.document_id = f.document_id WHERE f.service_category = 'Baptism' AND f.draft_id = ?"
+    },
+    {
+        "file": "config/config.php",
+        "line": 77,
+        "sql": "SELECT session_data FROM app_sessions WHERE session_id = ? AND expires_at > CURRENT_TIMESTAMP"
+    },
+    {
+        "file": "config/config.php",
+        "line": 87,
+        "sql": "UPDATE app_sessions\r\n                 SET last_activity = CURRENT_TIMESTAMP,\r\n                     expires_at = CURRENT_TIMESTAMP + (? * INTERVAL '1 second')\r\n                 WHERE session_id = ?"
+    },
+    {
+        "file": "config/config.php",
+        "line": 102,
+        "sql": "INSERT INTO app_sessions (session_id, session_data, last_activity, expires_at)\r\n                 VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + (? * INTERVAL '1 second'))\r\n                 ON CONFLICT (session_id) DO UPDATE SET\r\n                     session_data = EXCLUDED.session_data,\r\n                     last_activity = CURRENT_TIMESTAMP,\r\n                     expires_at = EXCLUDED.expires_at"
+    },
+    {
+        "file": "config/config.php",
+        "line": 118,
+        "sql": "DELETE FROM app_sessions WHERE session_id = ?"
+    },
+    {
+        "file": "config/config.php",
+        "line": 129,
+        "sql": "SELECT 1 FROM app_sessions WHERE session_id = ? AND expires_at > CURRENT_TIMESTAMP"
+    },
+    {
+        "file": "config/config.php",
+        "line": 142,
+        "sql": "UPDATE app_sessions\r\n                 SET last_activity = CURRENT_TIMESTAMP,\r\n                     expires_at = CURRENT_TIMESTAMP + (? * INTERVAL '1 second')\r\n                 WHERE session_id = ?"
+    },
+    {
+        "file": "config/config.php",
+        "line": 156,
+        "sql": "DELETE FROM app_sessions WHERE expires_at <= CURRENT_TIMESTAMP"
+    },
+    {
+        "file": "document-upload.php",
+        "line": 18,
+        "sql": "SELECT requirements_review_status FROM appointments WHERE appointment_id = ?"
+    },
+    {
+        "file": "document-upload.php",
+        "line": 61,
+        "sql": "INSERT INTO uploaded_documents (appointment_id, draft_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source) VALUES (NULL, ?, ?, ?, ?, ?, 'pending', FALSE, 'uploaded')"
+    },
+    {
+        "file": "document-upload.php",
+        "line": 64,
+        "sql": "SELECT document_id FROM uploaded_documents WHERE draft_id = ? AND requirement_label = ? AND superseded_by IS NULL AND document_id <> ? ORDER BY document_id DESC LIMIT 1"
+    },
+    {
+        "file": "document-upload.php",
+        "line": 67,
+        "sql": "UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ?"
+    },
+    {
+        "file": "document-upload.php",
+        "line": 79,
+        "sql": "INSERT INTO uploaded_documents (appointment_id, draft_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source) VALUES (NULL, ?, ?, ?, ?, ?, 'pending', FALSE, 'uploaded')"
+    },
+    {
+        "file": "document-upload.php",
+        "line": 82,
+        "sql": "SELECT document_id FROM uploaded_documents WHERE draft_id = ? AND requirement_label = ? AND superseded_by IS NULL AND document_id <> ? ORDER BY document_id DESC LIMIT 1"
+    },
+    {
+        "file": "document-upload.php",
+        "line": 85,
+        "sql": "UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ?"
+    },
+    {
+        "file": "document-upload.php",
+        "line": 114,
+        "sql": "SELECT a.appointment_id, a.status_id, a.requirements_snapshot, s.requirements\r\n             FROM appointments a JOIN services s ON s.service_id = a.service_id\r\n             JOIN parishioners p ON p.parishioner_id = a.parishioner_id\r\n             WHERE a.appointment_id = ? AND p.user_id = ?"
+    },
+    {
+        "file": "document-upload.php",
+        "line": 132,
+        "sql": "SELECT document_id, review_status FROM uploaded_documents WHERE appointment_id = ? AND requirement_label = ? AND superseded_by IS NULL ORDER BY document_id DESC LIMIT 1 FOR UPDATE"
+    },
+    {
+        "file": "document-upload.php",
+        "line": 140,
+        "sql": "INSERT INTO uploaded_documents (appointment_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source) VALUES (?, ?, ?, ?, ?, 'pending', FALSE, 'uploaded')"
+    },
+    {
+        "file": "document-upload.php",
+        "line": 144,
+        "sql": "UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ?"
+    },
+    {
+        "file": "document-upload.php",
+        "line": 146,
+        "sql": "SELECT user_id FROM users u JOIN roles r ON r.role_id = u.role_id WHERE r.role_name IN ('Secretary', 'Admin') AND u.status = 'active'"
+    },
+    {
+        "file": "document-upload.php",
+        "line": 147,
+        "sql": "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Documents Updated', ?)"
+    },
+    {
+        "file": "document-upload.php",
+        "line": 163,
+        "sql": "SELECT status_id FROM appointments WHERE appointment_id = ? FOR UPDATE"
+    },
+    {
+        "file": "document-upload.php",
+        "line": 182,
+        "sql": "INSERT INTO uploaded_documents (appointment_id, requirement_label, file_name, file_path, file_type, review_status, verified, document_source) VALUES (?, ?, ?, ?, ?, 'pending', FALSE, 'uploaded')"
+    },
+    {
+        "file": "document-upload.php",
+        "line": 185,
+        "sql": "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Guest Document Updated', ?)"
+    },
+    {
+        "file": "document-upload.php",
+        "line": 186,
+        "sql": "SELECT user_id FROM users u JOIN roles r ON r.role_id = u.role_id WHERE r.role_name IN ('Secretary', 'Admin') AND u.status = 'active'"
+    },
+    {
+        "file": "document-upload.php",
+        "line": 192,
+        "sql": "SELECT * FROM uploaded_documents WHERE document_id = ? AND appointment_id = ? FOR UPDATE"
+    },
+    {
+        "file": "document-upload.php",
+        "line": 202,
+        "sql": "INSERT INTO uploaded_documents (appointment_id, requirement_id, requirement_label, file_name, file_path, file_type, review_status, verified, document_source) VALUES (?, ?, ?, ?, ?, ?, 'pending', FALSE, 'uploaded')"
+    },
+    {
+        "file": "document-upload.php",
+        "line": 205,
+        "sql": "UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ?"
+    },
+    {
+        "file": "document-upload.php",
+        "line": 206,
+        "sql": "SELECT user_id FROM users u JOIN roles r ON r.role_id = u.role_id WHERE r.role_name IN ('Secretary', 'Admin') AND u.status = 'active'"
+    },
+    {
+        "file": "document-upload.php",
+        "line": 207,
+        "sql": "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Guest Document Updated', ?)"
+    },
+    {
+        "file": "document.php",
+        "line": 42,
+        "sql": "SELECT d.document_id, d.appointment_id, d.draft_id, d.file_name, d.file_path, d.file_type, d.generated_form_type, a.parishioner_id, ad.service_type AS draft_service_type\r\n     FROM uploaded_documents d\r\n     LEFT JOIN appointments a ON a.appointment_id = d.appointment_id\r\n     LEFT JOIN appointment_drafts ad ON ad.draft_id = d.draft_id\r\n     WHERE d.document_id = ?"
+    },
+    {
+        "file": "document.php",
+        "line": 58,
+        "sql": "SELECT 1 FROM parishioners WHERE parishioner_id = ? AND user_id = ?"
+    },
+    {
+        "file": "document.php",
+        "line": 129,
+        "sql": "SELECT form_data FROM generated_forms WHERE service_category = 'Wedding' AND appointment_id = ? AND form_type = ?"
+    },
+    {
+        "file": "document.php",
+        "line": 132,
+        "sql": "SELECT form_data FROM generated_forms WHERE service_category = 'Wedding' AND draft_id = ? AND form_type = ?"
+    },
+    {
+        "file": "document.php",
+        "line": 138,
+        "sql": "SELECT form_data FROM generated_forms WHERE service_category = 'Baptism' AND appointment_id = ? AND form_type = ?"
+    },
+    {
+        "file": "document.php",
+        "line": 141,
+        "sql": "SELECT form_data FROM generated_forms WHERE service_category = 'Baptism' AND draft_id = ? AND form_type = ?"
+    },
+    {
+        "file": "document.php",
+        "line": 146,
+        "sql": "SELECT form_data FROM generated_forms WHERE service_category = 'Funeral' AND appointment_id = ?"
+    },
+    {
+        "file": "document.php",
+        "line": 150,
+        "sql": "SELECT certificate_type, form_data FROM issued_certificates WHERE appointment_id = ?"
+    },
+    {
+        "file": "funeral-draft.php",
+        "line": 93,
+        "sql": "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, date_of_death, pss_claim, pss_classification, guest_name, guest_email, guest_phone, guest_reference, contact_phone, location_address, requirements_snapshot /*EXPR*/  /*EXPR*/ ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? /*EXPR*/  /*EXPR*/ ) RETURNING appointment_id"
+    },
+    {
+        "file": "funeral-draft.php",
+        "line": 121,
+        "sql": "INSERT INTO uploaded_documents (appointment_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source) VALUES (?, ?, ?, ?, ?, 'pending', FALSE, 'uploaded')"
+    },
+    {
+        "file": "funeral-form.php",
+        "line": 104,
+        "sql": "SELECT a.*, s.category FROM appointments a JOIN services s ON s.service_id = a.service_id WHERE a.appointment_id = ? AND s.category = 'Funeral'"
+    },
+    {
+        "file": "funeral-form.php",
+        "line": 110,
+        "sql": "SELECT 1 FROM parishioners WHERE parishioner_id = ? AND user_id = ?"
+    },
+    {
+        "file": "funeral-form.php",
+        "line": 116,
+        "sql": "SELECT f.*, d.review_status FROM generated_forms f LEFT JOIN uploaded_documents d ON d.document_id = f.document_id WHERE f.service_category = 'Funeral' AND f.appointment_id = ? AND f.form_type = ?"
+    },
+    {
+        "file": "funeral-form.php",
+        "line": 155,
+        "sql": "SELECT * FROM generated_forms WHERE service_category = 'Funeral' AND appointment_id = ? AND form_type = ? FOR UPDATE"
+    },
+    {
+        "file": "funeral-form.php",
+        "line": 167,
+        "sql": "UPDATE generated_forms SET form_data = ?, document_id = ?, status = 'draft', updated_at = CURRENT_TIMESTAMP WHERE generated_form_id = ?"
+    },
+    {
+        "file": "funeral-form.php",
+        "line": 170,
+        "sql": "INSERT INTO generated_forms (service_category, appointment_id, form_type, form_data, document_id, status) VALUES ('Funeral', ?, ?, ?, NULL, 'draft')"
+    },
+    {
+        "file": "guest-pay.php",
+        "line": 44,
+        "sql": "SELECT a.appointment_id, a.schedule_type, a.pss_classification, a.sponsor_count, a.wedding_sponsor_count, a.fee_snapshot,\r\n            s.fee, s.category, s.service_name, a.guest_email\r\n     FROM appointments a\r\n     JOIN services s ON a.service_id = s.service_id\r\n     JOIN appointment_status st ON a.status_id = st.status_id\r\n     WHERE a.appointment_id = ? AND a.guest_reference = ? AND (a.guest_email = ? OR a.guest_phone = ?)\r\n       AND st.status_name = 'Approved' AND s.category NOT IN ('Mass Intention', 'Donation')"
+    },
+    {
+        "file": "guest-pay.php",
+        "line": 79,
+        "sql": "UPDATE appointments SET fee_snapshot = ? WHERE appointment_id = ? AND fee_snapshot IS NULL"
+    },
+    {
+        "file": "guest-pay.php",
+        "line": 101,
+        "sql": "SELECT p.payment_id, p.method_id, p.payment_status, t.gateway_transaction_id\r\n     FROM payments p LEFT JOIN transactions t ON t.payment_id = p.payment_id AND t.gateway = 'paymongo'\r\n     WHERE p.appointment_id = ? ORDER BY p.payment_id DESC LIMIT 1"
+    },
+    {
+        "file": "guest-pay.php",
+        "line": 122,
+        "sql": "UPDATE transactions SET status = 'cancelled' WHERE payment_id = ?"
+    },
+    {
+        "file": "guest-pay.php",
+        "line": 156,
+        "sql": "INSERT INTO payments (appointment_id, reference_number, amount, method_id, payment_status, payment_date)\r\n         VALUES (?, ?, ?, ?, 'pending', NOW())"
+    },
+    {
+        "file": "guest-pay.php",
+        "line": 178,
+        "sql": "INSERT INTO transactions (payment_id, gateway, gateway_transaction_id, status, raw_response) VALUES (?, 'paymongo', ?, 'pending', ?)"
+    },
+    {
+        "file": "guest-payment-return.php",
+        "line": 28,
+        "sql": "SELECT a.appointment_id, p.payment_id, p.payment_status, t.gateway_transaction_id\r\n         FROM appointments a\r\n         JOIN payments p ON p.appointment_id = a.appointment_id\r\n         JOIN transactions t ON t.payment_id = p.payment_id AND t.gateway = 'paymongo'\r\n         WHERE a.appointment_id = ? AND a.guest_reference = ?\r\n         ORDER BY p.payment_id DESC LIMIT 1"
+    },
+    {
+        "file": "guest-payment-return.php",
+        "line": 58,
+        "sql": "UPDATE transactions SET status = ?, raw_response = ? WHERE payment_id = ?"
+    },
+    {
+        "file": "guest-payment-return.php",
+        "line": 66,
+        "sql": "UPDATE payments SET method_id = ? WHERE payment_id = ?"
+    },
+    {
+        "file": "guest-payment-return.php",
+        "line": 84,
+        "sql": "UPDATE transactions SET status = 'cancelled' WHERE payment_id = ?"
+    },
+    {
+        "file": "guest-requirements-submit.php",
+        "line": 19,
+        "sql": "SELECT guest_reference FROM appointments WHERE appointment_id = ? AND guest_name IS NOT NULL"
+    },
+    {
+        "file": "includes/appointment-approval.php",
+        "line": 29,
+        "sql": "SELECT 1 FROM information_schema.columns WHERE table_name = 'appointments' AND column_name = 'payment_deadline'"
+    },
+    {
+        "file": "includes/appointment-approval.php",
+        "line": 46,
+        "sql": "SELECT a.appointment_id, a.status_id, a.appointment_date, a.appointment_time, a.location_address,\r\n                a.guest_name, a.guest_email, a.guest_reference, a.schedule_type, a.pss_classification,\r\n                a.sponsor_count, a.wedding_sponsor_count, a.fee_snapshot, a.approved_at,  /*EXPR*/   /*EXPR*/ \r\n                a.priest_id, pr.full_name AS priest_name,\r\n                s.service_name, s.category, s.fee,\r\n                u.user_id, u.email AS user_email, u.firstname, u.lastname\r\n         FROM appointments a\r\n         JOIN services s ON s.service_id = a.service_id\r\n         LEFT JOIN priests pr ON pr.priest_id = a.priest_id\r\n         LEFT JOIN parishioners p ON p.parishioner_id = a.parishioner_id\r\n         LEFT JOIN users u ON u.user_id = p.user_id\r\n         WHERE a.appointment_id = ?"
+    },
+    {
+        "file": "includes/appointment-approval.php",
+        "line": 119,
+        "sql": "SELECT payment_status FROM payments WHERE appointment_id = ? ORDER BY payment_id DESC LIMIT 1"
+    },
+    {
+        "file": "includes/appointment-approval.php",
+        "line": 177,
+        "sql": "SELECT notification_id FROM notifications WHERE user_id = ? AND title IN (?, ?) AND message LIKE ? ORDER BY notification_id DESC LIMIT 1"
+    },
+    {
+        "file": "includes/appointment-approval.php",
+        "line": 183,
+        "sql": "UPDATE notifications SET title = ?, message = ?, appointment_id = ? WHERE notification_id = ?"
+    },
+    {
+        "file": "includes/appointment-approval.php",
+        "line": 184,
+        "sql": "UPDATE notifications SET title = ?, message = ? WHERE notification_id = ?"
+    },
+    {
+        "file": "includes/appointment-approval.php",
+        "line": 188,
+        "sql": "INSERT INTO notifications (user_id, type, category, title, message, appointment_id) VALUES (?, 'website', 'appointment', ?, ?, ?)"
+    },
+    {
+        "file": "includes/appointment-approval.php",
+        "line": 189,
+        "sql": "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', ?, ?)"
+    },
+    {
+        "file": "includes/appointment-approval.php",
+        "line": 416,
+        "sql": "INSERT INTO notifications (user_id, type, category, title, message, appointment_id) VALUES (?, 'website', 'appointment', ?, ?, ?)"
+    },
+    {
+        "file": "includes/appointment-approval.php",
+        "line": 417,
+        "sql": "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', ?, ?)"
+    },
+    {
+        "file": "includes/appointment-workflow.php",
+        "line": 89,
+        "sql": "SELECT g.form_type, g.status AS generated_status, g.document_id,\r\n                d.document_id AS active_document_id, d.file_name,\r\n                d.review_status, d.verified, d.rejection_reason,\r\n                TRUE AS form_exists\r\n         FROM generated_forms g\r\n         LEFT JOIN uploaded_documents d\r\n           ON d.document_id = g.document_id\r\n          AND d.appointment_id = g.appointment_id\r\n          AND d.superseded_by IS NULL\r\n          AND d.document_source = 'generated'\r\n          AND d.generated_form_type = g.form_type\r\n          AND d.file_type = 'application/pdf'\r\n         WHERE g.service_category = ? AND g.appointment_id = ?\r\n         ORDER BY g.form_type"
+    },
+    {
+        "file": "includes/appointment-workflow.php",
+        "line": 175,
+        "sql": "SELECT status FROM priests WHERE priest_id = ?"
+    },
+    {
+        "file": "includes/appointment-workflow.php",
+        "line": 205,
+        "sql": "SELECT document_id, requirement_label, review_status, verified, rejection_reason\r\n             FROM uploaded_documents\r\n             WHERE appointment_id = ? AND superseded_by IS NULL\r\n             ORDER BY document_id DESC"
+    },
+    {
+        "file": "includes/auth.php",
+        "line": 104,
+        "sql": "SELECT priest_id FROM priests WHERE user_id = ? LIMIT 1"
+    },
+    {
+        "file": "includes/auth.php",
+        "line": 109,
+        "sql": "SELECT priest_id FROM priests WHERE LOWER(email) = LOWER(?) LIMIT 1"
+    },
+    {
+        "file": "includes/auth.php",
+        "line": 116,
+        "sql": "SELECT priest_id FROM priests\r\n             WHERE (full_name ILIKE '%Al John%' OR full_name ILIKE '%Minoza%' OR full_name ILIKE '%Miñoza%' OR full_name ILIKE '%Parish Priest%' OR title ILIKE '%Parish Priest%')\r\n             ORDER BY priest_id ASC LIMIT 1"
+    },
+    {
+        "file": "includes/auth.php",
+        "line": 124,
+        "sql": "SELECT priest_id FROM priests WHERE full_name ILIKE ? ORDER BY priest_id ASC LIMIT 1"
+    },
+    {
+        "file": "includes/auth.php",
+        "line": 130,
+        "sql": "SELECT priest_id FROM priests WHERE status = 'active' ORDER BY priest_id ASC LIMIT 1"
+    },
+    {
+        "file": "includes/auth.php",
+        "line": 133,
+        "sql": "SELECT priest_id FROM priests ORDER BY priest_id ASC LIMIT 1"
+    },
+    {
+        "file": "includes/auth.php",
+        "line": 140,
+        "sql": "UPDATE priests SET user_id = ? WHERE priest_id = ?"
+    },
+    {
+        "file": "includes/auth.php",
+        "line": 167,
+        "sql": "SELECT p.parishioner_id FROM parishioners p JOIN users u ON p.user_id = u.user_id WHERE u.email = ?"
+    },
+    {
+        "file": "includes/auth.php",
+        "line": 186,
+        "sql": "SELECT 1 FROM appointments WHERE guest_reference = ?"
+    },
+    {
+        "file": "includes/auth.php",
+        "line": 202,
+        "sql": "SELECT CEIL(EXTRACT(EPOCH FROM (locked_until - NOW())))::int FROM auth_throttle\r\n         WHERE throttle_key = ? AND locked_until > NOW()"
+    },
+    {
+        "file": "includes/auth.php",
+        "line": 223,
+        "sql": "INSERT INTO auth_throttle (throttle_key, failures, locked_until, updated_at)\r\n         VALUES (?, 1, NULL, NOW())\r\n         ON CONFLICT (throttle_key) DO UPDATE SET\r\n           failures =  /*EXPR*/ ,\r\n           locked_until = CASE WHEN ( /*EXPR*/ ) >= ?\r\n                               THEN CASE WHEN auth_throttle.locked_until > NOW() THEN auth_throttle.locked_until\r\n                                         ELSE NOW() + make_interval(secs => ?) END\r\n                               ELSE NULL END,\r\n           updated_at = NOW()\r\n         RETURNING failures"
+    },
+    {
+        "file": "includes/auth.php",
+        "line": 241,
+        "sql": "DELETE FROM auth_throttle WHERE throttle_key = ?"
+    },
+    {
+        "file": "includes/auth.php",
+        "line": 262,
+        "sql": "SELECT 1 FROM appointments a JOIN parishioners p ON p.parishioner_id = a.parishioner_id\r\n         WHERE a.appointment_id = ? AND p.user_id = ?"
+    },
+    {
+        "file": "includes/auth.php",
+        "line": 300,
+        "sql": "SELECT parishioner_id FROM parishioners WHERE user_id = ?"
+    },
+    {
+        "file": "includes/auth.php",
+        "line": 410,
+        "sql": "SELECT a.appointment_id, s.service_name, s.category, st.status_name\r\n         FROM appointments a\r\n         JOIN services s ON a.service_id = s.service_id\r\n         JOIN appointment_status st ON a.status_id = st.status_id\r\n         WHERE a.guest_reference = ? AND a.parishioner_id = ? AND s.category != 'Donation'\r\n         ORDER BY a.appointment_id DESC LIMIT 1"
+    },
+    {
+        "file": "includes/baptism-draft.php",
+        "line": 8,
+        "sql": "SELECT d.*,s.category,s.requirements FROM appointment_drafts d JOIN services s ON s.service_id=d.service_id WHERE d.draft_id=? AND d.service_type='Baptism'"
+    },
+    {
+        "file": "includes/baptism-draft.php",
+        "line": 8,
+        "sql": "SELECT parishioner_id FROM parishioners WHERE user_id=?"
+    },
+    {
+        "file": "includes/baptism-draft.php",
+        "line": 38,
+        "sql": "SELECT requirement_label FROM uploaded_documents WHERE draft_id=? AND superseded_by IS NULL AND review_status IN ('pending','approved')"
+    },
+    {
+        "file": "includes/baptism-draft.php",
+        "line": 43,
+        "sql": "SELECT f.form_type FROM generated_forms f JOIN uploaded_documents u ON u.document_id=f.document_id WHERE f.service_category='Baptism' AND f.draft_id=? AND f.status IN ('generated','pending_review','approved') AND f.document_id IS NOT NULL AND u.draft_id=? AND u.appointment_id IS NULL AND u.superseded_by IS NULL AND u.document_source='generated' AND u.generated_form_type=f.form_type AND u.file_type='application/pdf'"
+    },
+    {
+        "file": "includes/baptism-forms.php",
+        "line": 84,
+        "sql": "Select one valid marriage status for the parents."
+    },
+    {
+        "file": "includes/certificate-workflow.php",
+        "line": 67,
+        "sql": "SELECT 1 FROM payments WHERE appointment_id = ? AND payment_status = 'verified' LIMIT 1"
+    },
+    {
+        "file": "includes/certificate-workflow.php",
+        "line": 75,
+        "sql": "SELECT * FROM issued_certificates WHERE appointment_id = ?"
+    },
+    {
+        "file": "includes/certificate-workflow.php",
+        "line": 96,
+        "sql": "UPDATE issued_certificates SET book_no = ?, page_no = ?, line_no = ?, registry_date = ?,\r\n                certificate_purpose = ?, form_data = ?, source_appointment_id = COALESCE(?, source_appointment_id)\r\n             WHERE issued_certificate_id = ?"
+    },
+    {
+        "file": "includes/certificate-workflow.php",
+        "line": 113,
+        "sql": "INSERT INTO issued_certificates\r\n            (appointment_id, source_appointment_id, certificate_type, book_no, page_no, line_no, registry_date, certificate_purpose, form_data, status)\r\n         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')"
+    },
+    {
+        "file": "includes/certificate-workflow.php",
+        "line": 127,
+        "sql": "SELECT issued_certificate_id FROM issued_certificates WHERE appointment_id = ?"
+    },
+    {
+        "file": "includes/certificate-workflow.php",
+        "line": 153,
+        "sql": "INSERT INTO uploaded_documents (appointment_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source, generated_form_type)\r\n             VALUES (?, ?, ?, 'application/pdf', ?, 'approved', TRUE, 'generated', 'official_certificate')"
+    },
+    {
+        "file": "includes/certificate-workflow.php",
+        "line": 160,
+        "sql": "UPDATE issued_certificates SET document_id = ?, status = 'generated', issued_by = ?, issued_at = CURRENT_TIMESTAMP WHERE issued_certificate_id = ?"
+    },
+    {
+        "file": "includes/certificate-workflow.php",
+        "line": 164,
+        "sql": "UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ? AND superseded_by IS NULL"
+    },
+    {
+        "file": "includes/certificate-workflow.php",
+        "line": 186,
+        "sql": "SELECT a.*, s.category, p.title AS priest_title, p.full_name AS priest_name,\r\n                u.firstname, u.lastname, u.middlename, u.gender, u.address AS profile_address\r\n         FROM appointments a\r\n         JOIN services s ON s.service_id = a.service_id\r\n         LEFT JOIN priests p ON p.priest_id = a.priest_id\r\n         LEFT JOIN parishioners par ON par.parishioner_id = a.parishioner_id\r\n         LEFT JOIN users u ON u.user_id = par.user_id\r\n         WHERE a.appointment_id = ?"
+    },
+    {
+        "file": "includes/certificate-workflow.php",
+        "line": 207,
+        "sql": "SELECT form_type, form_data FROM generated_forms WHERE service_category = ? AND appointment_id = ?"
+    },
+    {
+        "file": "includes/certificate-workflow.php",
+        "line": 309,
+        "sql": "SELECT a.appointment_id, s.category, a.appointment_date, a.patient_name, a.guest_name,\r\n                COALESCE(u.firstname || ' ' || u.lastname, '') AS parishioner_name,\r\n                gf.form_type, gf.form_data\r\n         FROM appointments a\r\n         JOIN services s ON s.service_id = a.service_id\r\n         LEFT JOIN parishioners par ON par.parishioner_id = a.parishioner_id\r\n         LEFT JOIN users u ON u.user_id = par.user_id\r\n         LEFT JOIN generated_forms gf ON gf.appointment_id = a.appointment_id\r\n         WHERE a.status_id = 6 AND s.category IN ('Wedding', 'Baptism', 'Confirmation', 'Funeral')\r\n           AND (\r\n             a.patient_name ILIKE ?\r\n             OR a.guest_name ILIKE ?\r\n             OR (u.firstname || ' ' || u.lastname) ILIKE ?\r\n             OR gf.form_data::text ILIKE ?\r\n           )\r\n         ORDER BY a.appointment_date DESC LIMIT 25"
+    },
+    {
+        "file": "includes/certificate-workflow.php",
+        "line": 391,
+        "sql": "SELECT a.appointment_id, s.category, a.appointment_date,\r\n                       gf.form_type, gf.form_data\r\n                FROM appointments a\r\n                JOIN services s ON s.service_id = a.service_id\r\n                LEFT JOIN generated_forms gf ON gf.appointment_id = a.appointment_id AND gf.form_type = 'matrimony_application'\r\n                WHERE a.status_id = 6 AND s.category = 'Wedding'"
+    },
+    {
+        "file": "includes/certificate-workflow.php",
+        "line": 447,
+        "sql": "SELECT a.appointment_id, s.category, a.appointment_date,\r\n                       COALESCE(u.firstname || ' ' || u.lastname, '') AS parishioner_name,\r\n                       gf.form_type, gf.form_data\r\n                FROM appointments a\r\n                JOIN services s ON s.service_id = a.service_id\r\n                LEFT JOIN parishioners par ON par.parishioner_id = a.parishioner_id\r\n                LEFT JOIN users u ON u.user_id = par.user_id\r\n                LEFT JOIN generated_forms gf ON gf.appointment_id = a.appointment_id AND gf.form_type = 'katin_awan_bunyag'\r\n                WHERE a.status_id = 6 AND s.category = 'Baptism'"
+    },
+    {
+        "file": "includes/certificate-workflow.php",
+        "line": 498,
+        "sql": "SELECT a.appointment_id, s.category, a.appointment_date, a.patient_name,\r\n                       COALESCE(u.firstname || ' ' || u.lastname, '') AS parishioner_name\r\n                FROM appointments a\r\n                JOIN services s ON s.service_id = a.service_id\r\n                LEFT JOIN parishioners par ON par.parishioner_id = a.parishioner_id\r\n                LEFT JOIN users u ON u.user_id = par.user_id\r\n                WHERE a.status_id = 6 AND s.category = 'Confirmation'"
+    },
+    {
+        "file": "includes/certificate-workflow.php",
+        "line": 545,
+        "sql": "SELECT a.appointment_id, s.category, a.appointment_date, a.patient_name,\r\n                       gf.form_type, gf.form_data\r\n                FROM appointments a\r\n                JOIN services s ON s.service_id = a.service_id\r\n                LEFT JOIN generated_forms gf ON gf.appointment_id = a.appointment_id AND gf.form_type = 'katin_awan_paglubong'\r\n                WHERE a.status_id = 6 AND s.category = 'Funeral'"
+    },
+    {
+        "file": "includes/certificate-workflow.php",
+        "line": 598,
+        "sql": "SELECT a.guest_name, a.guest_email, a.patient_name, ic.certificate_type,\r\n                u.user_id, u.firstname, u.lastname, u.email\r\n         FROM appointments a\r\n         JOIN issued_certificates ic ON ic.appointment_id = a.appointment_id\r\n         LEFT JOIN parishioners par ON par.parishioner_id = a.parishioner_id\r\n         LEFT JOIN users u ON u.user_id = par.user_id\r\n         WHERE a.appointment_id = ?"
+    },
+    {
+        "file": "includes/certificate-workflow.php",
+        "line": 615,
+        "sql": "UPDATE issued_certificates SET status = 'ready_for_pickup' WHERE appointment_id = ? AND status = 'generated'"
+    },
+    {
+        "file": "includes/certificate-workflow.php",
+        "line": 631,
+        "sql": "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', ?, ?)"
+    },
+    {
+        "file": "includes/certificate-workflow.php",
+        "line": 655,
+        "sql": "UPDATE issued_certificates\r\n             SET status = 'claimed', claimed_at = CURRENT_TIMESTAMP, claimed_by_user_id = ?\r\n             WHERE appointment_id = ? AND status = 'ready_for_pickup'"
+    },
+    {
+        "file": "includes/certificate-workflow.php",
+        "line": 664,
+        "sql": "UPDATE appointments SET status_id = 6 WHERE appointment_id = ? AND status_id = 5"
+    },
+    {
+        "file": "includes/document-storage.php",
+        "line": 41,
+        "sql": "DELETE"
+    },
+    {
+        "file": "includes/document-storage.php",
+        "line": 41,
+        "sql": "delete"
+    },
+    {
+        "file": "includes/document-storage.php",
+        "line": 152,
+        "sql": "DELETE"
+    },
+    {
+        "file": "includes/email-log.php",
+        "line": 32,
+        "sql": "SELECT 1 FROM information_schema.tables WHERE table_name = 'email_logs'"
+    },
+    {
+        "file": "includes/email-log.php",
+        "line": 75,
+        "sql": "SELECT email_log_id, status FROM email_logs WHERE dedupe_key = ?"
+    },
+    {
+        "file": "includes/email-log.php",
+        "line": 83,
+        "sql": "INSERT INTO email_logs (dedupe_key, notification_type, appointment_id, booking_reference, recipient, subject, body_html, status)\n                     VALUES (?, ?, ?, ?, ?, ?, ?, 'pending') ON CONFLICT (dedupe_key) DO NOTHING RETURNING email_log_id"
+    },
+    {
+        "file": "includes/email-log.php",
+        "line": 91,
+        "sql": "UPDATE email_logs SET attempts = attempts + 1, last_attempt_at = CURRENT_TIMESTAMP WHERE email_log_id = ? AND status <> 'sent'"
+    },
+    {
+        "file": "includes/email-log.php",
+        "line": 104,
+        "sql": "UPDATE email_logs SET status = 'sent', sent_at = CURRENT_TIMESTAMP, failure_reason = NULL WHERE email_log_id = ?"
+    },
+    {
+        "file": "includes/email-log.php",
+        "line": 105,
+        "sql": "UPDATE email_logs SET status = 'failed', failure_reason = ? WHERE email_log_id = ?"
+    },
+    {
+        "file": "includes/email-log.php",
+        "line": 118,
+        "sql": "SELECT * FROM email_logs WHERE email_log_id = ?"
+    },
+    {
+        "file": "includes/email-log.php",
+        "line": 130,
+        "sql": "SELECT email_log_id, notification_type, recipient, status, attempts, failure_reason, last_attempt_at, sent_at FROM email_logs WHERE appointment_id = ? ORDER BY email_log_id DESC"
+    },
+    {
+        "file": "includes/functions.php",
+        "line": 53,
+        "sql": "INSERT INTO activity_logs (user_id, action, module, ip_address, user_agent) VALUES (?, ?, ?, ?, ?)"
+    },
+    {
+        "file": "includes/functions.php",
+        "line": 136,
+        "sql": "SELECT mi.intention_type, mi.offerer_name, mi.intention_for, mi.message, a.appointment_time\r\n         FROM appointments a\r\n         JOIN services s ON a.service_id = s.service_id\r\n         JOIN mass_intentions mi ON mi.appointment_id = a.appointment_id\r\n         WHERE s.category = 'Mass Intention' AND a.status_id = 5 AND a.appointment_date = ?\r\n           AND EXISTS (SELECT 1 FROM payments p WHERE p.appointment_id = a.appointment_id\r\n                       AND p.payment_status = 'verified' AND p.amount > 0)\r\n         ORDER BY a.appointment_time ASC"
+    },
+    {
+        "file": "includes/functions.php",
+        "line": 341,
+        "sql": "SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.guest_name, a.guest_email, a.guest_reference,\r\n                    par.user_id, u.email AS user_email, u.firstname, u.lastname,\r\n                    s.service_name, s.category, a.pss_classification, a.fee_snapshot\r\n             FROM appointments a\r\n             JOIN services s ON a.service_id = s.service_id\r\n             LEFT JOIN parishioners par ON a.parishioner_id = par.parishioner_id\r\n             LEFT JOIN users u ON par.user_id = u.user_id\r\n             WHERE a.status_id = 2\r\n               AND a.appointment_date < CURRENT_DATE\r\n               AND NOT EXISTS (\r\n                     SELECT 1 FROM payments p\r\n                     WHERE p.appointment_id = a.appointment_id AND p.payment_status IN ('pending', 'verified')\r\n                   )"
+    },
+    {
+        "file": "includes/functions.php",
+        "line": 371,
+        "sql": "SELECT 1 FROM notifications WHERE user_id = ? AND title = 'Appointment Needs Reschedule' AND message LIKE ?"
+    },
+    {
+        "file": "includes/functions.php",
+        "line": 375,
+        "sql": "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Appointment Needs Reschedule', ?)"
+    },
+    {
+        "file": "includes/functions.php",
+        "line": 384,
+        "sql": "SELECT 1 FROM notifications WHERE title = 'Appointment Needs Reschedule' AND message LIKE ? LIMIT 1"
+    },
+    {
+        "file": "includes/functions.php",
+        "line": 553,
+        "sql": "SELECT p.*, a.status_id AS appointment_status_id, a.parishioner_id, s.category\r\n             FROM payments p\r\n             JOIN appointments a ON a.appointment_id = p.appointment_id\r\n             JOIN services s ON s.service_id = a.service_id\r\n             WHERE p.payment_id = ?\r\n             FOR UPDATE"
+    },
+    {
+        "file": "includes/functions.php",
+        "line": 585,
+        "sql": "SELECT pg_advisory_xact_lock(hashtext(?))"
+    },
+    {
+        "file": "includes/functions.php",
+        "line": 586,
+        "sql": "SELECT 1 FROM payments WHERE reference_number = ? AND payment_id <> ? LIMIT 1"
+    },
+    {
+        "file": "includes/functions.php",
+        "line": 595,
+        "sql": "UPDATE payments SET payment_status='verified', reference_number=?, verified_by=?, verified_at=NOW()\r\n             WHERE payment_id=? AND payment_status='pending'"
+    },
+    {
+        "file": "includes/functions.php",
+        "line": 607,
+        "sql": "UPDATE appointments SET status_id = ? WHERE appointment_id = ? AND status_id = 2"
+    },
+    {
+        "file": "includes/functions.php",
+        "line": 614,
+        "sql": "INSERT INTO official_receipts (payment_id, issued_by) VALUES (?, ?) RETURNING receipt_number"
+    },
+    {
+        "file": "includes/functions.php",
+        "line": 618,
+        "sql": "SELECT user_id FROM parishioners WHERE parishioner_id = ?"
+    },
+    {
+        "file": "includes/functions.php",
+        "line": 627,
+        "sql": "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'payment', 'Payment Verified', ?)"
+    },
+    {
+        "file": "includes/functions.php",
+        "line": 646,
+        "sql": "UPDATE payments SET payment_status = ? WHERE payment_id = ? AND payment_status = 'pending'"
+    },
+    {
+        "file": "includes/functions.php",
+        "line": 788,
+        "sql": "SELECT a.appointment_id, a.guest_reference, p.amount, d.purpose, d.project_id, pr.project_name\r\n         FROM appointments a\r\n         JOIN services s ON s.service_id = a.service_id AND s.category = 'Donation'\r\n         JOIN donations d ON d.appointment_id = a.appointment_id\r\n         LEFT JOIN projects pr ON pr.project_id = d.project_id\r\n         JOIN payments p ON p.appointment_id = a.appointment_id\r\n         WHERE a.appointment_id = ? AND p.payment_status = 'verified' AND p.method_id = 7\r\n         ORDER BY p.payment_id DESC LIMIT 1"
+    },
+    {
+        "file": "includes/functions.php",
+        "line": 840,
+        "sql": "SELECT d.donor_name, d.purpose, d.project_id, pr.project_name, p.amount, p.verified_at\r\n         FROM payments p\r\n         JOIN appointments a ON p.appointment_id = a.appointment_id\r\n         JOIN services s ON a.service_id = s.service_id\r\n         JOIN donations d ON d.appointment_id = a.appointment_id\r\n         LEFT JOIN projects pr ON pr.project_id = d.project_id\r\n         WHERE s.category = 'Donation' AND p.payment_status = 'verified'\r\n           AND DATE(p.verified_at AT TIME ZONE 'Asia/Manila') BETWEEN ? AND ?\r\n         ORDER BY p.verified_at DESC"
+    },
+    {
+        "file": "includes/functions.php",
+        "line": 883,
+        "sql": "SELECT announcement_id FROM announcements WHERE title = ?"
+    },
+    {
+        "file": "includes/functions.php",
+        "line": 888,
+        "sql": "UPDATE announcements SET content = ? WHERE announcement_id = ?"
+    },
+    {
+        "file": "includes/functions.php",
+        "line": 892,
+        "sql": "INSERT INTO announcements (title, content, posted_by, is_pinned, status, category) VALUES (?, ?, ?, FALSE, 'published', 'Donation')"
+    },
+    {
+        "file": "includes/functions.php",
+        "line": 905,
+        "sql": "SELECT setting_value FROM settings WHERE setting_key = 'contact_number'"
+    },
+    {
+        "file": "includes/functions.php",
+        "line": 918,
+        "sql": "SELECT setting_value FROM settings WHERE setting_key = 'contact_email'"
+    },
+    {
+        "file": "includes/functions.php",
+        "line": 935,
+        "sql": "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'appointments' AND column_name = 'outside_priest_name'"
+    },
+    {
+        "file": "includes/functions.php",
+        "line": 999,
+        "sql": "SELECT COUNT(*) FROM services WHERE category = 'Certificate' OR service_name = 'Certificate Request'"
+    },
+    {
+        "file": "includes/functions.php",
+        "line": 1002,
+        "sql": "INSERT INTO services (service_name, category, description, fee, requirements, duration_minutes, is_active)\r\n                            VALUES ('Certificate Request', 'Certificate', 'Official church certificate issuance (Baptismal, Confirmation, Death, or Marriage Certificate).', 100.00, NULL, 15, TRUE)"
+    },
+    {
+        "file": "includes/funeral-draft.php",
+        "line": 35,
+        "sql": "SELECT parishioner_id FROM parishioners WHERE user_id = ?"
+    },
+    {
+        "file": "includes/funeral-forms.php",
+        "line": 27,
+        "sql": "SELECT appointment_id FROM appointments WHERE appointment_id = ?"
+    },
+    {
+        "file": "includes/funeral-forms.php",
+        "line": 38,
+        "sql": "SELECT review_status FROM uploaded_documents WHERE document_id = ? AND appointment_id = ? FOR UPDATE"
+    },
+    {
+        "file": "includes/funeral-forms.php",
+        "line": 42,
+        "sql": "SELECT document_id FROM uploaded_documents WHERE appointment_id = ? AND document_source = 'generated' AND generated_form_type = ? AND superseded_by IS NULL ORDER BY document_id DESC LIMIT 1 FOR UPDATE"
+    },
+    {
+        "file": "includes/funeral-forms.php",
+        "line": 46,
+        "sql": "INSERT INTO uploaded_documents (appointment_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source, generated_form_type) VALUES (?, ?, ?, 'application/pdf', ?, 'pending', FALSE, 'generated', ?)"
+    },
+    {
+        "file": "includes/funeral-forms.php",
+        "line": 50,
+        "sql": "UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ? AND appointment_id = ? AND superseded_by IS NULL"
+    },
+    {
+        "file": "includes/funeral-forms.php",
+        "line": 55,
+        "sql": "SELECT generated_form_id FROM generated_forms WHERE service_category = 'Funeral' AND appointment_id = ? AND form_type = ?"
+    },
+    {
+        "file": "includes/funeral-forms.php",
+        "line": 58,
+        "sql": "UPDATE generated_forms SET form_data = ?, document_id = ?, status = 'generated', rejection_reason = NULL, updated_at = CURRENT_TIMESTAMP WHERE service_category = 'Funeral' AND appointment_id = ? AND form_type = ?"
+    },
+    {
+        "file": "includes/funeral-forms.php",
+        "line": 61,
+        "sql": "INSERT INTO generated_forms (service_category, appointment_id, form_type, form_data, document_id, status) VALUES ('Funeral', ?, ?, ?, ?, 'generated')"
+    },
+    {
+        "file": "includes/funeral-forms.php",
+        "line": 131,
+        "sql": "Select a valid date of death."
+    },
+    {
+        "file": "includes/funeral-forms.php",
+        "line": 131,
+        "sql": "Select a valid burial date."
+    },
+    {
+        "file": "includes/funeral-forms.php",
+        "line": 134,
+        "sql": "Select a valid burial time."
+    },
+    {
+        "file": "includes/funeral-forms.php",
+        "line": 144,
+        "sql": "Select the sacrament received, or select Wala."
+    },
+    {
+        "file": "includes/funeral-forms.php",
+        "line": 146,
+        "sql": "Select one valid marriage status."
+    },
+    {
+        "file": "includes/funeral-forms.php",
+        "line": 149,
+        "sql": "Select a valid marriage date."
+    },
+    {
+        "file": "includes/funeral-forms.php",
+        "line": 152,
+        "sql": "Select a valid marriage date."
+    },
+    {
+        "file": "includes/funeral-schedule.php",
+        "line": 22,
+        "sql": "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'appointments' AND column_name IN ('preferred_burial_date', 'preferred_burial_time')"
+    },
+    {
+        "file": "includes/funeral-schedule.php",
+        "line": 90,
+        "sql": "Update requested:"
+    },
+    {
+        "file": "includes/paymongo.php",
+        "line": 195,
+        "sql": "SELECT p.payment_id, p.payment_status, t.gateway_transaction_id\r\n         FROM payments p\r\n         LEFT JOIN transactions t ON t.payment_id = p.payment_id AND t.gateway = 'paymongo'\r\n         WHERE p.payment_id = ?"
+    },
+    {
+        "file": "includes/paymongo.php",
+        "line": 214,
+        "sql": "UPDATE transactions SET status = ?, raw_response = ? WHERE payment_id = ?"
+    },
+    {
+        "file": "includes/paymongo.php",
+        "line": 222,
+        "sql": "UPDATE payments SET method_id = ? WHERE payment_id = ?"
+    },
+    {
+        "file": "includes/paymongo.php",
+        "line": 250,
+        "sql": "SELECT p.payment_id, p.payment_status, t.gateway_transaction_id\r\n         FROM payments p\r\n         JOIN transactions t ON t.payment_id = p.payment_id AND t.gateway = 'paymongo'\r\n         JOIN appointments a ON a.appointment_id = p.appointment_id\r\n         JOIN services s ON s.service_id = a.service_id AND s.category = 'Donation'\r\n         WHERE p.appointment_id = ?\r\n         ORDER BY p.payment_id DESC LIMIT 1"
+    },
+    {
+        "file": "includes/paymongo.php",
+        "line": 277,
+        "sql": "UPDATE transactions SET status = 'cancelled' WHERE payment_id = ?"
+    },
+    {
+        "file": "includes/paymongo.php",
+        "line": 302,
+        "sql": "SELECT p.payment_id, p.payment_status, p.method_id, t.gateway_transaction_id\r\n         FROM payments p\r\n         JOIN transactions t ON t.payment_id = p.payment_id AND t.gateway = 'paymongo'\r\n         JOIN appointments a ON a.appointment_id = p.appointment_id\r\n         JOIN services s ON s.service_id = a.service_id AND s.category = 'Donation'\r\n         WHERE p.appointment_id = ?\r\n         ORDER BY p.payment_id DESC LIMIT 1"
+    },
+    {
+        "file": "includes/paymongo.php",
+        "line": 322,
+        "sql": "UPDATE transactions SET status = ?, raw_response = ? WHERE payment_id = ?"
+    },
+    {
+        "file": "includes/paymongo.php",
+        "line": 330,
+        "sql": "UPDATE payments SET method_id = ? WHERE payment_id = ?"
+    },
+    {
+        "file": "includes/precana.php",
+        "line": 40,
+        "sql": "SELECT COUNT(DISTINCT table_name) FROM information_schema.columns WHERE column_name = 'precana_type' AND table_name IN ('appointments', 'appointment_drafts')"
+    },
+    {
+        "file": "includes/precana.php",
+        "line": 108,
+        "sql": "SELECT calendar_date FROM calendar WHERE is_blocked = TRUE"
+    },
+    {
+        "file": "includes/precana.php",
+        "line": 166,
+        "sql": "SELECT precana_type, precana_date, precana_time, precana_status FROM appointments WHERE appointment_id = ?"
+    },
+    {
+        "file": "includes/precana.php",
+        "line": 212,
+        "sql": "SELECT document_id, file_name, requirement_label, review_status, verified, rejection_reason FROM uploaded_documents WHERE appointment_id = ? AND superseded_by IS NULL ORDER BY document_id DESC"
+    },
+    {
+        "file": "includes/public-chatbot.php",
+        "line": 68,
+        "sql": "SELECT setting_key, setting_value FROM settings"
+    },
+    {
+        "file": "includes/public-chatbot.php",
+        "line": 75,
+        "sql": "SELECT service_id, service_name, category, fee, requirements FROM services WHERE is_active = TRUE AND category <> 'Donation' ORDER BY category, service_name"
+    },
+    {
+        "file": "includes/public-chatbot.php",
+        "line": 81,
+        "sql": "SELECT * FROM service_fee_rules"
+    },
+    {
+        "file": "includes/requirements-review.php",
+        "line": 35,
+        "sql": "SELECT 1 FROM information_schema.columns WHERE table_name = 'appointments' AND column_name = 'requirements_review_status'"
+    },
+    {
+        "file": "includes/requirements-review.php",
+        "line": 52,
+        "sql": "SELECT document_id, requirement_label, file_name, document_source, review_status, verified, rejection_reason, reviewed_at\r\n         FROM uploaded_documents\r\n         WHERE appointment_id = ? AND superseded_by IS NULL\r\n         ORDER BY document_id"
+    },
+    {
+        "file": "includes/requirements-review.php",
+        "line": 165,
+        "sql": "SELECT requirements_review_status FROM appointments WHERE appointment_id = ?"
+    },
+    {
+        "file": "includes/requirements-review.php",
+        "line": 190,
+        "sql": "SELECT a.appointment_id, a.status_id, a.guest_name, a.guest_email, a.guest_reference, a.requirements_review_status, a.revision_requested_at,\r\n                s.service_name, s.category, u.user_id, u.email AS user_email, u.firstname, u.lastname\r\n         FROM appointments a\r\n         JOIN services s ON s.service_id = a.service_id\r\n         LEFT JOIN parishioners p ON p.parishioner_id = a.parishioner_id\r\n         LEFT JOIN users u ON u.user_id = p.user_id\r\n         WHERE a.appointment_id = ? /*EXPR*/ "
+    },
+    {
+        "file": "includes/requirements-review.php",
+        "line": 233,
+        "sql": "UPDATE appointments SET requirements_review_status = 'awaiting_revision', revision_requested_at = CURRENT_TIMESTAMP WHERE appointment_id = ?"
+    },
+    {
+        "file": "includes/requirements-review.php",
+        "line": 235,
+        "sql": "SELECT revision_requested_at FROM appointments WHERE appointment_id = ?"
+    },
+    {
+        "file": "includes/requirements-review.php",
+        "line": 321,
+        "sql": "UPDATE appointments SET requirements_review_status = 'ready_for_rereview' WHERE appointment_id = ? AND requirements_review_status = 'awaiting_revision'"
+    },
+    {
+        "file": "includes/requirements-review.php",
+        "line": 345,
+        "sql": "SELECT requirements_review_status FROM appointments WHERE appointment_id = ?"
+    },
+    {
+        "file": "includes/requirements-review.php",
+        "line": 349,
+        "sql": "UPDATE appointments SET requirements_review_status = NULL WHERE appointment_id = ? AND requirements_review_status = 'ready_for_rereview'"
+    },
+    {
+        "file": "includes/scheduling.php",
+        "line": 149,
+        "sql": "SELECT 1 FROM calendar WHERE calendar_date = ? AND is_blocked = 1"
+    },
+    {
+        "file": "includes/scheduling.php",
+        "line": 156,
+        "sql": "SELECT 1 FROM appointments a JOIN services s ON a.service_id = s.service_id\r\n         WHERE a.appointment_date = ? AND a.appointment_time = ?\r\n           AND s.category NOT IN ('Mass Intention', 'Donation') AND a.status_id NOT IN (3, 7) LIMIT 1"
+    },
+    {
+        "file": "includes/scheduling.php",
+        "line": 211,
+        "sql": "SELECT COUNT(*) FROM appointments\r\n            WHERE service_id = ? AND appointment_date = ? AND appointment_time = ?\r\n              AND status_id NOT IN (3, 7)"
+    },
+    {
+        "file": "includes/scheduling.php",
+        "line": 234,
+        "sql": "SELECT * FROM service_schedules WHERE service_id = ? AND is_active = TRUE\r\n         ORDER BY weekday, occurrence NULLS FIRST, slot_time"
+    },
+    {
+        "file": "includes/scheduling.php",
+        "line": 303,
+        "sql": "SELECT 1 FROM service_schedules\r\n         WHERE service_id = ? AND is_active = TRUE AND weekday = ?\r\n           AND (occurrence IS NULL OR occurrence = ?)\r\n           AND slot_time = ?"
+    },
+    {
+        "file": "includes/scheduling.php",
+        "line": 333,
+        "sql": "SELECT calendar_date FROM calendar WHERE is_blocked = TRUE"
+    },
+    {
+        "file": "includes/scheduling.php",
+        "line": 394,
+        "sql": "SELECT calendar_date FROM calendar WHERE is_blocked = TRUE"
+    },
+    {
+        "file": "includes/scheduling.php",
+        "line": 466,
+        "sql": "SELECT full_name, title, status FROM priests WHERE priest_id = ?"
+    },
+    {
+        "file": "includes/scheduling.php",
+        "line": 477,
+        "sql": "SELECT reason, start_time, end_time FROM priest_unavailability\r\n         WHERE priest_id = ? AND unavailable_date = ?\r\n           AND (start_time IS NULL OR start_time <= ?) AND (end_time IS NULL OR end_time >= ?)"
+    },
+    {
+        "file": "includes/scheduling.php",
+        "line": 499,
+        "sql": "SELECT title FROM events\r\n         WHERE priest_id = ? AND event_date = ? AND event_time = ?\r\n         LIMIT 1"
+    },
+    {
+        "file": "includes/scheduling.php",
+        "line": 512,
+        "sql": "SELECT a.appointment_id, s.service_name FROM appointments a\r\n            JOIN services s ON a.service_id = s.service_id\r\n            WHERE a.priest_id = ? AND a.appointment_date = ? AND a.appointment_time = ?\r\n              AND a.status_id NOT IN (3, 7)"
+    },
+    {
+        "file": "includes/scheduling.php",
+        "line": 549,
+        "sql": "SELECT pg_advisory_xact_lock(hashtext(?))"
+    },
+    {
+        "file": "includes/scheduling.php",
+        "line": 551,
+        "sql": "SELECT pg_advisory_xact_lock(hashtext(?))"
+    },
+    {
+        "file": "includes/scheduling.php",
+        "line": 554,
+        "sql": "SELECT 1 FROM calendar WHERE calendar_date = ? AND is_blocked = 1"
+    },
+    {
+        "file": "includes/scheduling.php",
+        "line": 576,
+        "sql": "SELECT priest_id, title, full_name FROM priests WHERE status = 'active' ORDER BY full_name"
+    },
+    {
+        "file": "includes/scheduling.php",
+        "line": 734,
+        "sql": "SELECT service_id FROM services WHERE category = ? AND is_active = TRUE LIMIT 1"
+    },
+    {
+        "file": "includes/secretary-notifications.php",
+        "line": 33,
+        "sql": "SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'appointment_id'"
+    },
+    {
+        "file": "includes/secretary-notifications.php",
+        "line": 45,
+        "sql": "SELECT u.user_id FROM users u JOIN roles r ON r.role_id = u.role_id\r\n             WHERE r.role_name = 'Secretary' AND u.status = 'active'"
+    },
+    {
+        "file": "includes/secretary-notifications.php",
+        "line": 50,
+        "sql": "INSERT INTO notifications (user_id, type, category, title, message, appointment_id) VALUES (?, 'website', 'appointment', ?, ?, ?)"
+    },
+    {
+        "file": "includes/secretary-notifications.php",
+        "line": 51,
+        "sql": "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', ?, ?)"
+    },
+    {
+        "file": "includes/secretary-notifications.php",
+        "line": 54,
+        "sql": "SELECT 1 FROM notifications WHERE user_id = ? AND title = ? AND message LIKE ? AND is_read = FALSE LIMIT 1"
+    },
+    {
+        "file": "includes/secretary-notifications.php",
+        "line": 71,
+        "sql": "SELECT a.appointment_id, a.guest_name, a.guest_reference, s.service_name, s.category, u.firstname, u.lastname\r\n         FROM appointments a\r\n         JOIN services s ON s.service_id = a.service_id\r\n         LEFT JOIN parishioners p ON p.parishioner_id = a.parishioner_id\r\n         LEFT JOIN users u ON u.user_id = p.user_id\r\n         WHERE a.appointment_id = ?"
+    },
+    {
+        "file": "includes/secretary-notifications.php",
+        "line": 129,
+        "sql": "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = FALSE"
+    },
+    {
+        "file": "includes/secretary-notifications.php",
+        "line": 132,
+        "sql": "SELECT notification_id, title, message, is_read, created_at /*EXPR*/  FROM notifications WHERE user_id = ? ORDER BY created_at DESC, notification_id DESC LIMIT ?"
+    },
+    {
+        "file": "includes/secretary-notifications.php",
+        "line": 166,
+        "sql": "SELECT appointment_id FROM appointments WHERE guest_reference = ?"
+    },
+    {
+        "file": "includes/secretary-notifications.php",
+        "line": 180,
+        "sql": "UPDATE notifications SET is_read = TRUE WHERE notification_id = ? AND user_id = ?"
+    },
+    {
+        "file": "includes/secretary-notifications.php",
+        "line": 201,
+        "sql": "SELECT notification_id, title, message, is_read, created_at /*EXPR*/  FROM notifications WHERE user_id = ? ORDER BY created_at DESC, notification_id DESC"
+    },
+    {
+        "file": "includes/secretary-notifications.php",
+        "line": 207,
+        "sql": "SELECT a.appointment_id, s.category, pay.reference_number\r\n         FROM appointments a\r\n         JOIN parishioners p ON p.parishioner_id = a.parishioner_id\r\n         JOIN services s ON s.service_id = a.service_id\r\n         LEFT JOIN payments pay ON pay.appointment_id = a.appointment_id\r\n         WHERE p.user_id = ?"
+    },
+    {
+        "file": "includes/secretary-notifications.php",
+        "line": 300,
+        "sql": "SELECT notification_id, message, is_read /*EXPR*/  FROM notifications WHERE user_id = ? AND title IN (?, ?) ORDER BY notification_id DESC"
+    },
+    {
+        "file": "includes/secretary-notifications.php",
+        "line": 311,
+        "sql": "UPDATE notifications SET title = ?, message = ?, is_read = FALSE, created_at = CURRENT_TIMESTAMP, appointment_id = ? WHERE notification_id = ?"
+    },
+    {
+        "file": "includes/secretary-notifications.php",
+        "line": 312,
+        "sql": "UPDATE notifications SET title = ?, message = ?, is_read = FALSE, created_at = CURRENT_TIMESTAMP WHERE notification_id = ?"
+    },
+    {
+        "file": "includes/secretary-notifications.php",
+        "line": 316,
+        "sql": "INSERT INTO notifications (user_id, type, category, title, message, appointment_id) VALUES (?, 'website', 'appointment', ?, ?, ?)"
+    },
+    {
+        "file": "includes/secretary-notifications.php",
+        "line": 317,
+        "sql": "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', ?, ?)"
+    },
+    {
+        "file": "includes/secretary-notifications.php",
+        "line": 329,
+        "sql": "UPDATE notifications SET is_read = TRUE WHERE notification_id = ? AND user_id = ?"
+    },
+    {
+        "file": "includes/service-fees.php",
+        "line": 7,
+        "sql": "SELECT * FROM service_fee_rules WHERE service_category = ? AND schedule_type = ? AND pss_classification = ?"
+    },
+    {
+        "file": "includes/sidebar.php",
+        "line": 64,
+        "sql": "\r\n              SELECT COUNT(DISTINCT a.appointment_id)\r\n              FROM appointments a\r\n              JOIN services s ON a.service_id = s.service_id\r\n              LEFT JOIN issued_certificates ic ON ic.appointment_id = a.appointment_id\r\n              WHERE s.category != 'Donation'\r\n                AND (\r\n                  a.status_id = 1\r\n                  OR a.requirements_review_status = 'ready_for_rereview'\r\n                  OR (\r\n                    (s.category IN ('Wedding', 'Baptism', 'Confirmation', 'Funeral') OR s.service_name LIKE '%Certificate%')\r\n                    AND a.status_id IN (2, 4)\r\n                    AND (ic.document_id IS NULL OR ic.status NOT IN ('generated', 'ready_for_pickup', 'claimed'))\r\n                  )\r\n                )\r\n          "
+    },
+    {
+        "file": "includes/topbar.php",
+        "line": 1,
+        "sql": "SELECT profile_photo FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "includes/topbar.php",
+        "line": 19,
+        "sql": "\r\n                    DELETE FROM notifications n1\r\n                    USING notifications n2\r\n                    WHERE n1.notification_id < n2.notification_id\r\n                      AND n1.user_id = n2.user_id\r\n                      AND n1.title = n2.title\r\n                      AND n1.message = n2.message\r\n                      AND n1.is_read = FALSE\r\n                "
+    },
+    {
+        "file": "includes/topbar.php",
+        "line": 29,
+        "sql": "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = FALSE"
+    },
+    {
+        "file": "includes/wedding-draft.php",
+        "line": 20,
+        "sql": "SELECT parishioner_id FROM parishioners WHERE user_id = ?"
+    },
+    {
+        "file": "includes/wedding-draft.php",
+        "line": 29,
+        "sql": "SELECT d.*, s.category, s.requirements FROM appointment_drafts d JOIN services s ON s.service_id = d.service_id WHERE d.draft_id = ? AND d.service_type = 'Wedding'"
+    },
+    {
+        "file": "includes/wedding-draft.php",
+        "line": 50,
+        "sql": "SELECT requirement_label FROM uploaded_documents WHERE draft_id = ? AND superseded_by IS NULL AND review_status = 'pending'"
+    },
+    {
+        "file": "includes/wedding-draft.php",
+        "line": 53,
+        "sql": "SELECT f.form_type\r\n        FROM generated_forms f\r\n        INNER JOIN uploaded_documents d ON d.document_id = f.document_id\r\n        WHERE f.service_category = 'Wedding' AND f.draft_id = ?\r\n          AND f.status IN ('generated', 'pending_review', 'approved')\r\n          AND f.document_id IS NOT NULL\r\n          AND d.superseded_by IS NULL\r\n          AND d.document_source = 'generated'\r\n          AND d.generated_form_type = f.form_type\r\n          AND d.file_type = 'application/pdf'"
+    },
+    {
+        "file": "includes/wedding-forms.php",
+        "line": 185,
+        "sql": "SELECT form_type, form_data FROM generated_forms WHERE service_category = 'Wedding' AND  /*EXPR*/ "
+    },
+    {
+        "file": "includes/wedding-forms.php",
+        "line": 432,
+        "sql": "Select one valid marriage status for the parents."
+    },
+    {
+        "file": "index.php",
+        "line": 7,
+        "sql": "SELECT * FROM announcements WHERE status='published' AND (end_date IS NULL OR end_date >= ?)\r\n     ORDER BY is_pinned DESC, created_at DESC LIMIT 3"
+    },
+    {
+        "file": "index.php",
+        "line": 15,
+        "sql": "SELECT * FROM services WHERE is_active=TRUE AND category != 'Donation' ORDER BY category, service_name LIMIT 6"
+    },
+    {
+        "file": "index.php",
+        "line": 18,
+        "sql": "SELECT COUNT(*) FROM services WHERE is_active=TRUE"
+    },
+    {
+        "file": "index.php",
+        "line": 19,
+        "sql": "SELECT COUNT(*) FROM priests WHERE status='active'"
+    },
+    {
+        "file": "index.php",
+        "line": 21,
+        "sql": "SELECT * FROM settings"
+    },
+    {
+        "file": "parishioner/announcements.php",
+        "line": 11,
+        "sql": "SELECT * FROM announcements WHERE status = 'published'\r\n       AND (end_date IS NULL OR end_date >= ?)\r\n     ORDER BY is_pinned DESC, created_at DESC"
+    },
+    {
+        "file": "parishioner/appointment-detail.php",
+        "line": 18,
+        "sql": "SELECT parishioner_id FROM parishioners WHERE user_id = ?"
+    },
+    {
+        "file": "parishioner/appointment-detail.php",
+        "line": 39,
+        "sql": "SELECT ic.status FROM issued_certificates ic\r\n             JOIN appointments a ON a.appointment_id = ic.appointment_id\r\n             WHERE ic.appointment_id = ? AND a.parishioner_id = ?"
+    },
+    {
+        "file": "parishioner/appointment-detail.php",
+        "line": 53,
+        "sql": "UPDATE appointments\r\n             SET status_id = 7, cancelled_reason = ?\r\n             WHERE appointment_id = ? AND parishioner_id = ? AND status_id IN (1, 2)"
+    },
+    {
+        "file": "parishioner/appointment-detail.php",
+        "line": 80,
+        "sql": "SELECT 1 FROM appointments WHERE appointment_id = ? AND parishioner_id = ?"
+    },
+    {
+        "file": "parishioner/appointment-detail.php",
+        "line": 92,
+        "sql": "SELECT a.appointment_id, a.status_id, a.requirements_snapshot, s.requirements FROM appointments a\r\n             JOIN services s ON a.service_id = s.service_id\r\n             WHERE a.appointment_id = ? AND a.parishioner_id = ?"
+    },
+    {
+        "file": "parishioner/appointment-detail.php",
+        "line": 169,
+        "sql": "SELECT status_id FROM appointments WHERE appointment_id = ? AND parishioner_id = ? FOR UPDATE"
+    },
+    {
+        "file": "parishioner/appointment-detail.php",
+        "line": 180,
+        "sql": "SELECT review_status FROM uploaded_documents WHERE appointment_id = ? AND requirement_label = ? AND superseded_by IS NULL ORDER BY document_id DESC LIMIT 1 FOR UPDATE"
+    },
+    {
+        "file": "parishioner/appointment-detail.php",
+        "line": 195,
+        "sql": "INSERT INTO uploaded_documents\r\n                         (appointment_id, file_name, file_path, file_type, requirement_label, review_status, verified)\r\n                         VALUES (?, ?, ?, ?, ?, 'pending', FALSE)"
+    },
+    {
+        "file": "parishioner/appointment-detail.php",
+        "line": 204,
+        "sql": "UPDATE uploaded_documents\r\n                             SET superseded_by = ?\r\n                             WHERE appointment_id = ? AND requirement_label = ?\r\n                               AND review_status = 'rejected' AND superseded_by IS NULL\r\n                               AND document_id <> ?"
+    },
+    {
+        "file": "parishioner/appointment-detail.php",
+        "line": 215,
+        "sql": "SELECT user_id FROM users u JOIN roles r ON r.role_id = u.role_id WHERE r.role_name IN ('Secretary', 'Admin') AND u.status = 'active'"
+    },
+    {
+        "file": "parishioner/appointment-detail.php",
+        "line": 216,
+        "sql": "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Documents Updated', ?)"
+    },
+    {
+        "file": "parishioner/appointment-detail.php",
+        "line": 251,
+        "sql": "SELECT a.*, s.service_name, s.fee, s.category, s.requirements, st.status_name, p.full_name AS priest_name\r\n     FROM appointments a\r\n     JOIN services s ON a.service_id = s.service_id\r\n     JOIN appointment_status st ON a.status_id = st.status_id\r\n     LEFT JOIN priests p ON a.priest_id = p.priest_id\r\n     WHERE a.appointment_id = ? AND a.parishioner_id = ?"
+    },
+    {
+        "file": "parishioner/appointment-detail.php",
+        "line": 281,
+        "sql": "SELECT * FROM mass_intentions WHERE appointment_id = ?"
+    },
+    {
+        "file": "parishioner/appointment-detail.php",
+        "line": 285,
+        "sql": "SELECT d.*, pr.project_name FROM donations d LEFT JOIN projects pr ON pr.project_id = d.project_id WHERE d.appointment_id = ?"
+    },
+    {
+        "file": "parishioner/appointment-detail.php",
+        "line": 290,
+        "sql": "SELECT p.*, pm.method_name FROM payments p JOIN payment_methods pm ON p.method_id = pm.method_id WHERE p.appointment_id = ? ORDER BY p.payment_id DESC LIMIT 1"
+    },
+    {
+        "file": "parishioner/appointment-detail.php",
+        "line": 301,
+        "sql": "SELECT * FROM uploaded_documents WHERE appointment_id = ? AND superseded_by IS NULL AND (document_source IS NULL OR document_source <> 'generated') ORDER BY uploaded_at DESC, document_id DESC"
+    },
+    {
+        "file": "parishioner/appointment-detail.php",
+        "line": 309,
+        "sql": "SELECT g.*, d.document_id, d.review_status, d.rejection_reason FROM generated_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.service_category = 'Wedding' AND g.appointment_id = ? ORDER BY g.form_type"
+    },
+    {
+        "file": "parishioner/appointment-detail.php",
+        "line": 312,
+        "sql": "SELECT g.*, d.document_id, d.review_status, d.rejection_reason FROM generated_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.service_category = 'Baptism' AND g.appointment_id = ? ORDER BY g.form_type"
+    },
+    {
+        "file": "parishioner/appointment-detail.php",
+        "line": 664,
+        "sql": "SELECT * FROM generated_forms WHERE service_category = 'Funeral' AND appointment_id = ?"
+    },
+    {
+        "file": "parishioner/appointment-detail.php",
+        "line": 707,
+        "sql": "Update each item marked Needs Revision ( /*EXPR*/ ), then submit them for review."
+    },
+    {
+        "file": "parishioner/appointments.php",
+        "line": 7,
+        "sql": "SELECT parishioner_id FROM parishioners WHERE user_id = ?"
+    },
+    {
+        "file": "parishioner/appointments.php",
+        "line": 18,
+        "sql": "SELECT a.appointment_id, s.service_name\r\n         FROM appointments a JOIN services s ON a.service_id = s.service_id\r\n         WHERE a.appointment_id = ? AND a.parishioner_id = ? AND s.category != 'Donation'"
+    },
+    {
+        "file": "parishioner/appointments.php",
+        "line": 30,
+        "sql": "SELECT a.*, s.service_name, s.fee, s.category, st.status_name, p.full_name AS priest_name,\r\n                   ic.document_id AS certificate_document_id, ic.status AS certificate_status\r\n            FROM appointments a\r\n            JOIN services s ON a.service_id = s.service_id\r\n            JOIN appointment_status st ON a.status_id = st.status_id\r\n            LEFT JOIN priests p ON a.priest_id = p.priest_id\r\n            LEFT JOIN issued_certificates ic ON ic.appointment_id = a.appointment_id\r\n            WHERE a.parishioner_id = ? AND s.category != 'Donation'"
+    },
+    {
+        "file": "parishioner/appointments.php",
+        "line": 45,
+        "sql": "SELECT a.*, s.service_name, s.fee, s.category, st.status_name, p.full_name AS priest_name,\r\n                   ic.document_id AS certificate_document_id, ic.status AS certificate_status"
+    },
+    {
+        "file": "parishioner/appointments.php",
+        "line": 47,
+        "sql": "SELECT COUNT(*)"
+    },
+    {
+        "file": "parishioner/book.php",
+        "line": 131,
+        "sql": "SELECT category, service_name, requirements FROM services WHERE service_id = ?"
+    },
+    {
+        "file": "parishioner/book.php",
+        "line": 160,
+        "sql": "SELECT title, full_name FROM priests WHERE priest_id IN ( /*EXPR*/ )"
+    },
+    {
+        "file": "parishioner/book.php",
+        "line": 604,
+        "sql": "UPDATE appointment_drafts SET guest_name = ?, guest_email = ?, guest_phone = ?, service_id = ?, priest_id = ?, appointment_date = ?, appointment_time = ?, schedule_type = ?, pss_claim = ?, sponsor_count = ?, remarks = ?, contact_phone = ?, location_address = ? /*EXPR*/ , updated_at = CURRENT_TIMESTAMP WHERE draft_id = ? AND service_type = 'Baptism' AND status = 'draft'"
+    },
+    {
+        "file": "parishioner/book.php",
+        "line": 614,
+        "sql": "INSERT INTO appointment_drafts (service_type, parishioner_id, guest_access_token_hash, guest_name, guest_email, guest_phone, service_id, priest_id, appointment_date, appointment_time, schedule_type, pss_claim, sponsor_count, remarks, contact_phone, location_address /*EXPR*/ ) VALUES ('Baptism', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? /*EXPR*/ ) RETURNING draft_id"
+    },
+    {
+        "file": "parishioner/book.php",
+        "line": 626,
+        "sql": "INSERT INTO uploaded_documents (appointment_id, draft_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source) VALUES (NULL, ?, ?, ?, ?, ?, 'pending', FALSE, 'uploaded')"
+    },
+    {
+        "file": "parishioner/book.php",
+        "line": 723,
+        "sql": "UPDATE appointment_drafts SET guest_name = ?, guest_email = ?, guest_phone = ?, service_id = ?, priest_id = ?, appointment_date = ?, appointment_time = ?, schedule_type = ?, pss_claim = ?, wedding_sponsor_count = ?, remarks = ?, contact_phone = ?, location_address = ? /*EXPR*/  /*EXPR*/ , updated_at = CURRENT_TIMESTAMP WHERE draft_id = ? AND service_type = 'Wedding' AND status = 'draft'"
+    },
+    {
+        "file": "parishioner/book.php",
+        "line": 734,
+        "sql": "INSERT INTO appointment_drafts (service_type, parishioner_id, guest_access_token_hash, guest_name, guest_email, guest_phone, service_id, priest_id, appointment_date, appointment_time, schedule_type, pss_claim, sponsor_count, wedding_sponsor_count, remarks, contact_phone, location_address /*EXPR*/  /*EXPR*/ ) VALUES ('Wedding', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? /*EXPR*/  /*EXPR*/ ) RETURNING draft_id"
+    },
+    {
+        "file": "parishioner/book.php",
+        "line": 748,
+        "sql": "INSERT INTO uploaded_documents (appointment_id, draft_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source) VALUES (NULL, ?, ?, ?, ?, ?, 'pending', FALSE, 'uploaded')"
+    },
+    {
+        "file": "parishioner/book.php",
+        "line": 784,
+        "sql": "SELECT pg_advisory_xact_lock(hashtext(?))"
+    },
+    {
+        "file": "parishioner/book.php",
+        "line": 788,
+        "sql": "SELECT pg_advisory_xact_lock(hashtext(?))"
+    },
+    {
+        "file": "parishioner/book.php",
+        "line": 805,
+        "sql": "SELECT * FROM calendar WHERE calendar_date = ? AND is_blocked = 1"
+    },
+    {
+        "file": "parishioner/book.php",
+        "line": 825,
+        "sql": "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, date_of_death, schedule_type, pss_claim, pss_classification, sponsor_count, wedding_sponsor_count, guest_name, guest_email, guest_phone, guest_reference, contact_phone, location_address, requirements_snapshot, requester_name, patient_name /*EXPR*/  /*EXPR*/ )\r\n             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? /*EXPR*/  /*EXPR*/ )"
+    },
+    {
+        "file": "parishioner/book.php",
+        "line": 840,
+        "sql": "INSERT INTO mass_intentions (appointment_id, intention_type, offerer_name, intention_for, message)\r\n                 VALUES (?, ?, ?, ?, ?)"
+    },
+    {
+        "file": "parishioner/book.php",
+        "line": 849,
+        "sql": "INSERT INTO payments (appointment_id, reference_number, amount, method_id, payment_status, payment_date)\r\n                 VALUES (?, ?, ?, ?, 'pending', NOW())"
+    },
+    {
+        "file": "parishioner/book.php",
+        "line": 872,
+        "sql": "INSERT INTO transactions (payment_id, gateway, gateway_transaction_id, status, raw_response) VALUES (?, 'paymongo', ?, 'pending', ?)"
+    },
+    {
+        "file": "parishioner/book.php",
+        "line": 887,
+        "sql": "INSERT INTO uploaded_documents (appointment_id, file_name, file_path, file_type, requirement_label, review_status, verified) VALUES (?, ?, ?, ?, ?, 'pending', FALSE)"
+    },
+    {
+        "file": "parishioner/book.php",
+        "line": 907,
+        "sql": "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Mass Intention Submitted', ?)"
+    },
+    {
+        "file": "parishioner/calendar.php",
+        "line": 9,
+        "sql": "SELECT * FROM events ORDER BY event_date ASC"
+    },
+    {
+        "file": "parishioner/calendar.php",
+        "line": 10,
+        "sql": "SELECT * FROM calendar WHERE is_blocked = 1 ORDER BY calendar_date ASC"
+    },
+    {
+        "file": "parishioner/calendar.php",
+        "line": 13,
+        "sql": "SELECT COUNT(*) FROM events WHERE event_date >= ?"
+    },
+    {
+        "file": "parishioner/calendar.php",
+        "line": 18,
+        "sql": "SELECT e.*, l.name AS location_name, p.title AS priest_title, p.full_name AS priest_name\r\n     FROM events e\r\n     LEFT JOIN locations l ON e.location_id = l.location_id\r\n     LEFT JOIN priests p ON e.priest_id = p.priest_id\r\n     WHERE e.event_date >= ? ORDER BY e.event_date ASC, e.event_time ASC LIMIT ? OFFSET ?"
+    },
+    {
+        "file": "parishioner/dashboard.php",
+        "line": 7,
+        "sql": "SELECT parishioner_id FROM parishioners WHERE user_id = ?"
+    },
+    {
+        "file": "parishioner/dashboard.php",
+        "line": 12,
+        "sql": "SELECT * FROM announcements WHERE status='published' AND (end_date IS NULL OR end_date >= ?)\r\n     ORDER BY is_pinned DESC, created_at DESC LIMIT 5"
+    },
+    {
+        "file": "parishioner/dashboard.php",
+        "line": 25,
+        "sql": "SELECT setting_value FROM settings WHERE setting_key = 'donation_enabled'"
+    },
+    {
+        "file": "parishioner/dashboard.php",
+        "line": 30,
+        "sql": "SELECT a.*, s.service_name, s.category, st.status_name, p.full_name AS priest_name\r\n     FROM appointments a\r\n     JOIN services s ON a.service_id = s.service_id\r\n     JOIN appointment_status st ON a.status_id = st.status_id\r\n     LEFT JOIN priests p ON a.priest_id = p.priest_id\r\n     WHERE a.parishioner_id = ? AND a.appointment_date >= CURRENT_DATE AND s.category != 'Donation'\r\n     ORDER BY a.appointment_date ASC LIMIT 5"
+    },
+    {
+        "file": "parishioner/dashboard.php",
+        "line": 42,
+        "sql": "SELECT\r\n       SUM(CASE WHEN status_id = 1 THEN 1 ELSE 0 END) AS pending,\r\n       SUM(CASE WHEN status_id IN (2,4,5) THEN 1 ELSE 0 END) AS active,\r\n       SUM(CASE WHEN status_id = 6 THEN 1 ELSE 0 END) AS completed\r\n     FROM appointments a JOIN services s ON a.service_id = s.service_id\r\n     WHERE a.parishioner_id = ? AND s.category != 'Donation'"
+    },
+    {
+        "file": "parishioner/donate.php",
+        "line": 38,
+        "sql": "SELECT setting_value FROM settings WHERE setting_key = 'donation_enabled'"
+    },
+    {
+        "file": "parishioner/donate.php",
+        "line": 43,
+        "sql": "SELECT service_id FROM services WHERE category = 'Donation' AND is_active = TRUE LIMIT 1"
+    },
+    {
+        "file": "parishioner/donate.php",
+        "line": 85,
+        "sql": "SELECT project_name FROM projects WHERE project_id = ? AND is_active = TRUE"
+    },
+    {
+        "file": "parishioner/donate.php",
+        "line": 108,
+        "sql": "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, approved_at, guest_name, guest_email, guest_reference)\r\n         VALUES (?, ?, NULL, CURRENT_DATE, CURRENT_TIME, 2, NOW(), ?, ?, ?)"
+    },
+    {
+        "file": "parishioner/donate.php",
+        "line": 115,
+        "sql": "INSERT INTO donations (appointment_id, donor_name, donor_email, purpose, message, project_id) VALUES (?, ?, ?, ?, ?, ?)"
+    },
+    {
+        "file": "parishioner/donate.php",
+        "line": 120,
+        "sql": "INSERT INTO payments (appointment_id, reference_number, amount, method_id, payment_status, payment_date)\r\n         VALUES (?, NULL, ?, ?, 'pending', NOW())"
+    },
+    {
+        "file": "parishioner/donate.php",
+        "line": 144,
+        "sql": "INSERT INTO transactions (payment_id, gateway, gateway_transaction_id, status, raw_response) VALUES (?, 'paymongo', ?, 'pending', ?)"
+    },
+    {
+        "file": "parishioner/donate.php",
+        "line": 162,
+        "sql": "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Thank You for Your Donation', ?)"
+    },
+    {
+        "file": "parishioner/donations.php",
+        "line": 29,
+        "sql": "SELECT COUNT(*) FROM appointments a JOIN services s ON a.service_id = s.service_id\n     WHERE a.parishioner_id = ? AND s.category = 'Donation'"
+    },
+    {
+        "file": "parishioner/donations.php",
+        "line": 36,
+        "sql": "SELECT a.appointment_id, a.created_at, d.purpose, d.project_id, pr.project_name, d.message, p.amount, p.payment_status, pm.method_name\n     FROM appointments a\n     JOIN services s ON a.service_id = s.service_id\n     JOIN donations d ON d.appointment_id = a.appointment_id\n     LEFT JOIN projects pr ON pr.project_id = d.project_id\n     LEFT JOIN payments p ON p.appointment_id = a.appointment_id\n     LEFT JOIN payment_methods pm ON p.method_id = pm.method_id\n     WHERE a.parishioner_id = ? AND s.category = 'Donation'\n     ORDER BY a.created_at DESC LIMIT ? OFFSET ?"
+    },
+    {
+        "file": "parishioner/donations.php",
+        "line": 52,
+        "sql": "SELECT setting_value FROM settings WHERE setting_key = 'donation_enabled'"
+    },
+    {
+        "file": "parishioner/donations.php",
+        "line": 56,
+        "sql": "SELECT firstname, lastname FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "parishioner/donations.php",
+        "line": 60,
+        "sql": "SELECT project_id, project_name FROM projects WHERE is_active = TRUE ORDER BY project_name"
+    },
+    {
+        "file": "parishioner/mass-intention-return.php",
+        "line": 18,
+        "sql": "SELECT a.appointment_id, a.status_id, a.guest_reference, a.parishioner_id, p.payment_id, p.payment_status, t.gateway_transaction_id\r\n     FROM appointments a\r\n     JOIN services s ON a.service_id = s.service_id AND s.category = 'Mass Intention'\r\n     JOIN payments p ON p.appointment_id = a.appointment_id\r\n     JOIN transactions t ON t.payment_id = p.payment_id AND t.gateway = 'paymongo'\r\n     WHERE a.appointment_id = ?\r\n     ORDER BY p.payment_id DESC LIMIT 1"
+    },
+    {
+        "file": "parishioner/mass-intention-return.php",
+        "line": 47,
+        "sql": "UPDATE transactions SET status = ?, raw_response = ? WHERE payment_id = ?"
+    },
+    {
+        "file": "parishioner/mass-intention-return.php",
+        "line": 62,
+        "sql": "UPDATE appointments SET status_id = 7, cancelled_reason = 'Online payment was not completed' WHERE appointment_id = ? AND status_id = 2"
+    },
+    {
+        "file": "parishioner/mass-intention-return.php",
+        "line": 71,
+        "sql": "UPDATE transactions SET status = 'cancelled' WHERE payment_id = ?"
+    },
+    {
+        "file": "parishioner/mass-intention-return.php",
+        "line": 72,
+        "sql": "UPDATE appointments SET status_id = 7, cancelled_reason = 'Online payment was not completed' WHERE appointment_id = ? AND status_id = 2"
+    },
+    {
+        "file": "parishioner/notifications-feed.php",
+        "line": 30,
+        "sql": "UPDATE notifications SET is_read = TRUE WHERE user_id = ? AND is_read = FALSE"
+    },
+    {
+        "file": "parishioner/notifications.php",
+        "line": 14,
+        "sql": "UPDATE notifications SET is_read = TRUE WHERE user_id = ?"
+    },
+    {
+        "file": "parishioner/pay.php",
+        "line": 15,
+        "sql": "SELECT parishioner_id FROM parishioners WHERE user_id = ?"
+    },
+    {
+        "file": "parishioner/pay.php",
+        "line": 26,
+        "sql": "SELECT a.appointment_id, a.schedule_type, a.pss_classification, a.sponsor_count, a.wedding_sponsor_count, a.fee_snapshot,\r\n            s.fee, s.category, s.service_name\r\n     FROM appointments a\r\n     JOIN services s ON a.service_id = s.service_id\r\n     JOIN appointment_status st ON a.status_id = st.status_id\r\n     WHERE a.appointment_id = ? AND a.parishioner_id = ? AND st.status_name = 'Approved'"
+    },
+    {
+        "file": "parishioner/pay.php",
+        "line": 76,
+        "sql": "UPDATE appointments SET fee_snapshot = ? WHERE appointment_id = ? AND fee_snapshot IS NULL"
+    },
+    {
+        "file": "parishioner/pay.php",
+        "line": 100,
+        "sql": "SELECT p.payment_id, p.method_id, p.payment_status, t.gateway_transaction_id\r\n     FROM payments p LEFT JOIN transactions t ON t.payment_id = p.payment_id AND t.gateway = 'paymongo'\r\n     WHERE p.appointment_id = ? ORDER BY p.payment_id DESC LIMIT 1"
+    },
+    {
+        "file": "parishioner/pay.php",
+        "line": 122,
+        "sql": "UPDATE transactions SET status = 'cancelled' WHERE payment_id = ?"
+    },
+    {
+        "file": "parishioner/pay.php",
+        "line": 156,
+        "sql": "INSERT INTO payments (appointment_id, reference_number, amount, method_id, payment_status, payment_date)\r\n         VALUES (?, ?, ?, ?, 'pending', NOW())"
+    },
+    {
+        "file": "parishioner/pay.php",
+        "line": 182,
+        "sql": "INSERT INTO transactions (payment_id, gateway, gateway_transaction_id, status, raw_response) VALUES (?, 'paymongo', ?, 'pending', ?)"
+    },
+    {
+        "file": "parishioner/payment-return.php",
+        "line": 18,
+        "sql": "SELECT parishioner_id FROM parishioners WHERE user_id = ?"
+    },
+    {
+        "file": "parishioner/payment-return.php",
+        "line": 26,
+        "sql": "SELECT a.appointment_id, p.payment_id, p.payment_status, t.gateway_transaction_id\r\n     FROM appointments a\r\n     JOIN payments p ON p.appointment_id = a.appointment_id\r\n     JOIN transactions t ON t.payment_id = p.payment_id AND t.gateway = 'paymongo'\r\n     WHERE a.appointment_id = ? AND a.parishioner_id = ?\r\n     ORDER BY p.payment_id DESC LIMIT 1"
+    },
+    {
+        "file": "parishioner/payment-return.php",
+        "line": 51,
+        "sql": "UPDATE transactions SET status = ?, raw_response = ? WHERE payment_id = ?"
+    },
+    {
+        "file": "parishioner/payment-return.php",
+        "line": 59,
+        "sql": "UPDATE payments SET method_id = ? WHERE payment_id = ?"
+    },
+    {
+        "file": "parishioner/payment-return.php",
+        "line": 77,
+        "sql": "UPDATE transactions SET status = 'cancelled' WHERE payment_id = ?"
+    },
+    {
+        "file": "parishioner/paymongo-webhook.php",
+        "line": 49,
+        "sql": "SELECT p.payment_id, p.payment_status FROM payments p\r\n         JOIN transactions t ON t.payment_id = p.payment_id\r\n         WHERE t.gateway = 'paymongo' AND t.gateway_transaction_id = ? LIMIT 1"
+    },
+    {
+        "file": "parishioner/paymongo-webhook.php",
+        "line": 60,
+        "sql": "UPDATE transactions SET status = ?, raw_response = ? WHERE payment_id = ?"
+    },
+    {
+        "file": "parishioner/paymongo-webhook.php",
+        "line": 68,
+        "sql": "UPDATE payments SET method_id = ? WHERE payment_id = ?"
+    },
+    {
+        "file": "parishioner/profile.php",
+        "line": 27,
+        "sql": "UPDATE users SET firstname=?, lastname=?, middlename=?, phone=?, address=?, birthdate=?, gender=? WHERE user_id=?"
+    },
+    {
+        "file": "parishioner/profile.php",
+        "line": 38,
+        "sql": "SELECT * FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "parishioner/projects.php",
+        "line": 7,
+        "sql": "SELECT pr.*,\r\n       COALESCE((SELECT SUM(p.amount) FROM payments p\r\n                 JOIN appointments a ON p.appointment_id = a.appointment_id\r\n                 JOIN donations d ON d.appointment_id = a.appointment_id\r\n                 WHERE d.project_id = pr.project_id AND p.payment_status = 'verified'), 0) AS raised,\r\n       (SELECT COUNT(*) FROM payments p\r\n                 JOIN appointments a ON p.appointment_id = a.appointment_id\r\n                 JOIN donations d ON d.appointment_id = a.appointment_id\r\n                 WHERE d.project_id = pr.project_id AND p.payment_status = 'verified') AS donor_count\r\n     FROM projects pr WHERE pr.is_active = TRUE ORDER BY pr.created_at DESC"
+    },
+    {
+        "file": "parishioner/projects.php",
+        "line": 21,
+        "sql": "SELECT setting_value FROM settings WHERE setting_key = 'donation_enabled'"
+    },
+    {
+        "file": "parishioner/projects.php",
+        "line": 24,
+        "sql": "SELECT firstname, lastname FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "parishioner/services.php",
+        "line": 37,
+        "sql": "SELECT * FROM services WHERE is_active = 1 AND category != 'Donation' ORDER BY category, service_name"
+    },
+    {
+        "file": "parishioner/services.php",
+        "line": 41,
+        "sql": "SELECT * FROM service_fee_rules ORDER BY service_category, schedule_type, pss_classification"
+    },
+    {
+        "file": "parishioner/services.php",
+        "line": 47,
+        "sql": "SELECT setting_value FROM settings WHERE setting_key = 'donation_enabled'"
+    },
+    {
+        "file": "parishioner/services.php",
+        "line": 55,
+        "sql": "SELECT firstname, lastname FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "parishioner/services.php",
+        "line": 60,
+        "sql": "SELECT project_id, project_name FROM projects WHERE is_active = TRUE ORDER BY project_name"
+    },
+    {
+        "file": "parishioner/services.php",
+        "line": 64,
+        "sql": "SELECT * FROM priests WHERE status = 'active'"
+    },
+    {
+        "file": "parishioner/services.php",
+        "line": 65,
+        "sql": "SELECT calendar_date, notes FROM calendar WHERE is_blocked = 1"
+    },
+    {
+        "file": "parishioner/services.php",
+        "line": 76,
+        "sql": "SELECT phone, address FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "priest/announcements.php",
+        "line": 13,
+        "sql": "SELECT a.*, TRIM(CONCAT(COALESCE(u.firstname, ''), ' ', COALESCE(u.lastname, ''))) AS posted_by_name\n     FROM announcements a\n     LEFT JOIN users u ON u.user_id = a.posted_by\n     WHERE a.status = 'published'\n       AND (a.end_date IS NULL OR a.end_date >= ?)\n     ORDER BY a.created_at DESC"
+    },
+    {
+        "file": "priest/calendar.php",
+        "line": 16,
+        "sql": "SELECT e.*, l.name AS location_name, p.title AS priest_title, p.full_name AS priest_name\r\n     FROM events e\r\n     LEFT JOIN locations l ON e.location_id = l.location_id\r\n     LEFT JOIN priests p ON e.priest_id = p.priest_id\r\n     ORDER BY e.event_date ASC, e.event_time ASC"
+    },
+    {
+        "file": "priest/calendar.php",
+        "line": 22,
+        "sql": "SELECT * FROM calendar WHERE is_blocked = 1 ORDER BY calendar_date ASC"
+    },
+    {
+        "file": "priest/calendar.php",
+        "line": 123,
+        "sql": "SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.guest_name, a.location_address,\r\n                s.service_name, s.category, st.status_name, u.firstname, u.lastname,\r\n                p.title AS priest_title, p.full_name AS priest_name\r\n         FROM appointments a\r\n         JOIN services s ON a.service_id = s.service_id\r\n         JOIN appointment_status st ON a.status_id = st.status_id\r\n         JOIN priests p ON a.priest_id = p.priest_id\r\n         LEFT JOIN parishioners par ON a.parishioner_id = par.parishioner_id\r\n         LEFT JOIN users u ON par.user_id = u.user_id\r\n         WHERE a.priest_id = ? AND a.status_id = 5\r\n         ORDER BY a.appointment_date, a.appointment_time, a.appointment_id"
+    },
+    {
+        "file": "priest/dashboard.php",
+        "line": 15,
+        "sql": "SELECT COUNT(*) FROM appointments WHERE priest_id = ? AND appointment_date = ? AND status_id = 5"
+    },
+    {
+        "file": "priest/dashboard.php",
+        "line": 19,
+        "sql": "SELECT COUNT(*) FROM appointments WHERE priest_id = ? AND appointment_date >= ? AND appointment_date < ? AND status_id = 5"
+    },
+    {
+        "file": "priest/dashboard.php",
+        "line": 24,
+        "sql": "SELECT a.appointment_id, a.appointment_date, a.appointment_time, s.service_name, st.status_name,\r\n                COALESCE(u.firstname || ' ' || u.lastname, a.guest_name) AS parishioner_name\r\n         FROM appointments a\r\n         JOIN services s ON a.service_id = s.service_id\r\n         JOIN appointment_status st ON a.status_id = st.status_id\r\n         LEFT JOIN parishioners par ON a.parishioner_id = par.parishioner_id\r\n         LEFT JOIN users u ON par.user_id = u.user_id\r\n         WHERE a.priest_id = ? AND a.appointment_date >= ? AND a.status_id = 5\r\n         ORDER BY a.appointment_date, a.appointment_time, a.appointment_id LIMIT 10"
+    },
+    {
+        "file": "priest/mass-intentions.php",
+        "line": 18,
+        "sql": "SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.status_id, a.guest_name,\r\n               st.status_name, u.firstname, u.lastname,\r\n               mi.intention_type, mi.offerer_name, mi.intention_for, mi.message\r\n        FROM appointments a\r\n        JOIN services s ON a.service_id = s.service_id\r\n        JOIN mass_intentions mi ON mi.appointment_id = a.appointment_id\r\n        JOIN parishioners par ON a.parishioner_id = par.parishioner_id\r\n        JOIN users u ON par.user_id = u.user_id\r\n        JOIN appointment_status st ON a.status_id = st.status_id\r\n        WHERE s.category = 'Mass Intention' AND a.status_id IN (5, 6)"
+    },
+    {
+        "file": "priest/settings.php",
+        "line": 27,
+        "sql": "SELECT profile_photo FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "priest/settings.php",
+        "line": 30,
+        "sql": "UPDATE users SET profile_photo = NULL WHERE user_id = ?"
+    },
+    {
+        "file": "priest/settings.php",
+        "line": 48,
+        "sql": "SELECT 1 FROM users WHERE LOWER(email) = LOWER(?) AND user_id <> ?\n             UNION ALL\n             SELECT 1 FROM priests WHERE LOWER(email) = LOWER(?) AND (user_id IS NULL OR user_id <> ?)\n             LIMIT 1"
+    },
+    {
+        "file": "priest/settings.php",
+        "line": 55,
+        "sql": "SELECT profile_photo FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "priest/settings.php",
+        "line": 76,
+        "sql": "UPDATE users SET firstname = ?, lastname = ?, email = ?, phone = ?, profile_photo = ? WHERE user_id = ?"
+    },
+    {
+        "file": "priest/settings.php",
+        "line": 78,
+        "sql": "UPDATE priests SET email = ?, contact_number = COALESCE(?, contact_number) WHERE user_id = ?"
+    },
+    {
+        "file": "priest/settings.php",
+        "line": 93,
+        "sql": "SELECT password FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "priest/settings.php",
+        "line": 98,
+        "sql": "UPDATE users SET password = ? WHERE user_id = ?"
+    },
+    {
+        "file": "priest/settings.php",
+        "line": 104,
+        "sql": "SELECT firstname, lastname, email, phone, profile_photo FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "secretary/announcements.php",
+        "line": 60,
+        "sql": "update"
+    },
+    {
+        "file": "secretary/announcements.php",
+        "line": 66,
+        "sql": "update"
+    },
+    {
+        "file": "secretary/announcements.php",
+        "line": 67,
+        "sql": "SELECT start_date, end_date, image, image2, image3 FROM announcements WHERE announcement_id = ?"
+    },
+    {
+        "file": "secretary/announcements.php",
+        "line": 129,
+        "sql": "INSERT INTO announcements (title, content, posted_by, is_pinned, status, start_date, end_date, duration_type, image, image2, image3, category)\r\n                     VALUES (?, ?, ?, ?, 'published', ?, ?, ?, ?, ?, ?, ?)"
+    },
+    {
+        "file": "secretary/announcements.php",
+        "line": 140,
+        "sql": "UPDATE announcements SET title = ?, content = ?, is_pinned = ?, start_date = ?, end_date = ?, duration_type = ?,\r\n                            image = ?, image2 = ?, image3 = ?, category = ?\r\n                     WHERE announcement_id = ?"
+    },
+    {
+        "file": "secretary/announcements.php",
+        "line": 159,
+        "sql": "delete"
+    },
+    {
+        "file": "secretary/announcements.php",
+        "line": 160,
+        "sql": "SELECT title, image, image2, image3 FROM announcements WHERE announcement_id = ?"
+    },
+    {
+        "file": "secretary/announcements.php",
+        "line": 164,
+        "sql": "DELETE FROM announcements WHERE announcement_id = ?"
+    },
+    {
+        "file": "secretary/announcements.php",
+        "line": 172,
+        "sql": "SELECT * FROM announcements ORDER BY created_at DESC"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 437,
+        "sql": "SELECT a.status_id, a.pss_classification, s.category\r\n         FROM appointments a JOIN services s ON s.service_id = a.service_id\r\n         WHERE a.appointment_id = ?"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 455,
+        "sql": "SELECT requirement_label, generated_form_type FROM uploaded_documents WHERE document_id = ? AND appointment_id = ?"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 470,
+        "sql": "SELECT status_id FROM appointments WHERE appointment_id = ? FOR UPDATE"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 477,
+        "sql": "UPDATE uploaded_documents\r\n                 SET review_status = 'approved', verified = TRUE, rejection_reason = NULL, reviewed_by = ?, reviewed_at = NOW()\r\n                 WHERE document_id = ? AND appointment_id = ? AND review_status = 'pending' AND superseded_by IS NULL"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 486,
+        "sql": "UPDATE generated_forms SET status = CASE WHEN service_category = 'Funeral' THEN 'generated' ELSE 'approved' END, rejection_reason = NULL, updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 529,
+        "sql": "SELECT status_id FROM appointments WHERE appointment_id = ? FOR UPDATE"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 535,
+        "sql": "SELECT requirement_label, document_source FROM uploaded_documents WHERE document_id = ? AND appointment_id = ? AND review_status = 'pending' AND superseded_by IS NULL FOR UPDATE"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 541,
+        "sql": "UPDATE uploaded_documents\r\n                 SET review_status = 'rejected', verified = FALSE, rejection_reason = ?, reviewed_by = ?, reviewed_at = NOW()\r\n                 WHERE document_id = ? AND appointment_id = ? AND review_status = 'pending' AND superseded_by IS NULL"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 550,
+        "sql": "UPDATE generated_forms SET status = 'rejected', rejection_reason = ?, updated_at = CURRENT_TIMESTAMP WHERE document_id = ? AND appointment_id = ?"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 551,
+        "sql": "SELECT u.user_id, a.guest_name FROM appointments a JOIN parishioners p ON p.parishioner_id = a.parishioner_id JOIN users u ON u.user_id = p.user_id WHERE a.appointment_id = ?"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 596,
+        "sql": "SELECT a.status_id, a.pss_classification, a.schedule_type, a.sponsor_count, a.wedding_sponsor_count, s.category FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_id = ? FOR UPDATE"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 614,
+        "sql": "UPDATE appointments SET pss_classification = ?, pss_verified_by = ?, pss_verified_at = NOW(), fee_snapshot = ? WHERE appointment_id = ? AND status_id IN (1, 2) AND pss_classification = 'pending_verification'"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 662,
+        "sql": "SELECT a.*, s.category, s.requirements\r\n                 FROM appointments a JOIN services s ON a.service_id = s.service_id\r\n                 WHERE a.appointment_id = ? FOR UPDATE"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 696,
+        "sql": "UPDATE appointments\r\n                   SET status_id = 5, approved_by = ?, approved_at = NOW(), confirmed_by = ?, confirmed_at = NOW()\r\n                   WHERE appointment_id = ? AND status_id = 1"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 699,
+        "sql": "UPDATE appointments\r\n                   SET status_id = 2, approved_by = ?, approved_at = NOW() /*EXPR*/ \r\n                   WHERE appointment_id = ? AND status_id = 1"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 756,
+        "sql": "UPDATE appointments SET status_id = 3, rejection_reason = ? WHERE appointment_id = ? AND status_id = 1"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 761,
+        "sql": "SELECT parishioner_id FROM appointments WHERE appointment_id = ?"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 764,
+        "sql": "SELECT user_id FROM parishioners WHERE parishioner_id = ?"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 768,
+        "sql": "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Appointment Rejected', ?)"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 786,
+        "sql": "SELECT appointment_date, appointment_time, service_id, schedule_type FROM appointments WHERE appointment_id = ?"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 798,
+        "sql": "SELECT 1 FROM priests WHERE priest_id = ? AND status = 'active'"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 805,
+        "sql": "UPDATE appointments SET priest_id = ? /*EXPR*/  WHERE appointment_id = ? AND status_id IN (1, 2, 4, 5)"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 817,
+        "sql": "SELECT s.category FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_id = ?"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 826,
+        "sql": "SELECT s.category, s.service_id, a.schedule_type, a.date_of_death FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_id = ?"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 843,
+        "sql": "SELECT priest_id FROM appointments WHERE appointment_id = ?"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 861,
+        "sql": "UPDATE appointments SET appointment_date = ?, appointment_time = ? WHERE appointment_id = ? AND status_id IN (1, 2, 4, 5)"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 877,
+        "sql": "SELECT u.user_id, a.guest_name FROM appointments a\r\n                     JOIN parishioners p ON p.parishioner_id = a.parishioner_id\r\n                     JOIN users u ON u.user_id = p.user_id\r\n                     WHERE a.appointment_id = ?"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 886,
+        "sql": "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', ?, ?)"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 900,
+        "sql": "SELECT form_data FROM generated_forms WHERE service_category = 'Funeral' AND appointment_id = ? AND form_type = 'katin_awan_paglubong'"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 908,
+        "sql": "SELECT a.*, s.category FROM appointments a JOIN services s ON s.service_id = a.service_id WHERE a.appointment_id = ?"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 924,
+        "sql": "SELECT s.category FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_id = ?"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 930,
+        "sql": "UPDATE appointments SET status_id = 5 WHERE appointment_id = ? AND status_id = ?"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 959,
+        "sql": "SELECT appointment_date FROM appointments WHERE appointment_id = ?"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 965,
+        "sql": "UPDATE appointments SET precana_date = ?, precana_time = ?, precana_status = ? WHERE appointment_id = ? AND precana_type = 'Special' AND status_id IN (1, 2, 4)"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 973,
+        "sql": "SELECT u.user_id FROM appointments a JOIN parishioners p ON p.parishioner_id = a.parishioner_id JOIN users u ON u.user_id = p.user_id WHERE a.appointment_id = ? AND COALESCE(a.guest_name, '') = ''"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 976,
+        "sql": "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', ?, ?)"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 995,
+        "sql": "SELECT a.*, s.category FROM appointments a JOIN services s ON s.service_id = a.service_id WHERE a.appointment_id = ?"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 998,
+        "sql": "SELECT form_data, document_id FROM generated_forms WHERE service_category = 'Funeral' AND appointment_id = ? AND form_type = 'katin_awan_paglubong'"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 1011,
+        "sql": "UPDATE uploaded_documents SET review_status = 'rejected', verified = FALSE, rejection_reason = ?, reviewed_by = ?, reviewed_at = NOW() WHERE document_id = ? AND appointment_id = ? AND superseded_by IS NULL"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 1014,
+        "sql": "UPDATE generated_forms SET status = 'rejected', rejection_reason = ?, updated_at = CURRENT_TIMESTAMP WHERE service_category = 'Funeral' AND appointment_id = ? AND form_type = 'katin_awan_paglubong'"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 1016,
+        "sql": "SELECT u.user_id FROM appointments a JOIN parishioners p ON p.parishioner_id = a.parishioner_id JOIN users u ON u.user_id = p.user_id WHERE a.appointment_id = ? AND COALESCE(a.guest_name, '') = ''"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 1038,
+        "sql": "UPDATE appointments SET status_id = 6 WHERE appointment_id = ? AND status_id = 5"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 1048,
+        "sql": "SELECT remarks FROM appointments WHERE appointment_id = ?"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 1136,
+        "sql": "SELECT a.*, s.service_name, s.fee, s.category, s.requirements, u.firstname, u.lastname, u.email, u.phone, st.status_name\r\n     FROM appointments a\r\n     JOIN services s ON a.service_id = s.service_id\r\n     JOIN parishioners par ON a.parishioner_id = par.parishioner_id\r\n     JOIN users u ON par.user_id = u.user_id\r\n     JOIN appointment_status st ON a.status_id = st.status_id\r\n     WHERE a.appointment_id = ?"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 1163,
+        "sql": "SELECT * FROM priests WHERE status = 'active'"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 1166,
+        "sql": "SELECT * FROM mass_intentions WHERE appointment_id = ?"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 1169,
+        "sql": "SELECT d.*, pr.project_name FROM donations d LEFT JOIN projects pr ON pr.project_id = d.project_id WHERE d.appointment_id = ?"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 1172,
+        "sql": "SELECT * FROM uploaded_documents WHERE appointment_id = ? AND superseded_by IS NULL AND (document_source IS NULL OR document_source <> 'generated') ORDER BY uploaded_at DESC, document_id DESC"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 1449,
+        "sql": "SELECT form_data FROM generated_forms WHERE service_category = 'Funeral' AND appointment_id = ? AND form_type = 'katin_awan_paglubong'"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 1508,
+        "sql": "SELECT DISTINCT superseded_by FROM uploaded_documents WHERE appointment_id = ? AND review_status = 'rejected' AND superseded_by IS NOT NULL"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 1707,
+        "sql": "SELECT old.requirement_label, old.file_name, old.rejection_reason\r\n             FROM uploaded_documents old JOIN uploaded_documents cur ON cur.document_id = old.superseded_by\r\n             WHERE old.appointment_id = ? AND old.review_status = 'rejected' AND old.rejection_reason IS NOT NULL AND cur.superseded_by IS NULL\r\n             ORDER BY old.document_id"
+    },
+    {
+        "file": "secretary/appointment-detail.php",
+        "line": 1877,
+        "sql": "SELECT * FROM priests WHERE priest_id = ?"
+    },
+    {
+        "file": "secretary/appointments.php",
+        "line": 16,
+        "sql": "SELECT a.*, s.service_name, s.category, u.firstname, u.lastname, u.email, st.status_name, p.full_name AS priest_name,\r\n                   ic.status AS cert_status, ic.document_id AS cert_document_id\r\n            FROM appointments a\r\n            JOIN services s ON a.service_id = s.service_id\r\n            JOIN parishioners par ON a.parishioner_id = par.parishioner_id\r\n            JOIN users u ON par.user_id = u.user_id\r\n            JOIN appointment_status st ON a.status_id = st.status_id\r\n            LEFT JOIN priests p ON a.priest_id = p.priest_id\r\n            LEFT JOIN issued_certificates ic ON ic.appointment_id = a.appointment_id\r\n            WHERE s.category != 'Donation'"
+    },
+    {
+        "file": "secretary/appointments.php",
+        "line": 57,
+        "sql": "SELECT COUNT(*) FROM "
+    },
+    {
+        "file": "secretary/calendar.php",
+        "line": 13,
+        "sql": "SELECT priest_id FROM priests WHERE full_name ILIKE '%Al John%' OR full_name ILIKE '%Minoza%' OR full_name ILIKE '%Miñoza%' OR title ILIKE '%Parish Priest%' ORDER BY priest_id ASC LIMIT 1"
+    },
+    {
+        "file": "secretary/calendar.php",
+        "line": 15,
+        "sql": "SELECT priest_id FROM priests WHERE status = 'active' ORDER BY priest_id ASC LIMIT 1"
+    },
+    {
+        "file": "secretary/calendar.php",
+        "line": 18,
+        "sql": "SELECT priest_id FROM priests ORDER BY priest_id ASC LIMIT 1"
+    },
+    {
+        "file": "secretary/calendar.php",
+        "line": 29,
+        "sql": "SELECT 1 FROM locations WHERE location_id = ? AND is_active = TRUE"
+    },
+    {
+        "file": "secretary/calendar.php",
+        "line": 36,
+        "sql": "SELECT COUNT(*) FROM events WHERE event_date = ? AND LOWER(TRIM(title)) = LOWER(TRIM(?))"
+    },
+    {
+        "file": "secretary/calendar.php",
+        "line": 43,
+        "sql": "INSERT INTO events (title, description, event_date, event_time, location_id, priest_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    },
+    {
+        "file": "secretary/calendar.php",
+        "line": 56,
+        "sql": "INSERT INTO calendar (title, calendar_date, is_blocked, notes, created_by) VALUES ('Blocked', ?, TRUE, ?, ?)"
+    },
+    {
+        "file": "secretary/calendar.php",
+        "line": 60,
+        "sql": "DELETE FROM calendar WHERE calendar_id = ?"
+    },
+    {
+        "file": "secretary/calendar.php",
+        "line": 63,
+        "sql": "SELECT title FROM events WHERE event_id = ?"
+    },
+    {
+        "file": "secretary/calendar.php",
+        "line": 66,
+        "sql": "DELETE FROM events WHERE event_id = ?"
+    },
+    {
+        "file": "secretary/calendar.php",
+        "line": 75,
+        "sql": "SELECT * FROM events ORDER BY event_date ASC"
+    },
+    {
+        "file": "secretary/calendar.php",
+        "line": 76,
+        "sql": "SELECT * FROM calendar ORDER BY calendar_date ASC"
+    },
+    {
+        "file": "secretary/calendar.php",
+        "line": 79,
+        "sql": "SELECT COUNT(*) FROM events WHERE event_date >= ?"
+    },
+    {
+        "file": "secretary/calendar.php",
+        "line": 134,
+        "sql": "SELECT * FROM locations WHERE is_active = TRUE ORDER BY name"
+    },
+    {
+        "file": "secretary/calendar.php",
+        "line": 135,
+        "sql": "SELECT * FROM priests WHERE status = 'active' ORDER BY full_name"
+    },
+    {
+        "file": "secretary/calendar.php",
+        "line": 142,
+        "sql": "SELECT a.appointment_date, a.appointment_time, a.guest_name, s.service_name,\r\n                COALESCE(u.firstname || ' ' || u.lastname, '') AS parishioner_name\r\n         FROM appointments a\r\n         JOIN services s ON a.service_id = s.service_id\r\n         LEFT JOIN parishioners par ON a.parishioner_id = par.parishioner_id\r\n         LEFT JOIN users u ON par.user_id = u.user_id\r\n         WHERE a.priest_id = ? AND a.status_id = 5 AND s.category IN ('Wedding', 'Baptism', 'Funeral', 'Blessing')\r\n         ORDER BY a.appointment_date, a.appointment_time"
+    },
+    {
+        "file": "secretary/calendar.php",
+        "line": 169,
+        "sql": "SELECT e.*, l.name AS location_name, p.title AS priest_title, p.full_name AS priest_name\r\n     FROM events e\r\n     LEFT JOIN locations l ON e.location_id = l.location_id\r\n     LEFT JOIN priests p ON e.priest_id = p.priest_id\r\n     WHERE e.event_date >= ? ORDER BY e.event_date ASC, e.event_time ASC LIMIT ? OFFSET ?"
+    },
+    {
+        "file": "secretary/dashboard.php",
+        "line": 13,
+        "sql": "SELECT COALESCE(a.requirements_review_status, 'pending_review') AS review_status, COUNT(DISTINCT a.appointment_id) AS total  /*EXPR*/  GROUP BY 1"
+    },
+    {
+        "file": "secretary/dashboard.php",
+        "line": 16,
+        "sql": "SELECT COUNT(DISTINCT a.appointment_id)  /*EXPR*/ "
+    },
+    {
+        "file": "secretary/dashboard.php",
+        "line": 19,
+        "sql": "SELECT COUNT(*) FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.status_id = 1 AND s.category != 'Donation'"
+    },
+    {
+        "file": "secretary/dashboard.php",
+        "line": 20,
+        "sql": "SELECT COUNT(*) FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE a.appointment_date::date = CURRENT_DATE AND s.category != 'Donation'"
+    },
+    {
+        "file": "secretary/dashboard.php",
+        "line": 21,
+        "sql": "SELECT COUNT(*) FROM appointments a JOIN services s ON a.service_id = s.service_id WHERE EXTRACT(ISOYEAR FROM a.appointment_date)::int * 100 + EXTRACT(WEEK FROM a.appointment_date)::int = EXTRACT(ISOYEAR FROM CURRENT_DATE)::int * 100 + EXTRACT(WEEK FROM CURRENT_DATE)::int AND s.category != 'Donation'"
+    },
+    {
+        "file": "secretary/dashboard.php",
+        "line": 24,
+        "sql": "SELECT a.*, s.service_name, s.category, u.firstname, u.lastname, st.status_name\r\n     FROM appointments a\r\n     JOIN services s ON a.service_id = s.service_id\r\n     JOIN parishioners par ON a.parishioner_id = par.parishioner_id\r\n     JOIN users u ON par.user_id = u.user_id\r\n     JOIN appointment_status st ON a.status_id = st.status_id\r\n     WHERE s.category != 'Donation'\r\n     ORDER BY a.created_at DESC LIMIT 8"
+    },
+    {
+        "file": "secretary/locations.php",
+        "line": 14,
+        "sql": "update"
+    },
+    {
+        "file": "secretary/locations.php",
+        "line": 20,
+        "sql": "INSERT INTO locations (name, location_category, notes) VALUES (?, ?, ?)"
+    },
+    {
+        "file": "secretary/locations.php",
+        "line": 24,
+        "sql": "update"
+    },
+    {
+        "file": "secretary/locations.php",
+        "line": 25,
+        "sql": "UPDATE locations SET name = ?, location_category = ?, notes = ? WHERE location_id = ?"
+    },
+    {
+        "file": "secretary/locations.php",
+        "line": 29,
+        "sql": "UPDATE locations SET is_active = ? WHERE location_id = ?"
+    },
+    {
+        "file": "secretary/locations.php",
+        "line": 32,
+        "sql": "delete"
+    },
+    {
+        "file": "secretary/locations.php",
+        "line": 33,
+        "sql": "SELECT name FROM locations WHERE location_id = ?"
+    },
+    {
+        "file": "secretary/locations.php",
+        "line": 36,
+        "sql": "DELETE FROM locations WHERE location_id = ?"
+    },
+    {
+        "file": "secretary/locations.php",
+        "line": 46,
+        "sql": "SELECT COUNT(*) FROM locations"
+    },
+    {
+        "file": "secretary/locations.php",
+        "line": 51,
+        "sql": "SELECT * FROM locations ORDER BY name LIMIT :limit OFFSET :offset"
+    },
+    {
+        "file": "secretary/mass-intentions.php",
+        "line": 22,
+        "sql": "SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.status_id, a.guest_name /*EXPR*/ ,\r\n               st.status_name, u.firstname, u.lastname,\r\n               mi.intention_type, mi.offerer_name, mi.intention_for, mi.message,\r\n               p.payment_id, p.payment_status, p.amount, p.method_id\r\n        FROM appointments a\r\n        JOIN services s ON a.service_id = s.service_id\r\n        JOIN mass_intentions mi ON mi.appointment_id = a.appointment_id\r\n        JOIN parishioners par ON a.parishioner_id = par.parishioner_id\r\n        JOIN users u ON par.user_id = u.user_id\r\n        JOIN appointment_status st ON a.status_id = st.status_id\r\n        LEFT JOIN payments p ON p.appointment_id = a.appointment_id\r\n        WHERE s.category = 'Mass Intention'"
+    },
+    {
+        "file": "secretary/mass-intentions.php",
+        "line": 82,
+        "sql": "SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.status_id, a.guest_name,\r\n               st.status_name, u.firstname, u.lastname,\r\n               mi.intention_type, mi.offerer_name, mi.intention_for, mi.message,\r\n               p.payment_id, p.payment_status, p.amount, p.method_id"
+    },
+    {
+        "file": "secretary/mass-intentions.php",
+        "line": 86,
+        "sql": "SELECT COUNT(*)"
+    },
+    {
+        "file": "secretary/notifications-feed.php",
+        "line": 27,
+        "sql": "UPDATE notifications SET is_read = TRUE WHERE notification_id = ? AND user_id = ?"
+    },
+    {
+        "file": "secretary/notifications-feed.php",
+        "line": 30,
+        "sql": "UPDATE notifications SET is_read = TRUE WHERE user_id = ? AND is_read = FALSE"
+    },
+    {
+        "file": "secretary/parishioner-detail.php",
+        "line": 18,
+        "sql": "SELECT user_id FROM parishioners WHERE parishioner_id = ?"
+    },
+    {
+        "file": "secretary/parishioner-detail.php",
+        "line": 23,
+        "sql": "UPDATE users SET status = ? WHERE user_id = ?"
+    },
+    {
+        "file": "secretary/parishioner-detail.php",
+        "line": 31,
+        "sql": "SELECT u.*, p.parishioner_id, p.baptism_date, p.confirmation_date, p.marital_status\r\n     FROM users u JOIN parishioners p ON u.user_id = p.user_id WHERE p.parishioner_id = ?"
+    },
+    {
+        "file": "secretary/parishioner-detail.php",
+        "line": 48,
+        "sql": "SELECT a.appointment_id, a.appointment_date, a.appointment_time, s.service_name, st.status_name\r\n     FROM appointments a\r\n     JOIN services s ON a.service_id = s.service_id\r\n     JOIN appointment_status st ON a.status_id = st.status_id\r\n     WHERE a.parishioner_id = ? ORDER BY a.appointment_date DESC"
+    },
+    {
+        "file": "secretary/parishioner-search.php",
+        "line": 15,
+        "sql": "SELECT p.parishioner_id, u.firstname, u.lastname, u.email\r\n        FROM parishioners p JOIN users u ON p.user_id = u.user_id\r\n        WHERE u.email != 'walkin-donor@parishhub.internal'"
+    },
+    {
+        "file": "secretary/parishioners.php",
+        "line": 8,
+        "sql": "SELECT u.*, p.parishioner_id, p.marital_status, p.occupation\r\n        FROM users u JOIN parishioners p ON u.user_id = p.user_id WHERE 1=1"
+    },
+    {
+        "file": "secretary/priest-schedule.php",
+        "line": 17,
+        "sql": "SELECT priest_id, title, full_name FROM priests WHERE priest_id = ? AND status = 'active'"
+    },
+    {
+        "file": "secretary/priest-schedule.php",
+        "line": 29,
+        "sql": "SELECT a.appointment_date, a.appointment_time, s.service_name\n     FROM appointments a\n     JOIN services s ON s.service_id = a.service_id\n     WHERE a.priest_id = ?\n       AND a.status_id = 5\n       AND (a.appointment_date > CURRENT_DATE\n            OR (a.appointment_date = CURRENT_DATE AND a.appointment_time >= CURRENT_TIME))\n     ORDER BY a.appointment_date ASC, a.appointment_time ASC, a.appointment_id ASC\n     LIMIT ? OFFSET ?"
+    },
+    {
+        "file": "secretary/priest-unavailability.php",
+        "line": 43,
+        "sql": "SELECT 1 FROM priests WHERE priest_id = ? AND status = 'active'"
+    },
+    {
+        "file": "secretary/priest-unavailability.php",
+        "line": 71,
+        "sql": "SELECT a.appointment_id, a.appointment_date, a.appointment_time, s.service_name\r\n             FROM appointments a JOIN services s ON a.service_id = s.service_id\r\n             WHERE a.priest_id = ? AND a.appointment_date = ? AND a.status_id NOT IN (3, 7)\r\n               AND (? IS NULL OR (a.appointment_time >= ? AND a.appointment_time < ?))\r\n             LIMIT 1"
+    },
+    {
+        "file": "secretary/priest-unavailability.php",
+        "line": 89,
+        "sql": "INSERT INTO priest_unavailability (priest_id, unavailable_date, start_time, end_time, reason, created_by) VALUES (?, ?, ?, ?, ?, ?)"
+    },
+    {
+        "file": "secretary/priest-unavailability.php",
+        "line": 96,
+        "sql": "delete"
+    },
+    {
+        "file": "secretary/priest-unavailability.php",
+        "line": 97,
+        "sql": "DELETE FROM priest_unavailability WHERE unavailability_id = ?"
+    },
+    {
+        "file": "secretary/priest-unavailability.php",
+        "line": 103,
+        "sql": "SELECT * FROM priests WHERE status = 'active' ORDER BY full_name"
+    },
+    {
+        "file": "secretary/priest-unavailability.php",
+        "line": 105,
+        "sql": "SELECT pu.*, p.title, p.full_name FROM priest_unavailability pu\r\n     JOIN priests p ON pu.priest_id = p.priest_id\r\n     WHERE pu.unavailable_date >= CURRENT_DATE\r\n     ORDER BY p.full_name, pu.unavailable_date"
+    },
+    {
+        "file": "secretary/priest-unavailability.php",
+        "line": 118,
+        "sql": "SELECT a.appointment_id, a.appointment_date, a.appointment_time, s.service_name\r\n         FROM appointments a JOIN services s ON a.service_id = s.service_id\r\n         WHERE a.priest_id = ? AND a.status_id = 5 AND a.appointment_date >= ?\r\n         ORDER BY a.appointment_date, a.appointment_time, a.appointment_id LIMIT 10"
+    },
+    {
+        "file": "secretary/priest-unavailability.php",
+        "line": 127,
+        "sql": "SELECT unavailable_date, start_time, end_time, reason FROM priest_unavailability\r\n         WHERE priest_id = ? AND unavailable_date >= ?\r\n         ORDER BY unavailable_date LIMIT 10"
+    },
+    {
+        "file": "secretary/projects.php",
+        "line": 13,
+        "sql": "INSERT INTO projects (project_name, description, target_amount, created_by) VALUES (?, ?, ?, ?)"
+    },
+    {
+        "file": "secretary/projects.php",
+        "line": 16,
+        "sql": "update"
+    },
+    {
+        "file": "secretary/projects.php",
+        "line": 17,
+        "sql": "UPDATE projects SET project_name = ?, description = ?, target_amount = ? WHERE project_id = ?"
+    },
+    {
+        "file": "secretary/projects.php",
+        "line": 21,
+        "sql": "UPDATE projects SET is_active = ? WHERE project_id = ?"
+    },
+    {
+        "file": "secretary/projects.php",
+        "line": 24,
+        "sql": "delete"
+    },
+    {
+        "file": "secretary/projects.php",
+        "line": 25,
+        "sql": "DELETE FROM projects WHERE project_id = ?"
+    },
+    {
+        "file": "secretary/projects.php",
+        "line": 32,
+        "sql": "SELECT pr.*,\r\n       COALESCE((SELECT SUM(p.amount) FROM payments p\r\n                 JOIN appointments a ON p.appointment_id = a.appointment_id\r\n                 JOIN donations d ON d.appointment_id = a.appointment_id\r\n                 WHERE d.project_id = pr.project_id AND p.payment_status = 'verified'), 0) AS raised,\r\n       (SELECT COUNT(*) FROM payments p\r\n                 JOIN appointments a ON p.appointment_id = a.appointment_id\r\n                 JOIN donations d ON d.appointment_id = a.appointment_id\r\n                 WHERE d.project_id = pr.project_id AND p.payment_status = 'verified') AS donor_count\r\n     FROM projects pr ORDER BY pr.is_active DESC, pr.created_at DESC"
+    },
+    {
+        "file": "secretary/reports.php",
+        "line": 78,
+        "sql": "\r\n            SELECT a.appointment_id, a.appointment_date, a.appointment_time,\r\n                   a.guest_name,  /*EXPR*/ ,\r\n                   s.service_name, s.category::text AS category, COALESCE(s.fee, 0) AS fee,\r\n                   st.status_name,\r\n                   pr.title AS priest_title, pr.full_name AS priest_name,\r\n                   u.firstname, u.lastname,\r\n                   COALESCE(pay.paid, 0) AS paid,\r\n                   d.project_id, proj.project_name, d.purpose AS donation_purpose\r\n            FROM appointments a\r\n            JOIN services s            ON s.service_id = a.service_id\r\n            JOIN appointment_status st ON st.status_id = a.status_id\r\n            LEFT JOIN priests pr       ON pr.priest_id = a.priest_id\r\n            LEFT JOIN parishioners par ON par.parishioner_id = a.parishioner_id\r\n            LEFT JOIN users u          ON u.user_id = par.user_id\r\n            LEFT JOIN donations d      ON d.appointment_id = a.appointment_id\r\n            LEFT JOIN projects proj    ON proj.project_id = d.project_id\r\n            LEFT JOIN (\r\n                SELECT appointment_id, SUM(amount) AS paid\r\n                FROM payments\r\n                WHERE payment_status = 'verified'\r\n                GROUP BY appointment_id\r\n            ) pay ON pay.appointment_id = a.appointment_id\r\n            WHERE a.appointment_date BETWEEN ? AND ?\r\n            ORDER BY a.appointment_date ASC, a.appointment_time ASC, a.appointment_id ASC\r\n        "
+    },
+    {
+        "file": "secretary/services.php",
+        "line": 8,
+        "sql": "update"
+    },
+    {
+        "file": "secretary/services.php",
+        "line": 12,
+        "sql": "INSERT INTO settings (setting_key, setting_value) VALUES ('donation_enabled', ?) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value"
+    },
+    {
+        "file": "secretary/services.php",
+        "line": 30,
+        "sql": "INSERT INTO services (service_name, category, description, fee, requirements, duration_minutes) VALUES (?, ?, ?, ?, ?, ?)"
+    },
+    {
+        "file": "secretary/services.php",
+        "line": 40,
+        "sql": "delete"
+    },
+    {
+        "file": "secretary/services.php",
+        "line": 42,
+        "sql": "SELECT COUNT(*) FROM appointments a WHERE a.service_id = ? AND a.status_id NOT IN (3,7)"
+    },
+    {
+        "file": "secretary/services.php",
+        "line": 48,
+        "sql": "DELETE FROM services WHERE service_id = ?"
+    },
+    {
+        "file": "secretary/services.php",
+        "line": 56,
+        "sql": "UPDATE services SET service_name=?, fee=?, description=?, requirements=?, is_active=? WHERE service_id=?"
+    },
+    {
+        "file": "secretary/services.php",
+        "line": 62,
+        "sql": "SELECT * FROM services WHERE category != 'Donation' ORDER BY category, service_name"
+    },
+    {
+        "file": "secretary/services.php",
+        "line": 63,
+        "sql": "SELECT setting_value FROM settings WHERE setting_key = 'donation_enabled'"
+    },
+    {
+        "file": "secretary/settings.php",
+        "line": 12,
+        "sql": "SELECT profile_photo FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "secretary/settings.php",
+        "line": 15,
+        "sql": "UPDATE users SET profile_photo = NULL WHERE user_id = ?"
+    },
+    {
+        "file": "secretary/settings.php",
+        "line": 39,
+        "sql": "SELECT 1 FROM users WHERE email = ? AND user_id <> ?"
+    },
+    {
+        "file": "secretary/settings.php",
+        "line": 46,
+        "sql": "SELECT profile_photo FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "secretary/settings.php",
+        "line": 73,
+        "sql": "UPDATE users SET firstname = ?, lastname = ?, email = ?, phone = ?, profile_photo = ? WHERE user_id = ?"
+    },
+    {
+        "file": "secretary/settings.php",
+        "line": 93,
+        "sql": "SELECT password FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "secretary/settings.php",
+        "line": 107,
+        "sql": "UPDATE users SET password = ? WHERE user_id = ?"
+    },
+    {
+        "file": "secretary/settings.php",
+        "line": 113,
+        "sql": "SELECT firstname, lastname, email, phone, profile_photo FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "staff/login.php",
+        "line": 44,
+        "sql": "SELECT u.*, r.role_name FROM users u JOIN roles r ON u.role_id = r.role_id WHERE u.email = ? LIMIT 1"
+    },
+    {
+        "file": "status.php",
+        "line": 51,
+        "sql": "SELECT a.*, s.service_name, s.fee, s.category, s.requirements, st.status_name, p.full_name AS priest_name\r\n             FROM appointments a\r\n             JOIN services s ON a.service_id = s.service_id\r\n             JOIN appointment_status st ON a.status_id = st.status_id\r\n             LEFT JOIN priests p ON a.priest_id = p.priest_id\r\n             WHERE a.guest_reference = ?"
+    },
+    {
+        "file": "status.php",
+        "line": 72,
+        "sql": "SELECT a.*, s.service_name, s.fee, s.category, s.requirements, st.status_name, p.full_name AS priest_name\r\n             FROM appointments a\r\n             JOIN services s ON a.service_id = s.service_id\r\n             JOIN appointment_status st ON a.status_id = st.status_id\r\n             LEFT JOIN priests p ON a.priest_id = p.priest_id\r\n             WHERE a.guest_reference = ? AND (a.guest_email = ? OR a.guest_phone = ?)"
+    },
+    {
+        "file": "status.php",
+        "line": 97,
+        "sql": "SELECT * FROM uploaded_documents WHERE appointment_id = ? AND superseded_by IS NULL AND (document_source IS NULL OR document_source <> 'generated') ORDER BY requirement_label, document_id"
+    },
+    {
+        "file": "status.php",
+        "line": 102,
+        "sql": "SELECT g.*, d.document_id, d.review_status, d.rejection_reason FROM generated_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.service_category = 'Wedding' AND g.appointment_id = ? ORDER BY g.form_type"
+    },
+    {
+        "file": "status.php",
+        "line": 105,
+        "sql": "SELECT g.*, d.document_id, d.review_status, d.rejection_reason FROM generated_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.service_category = 'Baptism' AND g.appointment_id = ? ORDER BY g.form_type"
+    },
+    {
+        "file": "status.php",
+        "line": 108,
+        "sql": "SELECT * FROM mass_intentions WHERE appointment_id = ?"
+    },
+    {
+        "file": "status.php",
+        "line": 112,
+        "sql": "SELECT d.*, pr.project_name FROM donations d LEFT JOIN projects pr ON pr.project_id = d.project_id WHERE d.appointment_id = ?"
+    },
+    {
+        "file": "status.php",
+        "line": 117,
+        "sql": "SELECT p.*, pm.method_name FROM payments p JOIN payment_methods pm ON p.method_id = pm.method_id\r\n             WHERE p.appointment_id = ? ORDER BY p.payment_id DESC LIMIT 1"
+    },
+    {
+        "file": "status.php",
+        "line": 265,
+        "sql": "SELECT f.*, d.review_status, d.verified FROM generated_forms f LEFT JOIN uploaded_documents d ON d.document_id = f.document_id WHERE f.service_category = 'Funeral' AND f.appointment_id = ? AND f.form_type = 'katin_awan_paglubong'"
+    },
+    {
+        "file": "status.php",
+        "line": 385,
+        "sql": "Update each item marked Needs Revision ( /*EXPR*/ ), then submit them for review."
+    },
+    {
+        "file": "treasurer/dashboard.php",
+        "line": 6,
+        "sql": "SELECT COALESCE(SUM(amount),0) FROM payments WHERE payment_status='verified' AND payment_date::date = CURRENT_DATE"
+    },
+    {
+        "file": "treasurer/dashboard.php",
+        "line": 7,
+        "sql": "SELECT COALESCE(SUM(amount),0) FROM payments WHERE payment_status='verified' AND EXTRACT(ISOYEAR FROM payment_date)::int * 100 + EXTRACT(WEEK FROM payment_date)::int = EXTRACT(ISOYEAR FROM CURRENT_DATE)::int * 100 + EXTRACT(WEEK FROM CURRENT_DATE)::int"
+    },
+    {
+        "file": "treasurer/dashboard.php",
+        "line": 8,
+        "sql": "SELECT COALESCE(SUM(amount),0) FROM payments WHERE payment_status='verified' AND EXTRACT(MONTH FROM payment_date) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(YEAR FROM payment_date) = EXTRACT(YEAR FROM CURRENT_DATE)"
+    },
+    {
+        "file": "treasurer/dashboard.php",
+        "line": 9,
+        "sql": "SELECT COALESCE(SUM(amount),0) FROM payments WHERE payment_status='verified' AND EXTRACT(YEAR FROM payment_date) = EXTRACT(YEAR FROM CURRENT_DATE)"
+    },
+    {
+        "file": "treasurer/dashboard.php",
+        "line": 10,
+        "sql": "SELECT COUNT(*) FROM payments WHERE payment_status='pending'"
+    },
+    {
+        "file": "treasurer/dashboard.php",
+        "line": 13,
+        "sql": "SELECT p.*, u.firstname, u.lastname, a.guest_name, s.service_name\r\n     FROM payments p\r\n     JOIN appointments a ON p.appointment_id = a.appointment_id\r\n     JOIN parishioners par ON a.parishioner_id = par.parishioner_id\r\n     JOIN users u ON par.user_id = u.user_id\r\n     JOIN services s ON a.service_id = s.service_id\r\n     WHERE p.payment_status='pending'\r\n     ORDER BY p.created_at ASC LIMIT 5"
+    },
+    {
+        "file": "treasurer/dashboard.php",
+        "line": 24,
+        "sql": "SELECT p.*, u.firstname, u.lastname, a.guest_name, s.service_name\r\n     FROM payments p\r\n     JOIN appointments a ON p.appointment_id = a.appointment_id\r\n     JOIN parishioners par ON a.parishioner_id = par.parishioner_id\r\n     JOIN users u ON par.user_id = u.user_id\r\n     JOIN services s ON a.service_id = s.service_id\r\n     ORDER BY p.created_at DESC LIMIT 8"
+    },
+    {
+        "file": "treasurer/donations.php",
+        "line": 15,
+        "sql": "INSERT INTO settings (setting_key, setting_value) VALUES ('donation_enabled', ?) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value"
+    },
+    {
+        "file": "treasurer/donations.php",
+        "line": 56,
+        "sql": "SELECT p.parishioner_id FROM parishioners p JOIN users u ON p.user_id = u.user_id WHERE u.email = 'walkin-donor@parishhub.internal'"
+    },
+    {
+        "file": "treasurer/donations.php",
+        "line": 60,
+        "sql": "SELECT service_id FROM services WHERE category = 'Donation' AND is_active = TRUE LIMIT 1"
+    },
+    {
+        "file": "treasurer/donations.php",
+        "line": 74,
+        "sql": "SELECT pg_advisory_xact_lock(hashtext(?))"
+    },
+    {
+        "file": "treasurer/donations.php",
+        "line": 75,
+        "sql": "SELECT 1 FROM payments WHERE reference_number = ? LIMIT 1"
+    },
+    {
+        "file": "treasurer/donations.php",
+        "line": 87,
+        "sql": "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, approved_by, approved_at)\r\n             VALUES (?, ?, NULL, CURRENT_DATE, CURRENT_TIME, 4, ?, NOW())"
+    },
+    {
+        "file": "treasurer/donations.php",
+        "line": 94,
+        "sql": "INSERT INTO donations (appointment_id, donor_name, donor_email, purpose) VALUES (?, ?, ?, ?)"
+    },
+    {
+        "file": "treasurer/donations.php",
+        "line": 99,
+        "sql": "INSERT INTO payments (appointment_id, reference_number, amount, method_id, payment_status, payment_date, verified_by, verified_at)\r\n             VALUES (?, ?, ?, ?, 'verified', NOW(), ?, NOW())"
+    },
+    {
+        "file": "treasurer/donations.php",
+        "line": 106,
+        "sql": "INSERT INTO official_receipts (payment_id, receipt_number, issued_by) VALUES (?, ?, ?)"
+    },
+    {
+        "file": "treasurer/donations.php",
+        "line": 110,
+        "sql": "SELECT user_id FROM parishioners WHERE parishioner_id = ?"
+    },
+    {
+        "file": "treasurer/donations.php",
+        "line": 114,
+        "sql": "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'payment', 'Donation Recorded', ?)"
+    },
+    {
+        "file": "treasurer/donations.php",
+        "line": 131,
+        "sql": "SELECT setting_value FROM settings WHERE setting_key = 'donation_enabled'"
+    },
+    {
+        "file": "treasurer/donations.php",
+        "line": 134,
+        "sql": "SELECT p.parishioner_id, u.firstname, u.lastname FROM parishioners p\r\n     JOIN users u ON p.user_id = u.user_id\r\n     WHERE u.email != 'walkin-donor@parishhub.internal'\r\n     ORDER BY u.lastname, u.firstname"
+    },
+    {
+        "file": "treasurer/donations.php",
+        "line": 143,
+        "sql": "SELECT a.appointment_id, a.created_at, d.donor_name, d.donor_email, d.purpose, d.project_id, pr.project_name, d.message,\r\n               p.amount, p.payment_status, p.payment_id, pm.method_name\r\n        FROM appointments a\r\n        JOIN services s ON a.service_id = s.service_id\r\n        JOIN donations d ON d.appointment_id = a.appointment_id\r\n        LEFT JOIN projects pr ON pr.project_id = d.project_id\r\n        LEFT JOIN payments p ON p.appointment_id = a.appointment_id\r\n        LEFT JOIN payment_methods pm ON p.method_id = pm.method_id\r\n        WHERE s.category = 'Donation'"
+    },
+    {
+        "file": "treasurer/donations.php",
+        "line": 159,
+        "sql": "SELECT a.appointment_id, a.created_at, d.donor_name, d.donor_email, d.purpose, d.project_id, pr.project_name, d.message,\r\n               p.amount, p.payment_status, p.payment_id, pm.method_name"
+    },
+    {
+        "file": "treasurer/donations.php",
+        "line": 161,
+        "sql": "SELECT COUNT(*)"
+    },
+    {
+        "file": "treasurer/donations.php",
+        "line": 181,
+        "sql": "SELECT COALESCE(SUM(p.amount),0) FROM payments p\r\n     JOIN appointments a ON p.appointment_id = a.appointment_id\r\n     JOIN services s ON a.service_id = s.service_id\r\n     WHERE s.category = 'Donation' AND p.payment_status = 'verified'"
+    },
+    {
+        "file": "treasurer/payment-detail.php",
+        "line": 64,
+        "sql": "SELECT a.appointment_id, s.category FROM payments p\r\n         JOIN appointments a ON a.appointment_id = p.appointment_id\r\n         JOIN services s ON a.service_id = s.service_id\r\n         WHERE p.payment_id = ? AND p.payment_status = 'verified' AND a.status_id = 4"
+    },
+    {
+        "file": "treasurer/payment-detail.php",
+        "line": 74,
+        "sql": "UPDATE appointments SET status_id = 5 WHERE appointment_id = ? AND status_id = 4"
+    },
+    {
+        "file": "treasurer/payment-detail.php",
+        "line": 86,
+        "sql": "SELECT u.user_id FROM appointments a JOIN parishioners par ON a.parishioner_id = par.parishioner_id\r\n             JOIN users u ON par.user_id = u.user_id WHERE a.appointment_id = ?"
+    },
+    {
+        "file": "treasurer/payment-detail.php",
+        "line": 95,
+        "sql": "SELECT 1 FROM notifications WHERE user_id = ? AND title = 'Appointment Confirmed' AND message LIKE ?"
+    },
+    {
+        "file": "treasurer/payment-detail.php",
+        "line": 100,
+        "sql": "INSERT INTO notifications (user_id, type, category, title, message) VALUES (?, 'website', 'appointment', 'Payment Confirmed', ?)"
+    },
+    {
+        "file": "treasurer/payment-detail.php",
+        "line": 122,
+        "sql": "SELECT p.*, pm.method_name, u.firstname, u.lastname, u.email, s.service_name, s.category,\r\n            a.appointment_date, a.appointment_id, a.status_id AS appointment_status_id,\r\n            a.guest_name, a.guest_phone, a.guest_reference, st.status_name AS appointment_status_name\r\n     FROM payments p\r\n     JOIN payment_methods pm ON p.method_id = pm.method_id\r\n     JOIN appointments a ON p.appointment_id = a.appointment_id\r\n     JOIN parishioners par ON a.parishioner_id = par.parishioner_id\r\n     JOIN users u ON par.user_id = u.user_id\r\n     JOIN services s ON a.service_id = s.service_id\r\n     JOIN appointment_status st ON a.status_id = st.status_id\r\n     WHERE p.payment_id = ?"
+    },
+    {
+        "file": "treasurer/payment-detail.php",
+        "line": 142,
+        "sql": "SELECT * FROM official_receipts WHERE payment_id = ?"
+    },
+    {
+        "file": "treasurer/payment-detail.php",
+        "line": 151,
+        "sql": "SELECT * FROM mass_intentions WHERE appointment_id = ?"
+    },
+    {
+        "file": "treasurer/payment-detail.php",
+        "line": 155,
+        "sql": "SELECT d.*, pr.project_name FROM donations d LEFT JOIN projects pr ON pr.project_id = d.project_id WHERE d.appointment_id = ?"
+    },
+    {
+        "file": "treasurer/payments.php",
+        "line": 34,
+        "sql": "SELECT a.status_id,\r\n                    (SELECT COUNT(*) FROM payments p WHERE p.appointment_id = a.appointment_id AND p.payment_status IN ('pending', 'verified')) AS open_payments\r\n             FROM appointments a WHERE a.appointment_id = ? FOR UPDATE"
+    },
+    {
+        "file": "treasurer/payments.php",
+        "line": 48,
+        "sql": "INSERT INTO payments (appointment_id, reference_number, amount, method_id, payment_status, payment_date)\r\n             VALUES (?, ?, ?, ?, 'pending', NOW())"
+    },
+    {
+        "file": "treasurer/payments.php",
+        "line": 77,
+        "sql": "SELECT p.*, pm.method_name, u.firstname, u.lastname, a.guest_name, s.service_name, a.appointment_date\r\n        FROM payments p\r\n        JOIN payment_methods pm ON p.method_id = pm.method_id\r\n        JOIN appointments a ON p.appointment_id = a.appointment_id\r\n        JOIN parishioners par ON a.parishioner_id = par.parishioner_id\r\n        JOIN users u ON par.user_id = u.user_id\r\n        JOIN services s ON a.service_id = s.service_id\r\n        WHERE 1=1"
+    },
+    {
+        "file": "treasurer/payments.php",
+        "line": 95,
+        "sql": "SELECT p.*, pm.method_name, u.firstname, u.lastname, a.guest_name, s.service_name, a.appointment_date"
+    },
+    {
+        "file": "treasurer/payments.php",
+        "line": 96,
+        "sql": "SELECT COUNT(*)"
+    },
+    {
+        "file": "treasurer/payments.php",
+        "line": 117,
+        "sql": "SELECT * FROM payment_methods ORDER BY method_id"
+    },
+    {
+        "file": "treasurer/print-receipt.php",
+        "line": 7,
+        "sql": "\r\n    SELECT p.*, r.receipt_number, r.issue_date, \r\n           u.firstname, u.lastname, u.email,\r\n           a.guest_name, a.guest_phone, a.guest_reference,\r\n           s.service_name, s.category,\r\n           pm.method_name\r\n    FROM payments p\r\n    LEFT JOIN official_receipts r ON p.payment_id = r.payment_id\r\n    JOIN appointments a ON p.appointment_id = a.appointment_id\r\n    JOIN services s ON a.service_id = s.service_id\r\n    JOIN payment_methods pm ON p.method_id = pm.method_id\r\n    LEFT JOIN parishioners par ON a.parishioner_id = par.parishioner_id\r\n    LEFT JOIN users u ON par.user_id = u.user_id\r\n    WHERE p.payment_id = ?\r\n"
+    },
+    {
+        "file": "treasurer/print-receipt.php",
+        "line": 31,
+        "sql": "SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('parish_name','parish_address','contact_number','contact_email')"
+    },
+    {
+        "file": "treasurer/print-receipt.php",
+        "line": 44,
+        "sql": "SELECT d.purpose, d.project_id, pr.project_name FROM donations d LEFT JOIN projects pr ON pr.project_id = d.project_id WHERE d.appointment_id = ?"
+    },
+    {
+        "file": "treasurer/reports.php",
+        "line": 42,
+        "sql": "SELECT method_id, method_name FROM payment_methods ORDER BY method_id"
+    },
+    {
+        "file": "treasurer/reports.php",
+        "line": 96,
+        "sql": "SELECT COALESCE(SUM(p.amount),0)\r\n         FROM payments p\r\n         WHERE p.payment_date::date BETWEEN ? AND ?\r\n           AND p.payment_status = 'pending'"
+    },
+    {
+        "file": "treasurer/reports.php",
+        "line": 105,
+        "sql": "\r\n        SELECT\r\n            p.payment_id,\r\n            p.payment_date,\r\n            p.reference_number,\r\n            p.amount,\r\n            p.payment_status,\r\n            pm.method_name,\r\n            t.raw_response AS gateway_raw_response,\r\n            t.gateway,\r\n            t.gateway_transaction_id,\r\n            a.appointment_id,\r\n            a.guest_name,\r\n            a.guest_reference,\r\n            s.service_name,\r\n            s.category,\r\n            -- Parishioner name\r\n            TRIM(COALESCE(u.firstname,'') || ' ' || COALESCE(u.lastname,'')) AS par_name,\r\n            -- Mass intention offerer (overrides parishioner for MI)\r\n            mi.offerer_name,\r\n            -- Donation donor name (overrides parishioner for donations)\r\n            d.donor_name,\r\n            d.purpose AS donation_purpose,\r\n            d.project_id,\r\n            pr.project_name,\r\n            -- Official receipt number\r\n            orec.receipt_number,\r\n            -- Verified by user\r\n            TRIM(COALESCE(vu.firstname,'') || ' ' || COALESCE(vu.lastname,'')) AS verified_by_name\r\n        FROM payments p\r\n        JOIN payment_methods pm     ON pm.method_id = p.method_id\r\n        JOIN appointments a         ON a.appointment_id = p.appointment_id\r\n        JOIN services s             ON s.service_id = a.service_id\r\n        LEFT JOIN parishioners par  ON par.parishioner_id = a.parishioner_id\r\n        LEFT JOIN users u           ON u.user_id = par.user_id\r\n        LEFT JOIN mass_intentions mi ON mi.appointment_id = a.appointment_id\r\n        LEFT JOIN donations d        ON d.appointment_id = a.appointment_id\r\n        LEFT JOIN projects pr        ON pr.project_id = d.project_id\r\n        LEFT JOIN official_receipts orec ON orec.payment_id = p.payment_id\r\n        LEFT JOIN users vu           ON vu.user_id = p.verified_by\r\n        LEFT JOIN (\r\n            SELECT payment_id, MAX(transaction_id) AS max_tx_id\r\n            FROM transactions\r\n            GROUP BY payment_id\r\n        ) t_max ON t_max.payment_id = p.payment_id\r\n        LEFT JOIN transactions t ON t.transaction_id = t_max.max_tx_id\r\n        WHERE  /*EXPR*/ \r\n        ORDER BY p.payment_date ASC, p.payment_id ASC\r\n    "
+    },
+    {
+        "file": "treasurer/settings.php",
+        "line": 21,
+        "sql": "SELECT profile_photo FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "treasurer/settings.php",
+        "line": 24,
+        "sql": "UPDATE users SET profile_photo = NULL WHERE user_id = ?"
+    },
+    {
+        "file": "treasurer/settings.php",
+        "line": 40,
+        "sql": "SELECT 1 FROM users WHERE LOWER(email) = LOWER(?) AND user_id <> ?"
+    },
+    {
+        "file": "treasurer/settings.php",
+        "line": 43,
+        "sql": "SELECT profile_photo FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "treasurer/settings.php",
+        "line": 61,
+        "sql": "UPDATE users SET firstname = ?, lastname = ?, email = ?, phone = ?, profile_photo = ? WHERE user_id = ?"
+    },
+    {
+        "file": "treasurer/settings.php",
+        "line": 69,
+        "sql": "SELECT password FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "treasurer/settings.php",
+        "line": 74,
+        "sql": "UPDATE users SET password = ? WHERE user_id = ?"
+    },
+    {
+        "file": "treasurer/settings.php",
+        "line": 80,
+        "sql": "SELECT firstname, lastname, email, phone, profile_photo FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "wedding-draft-form.php",
+        "line": 20,
+        "sql": "SELECT g.*, d.review_status, d.verified, d.rejection_reason FROM generated_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.service_category = 'Wedding' AND g.draft_id = ? AND g.form_type = ?"
+    },
+    {
+        "file": "wedding-draft-form.php",
+        "line": 32,
+        "sql": "SELECT firstname, lastname, middlename, phone, address, birthdate, gender FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "wedding-draft-form.php",
+        "line": 48,
+        "sql": "SELECT form_data FROM generated_forms WHERE service_category = 'Wedding' AND draft_id = ? AND form_type = 'matrimony_application'"
+    },
+    {
+        "file": "wedding-draft-form.php",
+        "line": 72,
+        "sql": "SELECT * FROM generated_forms WHERE service_category = 'Wedding' AND draft_id = ? AND form_type = ? FOR UPDATE"
+    },
+    {
+        "file": "wedding-draft-form.php",
+        "line": 85,
+        "sql": "SELECT document_id FROM uploaded_documents WHERE draft_id = ? AND document_source = 'generated' AND generated_form_type = ? AND superseded_by IS NULL ORDER BY document_id DESC LIMIT 1 FOR UPDATE"
+    },
+    {
+        "file": "wedding-draft-form.php",
+        "line": 90,
+        "sql": "INSERT INTO uploaded_documents (appointment_id, draft_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source, generated_form_type) VALUES (NULL, ?, ?, ?, 'application/pdf', ?, 'pending', FALSE, 'generated', ?)"
+    },
+    {
+        "file": "wedding-draft-form.php",
+        "line": 95,
+        "sql": "UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ? AND draft_id = ? AND superseded_by IS NULL"
+    },
+    {
+        "file": "wedding-draft-form.php",
+        "line": 101,
+        "sql": "UPDATE generated_forms SET form_data = ?, document_id = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE generated_form_id = ?"
+    },
+    {
+        "file": "wedding-draft-form.php",
+        "line": 103,
+        "sql": "INSERT INTO generated_forms (service_category, appointment_id, draft_id, form_type, form_data, document_id, status) VALUES ('Wedding', NULL, ?, ?, ?, ?, ?)"
+    },
+    {
+        "file": "wedding-draft.php",
+        "line": 37,
+        "sql": "INSERT INTO uploaded_documents (appointment_id, draft_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source) VALUES (NULL, ?, ?, ?, ?, ?, 'pending', FALSE, 'uploaded')"
+    },
+    {
+        "file": "wedding-draft.php",
+        "line": 90,
+        "sql": "INSERT INTO appointments (parishioner_id, service_id, priest_id, appointment_date, appointment_time, status_id, remarks, schedule_type, pss_claim, pss_classification, wedding_sponsor_count, guest_name, guest_email, guest_phone, guest_reference, contact_phone, location_address, requirements_snapshot /*EXPR*/  /*EXPR*/ ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 'pending_verification', ?, ?, ?, ?, ?, ?, ?, ? /*EXPR*/  /*EXPR*/ ) RETURNING appointment_id"
+    },
+    {
+        "file": "wedding-draft.php",
+        "line": 98,
+        "sql": "UPDATE uploaded_documents SET appointment_id = ?, draft_id = NULL WHERE draft_id = ?"
+    },
+    {
+        "file": "wedding-draft.php",
+        "line": 103,
+        "sql": "UPDATE generated_forms SET appointment_id = ?, draft_id = NULL WHERE service_category = 'Wedding' AND draft_id = ?"
+    },
+    {
+        "file": "wedding-draft.php",
+        "line": 105,
+        "sql": "UPDATE appointment_drafts SET status = 'finalized', finalized_appointment_id = ?, updated_at = CURRENT_TIMESTAMP WHERE draft_id = ? AND service_type = 'Wedding'"
+    },
+    {
+        "file": "wedding-draft.php",
+        "line": 131,
+        "sql": "SELECT requirement_label, document_id, file_name FROM uploaded_documents WHERE draft_id = ? AND superseded_by IS NULL AND document_source = 'uploaded' ORDER BY document_id DESC"
+    },
+    {
+        "file": "wedding-draft.php",
+        "line": 137,
+        "sql": "SELECT f.form_type, f.status, f.document_id, d.review_status, d.verified, d.rejection_reason FROM generated_forms f LEFT JOIN uploaded_documents d ON d.document_id = f.document_id WHERE f.service_category = 'Wedding' AND f.draft_id = ?"
+    },
+    {
+        "file": "wedding-form.php",
+        "line": 22,
+        "sql": "SELECT a.*, s.category FROM appointments a JOIN services s ON s.service_id = a.service_id WHERE a.appointment_id = ? AND s.category = 'Wedding'"
+    },
+    {
+        "file": "wedding-form.php",
+        "line": 28,
+        "sql": "SELECT 1 FROM parishioners WHERE parishioner_id = ? AND user_id = ?"
+    },
+    {
+        "file": "wedding-form.php",
+        "line": 36,
+        "sql": "SELECT g.*, d.review_status, d.verified, d.rejection_reason FROM generated_forms g LEFT JOIN uploaded_documents d ON d.document_id = g.document_id WHERE g.service_category = 'Wedding' AND g.appointment_id = ? AND g.form_type = ?"
+    },
+    {
+        "file": "wedding-form.php",
+        "line": 48,
+        "sql": "SELECT firstname, lastname, middlename, phone, address, birthdate, gender FROM users WHERE user_id = ?"
+    },
+    {
+        "file": "wedding-form.php",
+        "line": 64,
+        "sql": "SELECT form_data FROM generated_forms WHERE service_category = 'Wedding' AND appointment_id = ? AND form_type = 'matrimony_application'"
+    },
+    {
+        "file": "wedding-form.php",
+        "line": 92,
+        "sql": "SELECT * FROM generated_forms WHERE service_category = 'Wedding' AND appointment_id = ? AND form_type = ? FOR UPDATE"
+    },
+    {
+        "file": "wedding-form.php",
+        "line": 108,
+        "sql": "SELECT document_id FROM uploaded_documents WHERE appointment_id = ? AND document_source = 'generated' AND generated_form_type = ? AND superseded_by IS NULL ORDER BY document_id DESC LIMIT 1 FOR UPDATE"
+    },
+    {
+        "file": "wedding-form.php",
+        "line": 115,
+        "sql": "INSERT INTO uploaded_documents (appointment_id, file_name, file_path, file_type, requirement_label, review_status, verified, document_source, generated_form_type) VALUES (?, ?, ?, 'application/pdf', ?, 'pending', FALSE, 'generated', ?)"
+    },
+    {
+        "file": "wedding-form.php",
+        "line": 119,
+        "sql": "UPDATE uploaded_documents SET superseded_by = ? WHERE document_id = ? AND appointment_id = ? AND superseded_by IS NULL"
+    },
+    {
+        "file": "wedding-form.php",
+        "line": 125,
+        "sql": "UPDATE generated_forms SET form_data = ?, document_id = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE generated_form_id = ?"
+    },
+    {
+        "file": "wedding-form.php",
+        "line": 127,
+        "sql": "INSERT INTO generated_forms (service_category, appointment_id, form_type, form_data, document_id, status) VALUES ('Wedding', ?, ?, ?, ?, ?)"
+    }
+]

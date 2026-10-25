@@ -34,7 +34,7 @@ if (preg_match('/^(baptism|wedding|funeral)-(\d+)$/', (string) ($_GET['resume_dr
 }
 
 ensureCertificateService();
-$services = db()->query("SELECT * FROM services WHERE is_active = 1 AND category != 'Donation' ORDER BY category, service_name")->fetchAll();
+$services = db()->query("SELECT * FROM services WHERE is_active = TRUE AND category != 'Donation' ORDER BY category, service_name")->fetchAll();
 $variableFeeCategories = ['Baptism', 'Wedding'];
 $feeRulesByCategory = [];
 try {
@@ -62,7 +62,7 @@ $preselectedProjectId = (int) ($_GET['project_id'] ?? 0) ?: null;
 $autoOpenDonate = $donationEnabled && !$donationThankYou && !$thankYouReference && (isset($_GET['donate']) || $preselectedProjectId);
 
 $priests =db()->query("SELECT * FROM priests WHERE status = 'active'")->fetchAll();
-$blockedRows = db()->query('SELECT calendar_date, notes FROM calendar WHERE is_blocked = 1')->fetchAll();
+$blockedRows = db()->query('SELECT calendar_date, notes FROM calendar WHERE is_blocked = TRUE')->fetchAll();
 $calendarBlocked = array_map(fn($b) => ['date' => $b['calendar_date'], 'notes' => $b['notes']], $blockedRows);
 $preselectedDate = $_GET['date'] ?? '';
 
