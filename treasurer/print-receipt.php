@@ -57,7 +57,7 @@ function renderReceiptBody(string $parishName, string $parishAddress, array $par
 {
     ?>
     <div class="header" style="display: flex; align-items: center; justify-content: center; gap: 16px; text-align: left; color: #145c12; font-family: 'Times New Roman', Times, serif;">
-      <img class="header-logo" src="<?= url('public/img/logo.png') ?>" alt="<?= e($parishName) ?> Logo" style="width: 64px; height: auto;">
+      <img class="header-logo" src="<?= url('public/img/logo-transparent.png') ?>" alt="<?= e($parishName) ?> Logo" style="width: 64px; height: auto;">
       <div style="text-align: center;">
         <h1 style="margin: 0 0 2px 0; font-size: 20px; color: #145c12;"><?= e($parishName) ?></h1>
         <p class="header-address" style="margin: 0; font-weight: bold; font-size: 11px; color: #333; text-transform: uppercase;"><?= e($parishAddress) ?></p>
@@ -371,6 +371,12 @@ $copyLabels = ['Customer Copy', 'Parish Office Copy', 'Accounting / Audit Copy']
     }
 
     @media print {
+      /* Keep the browser's own header/footer (page title, date, URL) off the
+         receipt; the page size/margins still come from #pageSizeStyle. */
+      @page {
+        @top-left { content: ""; } @top-center { content: ""; } @top-right { content: ""; }
+        @bottom-left { content: ""; } @bottom-center { content: ""; } @bottom-right { content: ""; }
+      }
       html, body {
         background: #fff;
         margin: 0;

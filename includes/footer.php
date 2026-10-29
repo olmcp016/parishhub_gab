@@ -15,7 +15,7 @@ $__authUser = currentUser();
 <script src="<?= url('public/js/auth-sync.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/auth-sync.js') ?>"></script>
 <script src="<?= url('public/js/app.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/app.js') ?>"></script>
 <script src="<?= url('public/js/supporting-documents.js') ?>?v=<?= (int) @filemtime(__DIR__ . '/../public/js/supporting-documents.js') ?>"></script>
-<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://unpkg.com/lucide@1.64.0/dist/umd/lucide.min.js"></script>
 <script>lucide.createIcons();</script>
 </body>
 </html>

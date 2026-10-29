@@ -243,7 +243,8 @@ include __DIR__ . '/../includes/dash-start.php';
 
   /* ---------- Print ---------- */
   @media print {
-    @page { size: A4 landscape; margin: 12mm; }
+    @page { size: A4 landscape; margin: 12mm;
+      @bottom-right { content: "Page " counter(page) " of " counter(pages); font: 8pt Arial, sans-serif; color: #555; } }
     html, body { background: #fff !important; }
     .sidebar, .topbar, .no-print, .flash, .flash-message, .alert,
     nav, header, footer { display: none !important; }
@@ -324,7 +325,7 @@ include __DIR__ . '/../includes/dash-start.php';
 
   <div class="rpt-letterhead">
     <?php if (hasParishLogo()): ?>
-      <img src="<?= e(url('public/img/logo.png')) ?>" alt="Parish Logo">
+      <img src="<?= e(url('public/img/logo-transparent.png')) ?>" alt="Parish Logo">
     <?php endif; ?>
     <div>
       <p class="parish"><?= e(strtoupper(reportParishName())) ?></p>

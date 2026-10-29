@@ -472,7 +472,7 @@ function weddingPdfHeader(FPDF $pdf, string $title): void
     $pdf->SetMargins(16, 10, 16);
     $pdf->SetAutoPageBreak(false);
     $pdf->AddPage('P', 'A4');
-    $logo = dirname(__DIR__) . '/public/img/logo.png';
+    $logo = dirname(__DIR__) . '/public/img/logo-transparent.png';
     if (is_file($logo)) $pdf->Image($logo, 18, 10, 28, 28, 'PNG');
     $pdf->SetTextColor(20, 92, 18);
     $pdf->SetFont('Times', 'B', 18);
