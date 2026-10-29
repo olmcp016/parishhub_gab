@@ -146,6 +146,7 @@ if ($form && !empty($form['document_id'])) {
 }
 $pageTitle = $definition['title'];
 $usesPublicShell = !$user;
+$pageHasOwnHeading = true; // the form below prints the title itself
 $backLink = url('wedding-draft.php?draft_id=' . $draftId);
 include __DIR__ . '/includes/header.php';
 include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 'dash-start.php');

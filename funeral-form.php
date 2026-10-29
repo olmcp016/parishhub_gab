@@ -223,6 +223,7 @@ $backLink = $isDraft
     : applicantBookingUrl($appointmentId, $appointment['guest_reference'] ?? null, $isGuest);
 $pageTitle = $definition['title'];
 $usesPublicShell = $isDraft ? !empty($draft['is_guest']) : $isGuest;
+$pageHasOwnHeading = true; // the form below prints the title itself
 include __DIR__ . '/includes/header.php';
 include __DIR__ . '/includes/' . ($usesPublicShell ? 'public-shell-start.php' : 'dash-start.php');
 ?>

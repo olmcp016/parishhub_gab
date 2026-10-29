@@ -218,6 +218,7 @@ if ($form && !empty($form['document_id'])) {
 }
 $pageTitle = $def['title'];
 $usesPublicShell = !$user;
+$pageHasOwnHeading = true; // the form below prints the title itself
 $backLink = $isAppointmentForm
     ? applicantBookingUrl($appointmentId, $appointment['guest_reference'] ?? null, $isGuest)
     : url('baptism-draft.php?draft_id=' . $id);
