@@ -190,6 +190,28 @@ function generateGuestReference(): string
 }
 
 /**
+ * The email or phone typed on the public Check Status page, normalized:
+ * an email is trimmed and lower-cased; a Philippine mobile number in any
+ * common form (09…, +639…, 639…, with spaces or dashes) becomes 09XXXXXXXXX.
+ * Anything else yields NULLs, which never match a booking.
+ *
+ * @return array{email: ?string, phone: ?string}
+ */
+function statusLookupContact(string $contact): array
+{
+    $contact = trim($contact);
+    if (str_contains($contact, '@')) return ['email' => mb_strtolower($contact, 'UTF-8'), 'phone' => null];
+    $digits = preg_replace('/[^0-9]/', '', $contact);
+    return ['email' => null, 'phone' => preg_match('/^(?:63|0)(9[0-9]{9})$/', $digits, $m) ? '0' . $m[1] : null];
+}
+
+/** SQL expression giving a stored phone column in the same 09XXXXXXXXX form as statusLookupContact(). */
+function statusLookupPhoneSql(string $column): string
+{
+    return "regexp_replace(regexp_replace(COALESCE($column, ''), '[^0-9]', '', 'g'), '^63', '0')";
+}
+
+/**
  * Failure counter for a throttle key (an email, an IP, or a feature name).
  * Stored in auth_throttle so it survives cookie resets; see
  * database/migration_auth_throttle.sql.

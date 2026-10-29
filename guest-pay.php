@@ -40,16 +40,20 @@ if ($lockedFor > 0) {
     redirect($statusUrl);
 }
 
+// Same normalized email/phone matching as status.php, but guest fields only:
+// a registered Parishioner's booking (no guest email/phone) is paid after logging in.
+$lookup = statusLookupContact($contact);
 $stmt = db()->prepare(
     "SELECT a.appointment_id, a.schedule_type, a.pss_classification, a.sponsor_count, a.wedding_sponsor_count, a.fee_snapshot,
             s.fee, s.category, s.service_name, a.guest_email
      FROM appointments a
      JOIN services s ON a.service_id = s.service_id
      JOIN appointment_status st ON a.status_id = st.status_id
-     WHERE a.appointment_id = ? AND a.guest_reference = ? AND (a.guest_email = ? OR a.guest_phone = ?)
+     WHERE a.appointment_id = ? AND a.guest_reference = ?
+       AND (LOWER(TRIM(a.guest_email)) = ? OR " . statusLookupPhoneSql('a.guest_phone') . " = ?)
        AND st.status_name = 'Approved' AND s.category NOT IN ('Mass Intention', 'Donation')"
 );
-$stmt->execute([$appointmentId, $reference, $contact, $contact]);
+$stmt->execute([$appointmentId, $reference, $lookup['email'], $lookup['phone']]);
 $appointment = $stmt->fetch();
 
 if (!$appointment) {

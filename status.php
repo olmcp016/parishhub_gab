@@ -32,6 +32,7 @@ $lookupError = null;
 // Filled in only when a booking is found (below); empty otherwise, so the page
 // also works before a reference is entered or when nothing matches.
 $payment = null;
+$isRegisteredBooking = false;
 $documents = [];
 $generatedForms = [];
 $intention = null;
@@ -68,15 +69,26 @@ if ($searched) {
     } elseif ($lockedFor > 0) {
         $lookupError = 'Too many lookups from this connection. Please try again in ' . ceil($lockedFor / 60) . ' minute(s).';
     } else {
+        // A guest booking matches its own guest email/phone. A registered
+        // Parishioner's booking (guest fields empty) matches the linked
+        // account's email/phone or the booking's contact phone — never for the
+        // shared guest placeholder account, or its address would unlock every
+        // guest booking. Email case and phone format are normalized.
+        $lookup = statusLookupContact($contact);
         $stmt = db()->prepare(
             "SELECT a.*, s.service_name, s.fee, s.category, s.requirements, st.status_name, p.full_name AS priest_name
              FROM appointments a
              JOIN services s ON a.service_id = s.service_id
              JOIN appointment_status st ON a.status_id = st.status_id
              LEFT JOIN priests p ON a.priest_id = p.priest_id
-             WHERE a.guest_reference = ? AND (a.guest_email = ? OR a.guest_phone = ?)"
+             LEFT JOIN parishioners par ON par.parishioner_id = a.parishioner_id
+             LEFT JOIN users u ON u.user_id = par.user_id
+             WHERE a.guest_reference = ?
+               AND (LOWER(TRIM(a.guest_email)) = ? OR " . statusLookupPhoneSql('a.guest_phone') . " = ?
+                    OR (a.parishioner_id <> ? AND (LOWER(TRIM(u.email)) = ?
+                        OR " . statusLookupPhoneSql('u.phone') . " = ? OR " . statusLookupPhoneSql('a.contact_phone') . " = ?)))"
         );
-        $stmt->execute([$code, $contact, $contact]);
+        $stmt->execute([$code, $lookup['email'], $lookup['phone'], guestParishionerId(), $lookup['email'], $lookup['phone'], $lookup['phone']]);
         $appointment = $stmt->fetch() ?: null;
         if (!$appointment) {
             throttleRecordFailure($ipKey, 10, 15 * 60);
@@ -87,7 +99,12 @@ if ($searched) {
         if ($contact === '') {
             $contact = (string) ($appointment['guest_email'] ?: $appointment['guest_phone']);
         }
-        $_SESSION['guest_status_verification'] = [
+        // A registered Parishioner's booking found here is view-only: it gets its own
+        // read-only verification (honored only by document.php for viewing), never
+        // guest_status_verification, which the upload/form/revision pages accept.
+        // Changes to an account's booking require logging in.
+        $isRegisteredBooking = guestParishionerId() > 0 && (int) $appointment['parishioner_id'] !== guestParishionerId();
+        $_SESSION[$isRegisteredBooking ? 'status_view_verification' : 'guest_status_verification'] = [
             'appointment_id' => (int) $appointment['appointment_id'],
             'expires_at' => time() + 900,
         ];
@@ -137,6 +154,7 @@ $onlineUnfinished = $payment && (int) $payment['method_id'] === 7 && $payment['p
 $appointmentSnapshot = $appointment && !empty($appointment['fee_snapshot']) ? (json_decode($appointment['fee_snapshot'], true) ?: []) : [];
 $displayFee = array_key_exists('total', $appointmentSnapshot) ? (float) $appointmentSnapshot['total'] : (float) ($appointment['fee'] ?? 0);
 $canGuestPay = $appointment
+    && !$isRegisteredBooking // an account's booking is paid after logging in (parishioner/pay.php)
     && $appointment['status_name'] === 'Approved'
     && !in_array($appointment['category'], ['Mass Intention', 'Donation'], true)
     && $appointment['pss_classification'] !== 'pending_verification'
@@ -154,7 +172,7 @@ include __DIR__ . '/includes/header.php';
   <?php include __DIR__ . '/includes/flash.php'; ?>
   <?php // The nav bar already names this page: the heading stays for screen readers only (same as public-shell-start.php). ?>
   <h1 style="position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;">Check Your Status</h1>
-  <p class="text-muted" style="margin:0 0 24px;">Look up a guest booking, Mass Intention, or donation using the reference code from your confirmation screen.</p>
+  <p class="text-muted" style="margin:0 0 24px;">Look up a booking, Mass Intention, or donation using the reference code from your confirmation screen and the email or phone number used for it.</p>
 
   <div class="card">
     <form method="GET" action="<?= url('status.php') ?>">
@@ -189,6 +207,12 @@ include __DIR__ . '/includes/header.php';
         <?php endif; ?>
       </div>
       <p><strong>Booking Reference:</strong> <?= e($appointment['guest_reference']) ?></p>
+      <?php if ($isRegisteredBooking): ?>
+        <div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">
+          This booking belongs to a ParishHub account, so this page is view-only.
+          <a href="<?= url('auth/login.php') ?>"><strong>Log in</strong></a> to upload documents, edit forms, or pay.
+        </div>
+      <?php endif; ?>
       <?php if (!empty($officialCertificate['document_id']) && in_array((int) $appointment['status_id'], [5, 6], true)): ?>
         <div class="alert" style="background:var(--cream); color:var(--brown-mid); border:1px solid var(--cream-dark);">
           <strong>📜 Official Certificate of <?= e($officialCertificate['certificate_type']) ?></strong>
@@ -219,7 +243,7 @@ include __DIR__ . '/includes/header.php';
               <?php if ($gf['rejection_reason']): ?><div class="text-muted" style="margin-top:4px; font-size:0.9rem;">Reason: <?= e($gf['rejection_reason']) ?></div><?php endif; ?>
             </div>
             <div class="generated-form-actions">
-              <?php if ($state['code'] !== 'approved' && (int) $appointment['status_id'] === 1): ?><a class="btn btn-outline btn-sm" href="<?= url('wedding-form.php?appointment_id=' . (int) $appointment['appointment_id'] . '&form_type=' . urlencode($gf['form_type'])) ?>"><?= e(generatedFormWorkflowActionLabel($state)) ?></a><?php endif; ?>
+              <?php if (!$isRegisteredBooking && $state['code'] !== 'approved' && (int) $appointment['status_id'] === 1): ?><a class="btn btn-outline btn-sm" href="<?= url('wedding-form.php?appointment_id=' . (int) $appointment['appointment_id'] . '&form_type=' . urlencode($gf['form_type'])) ?>"><?= e(generatedFormWorkflowActionLabel($state)) ?></a><?php endif; ?>
               <?php if ($gf['document_id']): ?>
                 <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>"><?= $gf['form_type'] === 'matrimony_application' ? 'View Generated Form' : 'View PDF' ?></a>
                 <a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . (int) $gf['document_id'] . '&download=1') ?>">Download PDF</a>
@@ -251,7 +275,7 @@ include __DIR__ . '/includes/header.php';
               <?php if ($gf['rejection_reason']): ?><div class="text-muted" style="margin-top:4px; font-size:0.9rem;">Reason: <?= e($gf['rejection_reason']) ?></div><?php endif; ?>
             </div>
             <div class="generated-form-actions">
-              <?php if ($state['code'] !== 'approved' && (int) $appointment['status_id'] === 1): ?><a class="btn btn-outline btn-sm" href="<?= url('baptism-draft-form.php?appointment_id=' . (int) $appointment['appointment_id'] . '&form_type=' . urlencode($gf['form_type'])) ?>"><?= e(generatedFormWorkflowActionLabel($state)) ?></a><?php endif; ?>
+              <?php if (!$isRegisteredBooking && $state['code'] !== 'approved' && (int) $appointment['status_id'] === 1): ?><a class="btn btn-outline btn-sm" href="<?= url('baptism-draft-form.php?appointment_id=' . (int) $appointment['appointment_id'] . '&form_type=' . urlencode($gf['form_type'])) ?>"><?= e(generatedFormWorkflowActionLabel($state)) ?></a><?php endif; ?>
               <?php if ($gf['document_id']): ?>
                 <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $gf['document_id']) ?>">View PDF</a>
                 <a class="btn btn-outline btn-sm" href="<?= url('document.php?id=' . (int) $gf['document_id'] . '&download=1') ?>">Download PDF</a>
@@ -268,7 +292,7 @@ include __DIR__ . '/includes/header.php';
           $state = generatedFormWorkflowState($gf, $gf, false);
           $funeralApproved = $state['code'] === 'approved';
           // Editable while pending, and after approval when the Parish Office asked for an update (schedule changed).
-          $katinEditable = !$funeralApproved && ((int) $appointment['status_id'] === 1 || (in_array((int) $appointment['status_id'], [2, 4], true) && $state['code'] === 'needs_revision'));
+          $katinEditable = !$isRegisteredBooking && !$funeralApproved && ((int) $appointment['status_id'] === 1 || (in_array((int) $appointment['status_id'], [2, 4], true) && $state['code'] === 'needs_revision'));
         ?>
         <hr style="border-color:var(--cream-dark); margin:18px 0;"><h4>Funeral Form</h4>
         <div class="generated-form-item">
@@ -329,7 +353,7 @@ include __DIR__ . '/includes/header.php';
           <?php if (precanaCertificateDeferred($appointment)):
             // Parish Pre-Cana: the certificate is uploaded after the seminar, before confirmation.
             $precanaCertificate = precanaCertificateStatus((int) $appointment['appointment_id']);
-            $canUploadCertificate = precanaCertificateOpen($appointment) && in_array($precanaCertificate['status'], ['missing', 'rejected'], true);
+            $canUploadCertificate = !$isRegisteredBooking && precanaCertificateOpen($appointment) && in_array($precanaCertificate['status'], ['missing', 'rejected'], true);
             $documents = array_values(array_filter($documents, static fn(array $d): bool => !precanaIsCertificateLabel($d['requirement_label']))); ?>
             <h4 style="margin-bottom:4px;"><?= e(PRECANA_CERTIFICATE_LABEL) ?></h4>
             <p class="helper-text" style="margin-top:0;">Upload it after you attend your Pre-Cana seminar. It is not needed for approval, but the Parish Office needs it before your Wedding is confirmed.</p>
@@ -353,7 +377,7 @@ include __DIR__ . '/includes/header.php';
                 <div class="flex gap-2" style="margin-top:8px; flex-wrap:wrap;">
                   <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="<?= url('document.php?id=' . (int) $document['document_id']) ?>">View Document</a>
                 </div>
-                <?php if ($docStatus === 'rejected' && (int) $appointment['status_id'] === 1): ?>
+                <?php if (!$isRegisteredBooking && $docStatus === 'rejected' && (int) $appointment['status_id'] === 1): ?>
                   <?php $replacementLabel = $document['requirement_label'] ?: $document['file_name']; ?>
                   <?php renderSupportingDocumentCards([$replacementLabel], [$replacementLabel => $document], 'guest_appointment', (int) $appointment['appointment_id']); ?>
                 <?php elseif ($docStatus === 'rejected' && (int) $appointment['status_id'] === 3): ?>
@@ -372,7 +396,7 @@ include __DIR__ . '/includes/header.php';
       <?php if ($appointment['cancelled_reason']): ?><p><strong>Cancellation Reason:</strong> <?= e($appointment['cancelled_reason']) ?></p><?php endif; ?>
       <?php if (!empty($appointment['remarks'])): ?><p><strong>Remarks / Details:</strong> <?= nl2br(e($appointment['remarks'])) ?></p><?php endif; ?>
 
-      <?php if (requirementsReviewAvailable() && ($appointment['requirements_review_status'] ?? null) !== null && (int) $appointment['status_id'] === 1):
+      <?php if (!$isRegisteredBooking && requirementsReviewAvailable() && ($appointment['requirements_review_status'] ?? null) !== null && (int) $appointment['status_id'] === 1):
         $guestReviewItems = requirementsReviewItems((int) $appointment['appointment_id']);
         $guestReviewState = requirementsReviewState($appointment['requirements_review_status'], requirementsReviewCounts($guestReviewItems));
         $guestStillNeedsRevision = array_values(array_filter($guestReviewItems, static fn(array $i): bool => $i['review_status'] === 'rejected'));

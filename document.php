@@ -68,10 +68,19 @@ if (!$authorized && $document && $document['appointment_id'] === null && $docume
     $authorized = (bool) ($draft ?? null);
 }
 if (!$authorized && !$user) {
-    $guest = $_SESSION['guest_status_verification'] ?? null;
-    $authorized = $guest
-        && (int) ($guest['expires_at'] ?? 0) >= time()
-        && (int) ($guest['appointment_id'] ?? 0) === (int) $document['appointment_id'];
+    // A guest verified on status.php, or a registered Parishioner's booking looked up
+    // there (view-only: status_view_verification is honored here, for viewing, and
+    // nowhere that changes a booking). Both are scoped to one appointment and expire.
+    foreach (['guest_status_verification', 'status_view_verification'] as $sessionKey) {
+        $verified = $_SESSION[$sessionKey] ?? null;
+        if (is_array($verified)
+            && (int) ($verified['expires_at'] ?? 0) >= time()
+            && $document['appointment_id'] !== null
+            && (int) ($verified['appointment_id'] ?? 0) === (int) $document['appointment_id']) {
+            $authorized = true;
+            break;
+        }
+    }
 }
 if (!$authorized) {
     http_response_code(403);
