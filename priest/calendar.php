@@ -120,7 +120,7 @@ $calendarAppointments = [];
 $upcomingPagination = paginate(0, 10);
 if ($priestId) {
     $stmt = db()->prepare(
-        "SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.guest_name, a.location_address,
+        "SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.guest_name, a.guest_reference, a.location_address,
                 s.service_name, s.category, st.status_name, u.firstname, u.lastname,
                 p.title AS priest_title, p.full_name AS priest_name
          FROM appointments a
@@ -134,13 +134,12 @@ if ($priestId) {
     );
     $stmt->execute([$priestId]);
 
-    // Church-held sacraments happen at the parish; everything else (House
-    // Blessing, Special Mass Request, ...) uses the address saved with the
-    // booking (appointments.location_address), if any.
+    // Church-held sacraments happen at the parish; House Blessing, Wake Mass,
+    // Special Mass Request and Anointing use the service address typed on their
+    // booking form (appointmentServiceAddress()), never a residential address.
     $appointmentLocation = function (array $a) use ($parishChurch): string {
         if (in_array($a['category'], ['Wedding', 'Baptism', 'Funeral', 'Confirmation'], true)) return $parishChurch;
-        $address = trim((string) ($a['location_address'] ?? ''));
-        return $address !== '' ? $address : 'Location not provided';
+        return appointmentServiceAddress($a) ?? 'Location not provided';
     };
 
     foreach ($stmt->fetchAll() as $a) {
@@ -154,6 +153,7 @@ if ($priestId) {
             'time' => $time,
             'details' => [
                 'service' => $a['service_name'],
+                'reference' => $a['guest_reference'] ?: null,
                 'parishioner' => $name ?: '—',
                 'date' => formatDate($a['appointment_date']),
                 'time' => $timeLabel($time) ?: '—',
@@ -290,6 +290,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (!d) return;
       showDetails('Appointment Details', [
         ['Service', d.service],
+        ['Booking Reference', d.reference],
         ['Parishioner', d.parishioner],
         ['Date', d.date],
         ['Time', d.time],

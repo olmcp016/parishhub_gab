@@ -134,10 +134,55 @@ for ($massDay = clone $massStart; $massDay <= $massEnd; $massDay->modify('+1 day
 $locations = db()->query('SELECT * FROM locations WHERE is_active = TRUE ORDER BY name')->fetchAll();
 $priests = db()->query("SELECT * FROM priests WHERE status = 'active' ORDER BY full_name")->fetchAll();
 
-// This priest-linked admin's own confirmed (status 5) sacrament appointments — Baptisms, Weddings,
-// Funerals, and Blessings — shown on the calendar in the same blue as their assigned Masses above.
+// Confirmed (status 5) appointments, in the appointment blue. The Secretary and
+// Admin see every confirmed parish service, whichever priest serves it; Mass
+// Intentions, Donations and Certificate Requests are not priest services and
+// stay off the calendar. The Treasurer keeps the view below (own appointments only).
 $myAppointmentEvents = [];
-if ($priestId) {
+$parishChurch = 'Our Lady of Mt. Carmel Parish';
+if (in_array(currentUser()['role_name'] ?? '', ['Secretary', 'Admin'], true)) {
+    // to_jsonb(): outside_priest_name may not exist on an older schema; this reads it without altering the table.
+    $stmt = db()->query(
+        "SELECT a.appointment_date, a.appointment_time, a.guest_name, a.guest_reference, a.location_address,
+                s.service_name, s.category, st.status_name, p.title AS priest_title, p.full_name AS priest_name,
+                to_jsonb(a) ->> 'outside_priest_name' AS outside_priest_name,
+                COALESCE(u.firstname || ' ' || u.lastname, '') AS parishioner_name
+         FROM appointments a
+         JOIN services s ON a.service_id = s.service_id
+         JOIN appointment_status st ON a.status_id = st.status_id
+         LEFT JOIN priests p ON a.priest_id = p.priest_id
+         LEFT JOIN parishioners par ON a.parishioner_id = par.parishioner_id
+         LEFT JOIN users u ON par.user_id = u.user_id
+         WHERE a.status_id = 5 AND a.appointment_date IS NOT NULL
+           AND s.category NOT IN ('Mass Intention', 'Donation', 'Certificate')
+         ORDER BY a.appointment_date, a.appointment_time, a.appointment_id"
+    );
+    foreach ($stmt->fetchAll() as $a) {
+        $time = $a['appointment_time'] ? substr($a['appointment_time'], 0, 5) : '';
+        $priestName = $a['priest_name'] ? trim(($a['priest_title'] ?? '') . ' ' . $a['priest_name'])
+            : (trim((string) ($a['outside_priest_name'] ?? '')) !== '' ? $a['outside_priest_name'] . ' (Preferred Priest)' : 'Not assigned');
+        // Same location rule as the Priest calendar: church-held sacraments at the parish,
+        // the booking's service address for the services that ask for one.
+        $location = in_array($a['category'], ['Wedding', 'Baptism', 'Funeral', 'Confirmation'], true)
+            ? $parishChurch
+            : (appointmentServiceAddress($a) ?? (in_array($a['category'], ['Blessing', 'Wake', 'Anointing'], true) ? 'Location not provided' : null));
+        $myAppointmentEvents[] = [
+            'date' => $a['appointment_date'],
+            'title' => $a['service_name'] . ($time ? ' (' . date('g:i A', strtotime($time)) . ')' : ''),
+            'time' => $time,
+            'details' => [
+                'service' => $a['service_name'],
+                'reference' => $a['guest_reference'] ?: null,
+                'parishioner' => $a['guest_name'] ?: ($a['parishioner_name'] ?: '—'),
+                'date' => formatDate($a['appointment_date']),
+                'time' => $time ? date('g:i A', strtotime($time)) : '—',
+                'priest' => $priestName,
+                'status' => $a['status_name'],
+                'location' => $location,
+            ],
+        ];
+    }
+} elseif ($priestId) {
     $stmt = db()->prepare(
         "SELECT a.appointment_date, a.appointment_time, a.guest_name, s.service_name,
                 COALESCE(u.firstname || ' ' || u.lastname, '') AS parishioner_name
@@ -211,7 +256,9 @@ include __DIR__ . '/../includes/dash-start.php';
     <span><i class="pcal-dot pcal-dot-today"></i> Today</span>
     <span><i class="pcal-dot pcal-dot-event"></i> Parish Events</span>
     <span><i class="pcal-dot" style="background:#2d7a46;border-radius:50%;display:inline-block;width:10px;height:10px;vertical-align:middle;"></i> General Parish Masses</span>
-    <?php if ($priestId): ?>
+    <?php if (in_array(currentUser()['role_name'] ?? '', ['Secretary', 'Admin'], true)): ?>
+      <span><i class="pcal-dot" style="background:#2457a6;border-radius:50%;display:inline-block;width:10px;height:10px;vertical-align:middle;"></i> Confirmed Appointment<?= $priestId ? ' / My Assigned Mass' : '' ?></span>
+    <?php elseif ($priestId): ?>
       <span><i class="pcal-dot" style="background:#2457a6;border-radius:50%;display:inline-block;width:10px;height:10px;vertical-align:middle;"></i> My Assigned Schedule / Mass</span>
     <?php endif; ?>
     <span><i class="pcal-dot pcal-dot-blocked"></i> Blocked Dates</span>
@@ -459,7 +506,8 @@ document.addEventListener('DOMContentLoaded', function () {
       if (!d) return;
       var list = document.getElementById('myAppointmentDetailList');
       list.innerHTML = '';
-      [['Service', d.service], ['Parishioner', d.parishioner], ['Date', d.date], ['Time', d.time]].forEach(function (row) {
+      [['Service', d.service], ['Booking Reference', d.reference], ['Parishioner', d.parishioner], ['Date', d.date], ['Time', d.time],
+       ['Priest', d.priest], ['Status', d.status], ['Location', d.location]].forEach(function (row) {
         if (row[1] == null || row[1] === '') return;
         var dt = document.createElement('dt'); dt.textContent = row[0];
         var dd = document.createElement('dd'); dd.textContent = row[1];

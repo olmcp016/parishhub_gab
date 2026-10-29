@@ -976,6 +976,20 @@ function isOutsidePriestEligibleCategory(?string $category): bool
 }
 
 /**
+ * The service address typed on the booking form (appointments.location_address),
+ * for the only services whose form asks for one: House Blessing ('Blessing'),
+ * Wake Mass and Special Mass Request (both 'Wake'), and Anointing of the Sick.
+ * NULL for every other service or a blank value — never a residential address,
+ * and never the parish church (callers keep their own church-location rule).
+ */
+function appointmentServiceAddress(array $appointment): ?string
+{
+    if (!in_array($appointment['category'] ?? '', ['Blessing', 'Wake', 'Anointing'], true)) return null;
+    $address = trim((string) ($appointment['location_address'] ?? ''));
+    return $address !== '' ? $address : null;
+}
+
+/**
  * Ensures the "Certificate" category and "Certificate Request" service exist in the database.
  * Auto-seeds if missing.
  */
