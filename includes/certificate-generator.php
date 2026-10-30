@@ -77,9 +77,11 @@ function certificateFormDefinition(string $type): array
             'license_issued_at' => 'License Issued At',
             'license_issued_date' => 'License Issued Date',
             'certificate_dated' => 'Dated',
+            'parish_priest' => 'Parish Priest (Signatory)',
         ]],
         'Confirmation' => ['title' => 'Certificate of Confirmation', 'fields' => [
             'parish_of' => 'Parish Of',
+            'parish_place' => 'Parish Address',
             'confirmed_name' => 'Confirmed Person',
             'father_name' => 'Father',
             'mother_name' => 'Mother',
@@ -88,6 +90,7 @@ function certificateFormDefinition(string $type): array
             'sponsor_1' => 'Sponsor 1',
             'sponsor_2' => 'Sponsor 2',
             'given_date' => 'Given at the Parish Rectory (Date)',
+            'parish_priest' => 'Parish Priest (Signatory)',
         ]],
         'Death' => ['title' => 'Certificate of Death', 'fields' => [
             'deceased_name' => 'Full Name of the Deceased',
@@ -104,20 +107,81 @@ function certificateFormDefinition(string $type): array
             'cause_of_death' => 'Cause of Death',
             'sacraments_received' => 'Sacraments Received Before Death',
             'parish_name' => 'Parish (seal)',
+            'parish_place' => 'Parish Address',
             'certificate_dated' => 'Dated',
+            'parish_priest' => 'Parish Priest (Signatory)',
         ]],
     };
 }
 
+/** Checked only when generating the final PDF; Save Draft never requires these. */
 function certificateRequiredFields(string $type): array
 {
     return match ($type) {
-        'Baptism' => ['parish_of', 'child_name', 'father_name', 'mother_name', 'birth_date', 'baptism_date', 'officiating_priest'],
-        'Marriage' => ['church_of', 'groom_name', 'bride_name', 'marriage_date', 'officiating_priest'],
-        'Confirmation' => ['parish_of', 'confirmed_name', 'confirmation_date', 'officiating_bishop'],
-        'Death' => ['deceased_name', 'death_date', 'cause_of_death'],
+        'Baptism' => ['parish_of', 'child_name', 'father_name', 'mother_name', 'birth_date', 'baptism_date', 'officiating_priest', 'parish_priest'],
+        'Marriage' => ['church_of', 'groom_name', 'bride_name', 'marriage_date', 'officiating_priest', 'parish_priest'],
+        'Confirmation' => ['parish_of', 'confirmed_name', 'confirmation_date', 'officiating_bishop', 'parish_priest'],
+        'Death' => ['deceased_name', 'death_date', 'cause_of_death', 'parish_priest'],
         default => [],
     };
+}
+
+/** A value the certificate cannot print in full (e.g. a signatory too long for its line): generation stops. */
+class CertificateLayoutException extends InvalidArgumentException {}
+
+/** Smallest size a signatory name may print at; below this it wraps or is refused, never shortened. */
+const CERTIFICATE_SIGNATORY_MIN_PT = 9.0;
+
+/**
+ * How a signatory name fits the clear zone measured on the template around the
+ * signature line's centre (it may run a little past the drawn line, never into an
+ * ornament): one line, largest size first down to CERTIFICATE_SIGNATORY_MIN_PT,
+ * else — where the template leaves room for a handwritten signature — two lines
+ * broken at a word. Never shortened: when nothing fits, a CertificateLayoutException
+ * is thrown. $text is in the PDF's Windows-1252 encoding; $name is the UTF-8 name.
+ *
+ * @return array{size: float, lines: string[], width: float}
+ */
+function certificateSignatoryLayout(FPDF $pdf, string $family, string $text, string $name, float $zoneWidth, float $maxPt, bool $allowTwoLines): array
+{
+    for ($size = $maxPt; $size >= CERTIFICATE_SIGNATORY_MIN_PT; $size -= 0.25) {
+        $pdf->SetFont($family, 'B', $size);
+        if ($pdf->GetStringWidth($text) <= $zoneWidth - 2.0) return ['size' => $size, 'lines' => [$text], 'width' => $zoneWidth];
+    }
+    $words = explode(' ', $text);
+    if ($allowTwoLines && count($words) > 1) {
+        for ($size = $maxPt; $size >= CERTIFICATE_SIGNATORY_MIN_PT; $size -= 0.25) {
+            $pdf->SetFont($family, 'B', $size);
+            $best = null;
+            for ($split = 1; $split < count($words); $split++) {
+                $lines = [implode(' ', array_slice($words, 0, $split)), implode(' ', array_slice($words, $split))];
+                $widest = max($pdf->GetStringWidth($lines[0]), $pdf->GetStringWidth($lines[1]));
+                if ($widest <= $zoneWidth - 2.0 && ($best === null || $widest < $best[0])) $best = [$widest, $lines];
+            }
+            if ($best) return ['size' => $size, 'lines' => $best[1], 'width' => $zoneWidth];
+        }
+    }
+    throw new CertificateLayoutException('The Parish Priest name "' . $name . '" is too long to print in full on this certificate\'s signature line. Check the priest\'s name in Priest Management, or choose another signatory.');
+}
+
+/**
+ * Prints a signatory name centred on $centerX above the signature line at $lineY
+ * (mm), using certificateSignatoryLayout(); a two-line name grows upward so the
+ * last line still rests on the signature line.
+ */
+function certificateDrawSignatory(FPDF $pdf, string $name, string $family, float $centerX, float $lineY, float $zoneWidth, float $maxPt, bool $allowTwoLines, float $lift, float $cellHeight): void
+{
+    $name = mb_strtoupper(trim($name), 'UTF-8');
+    if ($name === '') return;
+    $text = certx_txt($name);
+    $layout = certificateSignatoryLayout($pdf, $family, $text, $name, $zoneWidth, $maxPt, $allowTwoLines);
+    $pdf->SetFont($family, 'B', $layout['size']);
+    $lineGap = $layout['size'] * 0.3528 * 1.2;
+    $count = count($layout['lines']);
+    foreach ($layout['lines'] as $i => $line) {
+        $pdf->SetXY($centerX - $layout['width'] / 2, $lineY - $lift - ($count - 1 - $i) * $lineGap);
+        $pdf->Cell($layout['width'], $cellHeight, $line, 0, 0, 'C');
+    }
 }
 
 /** @return string[] */
@@ -283,15 +347,17 @@ function certificateBaptismPdf(array $data): string
     $drawField('', $v('parish_of'), 64.0, 58.0, 110.0, 12.0, 'B', 'C');
 
     // 3. Child's Full Name (Centered line under "of")
-    $drawField('', $v('child_name'), 35.0, 114.0, 140.0, 14.5, 'B', 'C');
+    // Person names and the signatory print upper-cased (certx_upper keeps Ñ); Times
+    // matches this template's serif heading and the labels drawn below.
+    $drawField('', certx_upper($v('child_name')), 35.0, 114.0, 140.0, 14.5, 'B', 'C');
 
     // 4. Parents (Two clean columns)
     $leftX = 22.0;
     $rightX = 110.0;
     $colW = 78.0;
 
-    $drawField('Father', $v('father_name'), $leftX, 131.0, $colW, 11.5, 'B');
-    $drawField('Mother', $v('mother_name'), $rightX, 131.0, $colW, 11.5, 'B');
+    $drawField('Father', certx_upper($v('father_name')), $leftX, 131.0, $colW, 11.5, 'B');
+    $drawField('Mother', certx_upper($v('mother_name')), $rightX, 131.0, $colW, 11.5, 'B');
 
     // 5. Birth Details
     $drawField('Date of Birth', certificatePdfHumanDate($v('birth_date')), $leftX, 148.5, $colW, 11.0, 'B');
@@ -309,8 +375,8 @@ function certificateBaptismPdf(array $data): string
     $pdf->SetTextColor(0, 0, 0);
 
     // Godparents Lines
-    $drawField('', $v('godparent_1'), $leftX, 189.0, $colW, 11.0, 'B');
-    $drawField('', $v('godparent_2'), $rightX, 189.0, $colW, 11.0, 'B');
+    $drawField('', certx_upper($v('godparent_1')), $leftX, 189.0, $colW, 11.0, 'B');
+    $drawField('', certx_upper($v('godparent_2')), $rightX, 189.0, $colW, 11.0, 'B');
 
     // Extra blank godparent lines (for canonical format)
     $pdf->SetLineWidth(0.35);
@@ -321,8 +387,13 @@ function certificateBaptismPdf(array $data): string
     $centerLineW = 86.0;
     $centerX = ($pageW - $centerLineW) / 2;
 
-    $drawField('Officiating Priest', $v('officiating_priest'), $centerX, 222.0, $centerLineW, 11.5, 'B');
-    $drawField('Parish Priest', $v('parish_priest'), $centerX, 243.0, $centerLineW, 11.5, 'B');
+    $drawField('Officiating Priest', certx_upper($v('officiating_priest')), $centerX, 222.0, $centerLineW, 11.5, 'B');
+    // Signatory: the line and label as before; the name is laid out in full (never
+    // shortened), centred on the line. Clear zone measured on the template: 160mm
+    // wide around x=105mm. One line only — two would leave under 7mm for the
+    // handwritten signature below the Officiating Priest label.
+    $drawField('Parish Priest', '', $centerX, 243.0, $centerLineW, 11.5, 'B');
+    certificateDrawSignatory($pdf, $v('parish_priest'), 'Times', $pageW / 2, 243.0, 160.0, 11.5, false, 5.2, 5.0);
 
     // 9. Canonical Registry (Bottom-Left)
     $regX = 22.0;
@@ -463,17 +534,24 @@ function certx_begin(string $templateFile, float $pageW, int $imgW, int $imgH, s
     return [$pdf, $pageW / $imgW];
 }
 
+/** A person's name as printed on a certificate: upper-cased, UTF-8 safe (keeps Ñ). */
+function certx_upper($s): string
+{
+    return mb_strtoupper(trim((string) $s), 'UTF-8');
+}
+
 /**
- * Shrink font until $text fits $width using Times Bold. Returns the fitted text.
+ * Shrink font until $text fits $width in the certificate's bold face ($family
+ * matches the template's own printed lettering). Returns the fitted text.
  */
-function certx_fit($pdf, string $text, float $width, float $maxPt, float $minPt = 6.5): string
+function certx_fit($pdf, string $text, float $width, float $maxPt, float $minPt = 6.5, string $family = 'Times'): string
 {
     $avail = $width - 2.0;
     for ($size = $maxPt; $size >= $minPt; $size -= 0.25) {
-        $pdf->SetFont('Times', 'B', $size);
+        $pdf->SetFont($family, 'B', $size);
         if ($pdf->GetStringWidth($text) <= $avail) { return $text; }
     }
-    $pdf->SetFont('Times', 'B', $minPt);
+    $pdf->SetFont($family, 'B', $minPt);
     while ($text !== '' && $pdf->GetStringWidth($text . '...') > $avail) {
         $text = substr($text, 0, -1);
     }
@@ -492,10 +570,22 @@ function certx_field($pdf, array $style, float $k, array $box, $text, float $max
 
     $text = certx_txt($text);
     if ($text === '') { return; }
-    $text = certx_fit($pdf, $text, $x2 - $x1, $maxPt);
+    $text = certx_fit($pdf, $text, $x2 - $x1, $maxPt, 6.5, $style['font'] ?? 'Times');
     $pdf->SetTextColor($style['text'][0], $style['text'][1], $style['text'][2]);
     $pdf->SetXY($x1, $y - CERTX_LIFT);
     $pdf->Cell($x2 - $x1, CERTX_CELL_H, $text, 0, 0, 'C');
+}
+
+/**
+ * The signature line ($box, template pixels) and the signatory name centred on
+ * $centerPx within a clear zone $zonePx wide, both measured on the template (see
+ * certificateDrawSignatory()). Never shortened.
+ */
+function certx_signatory($pdf, array $style, float $k, array $box, string $name, float $maxPt, float $centerPx, float $zonePx, bool $allowTwoLines): void
+{
+    certx_field($pdf, $style, $k, $box, '');
+    $pdf->SetTextColor($style['text'][0], $style['text'][1], $style['text'][2]);
+    certificateDrawSignatory($pdf, $name, $style['font'] ?? 'Times', $centerPx * $k, $box[2] * $k, $zonePx * $k, $maxPt, $allowTwoLines, CERTX_LIFT, CERTX_CELL_H);
 }
 
 /** Vector "[   ]" / "[ X ]" box. */
@@ -528,7 +618,8 @@ function certx_finish($pdf, $dest, string $filename)
 
 function certificateConfirmationPdf(array $data, string $dest = 'S')
 {
-    $style = ['line' => [185, 25, 25], 'text' => [25, 25, 25], 'lw' => 0.25];
+    // Values in Helvetica Bold, matching the template's printed sans-serif labels.
+    $style = ['line' => [185, 25, 25], 'text' => [25, 25, 25], 'lw' => 0.25, 'font' => 'Helvetica'];
     [$pdf, $k] = certx_begin('Certification of Confirmation Template.jpg', 139.7, 1245, 1937, 'Certificate of Confirmation');
 
     $F = [
@@ -547,20 +638,24 @@ function certificateConfirmationPdf(array $data, string $dest = 'S')
 
     certx_field($pdf, $style, $k, $F['parish'],   certx_get($data, ['parish_of', 'parish_name', 'parish']), 12);
     certx_field($pdf, $style, $k, $F['place'],    certx_get($data, ['parish_place', 'parish_address', 'parish_location']), 11);
-    certx_field($pdf, $style, $k, $F['name'],     certx_get($data, ['confirmed_name', 'confirmand_name', 'full_name', 'name']), 13);
-    certx_field($pdf, $style, $k, $F['father'],   certx_get($data, ['father_name', 'father']), 11);
-    certx_field($pdf, $style, $k, $F['mother'],   certx_get($data, ['mother_name', 'mother']), 11);
+    certx_field($pdf, $style, $k, $F['name'],     certx_upper(certx_get($data, ['confirmed_name', 'confirmand_name', 'full_name', 'name'])), 13);
+    certx_field($pdf, $style, $k, $F['father'],   certx_upper(certx_get($data, ['father_name', 'father'])), 11);
+    certx_field($pdf, $style, $k, $F['mother'],   certx_upper(certx_get($data, ['mother_name', 'mother'])), 11);
     certx_field($pdf, $style, $k, $F['cDay'],     $conf['day'], 11);
     certx_field($pdf, $style, $k, $F['cMonth'],   $conf['month'], 11);
     certx_field($pdf, $style, $k, $F['cYear'],    $conf['year'], 11);
-    certx_field($pdf, $style, $k, $F['minister'], certx_get($data, ['officiating_bishop', 'minister', 'confirming_prelate', 'bishop', 'confirmed_by']), 11);
-    certx_field($pdf, $style, $k, $F['sponsor1'], certx_get($data, ['sponsor_1', 'sponsor1', 'sponsor_one']), 11);
-    certx_field($pdf, $style, $k, $F['sponsor2'], certx_get($data, ['sponsor_2', 'sponsor2', 'sponsor_two']), 11);
+    certx_field($pdf, $style, $k, $F['minister'], certx_upper(certx_get($data, ['officiating_bishop', 'minister', 'confirming_prelate', 'bishop', 'confirmed_by'])), 11);
+    certx_field($pdf, $style, $k, $F['sponsor1'], certx_upper(certx_get($data, ['sponsor_1', 'sponsor1', 'sponsor_one'])), 11);
+    certx_field($pdf, $style, $k, $F['sponsor2'], certx_upper(certx_get($data, ['sponsor_2', 'sponsor2', 'sponsor_two'])), 11);
     certx_field($pdf, $style, $k, $F['register'], certx_get($data, ['register_no', 'book_no', 'line_no', 'reg_no']), 11);
     certx_field($pdf, $style, $k, $F['gDay'],     $given['day'], 11);
     certx_field($pdf, $style, $k, $F['gMonth'],   $given['month'], 11);
     certx_field($pdf, $style, $k, $F['gYear'],    $given['year'], 11);
-    certx_field($pdf, $style, $k, $F['priest'],   certx_get($data, ['priest', 'parish_priest', 'priest_name']), 11);
+    // Signatory centred over PARISH PRIEST (label centre x=828). Clear zone measured on the
+    // template: 297px right of centre to the corner ornament (15px margin kept) -> 564px.
+    // One line only: 13.8mm above the line to the "Given at" row leaves no room for two
+    // lines plus a handwritten signature.
+    certx_signatory($pdf, $style, $k, $F['priest'], certx_get($data, ['priest', 'parish_priest', 'priest_name']), 11, 829, 564, false);
 
     return certx_finish($pdf, $dest, 'Certificate of Confirmation.pdf');
 }
@@ -571,7 +666,8 @@ function certificateConfirmationPdf(array $data, string $dest = 'S')
 
 function certificateDeathPdf(array $data, string $dest = 'S')
 {
-    $style = ['line' => [20, 20, 20], 'text' => [0, 0, 0], 'lw' => 0.25];
+    // Values in Helvetica Bold, matching the template's printed sans-serif text.
+    $style = ['line' => [20, 20, 20], 'text' => [0, 0, 0], 'lw' => 0.25, 'font' => 'Helvetica'];
     [$pdf, $k] = certx_begin('Cetficate of Death Template.jpg', 139.7, 1302, 2048, 'Certificate of Death');
 
     $F = [
@@ -613,23 +709,24 @@ function certificateDeathPdf(array $data, string $dest = 'S')
 
     $sacr = $data['sacraments_received'] ?? ($data['received_sacraments'] ?? ($data['sacraments'] ?? null));
     if (is_string($sacr)) {
-        $sacr = in_array(strtolower(trim($sacr)), ['1', 'yes', 'true', 'y', 'received'], true) ? true : (in_array(strtolower(trim($sacr)), ['0', 'no', 'false', 'n', 'none'], true) ? false : null);
+        // 'received' / 'not_received' are the values the certificate form saves.
+        $sacr = in_array(strtolower(trim($sacr)), ['1', 'yes', 'true', 'y', 'received'], true) ? true : (in_array(strtolower(trim($sacr)), ['0', 'no', 'false', 'n', 'none', 'not_received'], true) ? false : null);
     }
 
     $died   = certx_dateParts(certx_get($data, ['death_date', 'date_of_death', 'died_on']));
     $buried = certx_dateParts(certx_get($data, ['burial_date', 'date_of_burial', 'buried_on']));
     $sealed = certx_dateParts(certx_get($data, ['certificate_dated', 'issued_date', 'date_issued', 'given_date'], date('Y-m-d')));
 
-    certx_field($pdf, $style, $k, $F['name'],  certx_get($data, ['deceased_name', 'full_name', 'name']), 13);
+    certx_field($pdf, $style, $k, $F['name'],  certx_upper(certx_get($data, ['deceased_name', 'full_name', 'name'])), 13);
     certx_field($pdf, $style, $k, $F['brgy'],  certx_get($data, ['barangay', 'brgy']), 11);
     certx_field($pdf, $style, $k, $F['muni'],  certx_get($data, ['municipality', 'town', 'city']), 11);
     certx_field($pdf, $style, $k, $F['prov'],  certx_get($data, ['province']), 11);
 
     certx_checkbox($pdf, $style, $k, $B['single'],  $isSingle);
     certx_checkbox($pdf, $style, $k, $B['married'], !$isSingle);
-    certx_field($pdf, $style, $k, $F['father'], $isSingle ? $father : '', 10.5);
-    certx_field($pdf, $style, $k, $F['mother'], $isSingle ? $mother : '', 10.5);
-    certx_field($pdf, $style, $k, $F['spouse'], $isSingle ? '' : $spouse, 10.5);
+    certx_field($pdf, $style, $k, $F['father'], $isSingle ? certx_upper($father) : '', 10.5);
+    certx_field($pdf, $style, $k, $F['mother'], $isSingle ? certx_upper($mother) : '', 10.5);
+    certx_field($pdf, $style, $k, $F['spouse'], $isSingle ? '' : certx_upper($spouse), 10.5);
 
     certx_field($pdf, $style, $k, $F['dDay'],   $died['day'], 10.5);
     certx_field($pdf, $style, $k, $F['dMonth'], $died['month'], 10.5);
@@ -655,7 +752,12 @@ function certificateDeathPdf(array $data, string $dest = 'S')
     certx_field($pdf, $style, $k, $F['sDay'],   $sealed['day'], 10.5);
     certx_field($pdf, $style, $k, $F['sMonth'], $sealed['month'], 10.5);
     certx_field($pdf, $style, $k, $F['sYear'],  $sealed['year'], 10.5);
-    certx_field($pdf, $style, $k, $F['priest'], certx_get($data, ['priest', 'parish_priest', 'priest_name']), 10.5);
+    // Signatory centred over "Catholic Priest" (label centre x=984). The drawn line is short,
+    // so the name may use the clear zone measured on the template: 231px right of centre to
+    // the corner ornament (8px margin kept) -> 446px, enough for the current Parish Priest on
+    // one line. Two lines allowed for longer names: 21mm is clear above the line, leaving
+    // room for a handwritten signature over a two-line name.
+    certx_signatory($pdf, $style, $k, $F['priest'], certx_get($data, ['priest', 'parish_priest', 'priest_name']), 10.5, 984, 446, true);
 
     return certx_finish($pdf, $dest, 'Certificate of Death.pdf');
 }
@@ -666,7 +768,8 @@ function certificateDeathPdf(array $data, string $dest = 'S')
 
 function certificateMarriagePdf(array $data, string $dest = 'S')
 {
-    $style = ['line' => [150, 20, 25], 'text' => [35, 10, 10], 'lw' => 0.25];
+    // Values in Helvetica Bold, matching the template's printed sans-serif field labels.
+    $style = ['line' => [150, 20, 25], 'text' => [35, 10, 10], 'lw' => 0.25, 'font' => 'Helvetica'];
     [$pdf, $k] = certx_begin('Certificate of Marriage Template.jpg', 215.9, 1444, 1912, 'Certificate of Marriage');
 
     $F = [
@@ -697,19 +800,19 @@ function certificateMarriagePdf(array $data, string $dest = 'S')
     certx_field($pdf, $style, $k, $F['prov'],   certx_get($data, ['province']), 11);
 
     foreach (['g' => 'groom', 'b' => 'bride'] as $p => $who) {
-        certx_field($pdf, $style, $k, $F[$p . 'Name'], certx_get($data, [$who . '_name', $who]), 12.5);
+        certx_field($pdf, $style, $k, $F[$p . 'Name'], certx_upper(certx_get($data, [$who . '_name', $who])), 12.5);
         certx_field($pdf, $style, $k, $F[$p . 'Age'],  certx_get($data, [$who . '_age']), 11);
         certx_field($pdf, $style, $k, $F[$p . 'Nat'],  certx_get($data, [$who . '_nationality'], ''), 11);
         certx_field($pdf, $style, $k, $F[$p . 'Res'],  certx_get($data, [$who . '_residence', $who . '_address']), 11);
-        certx_field($pdf, $style, $k, $F[$p . 'Fath'], certx_get($data, [$who . '_father', $who . '_father_name']), 11);
-        certx_field($pdf, $style, $k, $F[$p . 'Moth'], certx_get($data, [$who . '_mother', $who . '_mother_name']), 11);
+        certx_field($pdf, $style, $k, $F[$p . 'Fath'], certx_upper(certx_get($data, [$who . '_father', $who . '_father_name'])), 11);
+        certx_field($pdf, $style, $k, $F[$p . 'Moth'], certx_upper(certx_get($data, [$who . '_mother', $who . '_mother_name'])), 11);
     }
 
     certx_field($pdf, $style, $k, $F['mDay'],   $m['day'], 11);
     certx_field($pdf, $style, $k, $F['mMonth'], $m['month'], 11);
     certx_field($pdf, $style, $k, $F['mYear'],  $m['year'], 11);
-    certx_field($pdf, $style, $k, $F['rev'],    certx_get($data, ['officiating_priest', 'officiant', 'solemnized_by', 'minister', 'rev']), 11);
-    certx_field($pdf, $style, $k, $F['wit'],    certx_list($data['witness_name'] ?? ($data['witnesses'] ?? certx_get($data, ['witness', 'presence_of']))), 11);
+    certx_field($pdf, $style, $k, $F['rev'],    certx_upper(certx_get($data, ['officiating_priest', 'officiant', 'solemnized_by', 'minister', 'rev'])), 11);
+    certx_field($pdf, $style, $k, $F['wit'],    certx_upper(certx_list($data['witness_name'] ?? ($data['witnesses'] ?? certx_get($data, ['witness', 'presence_of'])))), 11);
     certx_field($pdf, $style, $k, $F['witRes'], certx_list($data['witness_residence'] ?? ($data['witnesses_residence'] ?? certx_get($data, ['witnesses_address']))), 11);
 
     certx_field($pdf, $style, $k, $F['book'],   certx_get($data, ['book_no', 'book']), 11);
@@ -720,9 +823,31 @@ function certificateMarriagePdf(array $data, string $dest = 'S')
     certx_field($pdf, $style, $k, $F['licDate'], $licMonthDay, 11);
     certx_field($pdf, $style, $k, $F['licYear'], $lic['year'], 11);
     certx_field($pdf, $style, $k, $F['dated'],  $dated, 11);
-    certx_field($pdf, $style, $k, $F['priest'], certx_get($data, ['priest', 'parish_priest', 'priest_name']), 11.5);
+    // Signatory centred over "Parish Priest" (label centre x=897). Clear zone measured on the
+    // template: 386px right of centre to the border (15px margin kept) -> 742px. Two lines
+    // allowed: 30mm is clear above the line for the handwritten signature.
+    certx_signatory($pdf, $style, $k, $F['priest'], certx_get($data, ['priest', 'parish_priest', 'priest_name']), 11.5, 897, 742, true);
 
     return certx_finish($pdf, $dest, 'Certificate of Marriage.pdf');
+}
+
+/**
+ * The certificate types on which $name cannot be printed in full as the signatory
+ * (checked when the Admin verifies a printed name, so a verified name never fails later).
+ *
+ * @return string[]
+ */
+function certificateSignatoryFitErrors(string $name): array
+{
+    $types = [];
+    foreach (CERTIFICATE_TYPES as $type) {
+        try {
+            certificatePdf($type, ['parish_priest' => $name]);
+        } catch (CertificateLayoutException $e) {
+            $types[] = $type;
+        }
+    }
+    return $types;
 }
 
 function certificatePdf(string $type, array $data): string

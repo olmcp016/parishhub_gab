@@ -747,7 +747,7 @@ function weddingKatinPdf(array $data): string
         $y += 14;
     }
 
-    weddingPdfSignature($pdf, 'REV. FR. AL JOHN A. MIÑOZA', 'Parish Priest', 60, 258, 90);
+    weddingPdfSignature($pdf, currentParishPriestSignatory(), 'Parish Priest', 60, 258, 90);
     return $pdf->Output('S');
 }
 

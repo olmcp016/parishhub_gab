@@ -1,5 +1,6 @@
 <?php
 // preview-forms.php - Public Preview of All Generated Forms & Certificates
+require_once __DIR__ . '/includes/auth.php'; // currentParishPriestSignatory() for the forms' Parish Priest line
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/wedding-forms.php';
 require_once __DIR__ . '/includes/baptism-forms.php';

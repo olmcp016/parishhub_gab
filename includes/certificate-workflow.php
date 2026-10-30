@@ -129,6 +129,30 @@ function issuedCertificateSaveFields(int $appointmentId, string $certificateType
     return (int) $stmt->fetchColumn();
 }
 
+/**
+ * The Parish Priest signatory to save with a certificate, from the form's choice
+ * and the certificate's SAVED form_data (not autofill). 'saved', or the saved
+ * priest's own id, keeps the saved snapshot exactly as it is; a different id must
+ * be an active priest with a verified printed name (admin/settings.php), which is
+ * what gets printed; '' leaves the line blank. Anything else — free text, an
+ * inactive, unknown or unverified priest — is refused ('ok' => false).
+ *
+ * @return array{ok: bool, parish_priest_id: string, parish_priest: string}
+ */
+function certificateResolveSignatory(string $posted, array $savedFormData): array
+{
+    $savedName = trim((string) ($savedFormData['parish_priest'] ?? ''));
+    $savedId = (string) ($savedFormData['parish_priest_id'] ?? '');
+    $refused = ['ok' => false, 'parish_priest_id' => '', 'parish_priest' => ''];
+    if ($posted === 'saved' || ($posted !== '' && $posted === $savedId && $savedName !== '')) {
+        return $savedName !== '' ? ['ok' => true, 'parish_priest_id' => $savedId, 'parish_priest' => $savedName] : $refused;
+    }
+    if ($posted === '') return ['ok' => true, 'parish_priest_id' => '', 'parish_priest' => ''];
+    if (!ctype_digit($posted)) return $refused;
+    $printedName = activePriestById((int) $posted) ? priestPrintedName((int) $posted) : null;
+    return $printedName !== null ? ['ok' => true, 'parish_priest_id' => $posted, 'parish_priest' => $printedName] : $refused;
+}
+
 /** Generates the PDF from the certificate's currently-saved fields and attaches it as an uploaded_document. */
 function issuedCertificateGenerate(int $appointmentId, int $actorUserId): array
 {
@@ -199,9 +223,22 @@ function certificateAutoFillFromAppointment(int $appointmentId): array
     $certType = certificateTypeForCategory((string) $a['category']);
     if (!$certType) return [];
 
-    $priestName = trim(($a['priest_title'] ?? '') . ' ' . ($a['priest_name'] ?? ''));
+    // Officiating priest: the assigned priest's verified printed name when the Admin has
+    // verified one; otherwise the existing editable pre-fill from the priest record.
+    $priestName = (!empty($a['priest_id']) ? priestPrintedName((int) $a['priest_id']) : null)
+        ?? trim(($a['priest_title'] ?? '') . ' ' . ($a['priest_name'] ?? ''));
     $parishionerName = trim(implode(' ', array_filter([$a['firstname'] ?? '', $a['middlename'] ?? '', $a['lastname'] ?? ''])));
     $parishName = 'Our Lady of Mt. Carmel Parish';
+    // The signatory defaults to the current Parish Priest's VERIFIED printed name —
+    // applied only here, when a certificate is first prepared; blank when none is
+    // verified. Once saved, the certificate keeps its own snapshot.
+    $parishPriest = currentParishPriest();
+    $parishPriestName = currentParishPriestSignatory();
+    $signatory = [
+        'parish_priest_id' => $parishPriest && $parishPriestName !== '' ? (string) $parishPriest['priest_id'] : '',
+        'parish_priest' => $parishPriestName,
+    ];
+    $parishAddress = trim((string) ($pdo->query("SELECT setting_value FROM settings WHERE setting_key = 'parish_address'")->fetchColumn() ?: ''));
 
     $forms = [];
     $fstmt = $pdo->prepare("SELECT form_type, form_data FROM generated_forms WHERE service_category = ? AND appointment_id = ?");
@@ -225,8 +262,7 @@ function certificateAutoFillFromAppointment(int $appointmentId): array
             'godparent_1' => $k['sponsor_1'] ?? '',
             'godparent_2' => $k['sponsor_2'] ?? '',
             'officiating_priest' => $priestName,
-            'parish_priest' => '',
-        ];
+        ] + $signatory;
     } elseif ($certType === 'Marriage') {
         $app = $forms['matrimony_application'] ?? [];
         $cluster = $forms['cluster_clearance'] ?? [];
@@ -252,12 +288,13 @@ function certificateAutoFillFromAppointment(int $appointmentId): array
             'license_issued_at' => '',
             'license_issued_date' => '',
             'certificate_dated' => date('Y-m-d'),
-        ];
+        ] + $signatory;
         if (!empty($app['groom_birth_date'])) $data['groom_age'] = (string) (weddingMarriageAge($app['groom_birth_date'], (string) $a['appointment_date']) ?? '');
         if (!empty($app['bride_birth_date'])) $data['bride_age'] = (string) (weddingMarriageAge($app['bride_birth_date'], (string) $a['appointment_date']) ?? '');
     } elseif ($certType === 'Confirmation') {
         $data = [
             'parish_of' => $parishName,
+            'parish_place' => $parishAddress,
             'confirmed_name' => $parishionerName,
             'father_name' => '',
             'mother_name' => '',
@@ -266,7 +303,7 @@ function certificateAutoFillFromAppointment(int $appointmentId): array
             'sponsor_1' => '',
             'sponsor_2' => '',
             'given_date' => date('Y-m-d'),
-        ];
+        ] + $signatory;
     } elseif ($certType === 'Death') {
         $k = $forms['katin_awan_paglubong'] ?? [];
         $isSingle = empty($k['asawa_bana']);
@@ -285,8 +322,9 @@ function certificateAutoFillFromAppointment(int $appointmentId): array
             'cause_of_death' => $k['unsay_namatyan'] ?? '',
             'sacraments_received' => (!empty($k['sakramento_hilog']) || !empty($k['sakramento_kumpisal'])) ? 'received' : 'not_received',
             'parish_name' => $parishName,
+            'parish_place' => $parishAddress,
             'certificate_dated' => date('Y-m-d'),
-        ];
+        ] + $signatory;
     }
 
     return $data;

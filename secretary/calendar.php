@@ -7,18 +7,9 @@ $userId = currentUser()['user_id'];
 // An Admin who is also a serving Priest (priests.user_id/email linked) sees
 // their own assigned Masses and confirmed appointments highlighted in blue,
 // same convention as the Priest Portal's own calendar (priest/calendar.php).
+// currentPriestId() already falls back to the configured current Parish Priest
+// for an unlinked Admin, and to null (no highlighting) when none is configured.
 $priestId = currentPriestId();
-if (!$priestId && (currentUser()['role_name'] ?? '') === 'Admin') {
-    try {
-        $priestId = (int) (db()->query("SELECT priest_id FROM priests WHERE full_name ILIKE '%Al John%' OR full_name ILIKE '%Minoza%' OR full_name ILIKE '%Miñoza%' OR title ILIKE '%Parish Priest%' ORDER BY priest_id ASC LIMIT 1")->fetchColumn() ?: 0) ?: null;
-        if (!$priestId) {
-            $priestId = (int) (db()->query("SELECT priest_id FROM priests WHERE status = 'active' ORDER BY priest_id ASC LIMIT 1")->fetchColumn() ?: 0) ?: null;
-        }
-        if (!$priestId) {
-            $priestId = (int) (db()->query("SELECT priest_id FROM priests ORDER BY priest_id ASC LIMIT 1")->fetchColumn() ?: 0) ?: null;
-        }
-    } catch (Throwable $e) {}
-}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifyCsrf();

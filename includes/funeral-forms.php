@@ -315,7 +315,7 @@ function funeralKatinAwanPdf(array $data): string
 
     // Row 3
     funeralPdfSignature($pdf, 'WILLIE PALAÑA', 'Cemetery Porter', 18, 256, 52);
-    funeralPdfSignature($pdf, 'REV. FR. AL JOHN A. MIÑOZA', 'Parish Priest', 110, 256, 82);
+    funeralPdfSignature($pdf, currentParishPriestSignatory(), 'Parish Priest', 110, 256, 82);
 
     return $pdf->Output('S');
 }

@@ -249,7 +249,7 @@ function baptismKatinPdf(array $data): string
     }
 
     // Parish Priest centered
-    baptismPdfSignature($pdf, 'REV. FR. AL JOHN A. MIÑOZA, SThL', 'Parish Priest', 60, 244, 90);
+    baptismPdfSignature($pdf, currentParishPriestSignatory(), 'Parish Priest', 60, 244, 90);
 
     $pdf->SetFont('Times', 'B', 7.5); $pdf->SetXY(18, 255);
     $pdf->MultiCell(116, 4, baptismPdfText('PAHINUMDOM: Isukip niining maong katin-awan ang Certificate of Live Birth sa bata - original og usa ka Xerox copy.'), 0, 'L');

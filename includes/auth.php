@@ -84,13 +84,11 @@ function requireAnyRole(array $roles): void
  * The priest_id linked to the logged-in account, or null if unlinked.
  * Matches by user_id first (the normal Priest-login link, and also how an
  * Admin who is also a serving priest gets linked — see "Link to My Admin
- * Account" on admin/priests.php). Falls back to an exact, case-insensitive
- * email match, then — because this parish has exactly one Admin and that
- * Admin is always the Parish Priest (Rev. Fr. Al John Miñoza) — to a
- * one-time name/title lookup for that specific record. Every match persists
- * the link (guarded by "no user_id yet", so it can never steal a different
- * account's existing login), so this runs the extra lookups at most once
- * ever per priest row, not on every call.
+ * Account" on admin/priests.php), then by an exact, case-insensitive email
+ * match, which is persisted. An unlinked Admin (this parish's Admin is the
+ * Parish Priest) falls back to the configured current Parish Priest
+ * (settings.parish_priest_id) — not persisted, so it follows the setting when
+ * the Parish Priest changes, and null when the setting is missing or invalid.
  */
 function currentPriestId(): ?int
 {
@@ -109,36 +107,15 @@ function currentPriestId(): ?int
         $stmt = $pdo->prepare('SELECT priest_id FROM priests WHERE LOWER(email) = LOWER(?) LIMIT 1');
         $stmt->execute([$user['email']]);
         $priestId = $stmt->fetchColumn();
+        if ($priestId) {
+            try {
+                $pdo->prepare('UPDATE priests SET user_id = ? WHERE priest_id = ?')->execute([$userId, (int) $priestId]);
+            } catch (Throwable $e) {}
+        }
     }
 
     if (!$priestId && ($user['role_name'] ?? '') === 'Admin') {
-        $stmt = $pdo->prepare(
-            "SELECT priest_id FROM priests
-             WHERE (full_name ILIKE '%Al John%' OR full_name ILIKE '%Minoza%' OR full_name ILIKE '%Miñoza%' OR full_name ILIKE '%Parish Priest%' OR title ILIKE '%Parish Priest%')
-             ORDER BY priest_id ASC LIMIT 1"
-        );
-        $stmt->execute();
-        $priestId = $stmt->fetchColumn();
-
-        if (!$priestId && !empty($user['lastname'])) {
-            $stmt = $pdo->prepare("SELECT priest_id FROM priests WHERE full_name ILIKE ? ORDER BY priest_id ASC LIMIT 1");
-            $stmt->execute(['%' . $user['lastname'] . '%']);
-            $priestId = $stmt->fetchColumn();
-        }
-
-        if (!$priestId) {
-            $priestId = $pdo->query("SELECT priest_id FROM priests WHERE status = 'active' ORDER BY priest_id ASC LIMIT 1")->fetchColumn();
-        }
-        if (!$priestId) {
-            $priestId = $pdo->query("SELECT priest_id FROM priests ORDER BY priest_id ASC LIMIT 1")->fetchColumn();
-        }
-    }
-
-    if ($priestId) {
-        $priestId = (int) $priestId;
-        try {
-            $pdo->prepare('UPDATE priests SET user_id = ? WHERE priest_id = ?')->execute([$userId, $priestId]);
-        } catch (Throwable $e) {}
+        $priestId = currentParishPriestId();
     }
 
     return $cache[$userId] = ($priestId ? (int) $priestId : null);
@@ -170,6 +147,112 @@ function guestParishionerId(): int
         $id = (int) $stmt->fetchColumn();
     }
     return $id;
+}
+
+/**
+ * The configured current Parish Priest (settings.parish_priest_id, chosen by the
+ * Admin on admin/settings.php). Null when the setting is unset, not a priest, or
+ * that priest is no longer active: callers then leave the Parish Priest line
+ * blank or treat the Admin as unlinked — never guess a priest by name.
+ *
+ * @return array{priest_id:int, title:string, full_name:string}|null
+ */
+function currentParishPriest(): ?array
+{
+    try {
+        $value = trim((string) db()->query("SELECT setting_value FROM settings WHERE setting_key = 'parish_priest_id'")->fetchColumn());
+        return ctype_digit($value) ? activePriestById((int) $value) : null;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+function currentParishPriestId(): ?int
+{
+    return currentParishPriest()['priest_id'] ?? null;
+}
+
+/** @return array{priest_id:int, title:string, full_name:string}|null — only an active priest record. */
+function activePriestById(int $priestId): ?array
+{
+    $stmt = db()->prepare("SELECT priest_id, title, full_name FROM priests WHERE priest_id = ? AND status = 'active'");
+    $stmt->execute([$priestId]);
+    $row = $stmt->fetch();
+    return $row ? ['priest_id' => (int) $row['priest_id'], 'title' => (string) $row['title'], 'full_name' => (string) $row['full_name']] : null;
+}
+
+/**
+ * Verified printed names (settings.priest_printed_names: JSON {priest_id: name}),
+ * typed and confirmed by the Admin on admin/settings.php ("Certificate Signatory
+ * Names"). Certificates and forms print only these — never a name assembled from
+ * priests.title/full_name, whose contents vary (a name in one, a designation such
+ * as "Parish Priest" in the other).
+ *
+ * @return array<int, string> priest_id => upper-case printed name
+ */
+function verifiedPriestNames(): array
+{
+    try {
+        $json = (string) db()->query("SELECT setting_value FROM settings WHERE setting_key = 'priest_printed_names'")->fetchColumn();
+    } catch (Throwable $e) {
+        return [];
+    }
+    $names = [];
+    foreach ((json_decode($json, true) ?: []) as $id => $name) {
+        if (ctype_digit((string) $id) && is_string($name) && trim($name) !== '') $names[(int) $id] = $name;
+    }
+    return $names;
+}
+
+/** A priest's verified printed name, or null when the Admin has not verified one. */
+function priestPrintedName(int $priestId): ?string
+{
+    return verifiedPriestNames()[$priestId] ?? null;
+}
+
+/**
+ * Active priests that have a verified printed name — the only ones that may be
+ * chosen as Current Parish Priest or as a certificate signatory.
+ *
+ * @return array<int, array{priest_id:int, printed_name:string}>
+ */
+function signatoryPriests(): array
+{
+    $verified = verifiedPriestNames();
+    $priests = [];
+    foreach (db()->query("SELECT priest_id FROM priests WHERE status = 'active' ORDER BY priest_id")->fetchAll() as $row) {
+        $id = (int) $row['priest_id'];
+        if (isset($verified[$id])) $priests[] = ['priest_id' => $id, 'printed_name' => $verified[$id]];
+    }
+    usort($priests, static fn(array $a, array $b): int => strcmp($a['printed_name'], $b['printed_name']));
+    return $priests;
+}
+
+/**
+ * The current Parish Priest's verified printed name, or '' when no Current Parish
+ * Priest is set or his name is not verified (the line stays blank; nothing is guessed).
+ */
+function currentParishPriestSignatory(): string
+{
+    $priest = currentParishPriest();
+    return $priest ? (priestPrintedName($priest['priest_id']) ?? '') : '';
+}
+
+/**
+ * Normalizes and checks a printed name typed by the Admin: trimmed, single-spaced,
+ * upper-cased (Ñ kept). Returns [name, null] or [null, error message].
+ *
+ * @return array{0: ?string, 1: ?string}
+ */
+function normalizePriestPrintedName(string $input): array
+{
+    $name = mb_strtoupper(trim((string) preg_replace('/\s+/u', ' ', $input)), 'UTF-8');
+    if ($name === '') return [null, 'is empty'];
+    if (mb_strlen($name) > 80) return [null, 'is longer than 80 characters'];
+    if (!preg_match("/^[\\p{L}][\\p{L}\\p{M} .,'\\-]*$/u", $name)) return [null, 'may contain only letters, spaces, periods, commas, apostrophes and hyphens'];
+    $printable = @iconv('UTF-8', 'Windows-1252', $name);
+    if ($printable === false || iconv('Windows-1252', 'UTF-8', $printable) !== $name) return [null, 'contains a character that cannot be printed on the certificates'];
+    return [$name, null];
 }
 
 /**

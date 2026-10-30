@@ -150,11 +150,42 @@ function renderCertificateEditFragment(
     $licenseFields = $officialCertType === 'Marriage' ? array_intersect_key($definition['fields'], array_flip($licenseKeys)) : [];
     $recordFields = array_diff_key($definition['fields'], $licenseFields);
 
-    $renderField = static function (string $key, string $label) use ($officialCertData, $dateKeys): void {
+    // Signatory choices: active priests with a VERIFIED printed name only (Admin →
+    // Settings → Certificate Signatory Names). A previously saved signatory that is not
+    // one of them as-is (an old free-text Baptism name, an inactive or unverified priest,
+    // or a name verified differently since) stays available as "(saved)".
+    $signatoryPriests = signatoryPriests();
+    $savedSignatoryName = trim((string) ($officialCertData['parish_priest'] ?? ''));
+    $savedSignatoryId = (string) ($officialCertData['parish_priest_id'] ?? '');
+    $signatoryMatchesActive = false;
+    foreach ($signatoryPriests as $priest) {
+        if ((string) $priest['priest_id'] === $savedSignatoryId && $priest['printed_name'] === $savedSignatoryName) $signatoryMatchesActive = true;
+    }
+    $showSavedSignatory = $savedSignatoryName !== '' && !$signatoryMatchesActive;
+    $parishPriestConfigured = currentParishPriestSignatory() !== '';
+
+    $renderField = static function (string $key, string $label) use ($officialCertData, $dateKeys, $signatoryPriests, $savedSignatoryName, $savedSignatoryId, $showSavedSignatory, $parishPriestConfigured): void {
         ?>
         <div class="form-group">
           <label for="certField_<?= e($key) ?>"><?= e($label) ?></label>
-          <?php if ($key === 'civil_status'): ?>
+          <?php if ($key === 'parish_priest'): ?>
+            <select id="certField_<?= e($key) ?>" name="field_parish_priest_id">
+              <option value="">— Not set (line left blank) —</option>
+              <?php if ($showSavedSignatory): ?>
+                <option value="saved" selected><?= e($savedSignatoryName) ?> (saved)</option>
+              <?php endif; ?>
+              <?php foreach ($signatoryPriests as $priest): ?>
+                <option value="<?= (int) $priest['priest_id'] ?>" <?= !$showSavedSignatory && (string) $priest['priest_id'] === $savedSignatoryId ? 'selected' : '' ?>><?= e($priest['printed_name']) ?></option>
+              <?php endforeach; ?>
+            </select>
+            <span class="helper-text">Printed above the signature line for a handwritten signature. Not signed digitally.</span>
+            <?php if (!$parishPriestConfigured): ?>
+              <span class="helper-text" style="display:block; color:var(--danger);">No Current Parish Priest with a verified printed name is set (Admin → Settings), so no signatory was filled in automatically.</span>
+            <?php endif; ?>
+            <?php if ($savedSignatoryName === ''): ?>
+              <span class="helper-text" style="display:block; color:var(--danger);">A signatory is required to generate the official certificate. You can still Save Draft without one.</span>
+            <?php endif; ?>
+          <?php elseif ($key === 'civil_status'): ?>
             <select id="certField_<?= e($key) ?>" name="field_<?= e($key) ?>">
               <option value="single" <?= ($officialCertData[$key] ?? '') === 'single' ? 'selected' : '' ?>>Single</option>
               <option value="married" <?= ($officialCertData[$key] ?? '') === 'married' ? 'selected' : '' ?>>Married / Widowed</option>
@@ -253,6 +284,9 @@ function renderCertificateEditFragment(
             <?php $renderField('witness_name', 'Principal Sponsor / Witness'); ?>
             <?php $renderField('witness_residence', 'Witness Residence'); ?>
           </div>
+          <div class="form-row" style="margin-top:14px;">
+            <?php $renderField('parish_priest', 'Parish Priest (Signatory)'); ?>
+          </div>
         </div>
 
         <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
@@ -320,6 +354,9 @@ function renderCertificateEditFragment(
             <?php $renderField('confirmation_date', 'Date of Confirmation'); ?>
             <?php $renderField('parish_of', 'Parish Of'); ?>
           </div>
+          <div class="form-row">
+            <?php $renderField('parish_place', 'Parish Address'); ?>
+          </div>
         </div>
 
         <div class="form-section" style="background:#fff; padding:18px; border-radius:10px; border:1px solid var(--cream-dark); margin-bottom:18px;">
@@ -341,6 +378,9 @@ function renderCertificateEditFragment(
             <?php $renderField('sponsor_1', 'Sponsor 1'); ?>
             <?php $renderField('sponsor_2', 'Sponsor 2'); ?>
             <?php $renderField('given_date', 'Given at the Parish Rectory (Date)'); ?>
+          </div>
+          <div class="form-row" style="margin-top:14px;">
+            <?php $renderField('parish_priest', 'Parish Priest (Signatory)'); ?>
           </div>
         </div>
       <?php elseif ($officialCertType === 'Death'): ?>
@@ -384,6 +424,10 @@ function renderCertificateEditFragment(
             <?php $renderField('sacraments_received', 'Sacraments Received Before Death'); ?>
             <?php $renderField('parish_name', 'Parish (seal)'); ?>
             <?php $renderField('certificate_dated', 'Dated'); ?>
+          </div>
+          <div class="form-row" style="margin-top:14px;">
+            <?php $renderField('parish_place', 'Parish Address'); ?>
+            <?php $renderField('parish_priest', 'Parish Priest (Signatory)'); ?>
           </div>
         </div>
       <?php else: ?>
@@ -1074,6 +1118,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$autofill) {
                 respondAjaxOrRedirect($isAjax, false, 'Could not find data for that record.', $redirectUrl);
             }
+            // Autofilling from a matched record never replaces a signatory or an officiating
+            // priest already saved on this certificate (issuedCertificateSaveFields() keeps
+            // unsent keys).
+            $savedCertFields = issuedCertificateLoad($id)['form_data'] ?? [];
+            if (trim((string) ($savedCertFields['parish_priest'] ?? '')) !== '') {
+                unset($autofill['parish_priest'], $autofill['parish_priest_id']);
+            }
+            foreach (['officiating_priest', 'officiating_bishop'] as $officiatingKey) {
+                if (trim((string) ($savedCertFields[$officiatingKey] ?? '')) !== '') unset($autofill[$officiatingKey]);
+            }
             issuedCertificateSaveFields($id, $certType, ['form_data' => $autofill, 'source_appointment_id' => $sourceId]);
             respondAjaxOrRedirect($isAjax, true, 'Autofilled from the matched parish record. Review the fields below, then generate.', $redirectUrl);
         }
@@ -1095,6 +1149,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach (array_keys($definition['fields']) as $key) {
             $fieldValues[$key] = trim((string) ($_POST['field_' . $key] ?? ''));
         }
+        // Signatory: chosen from active priests (or the certificate's own saved snapshot),
+        // never free text. A form that did not post the field keeps what is saved.
+        $savedCertData = issuedCertificateLoad($id)['form_data'] ?? [];
+        $savedSignatory = trim((string) ($savedCertData['parish_priest'] ?? ''));
+        $postedSignatory = array_key_exists('field_parish_priest_id', $_POST)
+            ? trim((string) $_POST['field_parish_priest_id'])
+            : ($savedSignatory !== '' ? 'saved' : '');
+        $signatory = certificateResolveSignatory($postedSignatory, $savedCertData);
+        if (!$signatory['ok']) {
+            respondAjaxOrRedirect($isAjax, false, 'Please choose the Parish Priest signatory from the list.', $redirectUrl);
+        }
+        $fieldValues['parish_priest'] = $signatory['parish_priest'];
+        $fieldValues['parish_priest_id'] = $signatory['parish_priest_id'];
+        if ($savedSignatory !== '' && $signatory['parish_priest'] !== $savedSignatory) {
+            logActivity($userId, "Changed certificate signatory for appointment #$id from \"$savedSignatory\" to \""
+                . ($signatory['parish_priest'] !== '' ? $signatory['parish_priest'] : 'Not set') . '"', 'Certificates');
+        }
         $registry = [
             'book_no' => trim((string) ($_POST['book_no'] ?? '')) ?: null,
             'page_no' => trim((string) ($_POST['page_no'] ?? '')) ?: null,
@@ -1113,6 +1184,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $result = issuedCertificateGenerate($id, $userId);
             logActivity($userId, "Generated $certType certificate for appointment #$id", 'Certificates');
             respondAjaxOrRedirect($isAjax, true, 'Official certificate generated.', $redirectUrl . '&cert_doc=' . $result['document_id']);
+        } catch (CertificateLayoutException $e) {
+            // A value (the signatory) cannot be printed in full: nothing is generated.
+            respondAjaxOrRedirect($isAjax, false, $e->getMessage() . ' Your entries were saved as a draft.', $redirectUrl);
         } catch (InvalidArgumentException $e) {
             respondAjaxOrRedirect($isAjax, false, 'Please complete all required fields before continuing. ' . $e->getMessage(), $redirectUrl);
         } catch (Throwable $e) {
