@@ -104,7 +104,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('error', 'New passwords do not match.');
             redirect(url('secretary/settings.php'));
         }
-        db()->prepare('UPDATE users SET password = ? WHERE user_id = ?')->execute([password_hash($_POST['new_password'], PASSWORD_BCRYPT), $userId]);
+        $hash = password_hash($_POST['new_password'], PASSWORD_BCRYPT);
+        db()->prepare('UPDATE users SET password = ? WHERE user_id = ?')->execute([$hash, $userId]);
+        refreshPasswordFingerprint((int) $userId, $hash);
         flash('success', 'Password changed successfully.');
         redirect(url('secretary/settings.php'));
     }

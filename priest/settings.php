@@ -95,7 +95,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!password_verify($_POST['current_password'] ?? '', (string) $stmt->fetchColumn())) { flash('error', 'Current password is incorrect.'); redirect($redirectUrl); }
         if (strlen($_POST['new_password'] ?? '') < 8) { flash('error', 'New password must be at least 8 characters.'); redirect($redirectUrl); }
         if (($_POST['new_password'] ?? '') !== ($_POST['confirm_password'] ?? '')) { flash('error', 'New passwords do not match.'); redirect($redirectUrl); }
-        db()->prepare('UPDATE users SET password = ? WHERE user_id = ?')->execute([password_hash($_POST['new_password'], PASSWORD_BCRYPT), $userId]);
+        $hash = password_hash($_POST['new_password'], PASSWORD_BCRYPT);
+        db()->prepare('UPDATE users SET password = ? WHERE user_id = ?')->execute([$hash, $userId]);
+        refreshPasswordFingerprint((int) $userId, $hash);
         flash('success', 'Password changed successfully.');
         redirect($redirectUrl);
     }

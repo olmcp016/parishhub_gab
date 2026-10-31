@@ -217,7 +217,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('success', $operation === 'activate' ? 'Priest portal access reactivated.' : 'Priest portal access deactivated.');
         } else {
             $tempPassword = bin2hex(random_bytes(5));
-            db()->prepare('UPDATE users SET password = ?, status = \'active\', must_change_password = 1 WHERE user_id = ?')->execute([password_hash($tempPassword, PASSWORD_BCRYPT), (int) $account['user_id']]);
+            $hash = password_hash($tempPassword, PASSWORD_BCRYPT);
+            db()->prepare('UPDATE users SET password = ?, status = \'active\', must_change_password = 1 WHERE user_id = ?')->execute([$hash, (int) $account['user_id']]);
+            refreshPasswordFingerprint((int) $account['user_id'], $hash);
             logActivity(currentUser()['user_id'], "Reset Priest portal access for {$account['title']} {$account['full_name']}", 'Priests');
             $_SESSION['temp_password_info'] = [
                 'name' => trim($account['title'] . ' ' . $account['full_name']),

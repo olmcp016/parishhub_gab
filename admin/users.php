@@ -207,6 +207,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect(url('admin/users.php'));
         }
         db()->prepare('UPDATE users SET password = ?, must_change_password = 1 WHERE user_id = ?')->execute([$hash, $targetId]);
+        refreshPasswordFingerprint($targetId, $hash); // an Admin resetting their own password stays signed in to see it
         logActivity($adminId, "Reset password for {$targetUser['firstname']} {$targetUser['lastname']} (#{$targetId})", 'User Management');
         $_SESSION['temp_password_info'] = [
             'context'  => 'reset',
@@ -385,8 +386,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $chars        = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
             $tempPassword = '';
             for ($i = 0; $i < 10; $i++) { $tempPassword .= $chars[random_int(0, strlen($chars) - 1)]; }
+            $hash = password_hash($tempPassword, PASSWORD_BCRYPT);
             db()->prepare("UPDATE users SET password = ?, status = 'active', must_change_password = 1 WHERE user_id = ?")
-                ->execute([password_hash($tempPassword, PASSWORD_BCRYPT), (int) $account['user_id']]);
+                ->execute([$hash, (int) $account['user_id']]);
+            refreshPasswordFingerprint((int) $account['user_id'], $hash);
             logActivity($adminId, "Reset Priest portal access for {$account['title']} {$account['full_name']}", 'Priests');
             $_SESSION['temp_password_info'] = [
                 'name'     => trim($account['title'] . ' ' . $account['full_name']),

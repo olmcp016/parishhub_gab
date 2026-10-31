@@ -17,6 +17,159 @@ function isLoggedIn(): bool
 }
 
 /**
+ * Session key holding a fingerprint of the password hash the user signed in
+ * with. Any password change (Settings, an Admin reset, Forgot Password) gives
+ * the account a new hash, which ends every session still carrying the old
+ * fingerprint (audit B-04). Never the password or the hash itself.
+ */
+const SESSION_PASSWORD_FINGERPRINT = 'auth_password_fingerprint';
+
+function passwordFingerprint(string $passwordHash): string
+{
+    return hash('sha256', 'parishhub-session:' . $passwordHash);
+}
+
+/**
+ * Signs in an account whose password, status and portal were already checked
+ * by the login page. $user is its users row joined with roles.role_name.
+ */
+function signInUser(array $user): void
+{
+    session_regenerate_id(true);
+
+    $_SESSION['user'] = [
+        'user_id'   => (int) $user['user_id'],
+        'firstname' => $user['firstname'],
+        'lastname'  => $user['lastname'],
+        'email'     => $user['email'],
+        'role_id'   => (int) $user['role_id'],
+        'role_name' => $user['role_name'],
+    ];
+    $_SESSION[SESSION_PASSWORD_FINGERPRINT] = passwordFingerprint((string) $user['password']);
+}
+
+/**
+ * Call after $userId's password was successfully changed to $newHash. When that
+ * is the signed-in user's own account, this session stays signed in; their other
+ * sessions still carry the old fingerprint and end on their next request.
+ */
+function refreshPasswordFingerprint(int $userId, string $newHash): void
+{
+    if ((int) (currentUser()['user_id'] ?? 0) === $userId) {
+        $_SESSION[SESSION_PASSWORD_FINGERPRINT] = passwordFingerprint($newHash);
+    }
+}
+
+/** True when the caller expects JSON back (fetch/XHR, the detail modal, ajax=1 forms). */
+function wantsJsonResponse(): bool
+{
+    return ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest'
+        || ($_POST['ajax'] ?? '') === '1'
+        || str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json');
+}
+
+/**
+ * Re-checks the signed-in account against the database on every request
+ * (audit B-04). The session alone is not trusted: the account must still
+ * exist, be active, have the role it signed in with, and have the password
+ * it signed in with. Otherwise the session ends. Runs when this file loads,
+ * before the page does anything, so it covers every guard and every page
+ * that reads currentUser() directly.
+ */
+function validateSessionUser(): void
+{
+    if (!isset($_SESSION['user'])) {
+        return;
+    }
+    $user = $_SESSION['user'];
+    $fingerprint = $_SESSION[SESSION_PASSWORD_FINGERPRINT] ?? null;
+
+    // Sessions from before the fingerprint existed must sign in again.
+    if (!is_array($user) || !is_string($fingerprint) || $fingerprint === '') {
+        endSignedInSession($user['role_name'] ?? null);
+        return;
+    }
+
+    try {
+        $stmt = db()->prepare(
+            'SELECT u.status, u.role_id, r.role_name, u.password
+             FROM users u JOIN roles r ON r.role_id = u.role_id
+             WHERE u.user_id = ?'
+        );
+        $stmt->execute([(int) ($user['user_id'] ?? 0)]);
+        $account = $stmt->fetch();
+    } catch (Throwable $e) {
+        // Exception class and SQLSTATE only: the message can name the database host and user.
+        error_log('ParishHub: could not verify the signed-in account (' . get_class($e) . ' ' . $e->getCode() . ')');
+        accountCheckUnavailable();
+    }
+
+    if (!$account
+        || $account['status'] !== 'active'
+        || (int) $account['role_id'] !== (int) ($user['role_id'] ?? 0)
+        || $account['role_name'] !== ($user['role_name'] ?? null)
+        || !hash_equals(passwordFingerprint((string) $account['password']), $fingerprint)
+    ) {
+        endSignedInSession($user['role_name'] ?? null);
+    }
+}
+
+/**
+ * Ends a revoked session: everything in it is cleared (including anything the
+ * account could see, such as a temporary password notice) and it gets a new ID.
+ * A GET then carries on as a signed-out visitor, so protected pages redirect to
+ * login through their usual guard and session-status.php reports the change.
+ * Any other request stops here, so no action runs on a revoked session.
+ */
+function endSignedInSession(?string $previousRole): void
+{
+    $_SESSION = [];
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_regenerate_id(true);
+    }
+    if (!defined('SESSION_ENDED_THIS_REQUEST')) {
+        define('SESSION_ENDED_THIS_REQUEST', true);
+    }
+    $message = 'Your session has ended. Please sign in again.';
+    flash('error', $message);
+
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
+        return;
+    }
+    sendNoCacheHeaders();
+    $loginUrl = in_array($previousRole, STAFF_ROLES, true) ? url('staff/login.php') : url('auth/login.php');
+    if (wantsJsonResponse()) {
+        http_response_code(401);
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => false, 'success' => false, 'session_expired' => true, 'message' => $message, 'redirect' => $loginUrl]);
+        exit;
+    }
+    redirect($loginUrl);
+}
+
+/**
+ * The account could not be checked (database unreachable). Nothing on this
+ * request runs, but the session is kept: a brief outage is not a sign-out.
+ */
+function accountCheckUnavailable(): never
+{
+    sendNoCacheHeaders();
+    http_response_code(503);
+    header('Retry-After: 30');
+    $message = 'ParishHub is temporarily unavailable. Please try again in a moment.';
+    if (wantsJsonResponse()) {
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => false, 'success' => false, 'message' => $message]);
+        exit;
+    }
+    header('Content-Type: text/html; charset=UTF-8');
+    echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Temporarily unavailable</title></head>'
+        . '<body style="font-family:sans-serif;text-align:center;padding:48px 16px;"><h1>Temporarily unavailable</h1><p>'
+        . $message . '</p></body></html>';
+    exit;
+}
+
+/**
  * Tells the browser (and any intermediate proxy) never to cache this
  * response or serve it from the back/forward cache. Without this, hitting
  * Back after logout can redisplay a page that was rendered while the user
@@ -44,7 +197,9 @@ function requireLogin(): void
             echo json_encode(['ok' => false, 'session_expired' => true, 'redirect' => $targetUrl]);
             exit;
         }
-        flash('error', 'Your session has expired or you are not signed in. Please log in again.');
+        if (!defined('SESSION_ENDED_THIS_REQUEST')) {
+            flash('error', 'Your session has expired or you are not signed in. Please log in again.');
+        }
         redirect($targetUrl);
     }
 }
@@ -63,7 +218,9 @@ function requireRole(string ...$roles): void
             echo json_encode(['ok' => false, 'session_expired' => true, 'redirect' => $targetUrl]);
             exit;
         }
-        flash('error', 'Your session has expired or you are not signed in. Please log in again.');
+        if (!defined('SESSION_ENDED_THIS_REQUEST')) {
+            flash('error', 'Your session has expired or you are not signed in. Please log in again.');
+        }
         redirect($targetUrl);
     }
     autoCancelExpiredUnpaidAppointments();
@@ -553,3 +710,5 @@ function oldInput(string $key, string $default = ''): string
     }
     return e($old[$key] ?? $default);
 }
+
+validateSessionUser();

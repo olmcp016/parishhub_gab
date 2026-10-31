@@ -86,16 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(url('auth/force_change_password.php'));
     }
 
-    session_regenerate_id(true);
-
-    $_SESSION['user'] = [
-        'user_id'   => (int) $user['user_id'],
-        'firstname' => $user['firstname'],
-        'lastname'  => $user['lastname'],
-        'email'     => $user['email'],
-        'role_id'   => (int) $user['role_id'],
-        'role_name' => $user['role_name'],
-    ];
+    signInUser($user);
 
     logActivity((int) $user['user_id'], "{$user['firstname']} {$user['lastname']} logged in via Staff Portal", 'Auth');
 
