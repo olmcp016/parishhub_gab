@@ -98,39 +98,6 @@ if ($amount <= 0) {
     redirect($detailUrl);
 }
 
-// A payment already in progress or completed blocks a second one. A failed
-// or cancelled payment — or an online checkout that was started but never
-// finished — does not: the parishioner can simply try again.
-$stmt = db()->prepare(
-    "SELECT p.payment_id, p.method_id, p.payment_status, t.gateway_transaction_id
-     FROM payments p LEFT JOIN transactions t ON t.payment_id = p.payment_id AND t.gateway = 'paymongo'
-     WHERE p.appointment_id = ? ORDER BY p.payment_id DESC LIMIT 1"
-);
-$stmt->execute([$appointmentId]);
-$existing = $stmt->fetch();
-if ($existing) {
-    $unfinishedOnline = (int) $existing['method_id'] === 7 && $existing['payment_status'] === 'pending';
-    if ($unfinishedOnline && $existing['gateway_transaction_id']) {
-        // Make sure it wasn't actually paid before starting over.
-        $session = paymongoGetCheckoutSession($existing['gateway_transaction_id']);
-        if ($session['ok'] && paymongoStatusToLocal($session['status']) === 'verified') {
-            $result = verifyPaymentAndIssueReceipt((int) $existing['payment_id'], null, $existing['gateway_transaction_id']);
-            flash(
-                $result['ok'] ? 'success' : 'error',
-                $result['ok']
-                    ? 'Your online payment was already received — thank you!'
-                    : "Your payment was received by PayMongo, but the appointment could not be updated. Please contact the parish office."
-            );
-            redirect($detailUrl);
-        }
-        markPaymentUnsuccessful((int) $existing['payment_id'], 'cancelled');
-        db()->prepare("UPDATE transactions SET status = 'cancelled' WHERE payment_id = ?")->execute([$existing['payment_id']]);
-    } elseif (!in_array($existing['payment_status'], ['failed', 'cancelled'], true)) {
-        flash('error', 'A payment has already been submitted for this appointment.');
-        redirect($detailUrl);
-    }
-}
-
 $payMode = $_POST['pay_mode'] ?? '';
 $methodId = null;
 $reference = null;
@@ -154,48 +121,49 @@ if ($payMode === 'online') {
     redirect($detailUrl);
 }
 
-$pdo = db();
-$pdo->beginTransaction();
+// One payment start at a time per appointment, and never a second checkout
+// while an earlier one may still take money (audit B-07). A payment already
+// submitted or completed blocks a new one; a failed or cancelled one does not.
+$lease = paymentLeaseAcquire($appointmentId);
+if ($lease === null) {
+    flash('error', 'A payment for this appointment is already being started. Please wait a moment, then check this page again.');
+    redirect($detailUrl);
+}
+register_shutdown_function('paymentLeaseRelease', $appointmentId, $lease);
+
+$prepared = paymongoPrepareNewPayment($appointmentId, $amount, $payMode === 'online');
+if ($prepared['action'] === 'reuse') {
+    // The same checkout is still open for this amount: back to it, not a second one.
+    $_SESSION['pay_checkout'][$appointmentId] = true;
+    redirect($prepared['url']);
+}
+if ($prepared['action'] === 'stop') {
+    flash($prepared['type'], $prepared['message']);
+    redirect($detailUrl);
+}
+
+if ($payMode === 'online') {
+    // Real-time PayMongo checkout — the browser is sent to PayMongo's own
+    // hosted page (GCash / Maya / card). The payment only counts once
+    // PayMongo confirms it (see parishioner/payment-return.php); nothing
+    // is marked paid just because this button was clicked.
+    $returnBase = absoluteUrl('parishioner/payment-return.php') . '?appointment_id=' . $appointmentId;
+    $started = paymongoStartCheckout($appointmentId, $amount, $appointment['service_name'], $returnBase . '&paid=1', $returnBase . '&cancelled=1', currentUser()['email'] ?? null);
+    if (!$started['ok']) {
+        flash('error', 'Could not start the online payment (' . ($started['error'] ?: 'please try again') . '). Nothing was charged.');
+        redirect($detailUrl);
+    }
+    $_SESSION['pay_checkout'][$appointmentId] = true; // lets only THIS browser cancel it on return
+    logActivity($userId, "Started an online payment for appointment #$appointmentId via PayMongo", 'Payments');
+    redirect($started['checkout_url']);
+}
+
 try {
-    $stmt = $pdo->prepare(
+    db()->prepare(
         "INSERT INTO payments (appointment_id, reference_number, amount, method_id, payment_status, payment_date)
          VALUES (?, ?, ?, ?, 'pending', NOW())"
-    );
-    $stmt->execute([$appointmentId, $reference, $amount, $methodId]);
-    $paymentId = $pdo->lastInsertId();
-
-    if ($payMode === 'online') {
-        // Real-time PayMongo checkout — the browser is sent to PayMongo's own
-        // hosted page (GCash / Maya / card). The payment only counts once
-        // PayMongo confirms it (see parishioner/payment-return.php); nothing
-        // is marked paid just because this button was clicked.
-        $returnBase = absoluteUrl('parishioner/payment-return.php') . '?appointment_id=' . $appointmentId;
-        $checkout = paymongoCreateCheckoutSession(
-            $amount,
-            $appointment['service_name'],
-            $returnBase . '&paid=1',
-            $returnBase . '&cancelled=1',
-            currentUser()['email'] ?? null
-        );
-        if (!$checkout['ok'] || !$checkout['checkout_url']) {
-            $pdo->rollBack();
-            error_log('PayMongo checkout session creation failed (service payment): ' . json_encode($checkout['raw'] ?? []));
-            flash('error', 'Could not start the online payment (' . ($checkout['error'] ?: 'please try again') . '). Nothing was charged.');
-            redirect($detailUrl);
-        }
-        $stmt = $pdo->prepare(
-            "INSERT INTO transactions (payment_id, gateway, gateway_transaction_id, status, raw_response) VALUES (?, 'paymongo', ?, 'pending', ?)"
-        );
-        $stmt->execute([$paymentId, $checkout['session_id'], json_encode($checkout['raw'])]);
-        $pdo->commit();
-        $_SESSION['pay_checkout'][$appointmentId] = true; // lets only THIS browser cancel it on return
-        logActivity($userId, "Started an online payment for appointment #$appointmentId via PayMongo", 'Payments');
-        redirect($checkout['checkout_url']);
-    }
-
-    $pdo->commit();
+    )->execute([$appointmentId, $reference, $amount, $methodId]);
 } catch (Throwable $e) {
-    if ($pdo->inTransaction()) $pdo->rollBack();
     error_log($e->getMessage());
     flash('error', 'Failed to submit your payment. Please try again.');
     redirect($detailUrl);

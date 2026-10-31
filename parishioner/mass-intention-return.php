@@ -35,49 +35,37 @@ if ($row) {
 
     // The "cancelled" flag in the URL is never trusted on its own (anyone
     // could add it to someone else's link) — PayMongo's real session status
-    // below is the only thing that changes a payment's state.
-    if ($row['payment_status'] === 'verified') {
+    // is the only thing that changes a payment's state (audit B-07). Only the
+    // browser session that started this checkout (recorded in book.php) may
+    // ask for it to be cancelled, and only a checkout PayMongo confirms expired
+    // is cancelled.
+    $cancelOutcome = null;
+    if ($cancelledReturn && $row['payment_status'] === 'pending' && !empty($_SESSION['mi_checkout'][$appointmentId])) {
+        $cancelOutcome = paymongoCancelPayment($paymentId);
+        if ($cancelOutcome !== 'pending' && $cancelOutcome !== 'error') unset($_SESSION['mi_checkout'][$appointmentId]);
+    } else {
+        paymongoSyncAppointment($appointmentId);
+    }
+    $current = paymongoPaymentRow($paymentId);
+    $status = $current['payment_status'] ?? 'pending';
+
+    if ($status === 'verified') {
+        // Verified = Confirmed: the parishioner's bell gets Appointment Confirmed (status trigger), nothing more.
         $outcome = 'paid';
-    } elseif (in_array($row['payment_status'], ['failed', 'cancelled'], true)) {
+    } elseif (in_array($status, ['failed', 'cancelled'], true)) {
+        // The checkout can no longer be paid, so the Mass Intention is not submitted.
+        db()->prepare("UPDATE appointments SET status_id = 7, cancelled_reason = 'Online payment was not completed' WHERE appointment_id = ? AND status_id = 2")->execute([$appointmentId]);
         $outcome = 'failed';
         $message = $failMessage;
+    } elseif (paymongoNeedsReconciliation($paymentId)) {
+        $outcome = 'pending';
+        $message = "Your payment was received by PayMongo. We're finishing up on our end — the parish office will review it shortly.";
+    } elseif ($cancelOutcome !== null) {
+        $outcome = 'pending';
+        $message = 'Your payment is still being processed by PayMongo, so it could not be cancelled. If it completes, your Mass Intention will be submitted.';
     } else {
-        $session = paymongoGetCheckoutSession($row['gateway_transaction_id']);
-        $localStatus = $session['ok'] ? paymongoStatusToLocal($session['status']) : 'pending';
-        db()->prepare('UPDATE transactions SET status = ?, raw_response = ? WHERE payment_id = ?')
-            ->execute([$session['ok'] ? $session['status'] : 'unknown', json_encode($session['raw'] ?? []), $paymentId]);
-
-        if ($localStatus === 'verified') {
-            $result = verifyPaymentAndIssueReceipt($paymentId, null, $row['gateway_transaction_id']);
-            if ($result['ok']) {
-                // Verified = Confirmed: the parishioner's bell gets Appointment Confirmed (status trigger), nothing more.
-                $outcome = 'paid';
-            } else {
-                error_log("Mass Intention payment $paymentId confirmed by PayMongo but verification failed: {$result['message']}");
-                $outcome = 'pending';
-                $message = "Your payment was received by PayMongo. We're finishing up on our end — your Mass Intention will appear for our Cashier shortly.";
-            }
-        } elseif (in_array($localStatus, ['failed', 'cancelled'], true)) {
-            markPaymentUnsuccessful($paymentId, $localStatus);
-            db()->prepare("UPDATE appointments SET status_id = 7, cancelled_reason = 'Online payment was not completed' WHERE appointment_id = ? AND status_id = 2")->execute([$appointmentId]);
-            $outcome = 'failed';
-            $message = $failMessage;
-        } elseif ($cancelledReturn) {
-            // Only the browser session that actually started this checkout can
-            // cancel it locally (recorded in book.php) — so nobody can cancel
-            // someone else's unfinished payment just by editing a URL.
-            if (!empty($_SESSION['mi_checkout'][$appointmentId])) {
-                markPaymentUnsuccessful($paymentId, 'cancelled');
-                db()->prepare("UPDATE transactions SET status = 'cancelled' WHERE payment_id = ?")->execute([$paymentId]);
-                db()->prepare("UPDATE appointments SET status_id = 7, cancelled_reason = 'Online payment was not completed' WHERE appointment_id = ? AND status_id = 2")->execute([$appointmentId]);
-                unset($_SESSION['mi_checkout'][$appointmentId]);
-            }
-            $outcome = 'failed';
-            $message = $failMessage;
-        } else {
-            $outcome = 'pending';
-            $message = "We're still waiting for PayMongo to confirm your payment. If you completed it, refresh this page in a moment.";
-        }
+        $outcome = 'pending';
+        $message = "We're still waiting for PayMongo to confirm your payment. If you completed it, refresh this page in a moment.";
     }
 
     if ($outcome === 'paid') {

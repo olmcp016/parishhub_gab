@@ -6,10 +6,17 @@
  * configured (Settings > Developers > Webhooks in the PayMongo dashboard,
  * pointing here), the signature is verified before anything is trusted.
  * If no webhook is configured, this endpoint simply sits unused — the
- * donation flow already reconciles payment status itself when the donor
- * returns to My Donations, so a webhook is a reliability improvement
- * (catches the case where a donor's browser never makes it back), not a
- * hard requirement for the feature to work.
+ * return pages and the Treasurer's re-check reconcile payments themselves,
+ * so a webhook is a reliability improvement (catches the case where a
+ * payer's browser never makes it back), not a hard requirement.
+ *
+ * The event body is never trusted for a payment's outcome: the checkout
+ * session is read back from PayMongo with the secret key and applied through
+ * paymongoApplyCheckout() (audit B-07). That makes duplicate and
+ * out-of-order deliveries harmless. Responses: 400 for a bad signature;
+ * 2xx once an event is handled or can never be handled (so PayMongo stops);
+ * 503/500 when PayMongo or the database failed for now, so PayMongo retries
+ * (it gives up after 12 attempts).
  */
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
@@ -29,54 +36,70 @@ if ($webhookSecret && !str_contains($webhookSecret, 'xxxxxxxxxxxx')) {
     }
 }
 
-$event = json_decode($rawBody, true);
-$eventType = $event['data']['attributes']['type'] ?? '';
-$eventData = $event['data']['attributes']['data'] ?? null;
+$respond = static function (int $code, array $body): never {
+    http_response_code($code);
+    echo json_encode($body);
+    exit;
+};
 
-// The checkout session id is what we stored in transactions.gateway_transaction_id.
-$sessionId = null;
-if ($eventType === 'checkout_session.payment.paid') {
-    $sessionId = $eventData['id'] ?? null;
-} elseif (str_starts_with($eventType, 'payment_intent.') || str_starts_with($eventType, 'payment.')) {
-    // Payment intent events reference the session indirectly via metadata
-    // in some PayMongo API versions — fall back to looking it up by the
-    // payment_intent's own id if that's what we stored, otherwise skip.
-    $sessionId = $eventData['attributes']['payment_intent_id'] ?? ($eventData['id'] ?? null);
+$event = json_decode($rawBody, true);
+$eventType = is_array($event) ? (string) ($event['data']['attributes']['type'] ?? '') : '';
+$eventData = is_array($event) ? ($event['data']['attributes']['data'] ?? null) : null;
+
+// Only a paid checkout session matters here (the checkout session id is what
+// transactions.gateway_transaction_id holds). Anything else is acknowledged.
+$sessionId = $eventType === 'checkout_session.payment.paid' && is_array($eventData) ? (string) ($eventData['id'] ?? '') : '';
+if ($sessionId === '' || !preg_match('/^cs_[A-Za-z0-9]+$/', $sessionId)) {
+    $respond(200, ['received' => true, 'ignored' => true]);
 }
 
-if ($sessionId) {
+try {
+    $session = paymongoGetCheckoutSession($sessionId);
+    if (!$session['ok']) {
+        $respond(503, ['error' => 'Could not confirm the checkout with PayMongo yet']);
+    }
+
     $stmt = db()->prepare(
-        "SELECT p.payment_id, p.payment_status FROM payments p
+        "SELECT p.payment_id FROM payments p
          JOIN transactions t ON t.payment_id = p.payment_id
          WHERE t.gateway = 'paymongo' AND t.gateway_transaction_id = ? LIMIT 1"
     );
     $stmt->execute([$sessionId]);
-    $paymentRow = $stmt->fetch();
+    $paymentId = (int) $stmt->fetchColumn();
 
-    if ($paymentRow && $paymentRow['payment_status'] === 'pending') {
-        $session = paymongoGetCheckoutSession($sessionId);
-        if ($session['ok']) {
-            $localStatus = paymongoStatusToLocal($session['status']);
-            db()->prepare("UPDATE transactions SET status = ?, raw_response = ? WHERE payment_id = ?")
-                ->execute([$session['status'], json_encode($session['raw']), $paymentRow['payment_id']]);
-
-            if ($localStatus === 'verified') {
-                $resolvedMethod = resolvePaymentMethodName('PayMongo (Online)', json_encode($session['raw'] ?? []));
-                $methodMap = ['GCash' => 2, 'Maya' => 3, 'Credit/Debit Card' => 5];
-                if (isset($methodMap[$resolvedMethod])) {
-                    try {
-                        db()->prepare('UPDATE payments SET method_id = ? WHERE payment_id = ?')->execute([$methodMap[$resolvedMethod], $paymentRow['payment_id']]);
-                    } catch (Throwable $e) {}
-                }
-                $result = verifyPaymentAndIssueReceipt((int) $paymentRow['payment_id'], null, $sessionId);
-                if (!$result['ok']) {
-                    error_log("PayMongo webhook: payment {$paymentRow['payment_id']} confirmed but verifyPaymentAndIssueReceipt failed: {$result['message']}");
-                }
-            } elseif (in_array($localStatus, ['failed', 'cancelled'], true)) {
-                markPaymentUnsuccessful((int) $paymentRow['payment_id'], $localStatus);
-            }
+    if (!$paymentId) {
+        // Backup match: the session's own metadata, as read back from PayMongo
+        // (never the event body), for a payment whose session id was never
+        // stored because its request stopped before PayMongo answered.
+        $metaPayment = (int) ($session['metadata']['payment_id'] ?? 0);
+        $metaAppointment = (int) ($session['metadata']['appointment_id'] ?? 0);
+        if ($metaPayment > 0) {
+            $attach = db()->prepare(
+                "UPDATE transactions t SET gateway_transaction_id = ?
+                 FROM payments p
+                 WHERE t.payment_id = p.payment_id AND t.gateway = 'paymongo' AND t.gateway_transaction_id IS NULL
+                   AND p.payment_id = ? AND p.appointment_id = ? AND p.method_id = 7"
+            );
+            $attach->execute([$sessionId, $metaPayment, $metaAppointment]);
+            if ($attach->rowCount() === 1) $paymentId = $metaPayment;
         }
     }
-}
 
-echo json_encode(['received' => true]);
+    if (!$paymentId) {
+        if ($session['state'] === 'paid') {
+            // Money PayMongo took that matches no payment here: keep enough to reconcile by hand.
+            error_log('PayMongo webhook: paid checkout ' . $sessionId . ' (PHP ' . number_format((float) $session['amount'], 2) . ') matches no ParishHub payment');
+            logActivity(null, mb_substr('Paid PayMongo checkout ' . $sessionId . ' (PHP ' . number_format((float) $session['amount'], 2) . ') matches no ParishHub payment — needs reconciliation', 0, 150), 'Payments');
+        }
+        $respond(200, ['received' => true, 'matched' => false]);
+    }
+
+    $outcome = paymongoApplyCheckout($paymentId, $session);
+    if ($outcome === 'error') {
+        $respond(503, ['error' => 'Payment could not be processed yet']);
+    }
+    $respond(200, ['received' => true, 'outcome' => $outcome]);
+} catch (Throwable $e) {
+    error_log('PayMongo webhook processing failed (' . get_class($e) . ' ' . $e->getCode() . ')');
+    $respond(500, ['error' => 'Processing failed']);
+}

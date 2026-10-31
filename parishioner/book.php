@@ -861,7 +861,8 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
                     'Mass Intention Offering',
                     $returnBase . '&paid=1',
                     $returnBase . '&cancelled=1',
-                    $isGuest ? $guestEmail : (currentUser()['email'] ?? null)
+                    $isGuest ? $guestEmail : (currentUser()['email'] ?? null),
+                    ['payment_id' => $paymentId, 'appointment_id' => $appointmentId]
                 );
                 if (!$checkout['ok'] || !$checkout['checkout_url']) {
                     $pdo->rollBack();

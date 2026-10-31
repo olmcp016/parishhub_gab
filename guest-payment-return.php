@@ -47,49 +47,33 @@ if (!$hasCheckoutProof) {
 if ($row) {
     $paymentId = (int) $row['payment_id'];
 
-    if ($row['payment_status'] === 'verified') {
+    // PayMongo decides (audit B-07). A cancel link only cancels once the checkout
+    // is confirmed expired; otherwise every unresolved checkout of this
+    // appointment is re-checked, since an older one may have been paid too.
+    $cancelOutcome = null;
+    if ($cancelledReturn && $row['payment_status'] === 'pending') {
+        $cancelOutcome = paymongoCancelPayment($paymentId);
+        if ($cancelOutcome !== 'pending' && $cancelOutcome !== 'error') unset($_SESSION['guest_pay_checkout'][$appointmentId]);
+    } else {
+        paymongoSyncAppointment($appointmentId);
+    }
+    $current = paymongoPaymentRow($paymentId);
+    $status = $current['payment_status'] ?? 'pending';
+
+    if ($status === 'verified') {
         $outcome = 'paid';
-    } elseif (in_array($row['payment_status'], ['failed', 'cancelled'], true)) {
+    } elseif (in_array($status, ['failed', 'cancelled'], true)) {
         $outcome = 'failed';
         $message = $failMessage;
+    } elseif (paymongoNeedsReconciliation($paymentId)) {
+        $outcome = 'pending';
+        $message = "Your payment was received by PayMongo. We're finishing up on our end — the parish office will review it shortly.";
+    } elseif ($cancelOutcome !== null) {
+        $outcome = 'pending';
+        $message = 'Your payment is still being processed by PayMongo, so it could not be cancelled. If it completes, it will show as paid on your status page.';
     } else {
-        $session = paymongoGetCheckoutSession($row['gateway_transaction_id']);
-        $localStatus = $session['ok'] ? paymongoStatusToLocal($session['status']) : 'pending';
-        db()->prepare('UPDATE transactions SET status = ?, raw_response = ? WHERE payment_id = ?')
-            ->execute([$session['ok'] ? $session['status'] : 'unknown', json_encode($session['raw'] ?? []), $paymentId]);
-
-        if ($localStatus === 'verified') {
-            $resolvedMethod = resolvePaymentMethodName('PayMongo (Online)', json_encode($session['raw'] ?? []));
-            $methodMap = ['GCash' => 2, 'Maya' => 3, 'Credit/Debit Card' => 5];
-            if (isset($methodMap[$resolvedMethod])) {
-                try {
-                    db()->prepare('UPDATE payments SET method_id = ? WHERE payment_id = ?')->execute([$methodMap[$resolvedMethod], $paymentId]);
-                } catch (Throwable $e) {}
-            }
-            $result = verifyPaymentAndIssueReceipt($paymentId, null, $row['gateway_transaction_id']);
-            if ($result['ok']) {
-                $outcome = 'paid';
-            } else {
-                error_log("Guest payment $paymentId confirmed by PayMongo but verification failed: {$result['message']}");
-                $outcome = 'pending';
-                $message = "Your payment was received by PayMongo. We're finishing up on our end — it will show as verified shortly.";
-            }
-        } elseif (in_array($localStatus, ['failed', 'cancelled'], true)) {
-            markPaymentUnsuccessful($paymentId, $localStatus);
-            $outcome = 'failed';
-            $message = $failMessage;
-        } elseif ($cancelledReturn) {
-            if (!empty($_SESSION['guest_pay_checkout'][$appointmentId])) {
-                markPaymentUnsuccessful($paymentId, 'cancelled');
-                db()->prepare("UPDATE transactions SET status = 'cancelled' WHERE payment_id = ?")->execute([$paymentId]);
-                unset($_SESSION['guest_pay_checkout'][$appointmentId]);
-            }
-            $outcome = 'failed';
-            $message = $failMessage;
-        } else {
-            $outcome = 'pending';
-            $message = "We're still waiting for PayMongo to confirm your payment. If you completed it, refresh this page in a moment.";
-        }
+        $outcome = 'pending';
+        $message = "We're still waiting for PayMongo to confirm your payment. If you completed it, refresh this page in a moment.";
     }
 
     if ($outcome === 'paid') {

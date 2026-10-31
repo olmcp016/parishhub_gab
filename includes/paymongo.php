@@ -13,9 +13,27 @@
  * never touch our server at all. This is the provider-required redirect
  * the feature spec explicitly allows ("unless a redirect is required by
  * the actual payment provider").
+ *
+ * Payment safety (audit B-07): a checkout session never expires on its own,
+ * so ParishHub never treats one as dead until PayMongo confirms it cannot be
+ * paid, never opens a second checkout while an earlier one may still take
+ * money, and never ignores a payment PayMongo reports as paid.
  */
 
 const PAYMONGO_API_BASE = 'https://api.paymongo.com/v1';
+
+/**
+ * Optional time limit (Unix time) for PayMongo calls in this request, so a
+ * best-effort step such as paymongoCloseOtherCheckouts() cannot hold up a
+ * webhook reply. Pass a time to set it, true to clear it; returns the current one.
+ */
+function paymongoDeadline(float|bool|null $set = null): ?float
+{
+    static $deadline = null;
+    if ($set === true) $deadline = null;
+    elseif (is_float($set)) $deadline = $set;
+    return $deadline;
+}
 
 /**
  * Low-level authenticated request to the PayMongo API.
@@ -27,6 +45,14 @@ function paymongoRequest(string $method, string $path, ?array $body = null): arr
     if (!$secretKey || str_contains($secretKey, 'xxxxxxxxxxxx')) {
         return ['ok' => false, 'status' => 0, 'body' => ['error' => 'PayMongo secret key is not configured.']];
     }
+    $timeout = 20;
+    if (($deadline = paymongoDeadline()) !== null) {
+        $left = $deadline - microtime(true);
+        if ($left < 1) {
+            return ['ok' => false, 'status' => 0, 'body' => ['error' => 'Time allowed for PayMongo calls has run out.']];
+        }
+        $timeout = (int) min(20, ceil($left));
+    }
 
     $ch = curl_init(PAYMONGO_API_BASE . $path);
     curl_setopt_array($ch, [
@@ -37,7 +63,8 @@ function paymongoRequest(string $method, string $path, ?array $body = null): arr
             'Content-Type: application/json',
             'Accept: application/json',
         ],
-        CURLOPT_TIMEOUT => 20,
+        CURLOPT_CONNECTTIMEOUT => min(10, $timeout),
+        CURLOPT_TIMEOUT => $timeout,
     ]);
     if ($body !== null) {
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['data' => ['attributes' => $body]]));
@@ -59,11 +86,13 @@ function paymongoRequest(string $method, string $path, ?array $body = null): arr
 /**
  * Creates a Checkout Session for a given amount, redirecting the donor to
  * PayMongo's hosted payment page. $amount is in PHP pesos (converted to
- * centavos here, as PayMongo's API requires).
+ * centavos here, as PayMongo's API requires). $metadata (string values only,
+ * e.g. payment_id / appointment_id) comes back with the session and is only
+ * ever a backup way to find the payment — never proof of payment.
  *
  * @return array{ok: bool, session_id: ?string, checkout_url: ?string, error: ?string, raw: array}
  */
-function paymongoCreateCheckoutSession(float $amount, string $description, string $successUrl, string $cancelUrl, ?string $donorEmail = null): array
+function paymongoCreateCheckoutSession(float $amount, string $description, string $successUrl, string $cancelUrl, ?string $donorEmail = null, array $metadata = []): array
 {
     $attributes = [
         'send_email_receipt' => false,
@@ -89,6 +118,9 @@ function paymongoCreateCheckoutSession(float $amount, string $description, strin
     if ($donorEmail) {
         $attributes['billing'] = ['email' => $donorEmail];
     }
+    if ($metadata) {
+        $attributes['metadata'] = array_map('strval', $metadata);
+    }
 
     $result = paymongoRequest('POST', '/checkout_sessions', $attributes);
 
@@ -108,30 +140,79 @@ function paymongoCreateCheckoutSession(float $amount, string $description, strin
 }
 
 /**
- * Retrieves a Checkout Session's current status. PayMongo checkout
- * sessions carry a linked payment_intent whose status is the real source
- * of truth: 'succeeded' (paid), 'awaiting_payment_method'/'processing'
- * (still pending), or the session itself can be 'expired'.
- *
- * @return array{ok: bool, status: ?string, amount: ?float, raw: array}
+ * What a checkout session means for the money:
+ *  paid       — PayMongo took the payment (a session takes at most one)
+ *  processing — a payment is under way and may still succeed: never cancel or replace it
+ *  active     — open and payable: no attempt yet, a failed attempt (the payer may try
+ *               again on the same page), or one waiting for the payer's e-wallet or
+ *               3-D Secure step. It stays payable until expired.
+ *  expired    — can no longer be paid
+ *  unknown    — anything else, treated as possibly payable
+ */
+function paymongoCheckoutState(array $attrs): string
+{
+    $paymentStatuses = [];
+    foreach ((is_array($attrs['payments'] ?? null) ? $attrs['payments'] : []) as $payment) {
+        $paymentStatuses[] = (string) ($payment['attributes']['status'] ?? '');
+    }
+    $intent = (string) ($attrs['payment_intent']['attributes']['status'] ?? '');
+    $session = (string) ($attrs['status'] ?? '');
+
+    if (in_array('paid', $paymentStatuses, true) || $intent === 'succeeded') return 'paid';
+    if (in_array('pending', $paymentStatuses, true) || $intent === 'processing') return 'processing';
+    if ($session === 'expired' || $intent === 'cancelled') return 'expired';
+    if ($session === 'active') return 'active';
+    return 'unknown';
+}
+
+/** @return array{ok: bool, state: string, status: ?string, amount: ?float, checkout_url: ?string, metadata: array, raw: array} */
+function paymongoSessionFromResponse(array $result): array
+{
+    if (!$result['ok'] || !is_array($result['body']['data']['attributes'] ?? null)) {
+        return ['ok' => false, 'state' => 'unknown', 'status' => null, 'amount' => null, 'checkout_url' => null, 'metadata' => [], 'raw' => $result['body'] ?? []];
+    }
+    $attrs = $result['body']['data']['attributes'];
+    $centavos = null;
+    foreach ((is_array($attrs['line_items'] ?? null) ? $attrs['line_items'] : []) as $item) {
+        $centavos = ($centavos ?? 0) + (int) ($item['amount'] ?? 0) * max(1, (int) ($item['quantity'] ?? 1));
+    }
+    return [
+        'ok' => true,
+        'state' => paymongoCheckoutState($attrs),
+        'status' => $attrs['payment_intent']['attributes']['status'] ?? ($attrs['status'] ?? null),
+        'amount' => $centavos === null ? null : $centavos / 100,
+        'checkout_url' => $attrs['checkout_url'] ?? null,
+        'metadata' => is_array($attrs['metadata'] ?? null) ? $attrs['metadata'] : [],
+        'raw' => $result['body'],
+    ];
+}
+
+/**
+ * Retrieves a Checkout Session from PayMongo with the secret key. This answer
+ * is the only thing ParishHub trusts about a checkout: a browser redirect or a
+ * webhook body never marks anything paid on its own.
  */
 function paymongoGetCheckoutSession(string $sessionId): array
 {
-    $result = paymongoRequest('GET', '/checkout_sessions/' . urlencode($sessionId));
-    if (!$result['ok']) {
-        return ['ok' => false, 'status' => null, 'amount' => null, 'raw' => $result['body']];
+    if ($sessionId === '') {
+        return paymongoSessionFromResponse(['ok' => false, 'body' => []]);
     }
+    return paymongoSessionFromResponse(paymongoRequest('GET', '/checkout_sessions/' . urlencode($sessionId)));
+}
 
-    $attrs = $result['body']['data']['attributes'] ?? [];
-    $paymentIntent = $attrs['payment_intent'] ?? null;
-    $piStatus = is_array($paymentIntent) ? ($paymentIntent['attributes']['status'] ?? null) : null;
-
-    // A checkout session with a paid payment_intent is the success case.
-    // If there's no payment_intent yet, the donor hasn't completed checkout.
-    $status = $piStatus ?? ($attrs['status'] ?? 'unknown');
-    $amount = isset($attrs['line_items'][0]['amount']) ? $attrs['line_items'][0]['amount'] / 100 : null;
-
-    return ['ok' => true, 'status' => $status, 'amount' => $amount, 'raw' => $result['body']];
+/**
+ * Makes a checkout unpayable (POST /checkout_sessions/{id}/expire). PayMongo
+ * refuses when the session is already expired, paid, or has a payment under
+ * way; the session is then read back to learn which. ok=false means PayMongo
+ * gave no clear answer, so nothing may be assumed.
+ */
+function paymongoExpireCheckoutSession(string $sessionId): array
+{
+    $expired = paymongoSessionFromResponse(paymongoRequest('POST', '/checkout_sessions/' . urlencode($sessionId) . '/expire'));
+    if ($expired['ok'] && $expired['state'] === 'expired') {
+        return $expired;
+    }
+    return paymongoGetCheckoutSession($sessionId);
 }
 
 /**
@@ -161,93 +242,485 @@ function paymongoVerifyWebhookSignature(string $rawBody, string $signatureHeader
     return hash_equals($computed, $expectedSig);
 }
 
-/** Maps a PayMongo payment_intent status to our payment_status_type enum. */
-function paymongoStatusToLocal(string $paymongoStatus): string
+/** @return array{payment_id: int, appointment_id: int, payment_status: string, amount: string, gateway_transaction_id: ?string, gateway_status: ?string, raw_response: ?string}|null */
+function paymongoPaymentRow(int $paymentId): ?array
 {
-    return match ($paymongoStatus) {
-        'succeeded', 'paid' => 'verified',
-        'awaiting_payment_method', 'awaiting_next_action', 'processing' => 'pending',
-        'cancelled' => 'cancelled',
-        default => 'failed',
+    $stmt = db()->prepare(
+        "SELECT p.payment_id, p.appointment_id, p.payment_status, p.amount, t.gateway_transaction_id, t.status AS gateway_status, t.raw_response
+         FROM payments p JOIN transactions t ON t.payment_id = p.payment_id AND t.gateway = 'paymongo'
+         WHERE p.payment_id = ? ORDER BY t.transaction_id DESC LIMIT 1"
+    );
+    $stmt->execute([$paymentId]);
+    return $stmt->fetch() ?: null;
+}
+
+/**
+ * PayMongo record statuses that need the Treasurer: a charge PayMongo took that
+ * could not be applied to its booking, and a checkout PayMongo created that
+ * ParishHub could not record or confirm expired (paymongoAbandonUnrecordedCheckout()).
+ */
+const PAYMONGO_RECONCILIATION_STATUSES = ['needs_reconciliation', 'unrecorded_checkout'];
+
+/** True when a still-pending payment's PayMongo record needs the Treasurer (labels in lists and reports). */
+function paymongoStatusNeedsReconciliation(?string $paymentStatus, ?string $gatewayStatus): bool
+{
+    return $paymentStatus === 'pending' && in_array($gatewayStatus, PAYMONGO_RECONCILIATION_STATUSES, true);
+}
+
+/** True when a PayMongo charge or checkout for this payment is waiting on the Treasurer. */
+function paymongoNeedsReconciliation(int $paymentId): bool
+{
+    $row = paymongoPaymentRow($paymentId);
+    return $row !== null && paymongoStatusNeedsReconciliation($row['payment_status'], $row['gateway_status']);
+}
+
+/** The id of a checkout PayMongo created but ParishHub could not record, if this payment has one. */
+function paymongoUnrecordedSessionId(array $row): ?string
+{
+    if (($row['gateway_status'] ?? '') !== 'unrecorded_checkout' || !empty($row['gateway_transaction_id'])) return null;
+    $id = json_decode((string) ($row['raw_response'] ?? ''), true)['unrecorded_session_id'] ?? null;
+    return is_string($id) && preg_match('/^cs_[A-Za-z0-9]+$/', $id) ? $id : null;
+}
+
+/** Records an unrecorded checkout's id after all, so every normal path (re-check, expiry, webhook) can reach it. */
+function paymongoAdoptUnrecorded(int $paymentId, string $sessionId): bool
+{
+    $stmt = db()->prepare(
+        "UPDATE transactions SET gateway_transaction_id = ?, status = 'pending'
+         WHERE payment_id = ? AND gateway = 'paymongo' AND gateway_transaction_id IS NULL AND status = 'unrecorded_checkout'"
+    );
+    $stmt->execute([$sessionId, $paymentId]);
+    return $stmt->rowCount() === 1;
+}
+
+/**
+ * Brings one PayMongo payment in line with what PayMongo says about its
+ * checkout. The single place the return pages, cancel links, the retry check,
+ * the webhook and the Treasurer's re-check all decide what a checkout means:
+ *  - paid: verified through verifyPaymentAndIssueReceipt(), even if ParishHub
+ *    had marked the payment cancelled or failed — a real charge is never
+ *    ignored. When the booking cannot take it (already paid, cancelled, or the
+ *    amount differs) the payment stays pending and is flagged
+ *    "needs_reconciliation" for the Treasurer: no second receipt, nothing
+ *    discarded, nothing refunded automatically.
+ *  - expired: a still-pending payment becomes cancelled.
+ *  - active / processing / unknown: nothing changes.
+ * The request that verifies a payment then closes the appointment's other
+ * checkouts (paymongoCloseOtherCheckouts()) unless $closeOthers is false —
+ * as it is for those other checkouts themselves, so this never recurses.
+ *
+ * @return string verified | reconcile | cancelled | pending | refunded | error
+ */
+function paymongoApplyCheckout(int $paymentId, array $session, bool $closeOthers = true): string
+{
+    $payment = paymongoPaymentRow($paymentId);
+    if (!$payment) return 'error';
+    if ($payment['payment_status'] === 'verified') return 'verified';
+    if ($payment['payment_status'] === 'refunded') return 'refunded';
+    if (!$session['ok']) return 'error';
+
+    $record = db()->prepare("UPDATE transactions SET status = ?, raw_response = ? WHERE payment_id = ? AND gateway = 'paymongo'");
+    $raw = json_encode($session['raw'] ?? []);
+
+    if ($session['state'] === 'paid') {
+        $amountMatches = $session['amount'] !== null && abs($session['amount'] - (float) $payment['amount']) < 0.005;
+        // Back to pending so it is verified now, or stays in the Treasurer's queue if it cannot be.
+        db()->prepare("UPDATE payments SET payment_status = 'pending' WHERE payment_id = ? AND payment_status IN ('cancelled', 'failed')")
+            ->execute([$paymentId]);
+        $reason = 'the amount PayMongo charged differs from this payment';
+        if ($amountMatches) {
+            $resolvedMethod = resolvePaymentMethodName('PayMongo (Online)', $raw);
+            $methodMap = ['GCash' => 2, 'Maya' => 3, 'Credit/Debit Card' => 5];
+            $result = verifyPaymentAndIssueReceipt($paymentId, null, (string) $payment['gateway_transaction_id']);
+            if ($result['ok'] || (paymongoPaymentRow($paymentId)['payment_status'] ?? '') === 'verified') {
+                // ok, or verified a moment ago by a concurrent request (webhook and return page together)
+                $record->execute(['paid', $raw, $paymentId]);
+                if (isset($methodMap[$resolvedMethod])) {
+                    try {
+                        db()->prepare('UPDATE payments SET method_id = ? WHERE payment_id = ?')->execute([$methodMap[$resolvedMethod], $paymentId]);
+                    } catch (Throwable $e) {}
+                }
+                // Only the request that did the verification tidies up, after it committed.
+                if ($result['ok'] && $closeOthers) {
+                    paymongoCloseOtherCheckouts($paymentId);
+                }
+                return 'verified';
+            }
+            $reason = $result['message'];
+        }
+        $record->execute(['needs_reconciliation', $raw, $paymentId]);
+        if ($payment['gateway_status'] !== 'needs_reconciliation') {   // reported once, not on every re-check
+            error_log("PayMongo payment $paymentId was paid but needs reconciliation: $reason");
+            // activity_logs.action holds 150 characters: the reason stays in the error log above.
+            logActivity(null, "PayMongo payment #$paymentId was paid but could not be applied to its booking — needs Treasurer reconciliation", 'Payments');
+        }
+        return 'reconcile';
+    }
+
+    $record->execute([(string) ($session['status'] ?? $session['state']), $raw, $paymentId]);
+    if ($session['state'] === 'expired') {
+        markPaymentUnsuccessful($paymentId, 'cancelled');
+        return (paymongoPaymentRow($paymentId)['payment_status'] ?? '') === 'pending' ? 'pending' : 'cancelled';
+    }
+    return $payment['payment_status'] === 'pending' ? 'pending' : (string) $payment['payment_status'];
+}
+
+/** At most this many other checkouts, and this many seconds of PayMongo calls, per tidy-up. */
+const PAYMONGO_CLEANUP_MAX_CHECKOUTS = 3;
+const PAYMONGO_CLEANUP_SECONDS = 8.0;
+
+/**
+ * After a PayMongo payment is verified, the appointment's other checkouts must
+ * not take money too. Each still-open one is expired at PayMongo; one being
+ * processed is left alone (PayMongo refuses to expire it anyway); one already
+ * paid is applied, which flags it for reconciliation (the booking is paid now,
+ * so it can never get a second receipt). Best effort and bounded: a few
+ * checkouts and a few seconds of calls, after the verification has committed,
+ * with no database transaction held. Whatever PayMongo cannot answer now is
+ * left as it is for the return pages, the webhook or the Treasurer's re-check
+ * — the verified payment itself is never touched.
+ */
+function paymongoCloseOtherCheckouts(int $paymentId): void
+{
+    try {
+        $stmt = db()->prepare(
+            "SELECT p.payment_id, t.gateway_transaction_id
+             FROM payments p JOIN transactions t ON t.payment_id = p.payment_id AND t.gateway = 'paymongo'
+             WHERE p.appointment_id = (SELECT appointment_id FROM payments WHERE payment_id = ?)
+               AND p.payment_id <> ? AND p.payment_status IN ('pending', 'cancelled', 'failed')
+               AND t.gateway_transaction_id IS NOT NULL AND t.status NOT IN ('needs_reconciliation')
+             ORDER BY p.payment_id DESC LIMIT " . PAYMONGO_CLEANUP_MAX_CHECKOUTS
+        );
+        $stmt->execute([$paymentId, $paymentId]);
+        $others = $stmt->fetchAll();
+    } catch (Throwable $e) {
+        error_log('ParishHub: could not list other PayMongo checkouts for payment ' . $paymentId . ' (' . get_class($e) . ' ' . $e->getCode() . ')');
+        return;
+    }
+    if (!$others) return;
+
+    $ownDeadline = paymongoDeadline() === null;
+    if ($ownDeadline) paymongoDeadline(microtime(true) + PAYMONGO_CLEANUP_SECONDS);
+    try {
+        foreach ($others as $other) {
+            $sessionId = (string) $other['gateway_transaction_id'];
+            $session = paymongoGetCheckoutSession($sessionId);
+            if ($session['ok'] && in_array($session['state'], ['active', 'unknown'], true)) {
+                $session = paymongoExpireCheckoutSession($sessionId);
+            }
+            if (!$session['ok']) {
+                error_log("PayMongo: checkout $sessionId (payment {$other['payment_id']}) could not be checked after payment $paymentId was verified; left for a later re-check");
+                continue;
+            }
+            paymongoApplyCheckout((int) $other['payment_id'], $session, false);
+        }
+    } catch (Throwable $e) {
+        error_log('ParishHub: closing other PayMongo checkouts after payment ' . $paymentId . ' stopped (' . get_class($e) . ' ' . $e->getCode() . ')');
+    } finally {
+        if ($ownDeadline) paymongoDeadline(true);
+    }
+}
+
+/**
+ * Re-reads one PayMongo payment's checkout and applies it. A payment
+ * ParishHub had already given up on (cancelled or failed) whose checkout is
+ * still open is expired at PayMongo now, so it can never be paid unnoticed.
+ *
+ * @return string as paymongoApplyCheckout(), or 'not_paymongo'
+ */
+function paymongoSyncPayment(int $paymentId): string
+{
+    $payment = paymongoPaymentRow($paymentId);
+    if (!$payment) return 'not_paymongo';
+    if (in_array($payment['payment_status'], ['verified', 'refunded'], true)) return (string) $payment['payment_status'];
+    $sessionId = (string) $payment['gateway_transaction_id'];
+    if ($sessionId === '') return $payment['payment_status'] === 'pending' ? 'pending' : (string) $payment['payment_status'];
+
+    $session = paymongoGetCheckoutSession($sessionId);
+    if ($session['ok'] && in_array($payment['payment_status'], ['cancelled', 'failed'], true) && in_array($session['state'], ['active', 'unknown'], true)) {
+        $session = paymongoExpireCheckoutSession($sessionId);
+    }
+    return paymongoApplyCheckout($paymentId, $session);
+}
+
+/** Re-checks every not-yet-verified PayMongo payment of an appointment (an older checkout may have been paid too). */
+function paymongoSyncAppointment(int $appointmentId): void
+{
+    $stmt = db()->prepare(
+        "SELECT DISTINCT p.payment_id FROM payments p
+         JOIN transactions t ON t.payment_id = p.payment_id AND t.gateway = 'paymongo'
+         WHERE p.appointment_id = ? AND p.payment_status IN ('pending', 'cancelled', 'failed') AND t.gateway_transaction_id IS NOT NULL
+         ORDER BY p.payment_id DESC LIMIT 5"
+    );
+    $stmt->execute([$appointmentId]);
+    foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $paymentId) {
+        paymongoSyncPayment((int) $paymentId);
+    }
+}
+
+/**
+ * The payer came back through a checkout's cancel link. The checkout is
+ * expired at PayMongo first; only a confirmed expiry cancels the payment. A
+ * paid checkout is verified (or reconciled); one still under way, or one
+ * PayMongo would not confirm, is left pending.
+ */
+function paymongoCancelPayment(int $paymentId): string
+{
+    $payment = paymongoPaymentRow($paymentId);
+    if (!$payment) return 'not_paymongo';
+    if ($payment['payment_status'] !== 'pending') return (string) $payment['payment_status'];
+    $sessionId = (string) $payment['gateway_transaction_id'];
+    if ($sessionId === '') {
+        // Its checkout was never handed to the payer (see paymongoStartCheckout()).
+        markPaymentUnsuccessful($paymentId, 'cancelled');
+        return 'cancelled';
+    }
+    return paymongoApplyCheckout($paymentId, paymongoExpireCheckoutSession($sessionId));
+}
+
+/** Seconds a payment start may hold its appointment: above four PayMongo calls at their 20-second limit. */
+const PAYMENT_LEASE_SECONDS = 120;
+
+/**
+ * Claims the right to start a payment for one appointment, so simultaneous
+ * clicks cannot each open a checkout. A lease row in auth_throttle, taken
+ * atomically: no database transaction stays open while PayMongo is called, a
+ * crashed request's lease simply runs out, and a second request is refused at
+ * once instead of waiting.
+ *
+ * @return int|null the lease token, or null when another request holds the appointment
+ */
+function paymentLeaseAcquire(int $appointmentId): ?int
+{
+    $token = random_int(1, 2147483647);
+    $stmt = db()->prepare(
+        "INSERT INTO auth_throttle (throttle_key, failures, locked_until, updated_at)
+         VALUES (?, ?, NOW() + make_interval(secs => ?), NOW())
+         ON CONFLICT (throttle_key) DO UPDATE SET failures = EXCLUDED.failures, locked_until = EXCLUDED.locked_until, updated_at = NOW()
+         WHERE auth_throttle.locked_until IS NULL OR auth_throttle.locked_until <= NOW()
+         RETURNING failures"
+    );
+    $stmt->execute(['payment_lease:' . $appointmentId, $token, PAYMENT_LEASE_SECONDS]);
+    return (int) $stmt->fetchColumn() === $token ? $token : null;
+}
+
+/** Releases a lease, only if it is still ours (an expired one may belong to another request now). */
+function paymentLeaseRelease(int $appointmentId, int $token): void
+{
+    try {
+        db()->prepare('DELETE FROM auth_throttle WHERE throttle_key = ? AND failures = ?')->execute(['payment_lease:' . $appointmentId, $token]);
+    } catch (Throwable $e) {
+        error_log('ParishHub: payment lease release failed (' . get_class($e) . ' ' . $e->getCode() . ')');
+    }
+}
+
+/**
+ * Before a new payment is recorded for an appointment: never a second checkout
+ * while an earlier one may still take money. Call while holding the
+ * appointment's lease.
+ *
+ * @return array{action: string, url?: string, type?: string, message?: string}
+ *         action new: go ahead · reuse: send the payer back to url · stop: show message, change nothing more
+ */
+function paymongoPrepareNewPayment(int $appointmentId, float $amount, bool $online): array
+{
+    $stmt = db()->prepare(
+        "SELECT p.payment_id, p.method_id, p.payment_status, p.amount, t.gateway_transaction_id, t.status AS gateway_status
+         FROM payments p LEFT JOIN transactions t ON t.payment_id = p.payment_id AND t.gateway = 'paymongo'
+         WHERE p.appointment_id = ? ORDER BY p.payment_id DESC LIMIT 1"
+    );
+    $stmt->execute([$appointmentId]);
+    $existing = $stmt->fetch();
+    if (!$existing || in_array($existing['payment_status'], ['failed', 'cancelled'], true)) {
+        return ['action' => 'new'];
+    }
+    $isOpenOnline = (int) $existing['method_id'] === 7 && $existing['payment_status'] === 'pending';
+    if (!$isOpenOnline) {
+        return ['action' => 'stop', 'type' => 'error', 'message' => 'A payment has already been submitted for this appointment.'];
+    }
+    $paymentId = (int) $existing['payment_id'];
+    $unconfirmed = ['action' => 'stop', 'type' => 'error', 'message' => 'We could not confirm the status of your earlier online payment with PayMongo, so nothing was changed. Please try again in a few minutes.'];
+
+    $sessionId = (string) $existing['gateway_transaction_id'];
+    if ($sessionId === '') {
+        $unrecorded = paymongoUnrecordedSessionId(paymongoPaymentRow($paymentId) ?? []);
+        if ($unrecorded === null) {
+            // A checkout whose id never came back (the request stopped before or
+            // while PayMongo answered): nobody was given its link, so it is closed here.
+            markPaymentUnsuccessful($paymentId, 'cancelled');
+            db()->prepare("UPDATE transactions SET status = 'create_abandoned' WHERE payment_id = ? AND gateway = 'paymongo'")->execute([$paymentId]);
+            return ['action' => 'new'];
+        }
+        // A checkout PayMongo created but ParishHub could not record or expire
+        // (paymongoAbandonUnrecordedCheckout()) is taken up again, never left
+        // open beside a new one.
+        if (!paymongoAdoptUnrecorded($paymentId, $unrecorded)) return $unconfirmed;
+        $sessionId = $unrecorded;
+    }
+
+    $session = paymongoGetCheckoutSession($sessionId);
+    if (!$session['ok']) return $unconfirmed;
+    $sameAmount = abs((float) $existing['amount'] - $amount) < 0.005 && $session['amount'] !== null && abs($session['amount'] - $amount) < 0.005;
+    if ($online && $session['state'] === 'active' && $sameAmount && $session['checkout_url']) {
+        return ['action' => 'reuse', 'url' => (string) $session['checkout_url']];
+    }
+    if (in_array($session['state'], ['active', 'unknown'], true)) {
+        $session = paymongoExpireCheckoutSession($sessionId);
+    }
+
+    return match (paymongoApplyCheckout($paymentId, $session)) {
+        'cancelled' => ['action' => 'new'],
+        'verified' => ['action' => 'stop', 'type' => 'success', 'message' => 'Your online payment was already received — thank you!'],
+        'reconcile' => ['action' => 'stop', 'type' => 'error', 'message' => 'Your earlier online payment was received by PayMongo, but it needs to be reviewed by the parish office before anything else is done. Please contact the parish office.'],
+        'pending' => $session['ok'] && $session['state'] === 'processing'
+            ? ['action' => 'stop', 'type' => 'error', 'message' => 'Your earlier online payment is still being processed by PayMongo. Please wait a few minutes, then check this page again before paying.']
+            : $unconfirmed,
+        default => $unconfirmed,
     };
 }
 
 /**
- * Staff-triggered manual reconciliation for a payment stuck 'pending' on a
- * PayMongo checkout. Online verification normally happens one of two ways —
- * the payer's browser landing back on guest-payment-return.php /
- * parishioner/payment-return.php, or PayMongo's webhook — and if BOTH miss
- * (browser never returns, e.g. after an e-wallet app-switch; webhook not
- * configured for this deployment) the payment sits pending forever with
- * nothing to recover it. This button is that recovery path: it re-checks the
- * checkout session directly with PayMongo and applies whatever it reports,
- * using the exact same verification/failure handling as the return pages and
- * the webhook — this is not a separate decision, just a manual trigger for
- * the same reconciliation. Requires includes/functions.php to already be
- * loaded (verifyPaymentAndIssueReceipt(), markPaymentUnsuccessful(),
- * resolvePaymentMethodName(), db()).
+ * Records a new online payment and opens its checkout, without keeping a
+ * database transaction open while PayMongo answers: the payment and an empty
+ * PayMongo transaction are saved first, then the checkout is created (carrying
+ * payment_id and appointment_id as metadata), then its session id is stored.
+ * If the request stops in between, the checkout's link was never handed out;
+ * the next attempt closes that payment (see paymongoPrepareNewPayment()), and
+ * the webhook can still find it by its metadata.
  *
- * @return array{ok: bool, outcome: string, message: string} outcome: verified|pending|failed|cancelled|not_paymongo|error
+ * @return array{ok: bool, payment_id: int, checkout_url: ?string, error: ?string}
+ */
+function paymongoStartCheckout(int $appointmentId, float $amount, string $description, string $successUrl, string $cancelUrl, ?string $email): array
+{
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare("INSERT INTO payments (appointment_id, reference_number, amount, method_id, payment_status, payment_date) VALUES (?, NULL, ?, 7, 'pending', NOW())")
+            ->execute([$appointmentId, $amount]);
+        $paymentId = (int) $pdo->lastInsertId();
+        $pdo->prepare("INSERT INTO transactions (payment_id, gateway, gateway_transaction_id, status, raw_response) VALUES (?, 'paymongo', NULL, 'creating', NULL)")
+            ->execute([$paymentId]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log($e->getMessage());
+        return ['ok' => false, 'payment_id' => 0, 'checkout_url' => null, 'error' => null];
+    }
+
+    $checkout = paymongoCreateCheckoutSession($amount, $description, $successUrl, $cancelUrl, $email,
+        ['payment_id' => $paymentId, 'appointment_id' => $appointmentId]);
+    if (!$checkout['ok'] || !$checkout['session_id'] || !$checkout['checkout_url']) {
+        // The link never reaches the payer; the payment is closed. If PayMongo did
+        // create a session after all, its metadata still leads the webhook here.
+        markPaymentUnsuccessful($paymentId, 'cancelled');
+        $pdo->prepare("UPDATE transactions SET status = 'create_failed', raw_response = ? WHERE payment_id = ? AND gateway = 'paymongo'")
+            ->execute([json_encode($checkout['raw'] ?? []), $paymentId]);
+        error_log('PayMongo checkout session creation failed: ' . json_encode($checkout['raw'] ?? []));
+        return ['ok' => false, 'payment_id' => $paymentId, 'checkout_url' => null, 'error' => $checkout['error'] ?: null];
+    }
+    // The link is handed out only once its session id is stored on this payment.
+    try {
+        $store = $pdo->prepare("UPDATE transactions SET gateway_transaction_id = ?, status = 'pending', raw_response = ? WHERE payment_id = ? AND gateway = 'paymongo' AND gateway_transaction_id IS NULL");
+        $store->execute([$checkout['session_id'], json_encode($checkout['raw']), $paymentId]);
+        $stored = $store->rowCount() === 1;
+    } catch (Throwable $e) {
+        error_log('ParishHub: could not record PayMongo checkout for payment ' . $paymentId . ' (' . get_class($e) . ' ' . $e->getCode() . ')');
+        $stored = false;
+    }
+    if (!$stored) {
+        paymongoAbandonUnrecordedCheckout($paymentId, (string) $checkout['session_id']);
+        return ['ok' => false, 'payment_id' => $paymentId, 'checkout_url' => null, 'error' => null];
+    }
+    return ['ok' => true, 'payment_id' => $paymentId, 'checkout_url' => $checkout['checkout_url'], 'error' => null];
+}
+
+/**
+ * PayMongo created a checkout that ParishHub could not record. Its link is
+ * never handed out. It is expired at PayMongo; once that is confirmed the
+ * payment is closed. If it cannot be confirmed the checkout may still accept
+ * money, so its id is kept — in the error log always, and on the payment's
+ * PayMongo record (status "unrecorded_checkout", shown to the Treasurer as
+ * Needs Reconciliation) when the database allows — and the next payment
+ * attempt or the Treasurer's re-check takes it up again instead of a second
+ * checkout being opened beside it.
+ */
+function paymongoAbandonUnrecordedCheckout(int $paymentId, string $sessionId): void
+{
+    $session = paymongoExpireCheckoutSession($sessionId);
+    if ($session['ok'] && $session['state'] === 'expired') {
+        error_log("PayMongo checkout $sessionId for payment $paymentId could not be recorded; it was expired at PayMongo");
+        try {
+            markPaymentUnsuccessful($paymentId, 'cancelled');
+            db()->prepare("UPDATE transactions SET status = 'create_unrecorded', raw_response = ? WHERE payment_id = ? AND gateway = 'paymongo' AND gateway_transaction_id IS NULL")
+                ->execute([json_encode(['unrecorded_session_id' => $sessionId, 'expired' => true]), $paymentId]);
+        } catch (Throwable $e) {
+            error_log('ParishHub: could not close payment ' . $paymentId . ' after its unrecorded checkout expired (' . get_class($e) . ' ' . $e->getCode() . ')');
+        }
+        return;
+    }
+    error_log("PayMongo checkout $sessionId for payment $paymentId could not be recorded and was not confirmed expired — needs Treasurer reconciliation");
+    try {
+        db()->prepare("UPDATE transactions SET status = 'unrecorded_checkout', raw_response = ? WHERE payment_id = ? AND gateway = 'paymongo' AND gateway_transaction_id IS NULL")
+            ->execute([json_encode(['unrecorded_session_id' => $sessionId]), $paymentId]);
+        logActivity(null, mb_substr("PayMongo checkout $sessionId (payment #$paymentId) could not be recorded or expired — needs Treasurer reconciliation", 0, 150), 'Payments');
+    } catch (Throwable $e) {
+        error_log('ParishHub: could not flag payment ' . $paymentId . ' for its unrecorded checkout (' . get_class($e) . ' ' . $e->getCode() . ')');
+    }
+}
+
+/**
+ * Staff-triggered manual reconciliation for a PayMongo payment. Online
+ * verification normally happens one of two ways — the payer's browser landing
+ * back on a return page, or PayMongo's webhook — and if BOTH miss (browser
+ * never returns, e.g. after an e-wallet app-switch; webhook not configured for
+ * this deployment) the payment would sit unresolved with nothing to recover
+ * it. This re-checks the checkout session directly with PayMongo and applies
+ * whatever it reports through paymongoApplyCheckout(). It also works on a
+ * payment ParishHub marked cancelled or failed, so a charge made on an older
+ * checkout can be found. Requires includes/functions.php to already be loaded.
+ *
+ * @return array{ok: bool, outcome: string, message: string} outcome: verified|reconcile|pending|cancelled|refunded|not_paymongo|error
  */
 function paymongoRecheckPayment(int $paymentId): array
 {
-    $stmt = db()->prepare(
-        "SELECT p.payment_id, p.payment_status, t.gateway_transaction_id
-         FROM payments p
-         LEFT JOIN transactions t ON t.payment_id = p.payment_id AND t.gateway = 'paymongo'
-         WHERE p.payment_id = ?"
-    );
-    $stmt->execute([$paymentId]);
-    $row = $stmt->fetch();
+    $row = paymongoPaymentRow($paymentId);
+    $unrecorded = $row ? paymongoUnrecordedSessionId($row) : null;
+    if ($unrecorded !== null && $row['payment_status'] === 'pending') {
+        // A checkout PayMongo created but ParishHub could not record: record it now, then check it.
+        if (!paymongoAdoptUnrecorded($paymentId, $unrecorded)) {
+            return ['ok' => false, 'outcome' => 'error', 'message' => 'Could not record this payment\'s PayMongo checkout right now. Please try again shortly.'];
+        }
+        $row['gateway_transaction_id'] = $unrecorded;
+    }
     if (!$row || !$row['gateway_transaction_id']) {
         return ['ok' => false, 'outcome' => 'not_paymongo', 'message' => 'This payment was not made through PayMongo online checkout, so there is nothing to re-check with PayMongo.'];
     }
-    if ($row['payment_status'] !== 'pending') {
+    if (in_array($row['payment_status'], ['verified', 'refunded'], true)) {
         return ['ok' => true, 'outcome' => (string) $row['payment_status'], 'message' => 'This payment is already ' . $row['payment_status'] . ' — nothing to recheck.'];
     }
-
-    $session = paymongoGetCheckoutSession($row['gateway_transaction_id']);
-    if (!$session['ok']) {
-        return ['ok' => false, 'outcome' => 'error', 'message' => 'Could not reach PayMongo to check this payment right now. Please try again shortly.'];
-    }
-    $localStatus = paymongoStatusToLocal((string) $session['status']);
-    db()->prepare('UPDATE transactions SET status = ?, raw_response = ? WHERE payment_id = ?')
-        ->execute([$session['status'], json_encode($session['raw'] ?? []), $paymentId]);
-
-    if ($localStatus === 'verified') {
-        $resolvedMethod = resolvePaymentMethodName('PayMongo (Online)', json_encode($session['raw'] ?? []));
-        $methodMap = ['GCash' => 2, 'Maya' => 3, 'Credit/Debit Card' => 5];
-        if (isset($methodMap[$resolvedMethod])) {
-            try {
-                db()->prepare('UPDATE payments SET method_id = ? WHERE payment_id = ?')->execute([$methodMap[$resolvedMethod], $paymentId]);
-            } catch (Throwable $e) {}
-        }
-        $result = verifyPaymentAndIssueReceipt($paymentId, null, $row['gateway_transaction_id']);
-        if ($result['ok']) {
-            return ['ok' => true, 'outcome' => 'verified', 'message' => 'PayMongo confirms this payment was paid. ' . $result['message']];
-        }
-        return ['ok' => false, 'outcome' => 'error', 'message' => 'PayMongo confirms this was paid, but the appointment could not be updated: ' . $result['message']];
-    }
-    if (in_array($localStatus, ['failed', 'cancelled'], true)) {
-        markPaymentUnsuccessful($paymentId, $localStatus);
-        return ['ok' => true, 'outcome' => $localStatus, 'message' => 'PayMongo reports this checkout was ' . $localStatus . '. The payment has been marked accordingly.'];
-    }
-    return ['ok' => true, 'outcome' => 'pending', 'message' => "PayMongo still shows this payment as pending/awaiting the payer's action. Nothing has changed yet — try again later."];
+    $outcome = paymongoSyncPayment($paymentId);
+    return match ($outcome) {
+        'verified' => ['ok' => true, 'outcome' => 'verified', 'message' => 'PayMongo confirms this payment was paid. It has been verified and a receipt issued.'],
+        'reconcile' => ['ok' => false, 'outcome' => 'reconcile', 'message' => 'PayMongo confirms this payment was PAID, but it could not be applied to its booking (already paid, cancelled, or a different amount). It is flagged for reconciliation: review the booking, and if this charge should not stand, refund it in the PayMongo dashboard.'],
+        'cancelled' => ['ok' => true, 'outcome' => 'cancelled', 'message' => 'PayMongo confirms this checkout has expired and can no longer be paid. The payment is marked cancelled.'],
+        'pending' => ['ok' => true, 'outcome' => 'pending', 'message' => "PayMongo still shows this payment as open or being processed. Nothing has changed yet — try again later."],
+        default => ['ok' => false, 'outcome' => 'error', 'message' => 'Could not reach PayMongo to check this payment right now. Please try again shortly.'],
+    };
 }
 
 /**
  * A donor came back through a donation checkout's cancel_url. Only the browser
  * session that started that checkout (donate.php sets the marker) may cancel
- * it, and only a still-pending payment is touched. PayMongo stays the
- * authority: if it reports the session as paid, the payment is verified
- * instead of cancelled. Returns ['status' => ..., 'message' => ...] for the
- * donor, or null when there is nothing to report (unknown or someone else's).
+ * it, and only once PayMongo confirms the checkout can no longer be paid. If
+ * PayMongo reports the session as paid, the payment is verified instead.
+ * Returns ['status' => ..., 'message' => ...] for the donor, or null when
+ * there is nothing to report (unknown or someone else's).
  */
 function handleCancelledDonationCheckout(int $appointmentId): ?array
 {
     if ($appointmentId < 1 || empty($_SESSION['donation_checkout'][$appointmentId])) return null;
     $stmt = db()->prepare(
-        "SELECT p.payment_id, p.payment_status, t.gateway_transaction_id
+        "SELECT p.payment_id, p.payment_status
          FROM payments p
          JOIN transactions t ON t.payment_id = p.payment_id AND t.gateway = 'paymongo'
          JOIN appointments a ON a.appointment_id = p.appointment_id
@@ -259,22 +732,17 @@ function handleCancelledDonationCheckout(int $appointmentId): ?array
     $payment = $stmt->fetch();
     if (!$payment) return null;
 
-    if ($payment['payment_status'] === 'verified') {
+    $outcome = $payment['payment_status'] === 'pending' ? paymongoCancelPayment((int) $payment['payment_id']) : (string) $payment['payment_status'];
+    if ($outcome === 'verified') {
         unset($_SESSION['donation_checkout'][$appointmentId]);
-        return ['status' => 'verified', 'message' => 'Thank you! Your donation has been received and verified.'];
+        return ['status' => 'verified', 'message' => 'Thank you! Your donation has been received and verified — a receipt has been issued.'];
     }
-    if ($payment['payment_status'] === 'pending') {
-        $session = paymongoGetCheckoutSession((string) $payment['gateway_transaction_id']);
-        if ($session['ok'] && paymongoStatusToLocal($session['status']) === 'verified') {
-            // Paid after all (e.g. back button pressed after paying): never cancel a real payment.
-            $result = verifyPaymentAndIssueReceipt((int) $payment['payment_id'], null, $payment['gateway_transaction_id']);
-            unset($_SESSION['donation_checkout'][$appointmentId]);
-            return $result['ok']
-                ? ['status' => 'verified', 'message' => 'Thank you! Your donation has been received and verified — a receipt has been issued.']
-                : ['status' => 'pending', 'message' => "Your payment was received by PayMongo. We're finishing up on our end — it will show as verified shortly."];
-        }
-        markPaymentUnsuccessful((int) $payment['payment_id'], 'cancelled');
-        db()->prepare("UPDATE transactions SET status = 'cancelled' WHERE payment_id = ?")->execute([$payment['payment_id']]);
+    if ($outcome === 'reconcile') {
+        unset($_SESSION['donation_checkout'][$appointmentId]);
+        return ['status' => 'pending', 'message' => 'Your payment was received by PayMongo. The parish office will review it shortly; contact us if you have questions.'];
+    }
+    if ($outcome === 'pending' || $outcome === 'error') {
+        return ['status' => 'pending', 'message' => 'Your payment is still being processed by PayMongo, so it could not be cancelled. If it completes, it will show as received.'];
     }
     unset($_SESSION['donation_checkout'][$appointmentId]);
     return ['status' => 'cancelled', 'message' => 'You cancelled the donation payment before it completed. No charge was made — you can try again anytime.'];
@@ -283,9 +751,8 @@ function handleCancelledDonationCheckout(int $appointmentId): ?array
 /**
  * A donor came back through a donation checkout's success_url. The redirect is
  * NOT proof of payment: the checkout session is always re-checked with PayMongo
- * (secret key) before payment_status changes. Idempotent:
- * verifyPaymentAndIssueReceipt() / markPaymentUnsuccessful() only act on a
- * still-pending payment, so a repeat visit is harmless.
+ * (secret key) before payment_status changes. Idempotent: every step only acts
+ * on a payment that is not yet verified, so a repeat visit is harmless.
  *
  * Only the browser that started this checkout (its per-donation marker) or the
  * signed-in parishioner who owns it learns how it went; anyone else (an edited
@@ -299,7 +766,7 @@ function handleCancelledDonationCheckout(int $appointmentId): ?array
 function handleDonationCheckoutReturn(int $appointmentId): ?array
 {
     $stmt = db()->prepare(
-        "SELECT p.payment_id, p.payment_status, p.method_id, t.gateway_transaction_id
+        "SELECT p.payment_id, p.payment_status, p.method_id
          FROM payments p
          JOIN transactions t ON t.payment_id = p.payment_id AND t.gateway = 'paymongo'
          JOIN appointments a ON a.appointment_id = p.appointment_id
@@ -312,46 +779,21 @@ function handleDonationCheckoutReturn(int $appointmentId): ?array
     if (!$payment) return null;
     $authorized = canViewGuestReference($appointmentId); // checked before the marker is cleared
 
-    if ($payment['payment_status'] === 'verified') {
-        // Already reconciled (e.g. the webhook got there first, or a repeat visit).
+    $outcome = $payment['payment_status'] === 'verified' ? 'verified' : paymongoSyncPayment((int) $payment['payment_id']);
+    $status = 'pending';
+    $message = "We're still waiting for PayMongo to confirm this payment. If you completed it, it will update automatically shortly.";
+    if ($outcome === 'verified') {
         $status = 'verified';
-        $message = 'Thank you! Your donation has been received and verified.';
-    } else {
-        $session = paymongoGetCheckoutSession((string) $payment['gateway_transaction_id']);
-        $localStatus = $session['ok'] ? paymongoStatusToLocal($session['status']) : 'pending';
-        db()->prepare("UPDATE transactions SET status = ?, raw_response = ? WHERE payment_id = ?")
-            ->execute([$session['ok'] ? $session['status'] : 'unknown', json_encode($session['raw'] ?? []), $payment['payment_id']]);
-
-        if ($localStatus === 'verified') {
-            $resolvedMethod = resolvePaymentMethodName('PayMongo (Online)', json_encode($session['raw'] ?? []));
-            $methodMap = ['GCash' => 2, 'Maya' => 3, 'Credit/Debit Card' => 5];
-            if (isset($methodMap[$resolvedMethod])) {
-                try {
-                    db()->prepare('UPDATE payments SET method_id = ? WHERE payment_id = ?')->execute([$methodMap[$resolvedMethod], $payment['payment_id']]);
-                } catch (Throwable $e) {}
-            }
-            $result = verifyPaymentAndIssueReceipt((int) $payment['payment_id'], null, $payment['gateway_transaction_id']);
-            if ($result['ok']) {
-                $status = 'verified';
-                $message = 'Thank you! Your donation has been received and verified — a receipt has been issued.';
-            } else {
-                // PayMongo confirmed the payment but our bookkeeping step failed (e.g. a
-                // race with the webhook): never tell the donor it failed — they were
-                // charged. Left pending for staff to reconcile if needed.
-                error_log("PayMongo payment {$payment['payment_id']} confirmed but verifyPaymentAndIssueReceipt failed: {$result['message']}");
-                $status = 'pending';
-                $message = "Your payment was received by PayMongo. We're finishing up on our end — this will show as verified shortly; contact us if it doesn't within a day.";
-            }
-        } elseif ($localStatus === 'failed' || $localStatus === 'cancelled') {
-            markPaymentUnsuccessful((int) $payment['payment_id'], $localStatus);
-            $status = $localStatus;
-            $message = $localStatus === 'cancelled'
-                ? 'The payment was cancelled. No charge was made — you can try again anytime.'
-                : 'The payment did not go through. No charge was made — please try again or choose a different method.';
-        } else {
-            $status = 'pending';
-            $message = "We're still waiting for PayMongo to confirm this payment. If you completed it, it will update automatically shortly.";
-        }
+        $message = $payment['payment_status'] === 'verified'
+            ? 'Thank you! Your donation has been received and verified.'
+            : 'Thank you! Your donation has been received and verified — a receipt has been issued.';
+    } elseif ($outcome === 'reconcile') {
+        // PayMongo took the money but our bookkeeping step could not: never tell
+        // the donor it failed — they were charged. The Treasurer reconciles it.
+        $message = "Your payment was received by PayMongo. We're finishing up on our end; contact us if it doesn't show as verified within a day.";
+    } elseif ($outcome === 'cancelled') {
+        $status = 'cancelled';
+        $message = 'The payment was cancelled. No charge was made — you can try again anytime.';
     }
 
     if (!$authorized) {

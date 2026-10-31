@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/service-fees.php'; // appointmentNoPaymentRequired()
+require_once __DIR__ . '/../includes/paymongo.php'; // paymongoStatusNeedsReconciliation()
 requireRole('Treasurer', 'Admin');
 
 $userId = currentUser()['user_id'];
@@ -89,7 +90,7 @@ $dateFrom = $_GET['date_from'] ?? '';
 $dateTo = $_GET['date_to'] ?? '';
 $search = $_GET['search'] ?? '';
 
-$sql = "SELECT p.*, pm.method_name, u.firstname, u.lastname, a.guest_name, s.service_name, a.appointment_date
+$sql = "SELECT p.*, pm.method_name, u.firstname, u.lastname, a.guest_name, s.service_name, a.appointment_date, (SELECT t.status FROM transactions t WHERE t.payment_id = p.payment_id AND t.gateway = 'paymongo' ORDER BY t.transaction_id DESC LIMIT 1) AS gateway_status
         FROM payments p
         JOIN payment_methods pm ON p.method_id = pm.method_id
         JOIN appointments a ON p.appointment_id = a.appointment_id
@@ -107,7 +108,7 @@ if ($search) {
     $lk = likeSafe($search); $params[] = $lk; $params[] = $lk; $params[] = $lk; $params[] = $lk;
 }
 $countSql = str_replace(
-    'SELECT p.*, pm.method_name, u.firstname, u.lastname, a.guest_name, s.service_name, a.appointment_date',
+    "SELECT p.*, pm.method_name, u.firstname, u.lastname, a.guest_name, s.service_name, a.appointment_date, (SELECT t.status FROM transactions t WHERE t.payment_id = p.payment_id AND t.gateway = 'paymongo' ORDER BY t.transaction_id DESC LIMIT 1) AS gateway_status",
     'SELECT COUNT(*)',
     $sql
 );
@@ -206,7 +207,8 @@ include __DIR__ . '/../includes/dash-start.php';
               <td><?= e($p['service_name']) ?></td>
               <td><?= money($p['amount']) ?></td>
               <td><?= e($p['method_name']) ?></td>
-              <td><span class="badge badge-<?= e($p['payment_status']) ?>"><?= e($p['payment_status']) ?></span></td>
+              <td><span class="badge badge-<?= e($p['payment_status']) ?>"><?= e($p['payment_status']) ?></span>
+                <?php if (paymongoStatusNeedsReconciliation($p['payment_status'], $p['gateway_status'])): ?><span class="badge badge-rejected">Needs Reconciliation</span><?php endif; ?></td>
               <td><a href="#" data-url="<?= url('treasurer/payment-detail.php?id=' . $p['payment_id']) ?>" class="btn btn-outline btn-sm js-view-modal">View</a></td>
             </tr>
           <?php endforeach; ?>

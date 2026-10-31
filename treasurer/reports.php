@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/paymongo.php'; // paymongoStatusNeedsReconciliation()
 requireRole('Treasurer', 'Admin');
 
 /* ---------------------------------------------------------------
@@ -113,6 +114,7 @@ if ($generated) {
             t.raw_response AS gateway_raw_response,
             t.gateway,
             t.gateway_transaction_id,
+            t.status AS gateway_status,
             a.appointment_id,
             a.guest_name,
             a.guest_reference,
@@ -205,6 +207,9 @@ if ($generated) {
             'method'       => $method,
             'amount'       => $amt,
             'status'       => $r['payment_status'],
+            // Shown only: a pending PayMongo charge or checkout awaiting the Treasurer (audit B-07).
+            // Never counted below — only verified payments are tallied.
+            'reconcile'    => paymongoStatusNeedsReconciliation($r['payment_status'], $r['gateway_status'] ?? null),
         ];
 
         // Only tally verified into totals
@@ -619,6 +624,7 @@ include __DIR__ . '/../includes/dash-start.php';
               $sl = ucfirst($row['status']);
             ?>
             <span class="<?= $sc ?>"><?= e($sl) ?></span>
+            <?php if (!empty($row['reconcile'])): ?><br><span class="trpt-badge-failed">Needs Reconciliation</span><?php endif; ?>
           </td>
         </tr>
       <?php endforeach; ?>

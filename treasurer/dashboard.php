@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/paymongo.php'; // paymongoStatusNeedsReconciliation()
 requireRole('Treasurer', 'Admin');
 
 $daily = db()->query("SELECT COALESCE(SUM(amount),0) FROM payments WHERE payment_status='verified' AND payment_date::date = CURRENT_DATE")->fetchColumn();
@@ -9,15 +10,18 @@ $monthly = db()->query("SELECT COALESCE(SUM(amount),0) FROM payments WHERE payme
 $yearly = db()->query("SELECT COALESCE(SUM(amount),0) FROM payments WHERE payment_status='verified' AND EXTRACT(YEAR FROM payment_date) = EXTRACT(YEAR FROM CURRENT_DATE)")->fetchColumn();
 $pendingCount = db()->query("SELECT COUNT(*) FROM payments WHERE payment_status='pending'")->fetchColumn();
 
+// PayMongo charges or checkouts needing reconciliation are listed first, so they
+// never drop out of the five shown (audit B-07).
 $pendingPayments = db()->query(
-    "SELECT p.*, u.firstname, u.lastname, a.guest_name, s.service_name
+    "SELECT p.*, u.firstname, u.lastname, a.guest_name, s.service_name, gt.status AS gateway_status
      FROM payments p
      JOIN appointments a ON p.appointment_id = a.appointment_id
      JOIN parishioners par ON a.parishioner_id = par.parishioner_id
      JOIN users u ON par.user_id = u.user_id
      JOIN services s ON a.service_id = s.service_id
+     LEFT JOIN LATERAL (SELECT t.status FROM transactions t WHERE t.payment_id = p.payment_id AND t.gateway = 'paymongo' ORDER BY t.transaction_id DESC LIMIT 1) gt ON TRUE
      WHERE p.payment_status='pending'
-     ORDER BY p.created_at ASC LIMIT 5"
+     ORDER BY (gt.status IN ('" . implode("', '", PAYMONGO_RECONCILIATION_STATUSES) . "')) IS TRUE DESC, p.created_at ASC LIMIT 5"
 )->fetchAll();
 
 $recent = db()->query(
@@ -60,7 +64,8 @@ include __DIR__ . '/../includes/dash-start.php';
             <td><?= $p['guest_name'] ? e($p['guest_name']) . ' <span class="text-muted">(guest)</span>' : e($p['firstname']) . ' ' . e($p['lastname']) ?></td>
             <td><?= e($p['service_name']) ?></td>
             <td><?= money($p['amount']) ?></td>
-            <td><span class="badge badge-<?= e($p['payment_status']) ?>"><?= e($p['payment_status']) ?></span></td>
+            <td><span class="badge badge-<?= e($p['payment_status']) ?>"><?= e($p['payment_status']) ?></span>
+              <?php if (paymongoStatusNeedsReconciliation($p['payment_status'], $p['gateway_status'])): ?><span class="badge badge-rejected">Needs Reconciliation</span><?php endif; ?></td>
             <td><a href="<?= url('treasurer/payment-detail.php?id=' . $p['payment_id']) ?>"
               data-url="<?= url('treasurer/payment-detail.php?id=' . $p['payment_id']) ?>"
               data-title="Payment Details" class="btn btn-outline btn-sm js-view-modal">Review</a></td>

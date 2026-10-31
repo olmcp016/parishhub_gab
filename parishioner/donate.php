@@ -132,7 +132,8 @@ try {
         // Back button) also returns there (handleCancelledDonationCheckout()).
         $successUrl = absoluteUrl('parishioner/services.php') . '?paymongo_return=1&appointment_id=' . $appointmentId;
         $cancelUrl = absoluteUrl('parishioner/services.php') . '?paymongo_cancelled=1&appointment_id=' . $appointmentId;
-        $checkout = paymongoCreateCheckoutSession($amount, 'Donation — ' . $allocationName, $successUrl, $cancelUrl, $donorEmail);
+        $checkout = paymongoCreateCheckoutSession($amount, 'Donation — ' . $allocationName, $successUrl, $cancelUrl, $donorEmail,
+            ['payment_id' => $paymentId, 'appointment_id' => $appointmentId]);
 
         if (!$checkout['ok']) {
             $pdo->rollBack();
