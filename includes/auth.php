@@ -466,10 +466,11 @@ const THROTTLE_WINDOW_SECONDS = 900;
  * lock and still goes ahead; later ones are refused until the lock expires.
  * Refused attempts are counted but never extend the lock. Never keyed by the
  * client IP: behind Render's proxy every visitor can share one address.
+ * Attempts count until $windowSeconds pass without one, or a lock expires.
  *
  * @return array{allowed: bool, attempts: int, retry_after: int} retry_after is the seconds left on the lock
  */
-function throttleReserve(string $key, int $maxAttempts, int $lockSeconds): array
+function throttleReserve(string $key, int $maxAttempts, int $lockSeconds, int $windowSeconds = THROTTLE_WINDOW_SECONDS): array
 {
     $counted = "CASE WHEN auth_throttle.locked_until > NOW() THEN LEAST(auth_throttle.failures + 1, 1000000)
                      WHEN auth_throttle.locked_until IS NOT NULL
@@ -486,7 +487,7 @@ function throttleReserve(string $key, int $maxAttempts, int $lockSeconds): array
            updated_at = NOW()
          RETURNING failures, GREATEST(0, COALESCE(CEIL(EXTRACT(EPOCH FROM (locked_until - NOW()))), 0))::int AS retry_after"
     );
-    $stmt->execute([$key, $maxAttempts, $lockSeconds, THROTTLE_WINDOW_SECONDS, THROTTLE_WINDOW_SECONDS, $maxAttempts, $lockSeconds]);
+    $stmt->execute([$key, $maxAttempts, $lockSeconds, $windowSeconds, $windowSeconds, $maxAttempts, $lockSeconds]);
     $row = $stmt->fetch();
 
     // Rare housekeeping on the attempt path only, never on ordinary page views.
@@ -566,6 +567,57 @@ function statusThrottleKeys(string $reference, ?string $contact = null): array
         $keys[] = 'status_contact:' . hash('sha256', $lookup['email'] ?? $lookup['phone'] ?? mb_strtolower(trim($contact), 'UTF-8'));
     }
     return $keys;
+}
+
+/** Verification emails per address (audit B-06): one per 10 minutes, five per 24 hours. */
+const VERIFICATION_EMAIL_COOLDOWN_SECONDS = 600;
+const VERIFICATION_EMAIL_DAILY_MAX = 5;
+const VERIFICATION_EMAIL_DAY_SECONDS = 86400;
+
+/** @return array{0: string, 1: string} the 10-minute and 24-hour throttle keys for an address */
+function verificationEmailThrottleKeys(string $email): array
+{
+    $address = hash('sha256', strtolower(trim($email)));
+    return ['verify_mail:' . $address, 'verify_mail_day:' . $address];
+}
+
+/**
+ * Reserves one verification email for this address, shared by registration and
+ * resend, before any token changes or email is sent. Keyed by the address, never
+ * the IP. Both reservations are atomic, so concurrent requests cannot add up to
+ * more than the limits.
+ *
+ * The 24-hour key counts every email until a full day passes without one, so
+ * waiting out the 10-minute cooldown never resets it. Its lock starts at the
+ * fifth email and lasts 24 hours; refused requests do not extend either lock.
+ *
+ * @return int 0 when an email may be sent, otherwise the seconds until the address may get another
+ */
+function verificationEmailThrottle(string $email): int
+{
+    [$cooldownKey, $dayKey] = verificationEmailThrottleKeys($email);
+    $cooldown = throttleReserve($cooldownKey, 1, VERIFICATION_EMAIL_COOLDOWN_SECONDS);
+    if (!$cooldown['allowed']) {
+        return max(1, $cooldown['retry_after']);
+    }
+    $day = throttleReserve($dayKey, VERIFICATION_EMAIL_DAILY_MAX, VERIFICATION_EMAIL_DAY_SECONDS, VERIFICATION_EMAIL_DAY_SECONDS);
+    if (!$day['allowed']) {
+        return max(1, $day['retry_after']);
+    }
+    return 0;
+}
+
+/**
+ * Hands back a reservation whose email could not be sent, so a delivery failure
+ * (not something a requester controls for a valid address) does not cost the
+ * person a try. A daily lock that this email started is kept.
+ */
+function verificationEmailNotSent(string $email): void
+{
+    [$cooldownKey, $dayKey] = verificationEmailThrottleKeys($email);
+    throttleClear($cooldownKey);
+    db()->prepare('UPDATE auth_throttle SET failures = failures - 1 WHERE throttle_key = ? AND failures > 0 AND locked_until IS NULL')
+        ->execute([$dayKey]);
 }
 
 /**

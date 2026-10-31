@@ -83,16 +83,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(url('auth/register.php'));
     }
 
-    $stmt = db()->prepare('SELECT user_id, email_verified_at FROM users WHERE email = ?');
+    // Public registration only ever creates a Parishioner, or refreshes one that
+    // is still waiting for verification (audit B-06). Any other existing account
+    // — verified, inactive, or Staff/Priest of any status — is never touched.
+    $stmt = db()->prepare(
+        'SELECT u.*, r.role_name FROM users u JOIN roles r ON r.role_id = u.role_id WHERE u.email = ?'
+    );
     $stmt->execute([$email]);
-    if ($existing = $stmt->fetch()) {
-        if ($existing['email_verified_at'] !== null) {
-            keepOldInput($oldInputToKeep);
-            flash('error', 'An account with that email already exists and is active.');
-            redirect(url('auth/register.php'));
-        } else {
-            db()->prepare('DELETE FROM users WHERE user_id = ?')->execute([$existing['user_id']]);
-        }
+    $existing = $stmt->fetch();
+    $alreadyExists = function () use ($oldInputToKeep): never {
+        keepOldInput($oldInputToKeep);
+        flash('error', 'An account with that email already exists and is active.');
+        redirect(url('auth/register.php'));
+    };
+    if ($existing && ($existing['role_name'] !== 'Parishioner' || $existing['email_verified_at'] !== null || $existing['status'] !== 'active')) {
+        $alreadyExists();
+    }
+
+    // At most one verification email per address per 10 minutes and five per
+    // day, shared with resend-verification.php. Checked before anything changes.
+    $wait = verificationEmailThrottle($email);
+    if ($wait > 0) {
+        keepOldInput($oldInputToKeep);
+        flash('error', 'A verification email was sent to this address recently. Please check your inbox (and spam folder), or try again in ' . ceil($wait / 60) . ' minute(s).');
+        redirect(url('auth/register.php'));
     }
 
     $hash  = password_hash($password, PASSWORD_BCRYPT);
@@ -101,22 +115,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     db()->beginTransaction();
     try {
-        $stmt = db()->prepare(
-            "INSERT INTO users
-               (role_id, firstname, lastname, middlename, email, password, phone, address, birthdate, gender,
-                status, verification_token, token_expires_at)
-             VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)"
-        );
-        $stmt->execute([$firstname, $lastname, $middlename, $email, $hash, $phone, $address, $birthdate, $gender, $token, $expires]);
-        $userId = db()->lastInsertId();
+        if ($existing) {
+            // Refresh the waiting account in place instead of deleting it. The
+            // WHERE repeats every condition, so an account verified, deactivated
+            // or given another role since the check above is left alone.
+            $stmt = db()->prepare(
+                "UPDATE users
+                 SET firstname = ?, lastname = ?, middlename = ?, password = ?, phone = ?, address = ?, birthdate = ?, gender = ?,
+                     verification_token = ?, token_expires_at = ?
+                 WHERE user_id = ? AND email_verified_at IS NULL AND status = 'active'
+                   AND role_id = (SELECT role_id FROM roles WHERE role_name = 'Parishioner')"
+            );
+            $stmt->execute([$firstname, $lastname, $middlename, $hash, $phone, $address, $birthdate, $gender, $token, $expires, $existing['user_id']]);
+            if ($stmt->rowCount() !== 1) {
+                db()->rollBack();
+                verificationEmailNotSent($email);
+                $alreadyExists();
+            }
+            $userId = (int) $existing['user_id'];
+            db()->prepare('INSERT INTO parishioners (user_id) VALUES (?) ON CONFLICT (user_id) DO NOTHING')->execute([$userId]);
+        } else {
+            $stmt = db()->prepare(
+                "INSERT INTO users
+                   (role_id, firstname, lastname, middlename, email, password, phone, address, birthdate, gender,
+                    status, verification_token, token_expires_at)
+                 VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)"
+            );
+            $stmt->execute([$firstname, $lastname, $middlename, $email, $hash, $phone, $address, $birthdate, $gender, $token, $expires]);
+            $userId = db()->lastInsertId();
 
-        $stmt = db()->prepare('INSERT INTO parishioners (user_id) VALUES (?)');
-        $stmt->execute([$userId]);
+            $stmt = db()->prepare('INSERT INTO parishioners (user_id) VALUES (?)');
+            $stmt->execute([$userId]);
+        }
 
         db()->commit();
     } catch (Throwable $e) {
         db()->rollBack();
         error_log($e->getMessage());
+        verificationEmailNotSent($email);
         keepOldInput($oldInputToKeep);
         flash('error', 'Registration failed. Please try again.');
         redirect(url('auth/register.php'));
@@ -124,7 +160,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Attempt to send the verification email BEFORE declaring success.
     // If delivery fails the account is useless — roll it back entirely so the
-    // user can correct their address and try again with a clean slate.
+    // user can correct their address and try again with a clean slate. A
+    // refreshed account goes back to exactly what it was, earlier link included.
     $verifyUrl = absoluteUrl('auth/verify-email.php') . '?token=' . urlencode($token);
     $bodyHtml  = '<p>Hello <strong>' . htmlspecialchars($firstname) . '</strong>,</p>'
                . '<p>Thank you for registering with the Parish Service Portal. '
@@ -134,12 +171,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $result = sendEmail($email, "$firstname $lastname", 'Verify your ParishHub email address', $html);
 
     if (!$result['ok']) {
-        // Roll back: delete the user row — ON DELETE CASCADE removes the parishioner row too.
+        // Only while the row still carries this attempt's token, so nothing
+        // that changed it since (a verification, another refresh) is undone.
         try {
-            db()->prepare('DELETE FROM users WHERE user_id = ?')->execute([$userId]);
+            if ($existing) {
+                db()->prepare(
+                    'UPDATE users
+                     SET firstname = ?, lastname = ?, middlename = ?, password = ?, phone = ?, address = ?, birthdate = ?, gender = ?,
+                         verification_token = ?, token_expires_at = ?
+                     WHERE user_id = ? AND verification_token = ?'
+                )->execute([$existing['firstname'], $existing['lastname'], $existing['middlename'], $existing['password'], $existing['phone'],
+                    $existing['address'], $existing['birthdate'], $existing['gender'], $existing['verification_token'], $existing['token_expires_at'],
+                    $userId, $token]);
+            } else {
+                // Roll back: delete the new user row — ON DELETE CASCADE removes the parishioner row too.
+                db()->prepare('DELETE FROM users WHERE user_id = ? AND verification_token = ? AND email_verified_at IS NULL')->execute([$userId, $token]);
+            }
         } catch (Throwable $ex) {
             error_log('Register rollback failed: ' . $ex->getMessage());
         }
+        verificationEmailNotSent($email);
         keepOldInput($oldInputToKeep);
         flash('error', 'Failed to send verification email. Please make sure your email address is active and valid, then try again.');
         redirect(url('auth/register.php'));

@@ -177,6 +177,7 @@ include __DIR__ . '/../includes/header.php';
 
       <div class="auth-footer">
         Don't have an account? <a href="<?= url('auth/register.php') ?>">Register here</a>
+        <br>Didn't get the verification email? <a href="<?= url('auth/resend-verification.php') ?>">Resend it</a>
       </div>
     </div>
   </div>

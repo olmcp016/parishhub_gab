@@ -76,9 +76,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $hash  = password_hash($tempPassword, PASSWORD_BCRYPT);
             $fname = ucwords(strtolower(trim($_POST['firstname'])));
             $lname = ucwords(strtolower(trim($_POST['lastname'])));
+            // The Admin vouches for staff addresses: no emailed link to follow (audit B-06).
             $stmt  = db()->prepare(
-                "INSERT INTO users (role_id, firstname, lastname, email, password, phone, status, must_change_password)
-                 VALUES (?, ?, ?, ?, ?, ?, 'active', 1)"
+                "INSERT INTO users (role_id, firstname, lastname, email, password, phone, status, must_change_password, email_verified_at)
+                 VALUES (?, ?, ?, ?, ?, ?, 'active', 1, NOW())"
             );
             $stmt->execute([$_POST['role_id'], $fname, $lname, trim($_POST['email']), $hash, trim($_POST['phone']) ?: null]);
             $newId = db()->lastInsertId();
@@ -332,7 +333,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         for ($i = 0; $i < 10; $i++) { $tempPassword .= $chars[random_int(0, strlen($chars) - 1)]; }
         $hash = password_hash($tempPassword, PASSWORD_BCRYPT);
         try {
-            $stmt = $pdo->prepare("INSERT INTO users (role_id, firstname, lastname, email, password, phone, status, must_change_password) VALUES (?, ?, '', ?, ?, ?, 'active', 1)");
+            $stmt = $pdo->prepare("INSERT INTO users (role_id, firstname, lastname, email, password, phone, status, must_change_password, email_verified_at) VALUES (?, ?, '', ?, ?, ?, 'active', 1, NOW())");
             $stmt->execute([$priestRoleId, trim($priest['title'] . ' ' . $priest['full_name']), $email, $hash, $priest['contact_number']]);
             $newUserId = (int) $pdo->lastInsertId();
             $link = $pdo->prepare('UPDATE priests SET user_id = ?, email = ? WHERE priest_id = ? AND user_id IS NULL');

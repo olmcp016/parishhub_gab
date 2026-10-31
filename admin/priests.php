@@ -157,7 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         try {
             $stmt = $pdo->prepare(
-                "INSERT INTO users (role_id, firstname, lastname, email, password, phone, status, must_change_password) VALUES (?, ?, '', ?, ?, ?, 'active', 1)"
+                "INSERT INTO users (role_id, firstname, lastname, email, password, phone, status, must_change_password, email_verified_at) VALUES (?, ?, '', ?, ?, ?, 'active', 1, NOW())"
             );
             $stmt->execute([$priestRoleId, trim($priest['title'] . ' ' . $priest['full_name']), $email, $hash, $priest['contact_number']]);
             $newUserId = (int) $pdo->lastInsertId();
