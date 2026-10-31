@@ -451,56 +451,121 @@ function statusLookupPhoneSql(string $column): string
     return "regexp_replace(regexp_replace(COALESCE($column, ''), '[^0-9]', '', 'g'), '^63', '0')";
 }
 
-/**
- * Failure counter for a throttle key (an email, an IP, or a feature name).
- * Stored in auth_throttle so it survives cookie resets; see
- * database/migration_auth_throttle.sql.
- *
- * Returns the seconds left on an active lockout, or 0 when the key is free.
- */
-function throttleSecondsLeft(string $key): int
-{
-    $stmt = db()->prepare(
-        'SELECT CEIL(EXTRACT(EPOCH FROM (locked_until - NOW())))::int FROM auth_throttle
-         WHERE throttle_key = ? AND locked_until > NOW()'
-    );
-    $stmt->execute([$key]);
-    return (int) ($stmt->fetchColumn() ?: 0);
-}
-
-/** Failures older than this no longer count, so a shared office IP does not stay half-locked. */
+/** Attempts older than this no longer count. */
 const THROTTLE_WINDOW_SECONDS = 900;
 
 /**
- * Records one failed attempt and returns the failures now counted in the
- * window. Reaching $maxFailures locks the key for $lockSeconds. Further
- * failures during a lockout do not extend it. One atomic upsert.
+ * Reserves one attempt against a throttle key (an email, a reference code, a
+ * contact) BEFORE the attempt is checked. Counters live in auth_throttle so
+ * they survive cookie resets; see database/migration_auth_throttle.sql.
+ *
+ * One atomic upsert (audit B-05): concurrent requests for the same key queue on
+ * its row for the length of this statement only, so exactly $maxAttempts get
+ * through per window however many arrive at once, and no lock is held while the
+ * caller checks a password. The attempt that reaches $maxAttempts starts the
+ * lock and still goes ahead; later ones are refused until the lock expires.
+ * Refused attempts are counted but never extend the lock. Never keyed by the
+ * client IP: behind Render's proxy every visitor can share one address.
+ *
+ * @return array{allowed: bool, attempts: int, retry_after: int} retry_after is the seconds left on the lock
  */
-function throttleRecordFailure(string $key, int $maxFailures, int $lockSeconds): int
+function throttleReserve(string $key, int $maxAttempts, int $lockSeconds): array
 {
-    $counted = "CASE WHEN (auth_throttle.locked_until IS NOT NULL AND auth_throttle.locked_until <= NOW())
-                      OR auth_throttle.updated_at < NOW() - make_interval(secs => ?)
-                 THEN 1 ELSE auth_throttle.failures + 1 END";
+    $counted = "CASE WHEN auth_throttle.locked_until > NOW() THEN LEAST(auth_throttle.failures + 1, 1000000)
+                     WHEN auth_throttle.locked_until IS NOT NULL
+                       OR auth_throttle.updated_at < NOW() - make_interval(secs => ?) THEN 1
+                     ELSE auth_throttle.failures + 1 END";
     $stmt = db()->prepare(
         "INSERT INTO auth_throttle (throttle_key, failures, locked_until, updated_at)
-         VALUES (?, 1, NULL, NOW())
+         VALUES (?, 1, CASE WHEN ? <= 1 THEN NOW() + make_interval(secs => ?) END, NOW())
          ON CONFLICT (throttle_key) DO UPDATE SET
            failures = {$counted},
-           locked_until = CASE WHEN ({$counted}) >= ?
-                               THEN CASE WHEN auth_throttle.locked_until > NOW() THEN auth_throttle.locked_until
-                                         ELSE NOW() + make_interval(secs => ?) END
+           locked_until = CASE WHEN auth_throttle.locked_until > NOW() THEN auth_throttle.locked_until
+                               WHEN ({$counted}) >= ? THEN NOW() + make_interval(secs => ?)
                                ELSE NULL END,
            updated_at = NOW()
-         RETURNING failures"
+         RETURNING failures, GREATEST(0, COALESCE(CEIL(EXTRACT(EPOCH FROM (locked_until - NOW()))), 0))::int AS retry_after"
     );
-    $stmt->execute([$key, THROTTLE_WINDOW_SECONDS, THROTTLE_WINDOW_SECONDS, $maxFailures, $lockSeconds]);
-    return (int) $stmt->fetchColumn();
+    $stmt->execute([$key, $maxAttempts, $lockSeconds, THROTTLE_WINDOW_SECONDS, THROTTLE_WINDOW_SECONDS, $maxAttempts, $lockSeconds]);
+    $row = $stmt->fetch();
+
+    // Rare housekeeping on the attempt path only, never on ordinary page views.
+    if (random_int(1, 100) === 1) {
+        throttleCleanup();
+    }
+
+    $attempts = (int) $row['failures'];
+    return ['allowed' => $attempts <= $maxAttempts, 'attempts' => $attempts, 'retry_after' => (int) $row['retry_after']];
+}
+
+/**
+ * Reserves one attempt against each key in turn; stops at the first refusal.
+ * The attempts already reserved for this request are handed back, so a refused
+ * contact does not also use up its reference (unless that attempt started a
+ * lock, which is kept).
+ *
+ * @return int 0 when every key allows the attempt, otherwise the seconds left on the refusing key's lock
+ */
+function throttleReserveAll(array $keys, int $maxAttempts, int $lockSeconds): int
+{
+    $reserved = [];
+    foreach ($keys as $key) {
+        $attempt = throttleReserve($key, $maxAttempts, $lockSeconds);
+        if (!$attempt['allowed']) {
+            foreach ($reserved as $reservedKey) {
+                db()->prepare('UPDATE auth_throttle SET failures = failures - 1 WHERE throttle_key = ? AND failures > 0 AND locked_until IS NULL')
+                    ->execute([$reservedKey]);
+            }
+            return max(1, $attempt['retry_after']);
+        }
+        $reserved[] = $key;
+    }
+    return 0;
 }
 
 /** Clears a key after a successful action (e.g. a correct password). */
 function throttleClear(string $key): void
 {
     db()->prepare('DELETE FROM auth_throttle WHERE throttle_key = ?')->execute([$key]);
+}
+
+/**
+ * Deletes counters idle for a day that hold no active lock. Such a row no
+ * longer affects any decision (attempts older than the window already count
+ * as zero), so removing it changes nothing but the table size.
+ */
+function throttleCleanup(): void
+{
+    try {
+        db()->exec("DELETE FROM auth_throttle WHERE updated_at < NOW() - INTERVAL '1 day' AND (locked_until IS NULL OR locked_until < NOW())");
+    } catch (Throwable $e) {
+        error_log('ParishHub: throttle cleanup failed (' . get_class($e) . ' ' . $e->getCode() . ')');
+    }
+}
+
+/** Login throttle key: one per email, shared by both login portals and by unknown addresses. */
+function loginThrottleKey(string $email): string
+{
+    return 'login_email:' . hash('sha256', strtolower(trim($email)));
+}
+
+/**
+ * Throttle keys for a Check Status or guest payment lookup, shared by status.php
+ * and guest-pay.php: one for the reference (guessing contacts for a known code)
+ * and, when a contact was typed, one for the contact (guessing codes for a known
+ * email or phone). Built from the input alone, so they say nothing about whether
+ * a booking exists.
+ *
+ * @return list<string>
+ */
+function statusThrottleKeys(string $reference, ?string $contact = null): array
+{
+    $keys = ['status_ref:' . hash('sha256', strtoupper(trim($reference)))];
+    if ($contact !== null) {
+        $lookup = statusLookupContact($contact);
+        $keys[] = 'status_contact:' . hash('sha256', $lookup['email'] ?? $lookup['phone'] ?? mb_strtolower(trim($contact), 'UTF-8'));
+    }
+    return $keys;
 }
 
 /**

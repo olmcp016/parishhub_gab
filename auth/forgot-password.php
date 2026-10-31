@@ -244,6 +244,7 @@ if ($action === 'reset_password') {
     )->execute([$hash, $userId]);
 
     logActivity((int) $userId, 'Password reset via Forgot Password', 'Auth');
+    throttleClear(loginThrottleKey($email)); // the new password works at once, even after a lockout
     unset($_SESSION['password_reset']);
 
     echo json_encode(['ok' => true]);

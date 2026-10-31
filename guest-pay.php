@@ -27,16 +27,16 @@ if ($reference === '') {
     redirect(url('status.php'));
 }
 // The reference alone is not proof of ownership (audit H-02). The email or
-// phone used for the booking must match too. Failed attempts share the
-// status lookup throttle, so this cannot be used to guess references.
-$ipKey = 'status_ip:' . hash('sha256', $_SERVER['REMOTE_ADDR'] ?? 'unknown');
+// phone used for the booking must match too. Attempts share the status lookup
+// throttle keys (audit B-05), so this cannot be used to guess references.
 if ($contact === '') {
     flash('error', 'Enter the email or phone number you gave when booking, to pay for this appointment.');
     redirect(url('status.php') . '?ref=' . urlencode($reference));
 }
-$lockedFor = throttleSecondsLeft($ipKey);
+$throttleKeys = statusThrottleKeys($reference, $contact);
+$lockedFor = throttleReserveAll($throttleKeys, 10, 15 * 60);
 if ($lockedFor > 0) {
-    flash('error', 'Too many attempts from this connection. Please try again in ' . ceil($lockedFor / 60) . ' minute(s).');
+    flash('error', 'Too many attempts. Please try again in ' . ceil($lockedFor / 60) . ' minute(s).');
     redirect($statusUrl);
 }
 
@@ -57,9 +57,11 @@ $stmt->execute([$appointmentId, $reference, $lookup['email'], $lookup['phone']])
 $appointment = $stmt->fetch();
 
 if (!$appointment) {
-    throttleRecordFailure($ipKey, 10, 15 * 60);
     flash('error', 'Appointment not found or not eligible for payment.');
     redirect($statusUrl);
+}
+foreach ($throttleKeys as $throttleKey) {
+    throttleClear($throttleKey);
 }
 
 $variableCategory = in_array($appointment['category'], ['Baptism', 'Wedding', 'Funeral', 'Wake'], true);

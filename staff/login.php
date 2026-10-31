@@ -24,21 +24,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(url('staff/login.php'));
     };
 
-    // Brute-force protection — same logic as parishioner login.
-    $ip       = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-    $emailKey = 'login_email:' . hash('sha256', strtolower($email));
-    $ipKey    = 'login_ip:'    . hash('sha256', $ip);
-
-    $lockedFor = max(throttleSecondsLeft($emailKey), throttleSecondsLeft($ipKey));
-    if ($lockedFor > 0) {
-        $fail('email', 'Too many failed attempts. Please try again in ' . ceil($lockedFor / 60) . ' minute(s).');
+    // Brute-force protection — same logic and same counter as parishioner login.
+    $emailKey = loginThrottleKey($email);
+    $attempt  = throttleReserve($emailKey, 5, 15 * 60);
+    if (!$attempt['allowed']) {
+        $fail('email', 'Too many failed attempts. Please try again in ' . ceil($attempt['retry_after'] / 60) . ' minute(s).');
     }
-
-    $recordFailure = function () use ($emailKey, $ipKey): int {
-        $emailFailures = throttleRecordFailure($emailKey, 5, 15 * 60);
-        throttleRecordFailure($ipKey, 20, 15 * 60);
-        return $emailFailures;
-    };
 
     $stmt = db()->prepare(
         "SELECT u.*, r.role_name FROM users u JOIN roles r ON u.role_id = r.role_id WHERE u.email = ? LIMIT 1"
@@ -47,7 +38,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $user = $stmt->fetch();
 
     if (!$user) {
-        $recordFailure();
         $fail('email', 'Email is invalid or not found.');
     }
 
@@ -65,11 +55,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (!password_verify($password, $user['password'])) {
-        $emailFailures = $recordFailure();
-        if ($emailFailures >= 5) {
+        if ($attempt['attempts'] >= 5) {
             $fail('password', 'Too many failed attempts. You are locked out for 15 minutes.');
         }
-        $fail('password', 'Incorrect password. Please try again. (' . (5 - $emailFailures) . ' attempts left)');
+        $fail('password', 'Incorrect password. Please try again. (' . (5 - $attempt['attempts']) . ' attempts left)');
     }
 
     throttleClear($emailKey);

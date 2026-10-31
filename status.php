@@ -42,11 +42,13 @@ $officialCertificate = null;
 if ($searched) {
     $code = strtoupper($reference);
     // The reference alone is no longer enough (audit H-02): the email or phone
-    // used for the booking must match too, and failed lookups are throttled.
-    $ipKey = 'status_ip:' . hash('sha256', $_SERVER['REMOTE_ADDR'] ?? 'unknown');
-    $lockedFor = throttleSecondsLeft($ipKey);
+    // used for the booking must match too. Each lookup reserves an attempt on the
+    // reference and on the contact before the database is read (audit B-05), and
+    // a verified match hands them back, so reloads never add up.
+    $throttleKeys = statusThrottleKeys($code, $contact === '' ? null : $contact);
+    $lockedFor = ($contact !== '' || $accessToken !== '') ? throttleReserveAll($throttleKeys, 10, 15 * 60) : 0;
     if ($contact === '' && $accessToken !== '' && $lockedFor > 0) {
-        $lookupError = 'Too many lookups from this connection. Please try again in ' . ceil($lockedFor / 60) . ' minute(s).';
+        $lookupError = 'Too many lookups. Please try again in ' . ceil($lockedFor / 60) . ' minute(s).';
     } elseif ($contact === '' && $accessToken !== '') {
         $stmt = db()->prepare(
             "SELECT a.*, s.service_name, s.fee, s.category, s.requirements, st.status_name, p.full_name AS priest_name
@@ -61,13 +63,12 @@ if ($searched) {
         if ($candidate && guestAccessTokenValid((int) $candidate['appointment_id'], $code, $accessToken)) {
             $appointment = $candidate;
         } else {
-            throttleRecordFailure($ipKey, 10, 15 * 60);
             $lookupError = 'This booking link has expired or is not valid. Enter your reference code and the email or phone you used when booking.';
         }
     } elseif ($contact === '') {
         $lookupError = 'Enter the email or phone number you gave when booking, together with your reference code.';
     } elseif ($lockedFor > 0) {
-        $lookupError = 'Too many lookups from this connection. Please try again in ' . ceil($lockedFor / 60) . ' minute(s).';
+        $lookupError = 'Too many lookups. Please try again in ' . ceil($lockedFor / 60) . ' minute(s).';
     } else {
         // A guest booking matches its own guest email/phone. A registered
         // Parishioner's booking (guest fields empty) matches the linked
@@ -90,8 +91,10 @@ if ($searched) {
         );
         $stmt->execute([$code, $lookup['email'], $lookup['phone'], guestParishionerId(), $lookup['email'], $lookup['phone'], $lookup['phone']]);
         $appointment = $stmt->fetch() ?: null;
-        if (!$appointment) {
-            throttleRecordFailure($ipKey, 10, 15 * 60);
+    }
+    if ($appointment) {
+        foreach ($throttleKeys as $throttleKey) {
+            throttleClear($throttleKey);
         }
     }
     $notFound = $lookupError === null && !$appointment;
