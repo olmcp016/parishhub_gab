@@ -19,3 +19,16 @@ Thumbs.db
 public/uploads/*
 !public/uploads/.gitkeep
 !public/uploads/.htaccess
+
+# Internal notes, previews and leftovers — nothing at runtime reads or links them
+# (audit B-03/B-17). composer.json/composer.lock must stay: the build runs
+# `composer install` after copying the project.
+database_cleanup/
+**/*.md
+email-preview.html
+**/*.log
+/database.sqlite
+
+# Build files: still read by Docker, just not copied into the served directory
+Dockerfile
+.dockerignore
