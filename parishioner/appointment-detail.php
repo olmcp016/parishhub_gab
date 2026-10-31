@@ -277,6 +277,8 @@ $hasAuthoritativeFee = is_array($feeSnapshot)
 $authoritativeFee = $hasAuthoritativeFee ? (float) $feeSnapshot['total'] : null;
 // A verified ₱0 Baptism/Wedding/Funeral has no payment step (the Parish Office confirms it directly).
 $noPaymentRequired = appointmentNoPaymentRequired($appointment);
+// Approved before fees were frozen, service fee now ₱0: the Parish Office verifies it — never shown as unpaid.
+$zeroFeePendingVerification = appointmentNeedsZeroFeeVerification($appointment);
 
 $stmt = db()->prepare('SELECT * FROM mass_intentions WHERE appointment_id = ?');
 $stmt->execute([$id]);
@@ -295,7 +297,7 @@ $payment = $stmt->fetch() ?: null;
 // failed/was cancelled, can simply be retried — it's not a completed payment.
 $onlineUnfinished = $payment && (int) $payment['method_id'] === 7 && $payment['payment_status'] === 'pending';
 $canPay = $appointment['status_name'] === 'Approved'
-    && !$noPaymentRequired
+    && !$noPaymentRequired && !$zeroFeePendingVerification
     && (!$payment || $onlineUnfinished || in_array($payment['payment_status'], ['failed', 'cancelled'], true));
 
 $stmt = db()->prepare("SELECT * FROM uploaded_documents WHERE appointment_id = ? AND superseded_by IS NULL AND (document_source IS NULL OR document_source <> 'generated') ORDER BY uploaded_at DESC, document_id DESC");
@@ -355,9 +357,9 @@ if (!$isAjax) {
       $isPastDateUnpaid = (int) $appointment['status_id'] === 2
           && !empty($appointment['appointment_date'])
           && $appointment['appointment_date'] < date('Y-m-d')
-          && !$noPaymentRequired
+          && !$noPaymentRequired && !$zeroFeePendingVerification
           && (!$payment || !in_array($payment['payment_status'], ['pending', 'verified'], true));
-      $paymentDeadline = ((int) $appointment['status_id'] === 2 && !$noPaymentRequired)
+      $paymentDeadline = ((int) $appointment['status_id'] === 2 && !$noPaymentRequired && !$zeroFeePendingVerification)
           ? appointmentPaymentDeadline($appointment)
           : null;
     ?>
@@ -472,7 +474,7 @@ if (!$isAjax) {
       </div>
     <?php elseif ($appointment['status_name'] === 'Approved' && !$payment): ?>
       <div class="alert" style="background: var(--cream); color: var(--brown-mid); border: 1px solid var(--cream-dark);">
-        <?php if ($noPaymentRequired): ?>
+        <?php if ($noPaymentRequired || $zeroFeePendingVerification): ?>
           Your request has been approved! No payment is required. The Parish Office will confirm your appointment.
         <?php elseif ($isPastDateUnpaid): ?>
           Your scheduled appointment date has passed without payment. Your booking has not been cancelled. Please contact the Parish Office to reschedule.
@@ -608,7 +610,7 @@ if (!$isAjax) {
           update();
         })();
         </script>
-      <?php elseif (!$payment && $noPaymentRequired): ?>
+      <?php elseif (!$payment && ($noPaymentRequired || $zeroFeePendingVerification)): ?>
         <p class="text-muted"><?= NO_PAYMENT_REQUIRED_LABEL ?>.</p>
       <?php elseif (!$payment): ?>
         <p class="text-muted">Payment will be available once your appointment is approved.</p>

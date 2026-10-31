@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/service-fees.php'; // appointmentNoPaymentRequired()
 requireRole('Treasurer', 'Admin');
 
 $userId = currentUser()['user_id'];
@@ -31,9 +32,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'manua
     try {
         $pdo->beginTransaction();
         $stmt = $pdo->prepare(
-            "SELECT a.status_id,
+            "SELECT a.status_id, a.pss_classification, a.fee_snapshot, s.category, s.fee,
                     (SELECT COUNT(*) FROM payments p WHERE p.appointment_id = a.appointment_id AND p.payment_status IN ('pending', 'verified')) AS open_payments
-             FROM appointments a WHERE a.appointment_id = ? FOR UPDATE"
+             FROM appointments a JOIN services s ON s.service_id = a.service_id WHERE a.appointment_id = ? FOR UPDATE OF a"
         );
         $stmt->execute([$appointmentId]);
         $target = $stmt->fetch();
@@ -42,6 +43,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'manua
         }
         if ((int) $target['status_id'] !== 2 || (int) $target['open_payments'] > 0) {
             throw new RuntimeException("Appointment #$appointmentId is not awaiting payment (it may be unapproved, rejected, cancelled, or already paid). If a payment is pending, verify it from Transaction History instead.");
+        }
+        // A ₱0 appointment has no payment step: the Secretary confirms it directly.
+        if (appointmentNoPaymentRequired($target)) {
+            throw new RuntimeException("Appointment #$appointmentId requires no payment (" . NO_PAYMENT_REQUIRED_LABEL . '). The Secretary confirms it directly.');
+        }
+        // A flat-fee appointment's fee was frozen at approval: record exactly that amount.
+        if (appointmentUsesFlatFee($target) && trim((string) ($target['fee_snapshot'] ?? '')) !== '') {
+            $frozenFee = flatFeeAmountDue($target);
+            if ($frozenFee === null) {
+                throw new RuntimeException("The fee recorded for appointment #$appointmentId could not be read. Please check the appointment before recording a payment.");
+            }
+            if (abs($manualAmount - $frozenFee) >= 0.005) {
+                throw new RuntimeException("Appointment #$appointmentId requires " . money($frozenFee) . ' (the fee recorded when it was approved). Please enter that amount.');
+            }
         }
 
         $stmt = $pdo->prepare(

@@ -137,8 +137,9 @@ function appointmentGeneratedFormReviewRows(PDO $pdo, int $appointmentId, string
  * What must be in place before an appointment is Confirmed (ready for the
  * service): a Wedding's Pre-Cana conditions, and a Funeral's final burial /
  * Funeral Mass schedule — the family's preferred schedule is only a request
- * until the Secretary confirms or reschedules it. Applies to every path to
- * Confirmed, including the no-fee (₱0) shortcut.
+ * until the Secretary confirms or reschedules it — and a First Communion's
+ * date and time (booked without one). Applies to every path to Confirmed,
+ * including the no-fee (₱0) shortcut.
  *
  * @return string[]
  */
@@ -148,7 +149,19 @@ function appointmentConfirmationBlockers(array $appointment): array
     if (($appointment['category'] ?? '') === 'Funeral' && (empty($appointment['appointment_date']) || empty($appointment['appointment_time']))) {
         $blockers[] = 'Schedule: confirm the burial / Funeral Mass date and time first (Reschedule → Confirm Preferred Schedule, or choose another time).';
     }
+    if (($appointment['category'] ?? '') === 'First Communion' && !appointmentScheduleIsValid($appointment)) {
+        $blockers[] = 'Schedule: the Secretary must schedule the First Communion date and time first (Reschedule), then confirm.';
+    }
     return $blockers;
+}
+
+/** True when the appointment has a real calendar date (Y-m-d) and a time of day (H:i or H:i:s). */
+function appointmentScheduleIsValid(array $appointment): bool
+{
+    $date = (string) ($appointment['appointment_date'] ?? '');
+    $time = (string) ($appointment['appointment_time'] ?? '');
+    if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date, $d) || !checkdate((int) $d[2], (int) $d[3], (int) $d[1])) return false;
+    return (bool) preg_match('/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/', $time);
 }
 
 /**

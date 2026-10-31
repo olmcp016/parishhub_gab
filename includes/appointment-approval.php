@@ -100,7 +100,7 @@ function appointmentPaymentDeadline(array $a): ?DateTimeImmutable
 function approvedAppointmentAmountDue(array $a): ?float
 {
     $variableCategory = in_array($a['category'], ['Baptism', 'Wedding', 'Funeral', 'Wake'], true);
-    if (!$variableCategory || $a['pss_classification'] === null) return (float) $a['fee'];
+    if (!$variableCategory || $a['pss_classification'] === null) return flatFeeAmountDue($a);
     $snapshot = $a['fee_snapshot'] ? json_decode((string) $a['fee_snapshot'], true) : null;
     if (is_array($snapshot) && isset($snapshot['total'])) return (float) $snapshot['total'];
     if (!in_array($a['pss_classification'], ['pss', 'non_pss'], true)) return null;
@@ -155,7 +155,10 @@ function appointmentApprovedNotification(array $a): array
         return ['title' => NOTIFY_APPOINTMENT_CONFIRMED, 'message' => "Your appointment$ref has been confirmed. No payment is required."];
     }
     if (appointmentNoPaymentRequired($a)) {
-        return ['title' => NOTIFY_APPROVED_NO_PAYMENT, 'message' => "Your appointment$ref has been approved. No payment is required; it will be confirmed once the Pre-Cana requirements are complete."];
+        $next = ($a['category'] ?? '') === 'Wedding'
+            ? 'it will be confirmed once the Pre-Cana requirements are complete'
+            : 'the Parish Office will confirm it';
+        return ['title' => NOTIFY_APPROVED_NO_PAYMENT, 'message' => "Your appointment$ref has been approved. No payment is required; $next."];
     }
     $deadline = appointmentPaymentDeadline($a);
     $deadlinePart = $deadline ? " Payment deadline is " . $deadline->format('M j, Y g:i A') . "." : "";
@@ -216,7 +219,8 @@ function appointmentApprovedEmailHtml(array $a, bool $isGuest, string $name, str
         $rows['Assigned Priest'] = $h($a['priest_name']);
     }
     if (trim((string) ($a['location_address'] ?? '')) !== '') $rows['Location'] = $h($a['location_address']);
-    $rows['Status'] = (int) $a['status_id'] === 5 ? 'Approved (Confirmed)' : 'Approved (Awaiting Payment)';
+    $rows['Status'] = (int) $a['status_id'] === 5 ? 'Approved (Confirmed)'
+        : (appointmentNoPaymentRequired($a) ? 'Approved (No Payment Required)' : 'Approved (Awaiting Payment)');
 
     // Payment deadline
     $deadline = appointmentPaymentDeadline($a);

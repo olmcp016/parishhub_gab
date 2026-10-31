@@ -703,7 +703,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->beginTransaction();
         try {
             $stmt = $pdo->prepare(
-                'SELECT a.*, s.category, s.requirements
+                'SELECT a.*, s.category, s.requirements, s.fee
                  FROM appointments a JOIN services s ON a.service_id = s.service_id
                  WHERE a.appointment_id = ? FOR UPDATE'
             );
@@ -724,29 +724,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 );
             }
 
-            // A verified ₱0 total (PSS Giver Funeral Mass, or a Wedding whose fees
+            // A verified ₱0 PSS fee-rule total (PSS Giver Funeral Mass, or a Wedding whose fees
             // all come to ₱0) has no payment step: approve it straight to Confirmed.
             // A Wedding still waiting on its Pre-Cana conditions stays Approved — no payment needed — and is confirmed later.
+            // Any other ₱0 service (First Communion, Anointing) is only approved here; the
+            // Secretary then confirms it explicitly.
             require_once __DIR__ . '/../includes/appointment-approval.php';
             $noPaymentNeeded = appointmentNoPaymentRequired($lockedAppointment);
             $ceremonyBlockers = $noPaymentNeeded ? appointmentConfirmationBlockers($lockedAppointment) : [];
-            $confirmNow = $noPaymentNeeded && !$ceremonyBlockers;
+            $confirmNow = $noPaymentNeeded && !$ceremonyBlockers && in_array($lockedAppointment['category'], FEE_RULE_CATEGORIES, true);
 
             $hasDeadlineCol = paymentDeadlineColumnAvailable();
             $paymentDeadline = (!$confirmNow && !$noPaymentNeeded) ? appointmentPaymentDeadline($lockedAppointment) : null;
             $deadlineSql = ($hasDeadlineCol && $paymentDeadline) ? ', payment_deadline = ?' : '';
+            // A flat-fee service's fee is frozen with the approval, so a later change to
+            // services.fee never changes what this appointment owes (PSS snapshots untouched).
+            $frozenFee = $confirmNow ? null : flatFeeSnapshotForApproval($lockedAppointment, (int) $userId);
+            $freezeSql = $frozenFee !== null ? ', fee_snapshot = ?' : '';
 
             $update = $pdo->prepare($confirmNow
                 ? 'UPDATE appointments
                    SET status_id = 5, approved_by = ?, approved_at = NOW(), confirmed_by = ?, confirmed_at = NOW()
                    WHERE appointment_id = ? AND status_id = 1'
                 : "UPDATE appointments
-                   SET status_id = 2, approved_by = ?, approved_at = NOW(){$deadlineSql}
+                   SET status_id = 2, approved_by = ?, approved_at = NOW(){$deadlineSql}{$freezeSql}
                    WHERE appointment_id = ? AND status_id = 1"
             );
             $params = $confirmNow
                 ? [$userId, $userId, $id]
-                : ($deadlineSql ? [$userId, $paymentDeadline->format('Y-m-d H:i:sP'), $id] : [$userId, $id]);
+                : array_merge(
+                    [$userId],
+                    $deadlineSql ? [$paymentDeadline->format('Y-m-d H:i:sP')] : [],
+                    $frozenFee !== null ? [$frozenFee] : [],
+                    [$id]
+                );
             $update->execute($params);
             if ($update->rowCount() !== 1) {
                 throw new RuntimeException('This appointment is no longer pending approval.');
@@ -770,9 +781,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             respondAjaxOrRedirect($isAjax, true, 'Appointment approved and confirmed. ' . NO_PAYMENT_REQUIRED_LABEL . ' (verified total). ' . $approvalNotice, $redirectUrl);
         }
         if ($noPaymentNeeded) {
-            logActivity($userId, "Approved appointment #$id (no payment required; awaiting " . ($lockedAppointment['category'] === 'Funeral' ? 'the confirmed burial / Funeral Mass schedule' : 'Pre-Cana conditions') . ' before confirmation)', 'Appointments');
+            $awaiting = match ($lockedAppointment['category']) {
+                'Funeral' => 'the confirmed burial / Funeral Mass schedule',
+                'Wedding' => 'Pre-Cana conditions',
+                default => $ceremonyBlockers ? 'the confirmation requirements' : 'Secretary confirmation',
+            };
+            logActivity($userId, "Approved appointment #$id (no payment required; awaiting $awaiting before confirmation)", 'Appointments');
             $approvalNotice = appointmentApprovedNoticeSummary(notifyAppointmentApproved($id, (int) $userId));
-            respondAjaxOrRedirect($isAjax, true, 'Appointment approved. ' . NO_PAYMENT_REQUIRED_LABEL . '. Confirm it once these are done: ' . implode(' ', $ceremonyBlockers) . ' ' . $approvalNotice, $redirectUrl);
+            $nextStep = $ceremonyBlockers
+                ? 'Confirm it once these are done: ' . implode(' ', $ceremonyBlockers)
+                : 'There is no payment step; click Confirm Appointment when it is ready.';
+            respondAjaxOrRedirect($isAjax, true, 'Appointment approved. ' . NO_PAYMENT_REQUIRED_LABEL . '. ' . $nextStep . ' ' . $approvalNotice, $redirectUrl);
         }
         logActivity($userId, "Approved appointment #$id", 'Appointments');
         $approvalNotice = appointmentApprovedNoticeSummary(notifyAppointmentApproved($id, (int) $userId));
@@ -949,13 +968,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         respondAjaxOrRedirect($isAjax, true, $scheduleMessage . ' ' . $rescheduleEmailNotice, $redirectUrl);
     } elseif ($action === 'confirm') {
-        $confirmStmt = db()->prepare('SELECT a.*, s.category FROM appointments a JOIN services s ON s.service_id = a.service_id WHERE a.appointment_id = ?');
+        $confirmStmt = db()->prepare('SELECT a.*, s.category, s.fee FROM appointments a JOIN services s ON s.service_id = a.service_id WHERE a.appointment_id = ?');
         $confirmStmt->execute([$id]);
         $confirmAppointment = $confirmStmt->fetch() ?: [];
-        // Payment Verified — or Approved with a verified ₱0 total (no payment step).
-        $confirmableStatus = $currentStatusId === 4 || ($currentStatusId === 2 && appointmentNoPaymentRequired($confirmAppointment));
+        // Payment Verified — or Approved with a verified ₱0 total (no payment step). An
+        // appointment approved before fees were frozen whose service fee is now ₱0 is
+        // only confirmed without payment when the Secretary verifies that ₱0 here.
+        $needsZeroFeeVerification = $currentStatusId === 2 && appointmentNeedsZeroFeeVerification($confirmAppointment);
+        $zeroFeeVerified = $needsZeroFeeVerification && ($_POST['verify_zero_fee'] ?? '') === '1';
+        $confirmableStatus = $currentStatusId === 4 || ($currentStatusId === 2 && (appointmentNoPaymentRequired($confirmAppointment) || $zeroFeeVerified));
         if (!$confirmableStatus) {
-            respondAjaxOrRedirect($isAjax, false, 'Only a payment-verified appointment can be confirmed.', $redirectUrl);
+            respondAjaxOrRedirect($isAjax, false, $needsZeroFeeVerification
+                ? 'This appointment was approved before its fee was recorded. Verify that its required fee is ₱0 (tick the confirmation box) before confirming it without payment.'
+                : 'Only a payment-verified appointment can be confirmed.', $redirectUrl);
         }
         // Ready for ceremony: a Wedding with a parish Pre-Cana seminar needs its conditions met first.
         $confirmBlockers = appointmentConfirmationBlockers($confirmAppointment);
@@ -971,12 +996,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             respondAjaxOrRedirect($isAjax, false, 'Payment confirmation for Mass Intentions and Donations is handled by the Cashier.', $redirectUrl);
         }
 
-        $update = db()->prepare("UPDATE appointments SET status_id = 5 WHERE appointment_id = ? AND status_id = ?");
-        $update->execute([$id, $currentStatusId]);
+        if ($zeroFeeVerified) {
+            // Record the Secretary-verified ₱0 with the confirmation, only if no fee was frozen meanwhile.
+            $update = db()->prepare("UPDATE appointments SET status_id = 5, fee_snapshot = ? WHERE appointment_id = ? AND status_id = 2 AND fee_snapshot IS NULL");
+            $update->execute([json_encode(['total' => 0.0, 'source' => 'secretary_verified', 'verified_at' => date('c'), 'verified_by' => (int) $userId]), $id]);
+        } else {
+            $update = db()->prepare("UPDATE appointments SET status_id = 5 WHERE appointment_id = ? AND status_id = ?");
+            $update->execute([$id, $currentStatusId]);
+        }
         if ($update->rowCount() !== 1) {
             respondAjaxOrRedirect($isAjax, false, 'This appointment is no longer awaiting confirmation.', $redirectUrl);
         }
-        logActivity($userId, "Confirmed appointment #$id", 'Appointments');
+        logActivity($userId, "Confirmed appointment #$id" . ($zeroFeeVerified ? ' (approved before fees were recorded; Secretary verified the required fee is ₱0)' : ''), 'Appointments');
         require_once __DIR__ . '/../includes/appointment-approval.php';
         $confirmNotice = appointmentApprovedNoticeSummary(notifyAppointmentConfirmed($id, (int) $userId));
         respondAjaxOrRedirect($isAjax, true, 'Appointment confirmed. ' . $confirmNotice, $redirectUrl);
@@ -1255,6 +1286,8 @@ $canReviewDoc = static fn(array $d): bool => (int) $appointment['status_id'] ===
 // Ready for ceremony: what still blocks confirming (Pre-Cana schedule + certificate).
 $ceremonyBlockers = appointmentConfirmationBlockers($appointment);
 $noPaymentRequired = appointmentNoPaymentRequired($appointment);
+// Approved before fees were frozen, service fee now ₱0: confirmable only after the Secretary verifies the ₱0.
+$needsZeroFeeVerification = appointmentNeedsZeroFeeVerification($appointment);
 
 // Official Parish Certificate (FLOW 1: a just-completed sacrament; FLOW 2: a
 // paid "Certificate Request" re-issuance) — see includes/certificate-workflow.php.
@@ -1373,9 +1406,9 @@ if (!$isAjax) {
           $isPastDateUnpaid = (int) $appointment['status_id'] === 2
               && !empty($appointment['appointment_date'])
               && $appointment['appointment_date'] < date('Y-m-d')
-              && !$noPaymentRequired
+              && !$noPaymentRequired && !$needsZeroFeeVerification
               && (empty($payment) || !in_array($payment['payment_status'] ?? '', ['pending', 'verified'], true));
-          $paymentDeadline = ((int) $appointment['status_id'] === 2 && !$noPaymentRequired)
+          $paymentDeadline = ((int) $appointment['status_id'] === 2 && !$noPaymentRequired && !$needsZeroFeeVerification)
               ? appointmentPaymentDeadline($appointment)
               : null;
         ?>
@@ -1406,7 +1439,7 @@ if (!$isAjax) {
       // Fee-rule services (Baptism, Wedding, Funeral Mass) show "No Fees" for a ₱0
       // line (e.g. PSS Giver), not "Voluntary Offering"; a ₱0 total is "₱0.00 — No Payment Required".
       $isFuneral = $appointment['category'] === 'Funeral';
-      $isFeeRuleService = in_array($appointment['category'], NO_PAYMENT_CATEGORIES, true);
+      $isFeeRuleService = in_array($appointment['category'], FEE_RULE_CATEGORIES, true);
       $feeText = fn(float $amount): string => ($isFeeRuleService && $amount <= 0) ? 'No Fees' : feeLabel($amount);
       $totalText = fn(float $amount): string => feeTotalNeedsNoPayment($appointment['category'], $amount) ? NO_PAYMENT_REQUIRED_LABEL : feeLabel($amount);
     ?>
@@ -1913,8 +1946,14 @@ if (!$isAjax) {
         </div>
       <?php elseif ($appointment['status_name'] === 'Payment Verified' && in_array($appointment['category'], ['Mass Intention', 'Donation'], true)): ?>
         <p class="text-muted">This request is being finalized by the Cashier — no action needed here.</p>
-      <?php elseif ($appointment['status_name'] === 'Payment Verified' || ($appointment['status_name'] === 'Approved' && $noPaymentRequired)): ?>
-        <?php if ($appointment['status_name'] === 'Approved'): ?><p class="helper-text" style="margin-top:0;">No payment is required (verified total: <?= NO_PAYMENT_REQUIRED_LABEL ?>).</p><?php endif; ?>
+      <?php elseif ($appointment['status_name'] === 'Payment Verified' || ($appointment['status_name'] === 'Approved' && ($noPaymentRequired || $needsZeroFeeVerification))): ?>
+        <?php if ($appointment['status_name'] === 'Approved' && $noPaymentRequired): ?><p class="helper-text" style="margin-top:0;">No payment is required (<?= NO_PAYMENT_REQUIRED_LABEL ?>).</p><?php endif; ?>
+        <?php if ($appointment['status_name'] === 'Approved' && $needsZeroFeeVerification): ?>
+          <div class="approval-blockers" role="status">
+            <strong>Fee not recorded on this appointment:</strong>
+            <ul><li>It was approved before fees were recorded with each approval. The service fee is now ₱0, but the fee it was approved with is unknown. Check the booking before confirming it without payment.</li></ul>
+          </div>
+        <?php endif; ?>
         <?php if ($ceremonyBlockers): ?>
           <div class="approval-blockers" role="status">
             <strong>Not ready for ceremony yet:</strong>
@@ -1924,7 +1963,13 @@ if (!$isAjax) {
         <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>">
           <?= csrfField() ?>
           <input type="hidden" name="action" value="confirm">
-          <button type="submit" class="btn btn-success btn-block" <?= $ceremonyBlockers ? 'disabled title="Complete the Pre-Cana conditions listed above first."' : '' ?>>✔ Confirm Appointment</button>
+          <?php if ($appointment['status_name'] === 'Approved' && $needsZeroFeeVerification): ?>
+            <label style="display:flex; gap:8px; align-items:flex-start; margin:0 0 10px; font-size:14px;">
+              <input type="checkbox" name="verify_zero_fee" value="1" required style="margin-top:3px;">
+              <span>I have verified that the required fee for this appointment is ₱0 (no payment).</span>
+            </label>
+          <?php endif; ?>
+          <button type="submit" class="btn btn-success btn-block" <?= $ceremonyBlockers ? 'disabled title="Complete the items listed above first."' : '' ?>>✔ Confirm Appointment</button>
         </form>
       <?php elseif ($appointment['status_name'] === 'Confirmed'): ?>
         <form method="POST" action="<?= url('secretary/appointment-detail.php?id=' . $id) ?>">

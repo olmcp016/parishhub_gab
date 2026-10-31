@@ -83,7 +83,12 @@ if ($variableCategory && $appointment['pss_classification'] !== null) {
         db()->prepare('UPDATE appointments SET fee_snapshot = ? WHERE appointment_id = ? AND fee_snapshot IS NULL')->execute([json_encode($calculation), $appointmentId]);
     }
 } else {
-    $amount = (float) $appointment['fee'];
+    // The fee frozen at approval (the current service fee for older approvals).
+    $amount = flatFeeAmountDue($appointment);
+    if ($amount === null) {
+        flash('error', 'The applicable service fee could not be determined. Please contact the parish office.');
+        redirect($statusUrl);
+    }
 }
 
 // Nothing to pay (a verified ₱0 Baptism, Wedding or Funeral Mass, or any ₱0

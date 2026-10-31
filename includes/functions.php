@@ -338,9 +338,9 @@ function handlePastDateUnpaidAppointments(): void
         require_once __DIR__ . '/appointment-approval.php'; // notifyPastDateReschedule()
 
         $stmt = db()->query(
-            "SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.guest_name, a.guest_email, a.guest_reference,
+            "SELECT a.appointment_id, a.status_id, a.appointment_date, a.appointment_time, a.guest_name, a.guest_email, a.guest_reference,
                     par.user_id, u.email AS user_email, u.firstname, u.lastname,
-                    s.service_name, s.category, a.pss_classification, a.fee_snapshot
+                    s.service_name, s.category, s.fee, a.pss_classification, a.fee_snapshot
              FROM appointments a
              JOIN services s ON a.service_id = s.service_id
              LEFT JOIN parishioners par ON a.parishioner_id = par.parishioner_id
@@ -353,7 +353,7 @@ function handlePastDateUnpaidAppointments(): void
                    )"
         );
 
-        $expired = array_values(array_filter($stmt->fetchAll(), static fn(array $row): bool => !appointmentNoPaymentRequired($row)));
+        $expired = array_values(array_filter($stmt->fetchAll(), static fn(array $row): bool => !appointmentNoPaymentRequired($row) && !appointmentNeedsZeroFeeVerification($row)));
         if (empty($expired)) {
             return;
         }
@@ -550,7 +550,7 @@ function verifyPaymentAndIssueReceipt(int $paymentId, ?int $verifiedByUserId, st
         // be pending after its appointment was cancelled/rejected by another
         // request; verification must never revive that appointment.
         $stmt = $pdo->prepare(
-            'SELECT p.*, a.status_id AS appointment_status_id, a.parishioner_id, s.category
+            'SELECT p.*, a.status_id AS appointment_status_id, a.parishioner_id, a.fee_snapshot, a.pss_classification, s.category, s.fee
              FROM payments p
              JOIN appointments a ON a.appointment_id = p.appointment_id
              JOIN services s ON s.service_id = a.service_id
@@ -570,6 +570,22 @@ function verifyPaymentAndIssueReceipt(int $paymentId, ?int $verifiedByUserId, st
                 'message' => 'Payment cannot be verified because the appointment is no longer approved for payment.',
                 'receipt_number' => null,
             ];
+        }
+
+        // A flat-fee appointment's fee was frozen at approval: the payment must match it.
+        require_once __DIR__ . '/service-fees.php';
+        if (appointmentUsesFlatFee($payment) && trim((string) ($payment['fee_snapshot'] ?? '')) !== '') {
+            $frozenFee = flatFeeAmountDue($payment);
+            if ($frozenFee === null || abs((float) $payment['amount'] - $frozenFee) >= 0.005) {
+                $pdo->rollBack();
+                return [
+                    'ok' => false,
+                    'message' => $frozenFee === null
+                        ? 'Payment cannot be verified: the fee recorded for this appointment could not be read. Please check the appointment.'
+                        : 'Payment cannot be verified: the amount (' . money((float) $payment['amount']) . ') does not match the required fee (' . money($frozenFee) . ') recorded when the appointment was approved.',
+                    'receipt_number' => null,
+                ];
+            }
         }
 
         // Staff verification (a Treasurer, not PayMongo or the webhook) must
