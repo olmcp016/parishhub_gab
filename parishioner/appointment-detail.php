@@ -49,29 +49,82 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $redirectUrl
             );
         }
-        $stmt = db()->prepare(
-            "UPDATE appointments
-             SET status_id = 7, cancelled_reason = ?
-             WHERE appointment_id = ? AND parishioner_id = ? AND status_id IN (1, 2)"
-        );
-        $stmt->execute([$_POST['reason'] ?? 'Cancelled by parishioner', $id, $parishionerId]);
-        if ($stmt->rowCount() !== 1) {
-            respondAjaxOrRedirect(
-                $isAjax,
-                false,
-                'This appointment can no longer be cancelled because its status has already changed.',
-                $redirectUrl
-            );
+        $statusChangedMessage = 'This appointment can no longer be cancelled because its status has already changed.';
+        $owned = db()->prepare('SELECT status_id FROM appointments WHERE appointment_id = ? AND parishioner_id = ?');
+        $owned->execute([$id, $parishionerId]);
+        $ownedStatus = $owned->fetchColumn();
+        if ($ownedStatus === false || !in_array((int) $ownedStatus, [1, 2], true)) {
+            respondAjaxOrRedirect($isAjax, false, $statusChangedMessage, $redirectUrl);
+        }
+
+        // Audit B1: an online checkout left open would still take money after the
+        // cancellation. Hold the appointment's payment lease (no new checkout can
+        // start meanwhile) and have PayMongo confirm every open checkout expired
+        // BEFORE the appointment is cancelled; anything paid, under way or
+        // unconfirmed stops the cancellation instead.
+        require_once __DIR__ . '/../includes/paymongo.php';
+        $lease = paymentLeaseAcquire($id);
+        if ($lease === null) {
+            respondAjaxOrRedirect($isAjax, false, 'A payment for this appointment is being started or checked right now, so it was not cancelled. Please wait a moment and try again.', $redirectUrl);
+        }
+        register_shutdown_function('paymentLeaseRelease', $id, $lease);
+
+        $refusals = [
+            'paid' => 'This appointment has already been paid, so it can no longer be cancelled here. Please contact the Parish Office.',
+            'reconcile' => 'A payment for this appointment was received by PayMongo and is being reviewed by the Parish Office, so it cannot be cancelled here. Please contact the Parish Office.',
+            'processing' => 'Your online payment is still being processed by PayMongo, so this appointment cannot be cancelled yet. Please check again in a few minutes.',
+            'unconfirmed' => 'We could not confirm with PayMongo that your online payment link is closed, so your appointment was NOT cancelled. Please try again in a few minutes.',
+        ];
+        try {
+            $checkouts = paymongoCloseCheckoutsForCancellation($id);
+        } catch (Throwable $e) {
+            error_log('ParishHub: closing checkouts before cancelling appointment ' . $id . ' failed (' . get_class($e) . ' ' . $e->getCode() . ')');
+            $checkouts = ['ok' => false, 'outcome' => 'unconfirmed', 'closed' => 0];
+        }
+        if (!$checkouts['ok']) {
+            respondAjaxOrRedirect($isAjax, false, $refusals[$checkouts['outcome']] ?? $refusals['unconfirmed'], $redirectUrl);
+        }
+
+        // Payment verification locks the appointment row and needs status 2, so
+        // with the row locked here exactly one of the two can win.
+        $refusal = null;
+        $pdo = db();
+        try {
+            $pdo->beginTransaction();
+            $lock = $pdo->prepare('SELECT status_id FROM appointments WHERE appointment_id = ? AND parishioner_id = ? FOR UPDATE');
+            $lock->execute([$id, $parishionerId]);
+            $verified = $pdo->prepare("SELECT 1 FROM payments WHERE appointment_id = ? AND payment_status = 'verified' LIMIT 1");
+            $verified->execute([$id]);
+            if ($verified->fetchColumn()) {
+                $refusal = $refusals['paid'];
+            } else {
+                $stmt = $pdo->prepare(
+                    "UPDATE appointments
+                     SET status_id = 7, cancelled_reason = ?
+                     WHERE appointment_id = ? AND parishioner_id = ? AND status_id IN (1, 2)"
+                );
+                $stmt->execute([$_POST['reason'] ?? 'Cancelled by parishioner', $id, $parishionerId]);
+                if ($stmt->rowCount() !== 1) $refusal = $statusChangedMessage;
+            }
+            $refusal === null ? $pdo->commit() : $pdo->rollBack();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('ParishHub: cancelling appointment ' . $id . ' failed (' . get_class($e) . ' ' . $e->getCode() . ')');
+            $refusal = 'Your appointment could not be cancelled right now. Please try again.';
+        }
+        if ($refusal !== null) {
+            respondAjaxOrRedirect($isAjax, false, $refusal, $redirectUrl);
         }
         logActivity($userId, "Cancelled appointment #$id", 'Appointments');
+        $cancelledMessage = $checkouts['closed'] > 0 ? 'Appointment cancelled. Its online payment link has been closed.' : 'Appointment cancelled.';
         // Cancelling closes the request entirely — send them back to the list
         // either way (a JSON response wouldn't have anything left to refresh).
         if ($isAjax) {
             header('Content-Type: application/json');
-            echo json_encode(['success' => true, 'message' => 'Appointment cancelled.', 'redirect' => url('parishioner/appointments.php')]);
+            echo json_encode(['success' => true, 'message' => $cancelledMessage, 'redirect' => url('parishioner/appointments.php')]);
             exit;
         }
-        flash('success', 'Appointment cancelled.');
+        flash('success', $cancelledMessage);
         redirect(url('parishioner/appointments.php'));
     }
 

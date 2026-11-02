@@ -532,6 +532,96 @@ function paymongoCancelPayment(int $paymentId): string
     return paymongoApplyCheckout($paymentId, paymongoExpireCheckoutSession($sessionId));
 }
 
+/** Seconds of PayMongo calls an appointment cancellation may spend closing its checkouts (well inside the payment lease). */
+const PAYMONGO_CANCEL_SECONDS = 45.0;
+
+/**
+ * Before an appointment is cancelled (audit B1): every PayMongo checkout of the
+ * appointment that could still take money must first be confirmed unpayable.
+ * Call while holding the appointment's payment lease, so no new checkout can be
+ * opened meanwhile. A still-open checkout is expired at PayMongo; a checkout
+ * found paid is applied through paymongoApplyCheckout() (verified, or flagged
+ * for reconciliation) and the cancellation is refused; one being processed, or
+ * one PayMongo will not confirm expired, refuses it too. Payment and
+ * transaction records are only updated, never deleted.
+ *
+ * @return array{ok: bool, outcome: string, closed: int}
+ *   outcome: clear (nothing can take money any more) | paid | reconcile | processing | unconfirmed;
+ *   closed: how many open checkouts PayMongo confirmed expired just now
+ */
+function paymongoCloseCheckoutsForCancellation(int $appointmentId): array
+{
+    $verified = db()->prepare("SELECT 1 FROM payments WHERE appointment_id = ? AND payment_status = 'verified' LIMIT 1");
+    $verified->execute([$appointmentId]);
+    if ($verified->fetchColumn()) return ['ok' => false, 'outcome' => 'paid', 'closed' => 0];
+
+    $stmt = db()->prepare(
+        "SELECT DISTINCT p.payment_id FROM payments p
+         JOIN transactions t ON t.payment_id = p.payment_id AND t.gateway = 'paymongo'
+         WHERE p.appointment_id = ? AND p.payment_status IN ('pending', 'cancelled', 'failed')
+         ORDER BY p.payment_id DESC"
+    );
+    $stmt->execute([$appointmentId]);
+    $paymentIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+
+    $closed = 0;
+    $ownDeadline = paymongoDeadline() === null;
+    if ($ownDeadline) paymongoDeadline(microtime(true) + PAYMONGO_CANCEL_SECONDS);
+    try {
+        foreach ($paymentIds as $paymentId) {
+            $row = paymongoPaymentRow($paymentId);
+            if (!$row) continue;
+            if ($row['payment_status'] === 'pending' && $row['gateway_status'] === 'needs_reconciliation') {
+                return ['ok' => false, 'outcome' => 'reconcile', 'closed' => $closed];
+            }
+            $sessionId = (string) $row['gateway_transaction_id'];
+            if ($sessionId === '') {
+                $unrecorded = $row['payment_status'] === 'pending' ? paymongoUnrecordedSessionId($row) : null;
+                if ($unrecorded === null) {
+                    // No checkout id was ever stored, so no link was handed out. Under the
+                    // lease no request is still creating one: close it as paymongoPrepareNewPayment() does.
+                    if ($row['payment_status'] === 'pending') {
+                        markPaymentUnsuccessful($paymentId, 'cancelled');
+                        db()->prepare("UPDATE transactions SET status = 'create_abandoned' WHERE payment_id = ? AND gateway = 'paymongo' AND gateway_transaction_id IS NULL")
+                            ->execute([$paymentId]);
+                    }
+                    continue;
+                }
+                // A checkout PayMongo created but ParishHub could not record: record it, then close it like any other.
+                if (!paymongoAdoptUnrecorded($paymentId, $unrecorded)) {
+                    return ['ok' => false, 'outcome' => 'unconfirmed', 'closed' => $closed];
+                }
+                $sessionId = $unrecorded;
+            }
+
+            $session = paymongoGetCheckoutSession($sessionId);
+            $wasOpen = $session['ok'] && in_array($session['state'], ['active', 'unknown'], true);
+            if ($wasOpen) {
+                // PayMongo refuses to expire a session that was paid or started a payment in
+                // the meantime; paymongoExpireCheckoutSession() then reads back which it was.
+                $session = paymongoExpireCheckoutSession($sessionId);
+            }
+            if (!$session['ok']) {
+                return ['ok' => false, 'outcome' => 'unconfirmed', 'closed' => $closed];
+            }
+            $applied = paymongoApplyCheckout($paymentId, $session);
+            if ($session['state'] === 'paid') {
+                return ['ok' => false, 'outcome' => $applied === 'verified' ? 'paid' : 'reconcile', 'closed' => $closed];
+            }
+            if ($session['state'] === 'processing') {
+                return ['ok' => false, 'outcome' => 'processing', 'closed' => $closed];
+            }
+            if ($session['state'] !== 'expired') {
+                return ['ok' => false, 'outcome' => 'unconfirmed', 'closed' => $closed];
+            }
+            if ($wasOpen) $closed++;
+        }
+    } finally {
+        if ($ownDeadline) paymongoDeadline(true);
+    }
+    return ['ok' => true, 'outcome' => 'clear', 'closed' => $closed];
+}
+
 /** Seconds a payment start may hold its appointment: above four PayMongo calls at their 20-second limit. */
 const PAYMENT_LEASE_SECONDS = 120;
 
