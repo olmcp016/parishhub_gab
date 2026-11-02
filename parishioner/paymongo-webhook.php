@@ -2,21 +2,25 @@
 /**
  * PARISHHUB — PayMongo webhook receiver.
  *
- * Public, no login (PayMongo calls this directly). If a webhook secret is
- * configured (Settings > Developers > Webhooks in the PayMongo dashboard,
- * pointing here), the signature is verified before anything is trusted.
- * If no webhook is configured, this endpoint simply sits unused — the
- * return pages and the Treasurer's re-check reconcile payments themselves,
- * so a webhook is a reliability improvement (catches the case where a
- * payer's browser never makes it back), not a hard requirement.
+ * Public, no login (PayMongo calls this directly, once a webhook is set up in
+ * the PayMongo dashboard under Developers > Webhooks, pointing here). Every
+ * event must carry a valid signature for the site's configured mode, and its
+ * livemode flag must match that mode; nothing unsigned is ever accepted
+ * (audit B-07 W1/W2). Without a usable webhook secret and secret key the
+ * endpoint refuses everything with 503 before touching any payment, so PayMongo
+ * retries once it is configured. A webhook is a reliability improvement
+ * (catches the case where a payer's browser never makes it back), not a hard
+ * requirement: the return pages and the Treasurer's re-check reconcile
+ * payments themselves.
  *
  * The event body is never trusted for a payment's outcome: the checkout
  * session is read back from PayMongo with the secret key and applied through
  * paymongoApplyCheckout() (audit B-07). That makes duplicate and
- * out-of-order deliveries harmless. Responses: 400 for a bad signature;
- * 2xx once an event is handled or can never be handled (so PayMongo stops);
- * 503/500 when PayMongo or the database failed for now, so PayMongo retries
- * (it gives up after 12 attempts).
+ * out-of-order deliveries harmless. Responses: 400 for a bad signature or an
+ * event from the other mode; 2xx once an event is handled or can never be
+ * handled (so PayMongo stops); 503/500 when the webhook is not configured or
+ * PayMongo or the database failed for now, so PayMongo retries (it gives up
+ * after 12 attempts).
  */
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
@@ -24,25 +28,28 @@ require_once __DIR__ . '/../includes/paymongo.php';
 
 header('Content-Type: application/json');
 
-$rawBody = file_get_contents('php://input');
-$webhookSecret = getenv('PAYMONGO_WEBHOOK_SECRET');
-
-if ($webhookSecret && !str_contains($webhookSecret, 'xxxxxxxxxxxx')) {
-    $signatureHeader = $_SERVER['HTTP_PAYMONGO_SIGNATURE'] ?? '';
-    if (!paymongoVerifyWebhookSignature($rawBody, $signatureHeader, $webhookSecret)) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Invalid signature']);
-        exit;
-    }
-}
-
 $respond = static function (int $code, array $body): never {
     http_response_code($code);
     echo json_encode($body);
     exit;
 };
 
+$mode = paymongoKeyMode();
+$webhookSecret = paymongoWebhookSecret();
+if ($mode === null || $webhookSecret === null) {
+    error_log('PayMongo webhook refused: PAYMONGO_WEBHOOK_SECRET or PAYMONGO_SECRET_KEY is missing or a placeholder');
+    $respond(503, ['error' => 'Webhook is not configured']);
+}
+
+$rawBody = (string) file_get_contents('php://input');
+if (!paymongoVerifyWebhookSignature($rawBody, (string) ($_SERVER['HTTP_PAYMONGO_SIGNATURE'] ?? ''), $webhookSecret, $mode)) {
+    $respond(400, ['error' => 'Invalid signature']);
+}
+
 $event = json_decode($rawBody, true);
+if (!paymongoWebhookEventModeMatches($event, $mode)) {
+    $respond(400, ['error' => 'Event mode does not match this site']);
+}
 $eventType = is_array($event) ? (string) ($event['data']['attributes']['type'] ?? '') : '';
 $eventData = is_array($event) ? ($event['data']['attributes']['data'] ?? null) : null;
 

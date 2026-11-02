@@ -216,30 +216,84 @@ function paymongoExpireCheckoutSession(string $sessionId): array
 }
 
 /**
- * Verifies a PayMongo webhook's "Paymongo-Signature" header, formatted as
- * "t=<timestamp>,te=<test-mode-signature>,li=<live-mode-signature>" — the
- * signature is HMAC-SHA256 of "<timestamp>.<raw body>" using the webhook
- * secret. Only needed if a webhook is actually configured in the PayMongo
- * dashboard (see paymongo-webhook.php) — verify this against PayMongo's
- * current documentation before depending on it, as their exact header
- * format may evolve.
+ * True for a credential that was never filled in: empty, or one of the
+ * example config's placeholder values (a run of x's, or "..._replace_me").
  */
-function paymongoVerifyWebhookSignature(string $rawBody, string $signatureHeader, string $webhookSecret): bool
+function paymongoIsPlaceholderSecret(string $value): bool
 {
-    $parts = [];
-    foreach (explode(',', $signatureHeader) as $pair) {
-        [$key, $value] = array_pad(explode('=', $pair, 2), 2, null);
-        if ($key !== null) {
-            $parts[trim($key)] = trim((string) $value);
-        }
+    $value = trim($value);
+    return $value === '' || str_contains($value, 'xxxxxxxxxxxx') || stripos($value, 'replace_me') !== false;
+}
+
+/**
+ * The PayMongo mode this site is configured for, taken from its own secret key
+ * (server-side configuration, never anything in a request): 'test' for an
+ * sk_test_ key, 'live' for an sk_live_ key, null when the key is missing, a
+ * placeholder or not a PayMongo secret key.
+ */
+function paymongoKeyMode(): ?string
+{
+    $key = trim((string) getenv('PAYMONGO_SECRET_KEY'));
+    if (paymongoIsPlaceholderSecret($key) || !preg_match('/^sk_(test|live)_[A-Za-z0-9]+$/', $key, $m)) {
+        return null;
     }
-    $timestamp = $parts['t'] ?? null;
-    $expectedSig = $parts['te'] ?? $parts['li'] ?? null;
-    if (!$timestamp || !$expectedSig) {
+    return $m[1];
+}
+
+/**
+ * The configured webhook signing secret, or null when it is missing, a
+ * placeholder, or not a plausible secret (shorter than 16 characters, or
+ * containing spaces or control characters) — the webhook then accepts nothing.
+ */
+function paymongoWebhookSecret(): ?string
+{
+    $secret = trim((string) getenv('PAYMONGO_WEBHOOK_SECRET'));
+    if (paymongoIsPlaceholderSecret($secret) || !preg_match('/^[\x21-\x7E]{16,}$/', $secret)) {
+        return null;
+    }
+    return $secret;
+}
+
+/**
+ * Verifies a PayMongo webhook's "Paymongo-Signature" header,
+ * "t=<timestamp>,te=<test-mode signature>,li=<live-mode signature>", where a
+ * signature is the hex HMAC-SHA256 of "<timestamp>.<raw body>" with the
+ * webhook secret. PayMongo sends BOTH fields and leaves the other mode's one
+ * empty (confirmed with a real test-mode delivery, audit B-07 Probe G), so the
+ * field is chosen by the site's configured mode ($mode, from
+ * paymongoKeyMode()) — never by which one happens to be filled, and never
+ * falling back to the other mode's field. A missing, empty, malformed,
+ * repeated or wrong signature is rejected.
+ */
+function paymongoVerifyWebhookSignature(string $rawBody, string $signatureHeader, string $webhookSecret, string $mode): bool
+{
+    if (($mode !== 'test' && $mode !== 'live') || paymongoIsPlaceholderSecret($webhookSecret)) {
         return false;
     }
-    $computed = hash_hmac('sha256', $timestamp . '.' . $rawBody, $webhookSecret);
-    return hash_equals($computed, $expectedSig);
+    $parts = [];
+    foreach (explode(',', $signatureHeader) as $pair) {
+        $pieces = explode('=', $pair, 2);
+        if (count($pieces) !== 2) return false;                     // every field is key=value
+        $key = trim($pieces[0]);
+        if ($key === '' || array_key_exists($key, $parts)) return false;   // no nameless or repeated fields
+        $parts[$key] = trim($pieces[1]);
+    }
+    $timestamp = $parts['t'] ?? '';
+    $signature = $parts[$mode === 'live' ? 'li' : 'te'] ?? '';
+    if (!preg_match('/^\d{1,20}$/', $timestamp) || !preg_match('/^[0-9a-f]{64}$/', $signature)) {
+        return false;
+    }
+    return hash_equals(hash_hmac('sha256', $timestamp . '.' . $rawBody, $webhookSecret), $signature);
+}
+
+/**
+ * True when a webhook event's livemode flag matches the configured mode, so a
+ * test-mode event is never applied by a live site, nor a live one by a test site.
+ */
+function paymongoWebhookEventModeMatches(mixed $event, string $mode): bool
+{
+    $livemode = is_array($event) ? ($event['data']['attributes']['livemode'] ?? null) : null;
+    return is_bool($livemode) && ($mode === 'test' || $mode === 'live') && $livemode === ($mode === 'live');
 }
 
 /** @return array{payment_id: int, appointment_id: int, payment_status: string, amount: string, gateway_transaction_id: ?string, gateway_status: ?string, raw_response: ?string}|null */
