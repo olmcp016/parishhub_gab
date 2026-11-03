@@ -3,21 +3,57 @@ set_error_handler(function($errno, $errstr, $errfile, $errline) {
     error_log("book.php error $errno: $errstr in $errfile on line $errline");
     return true; // suppress default output so JSON stays clean
 });
-set_exception_handler(function($e) {
-    error_log('book.php exception: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+/**
+ * An exception message made safe for the server log (audit B2). PostgreSQL
+ * appends the failing query (LINE n: ..., which holds the bound values because
+ * PDO emulates prepares) and row or key values (DETAIL: ...), which can carry
+ * names, emails or phone numbers from the form: only the error itself is kept.
+ */
+function bookLogSafeMessage(Throwable $e): string
+{
+    $message = preg_replace('/\s+/', ' ', $e->getMessage());
+    $message = preg_replace('/\s*\b(LINE \d+:|DETAIL:|HINT:|CONTEXT:|QUERY:|WHERE:).*$/s', ' [query and row details omitted]', $message);
+    return mb_substr(trim($message), 0, 300);
+}
+// Audit B2: an unexpected error that reaches this point is never shown to the
+// person booking (it can carry SQLSTATE text, table or column names, hosts and
+// file paths). Its details go to the server log only; the person gets a plain
+// message and is sent back to the booking form.
+set_exception_handler(function (Throwable $e) {
+    error_log(sprintf(
+        'book.php unexpected exception: %s code=%s message=%s at %s:%d',
+        get_class($e),
+        (string) $e->getCode(),
+        bookLogSafeMessage($e),
+        $e->getFile(),
+        $e->getLine()
+    ));
+    $message = "We couldn't process your booking right now. Please try again later.";
     $isAjax = (isset($_POST['ajax']) && $_POST['ajax'] === '1')
         || (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest');
     if ($isAjax) {
         if (!headers_sent()) {
             header('Content-Type: application/json');
-            http_response_code(400);
+            http_response_code(500);
         }
-        echo json_encode([
-            'success' => false,
-            'message' => 'Unable to complete booking request: ' . $e->getMessage()
-        ]);
+        echo json_encode(['success' => false, 'message' => $message]);
         exit;
     }
+    // Same flash + redirect as bookRespondError(); the Services page never posts back here on load, so no loop.
+    if (!headers_sent() && session_status() === PHP_SESSION_ACTIVE && function_exists('flash') && function_exists('redirect') && function_exists('url')) {
+        flash('error', $message);
+        redirect(url('parishioner/services.php'));
+    }
+    // Fallback when the app is not loaded far enough to redirect: a plain page, never a blank one.
+    $back = function_exists('url') ? url('parishioner/services.php') : '/parishioner/services.php';
+    if (!headers_sent()) {
+        http_response_code(500);
+        header('Content-Type: text/html; charset=utf-8');
+    }
+    echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Booking</title></head><body>'
+        . '<p>' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</p>'
+        . '<p><a href="' . htmlspecialchars($back, ENT_QUOTES, 'UTF-8') . '">Back to Services</a></p></body></html>';
+    exit;
 });
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
@@ -633,7 +669,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             foreach ($createdStorageKeys as $key) { try { documentStorageDelete($key); } catch (Throwable $cleanupError) { error_log('Document cleanup failed.'); } }
-            error_log($e->getMessage());
+            error_log('book.php: ' . get_class($e) . ' ' . bookLogSafeMessage($e) . ' at ' . $e->getFile() . ':' . $e->getLine());
             bookRespondError($isAjax, 'Unable to save the Baptism booking draft. Please try again.', url('parishioner/services.php'));
         }
     }
@@ -706,7 +742,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
             redirect($redirect);
         } catch (Throwable $e) {
             foreach ($createdStorageKeys as $key) { try { documentStorageDelete($key); } catch (Throwable $cleanupError) { error_log('Document cleanup failed.'); } }
-            error_log($e->getMessage());
+            error_log('book.php: ' . get_class($e) . ' ' . bookLogSafeMessage($e) . ' at ' . $e->getFile() . ':' . $e->getLine());
             bookRespondError($isAjax, 'Unable to save the Funeral booking draft. Please try again.', url('parishioner/services.php'));
         }
     }
@@ -763,7 +799,7 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
                 (string) $sqlState,
                 $e->getFile(),
                 $e->getLine(),
-                preg_replace('/\s+/', ' ', $e->getMessage())
+                bookLogSafeMessage($e)
             ));
             bookRespondError($isAjax, 'Unable to save the Wedding booking draft. Please try again.', url('parishioner/services.php'));
         }
@@ -981,12 +1017,12 @@ function bookRespondError(bool $isAjax, string $message, string $redirectUrl): v
                 (string) ($payMode ?? ''),
                 $pdo->inTransaction() ? 'yes' : 'no',
                 'yes',
-                preg_replace('/\s+/', ' ', $e->getMessage()),
+                bookLogSafeMessage($e),
                 $e->getFile(),
                 $e->getLine()
             ));
         } else {
-            error_log($e->getMessage());
+            error_log('book.php: ' . get_class($e) . ' ' . bookLogSafeMessage($e) . ' at ' . $e->getFile() . ':' . $e->getLine());
         }
         bookRespondError($isAjax, 'Failed to submit appointment. Please try again.', url('parishioner/services.php'));
     }
