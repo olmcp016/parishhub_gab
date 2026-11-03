@@ -27,6 +27,54 @@ function adminChangeWouldLeaveNoAdmin(int $userId): bool
     return (int) $others->fetchColumn() === 0;
 }
 
+/**
+ * Locks every active Admin row until the current transaction ends, so two
+ * Admins cannot each suspend or delete the other at the same moment and leave
+ * no active Admin (audit B3). Same order everywhere, so no deadlock.
+ */
+function lockActiveAdmins(PDO $pdo): void
+{
+    $pdo->query(
+        "SELECT u.user_id FROM users u JOIN roles r ON r.role_id = u.role_id
+         WHERE r.role_name = 'Admin' AND u.status = 'active' ORDER BY u.user_id FOR UPDATE OF u"
+    )->fetchAll();
+}
+
+/**
+ * The parish records that point at an account (audit B3), as "table.column"
+ * => number of rows: announcements it posted, receipts it issued, payments it
+ * verified, bookings it approved, its audit-log entries, and so on. Read from
+ * the database's own foreign keys, so a reference added to the schema later is
+ * covered too. Not counted: the account's own notifications (its inbox), its
+ * parishioner profile (whose bookings are checked separately), and its
+ * activity-log entries, which are kept (SET NULL) with their text naming the
+ * person, so an account that only ever signed in can still be removed.
+ * Deleting an account with any counted record would delete it (CASCADE),
+ * erase who did it (SET NULL) or fail (NO ACTION), so such an account is
+ * deactivated instead. Throws when the check cannot be made, so deletion
+ * fails closed.
+ */
+function userRecordReferences(PDO $pdo, int $userId): array
+{
+    $foreignKeys = $pdo->query(
+        "SELECT c.conrelid::regclass::text AS tbl, a.attname AS col
+         FROM pg_constraint c
+         JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+         WHERE c.contype = 'f' AND c.confrelid = 'users'::regclass AND cardinality(c.conkey) = 1"
+    )->fetchAll();
+    $references = [];
+    foreach ($foreignKeys as $fk) {
+        $name = $fk['tbl'] . '.' . $fk['col'];
+        if (in_array($name, ['notifications.user_id', 'parishioners.user_id', 'activity_logs.user_id'], true)) continue;
+        // Both identifiers come from the catalog: regclass text is already quoted where needed.
+        $count = $pdo->prepare('SELECT COUNT(*) FROM ' . $fk['tbl'] . ' WHERE "' . str_replace('"', '""', $fk['col']) . '" = ?');
+        $count->execute([$userId]);
+        $n = (int) $count->fetchColumn();
+        if ($n > 0) $references[$name] = $n;
+    }
+    return $references;
+}
+
 /** True when the signed-in admin's password matches. Used before role changes and deletes. */
 function adminPasswordMatches(int $adminId, string $password): bool
 {
@@ -109,11 +157,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('error', 'You cannot change the status of your own account.');
             redirect(url('admin/users.php'));
         }
-        if ($newStatus !== 'active' && adminChangeWouldLeaveNoAdmin($targetId)) {
-            flash('error', 'This is the only active Admin. Make another Admin active first.');
+        // Checked and changed under the Admin lock (audit B3): two Admins suspending
+        // each other at once cannot leave the system with no active Admin.
+        $refusal = null;
+        $pdo = db();
+        try {
+            $pdo->beginTransaction();
+            lockActiveAdmins($pdo);
+            if ($newStatus !== 'active' && adminChangeWouldLeaveNoAdmin($targetId)) {
+                $refusal = 'This is the only active Admin. Make another Admin active first.';
+            } else {
+                $update = $pdo->prepare('UPDATE users SET status = ? WHERE user_id = ?');
+                $update->execute([$newStatus, $targetId]);
+                if ($update->rowCount() !== 1) $refusal = 'User not found.';
+            }
+            $refusal === null ? $pdo->commit() : $pdo->rollBack();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('Admin users: status change for user #' . $targetId . ' failed (' . get_class($e) . ' ' . $e->getCode() . ')');
+            $refusal = 'Could not update the user status. Please try again.';
+        }
+        if ($refusal !== null) {
+            flash('error', $refusal);
             redirect(url('admin/users.php'));
         }
-        db()->prepare('UPDATE users SET status = ? WHERE user_id = ?')->execute([$newStatus, $targetId]);
         logActivity($adminId, "Updated status of user #{$targetId} to {$newStatus}", 'User Management');
         flash('success', 'User status updated.');
         redirect(url('admin/users.php'));
@@ -135,18 +202,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('error', 'Please choose a valid staff role.');
             redirect(url('admin/users.php'));
         }
-        $stmt = db()->prepare('SELECT firstname, lastname FROM users WHERE user_id = ?');
-        $stmt->execute([$targetId]);
-        $targetUser = $stmt->fetch();
         $stmt = db()->prepare('SELECT role_name FROM roles WHERE role_id = ?');
         $stmt->execute([$newRoleId]);
         $newRoleName = $stmt->fetchColumn();
-        if ($newRoleName !== 'Admin' && adminChangeWouldLeaveNoAdmin($targetId)) {
-            flash('error', 'This is the only active Admin. Make another Admin active before changing this role.');
+        // Checked and changed under the Admin lock, then the account's own lock (audit
+        // B3, same order as status changes and deletion): two Admins demoting each
+        // other, or a demotion racing a suspension or deletion, cannot leave the
+        // system with no active Admin.
+        $refusal = null;
+        $targetUser = null;
+        $pdo = db();
+        try {
+            $pdo->beginTransaction();
+            lockActiveAdmins($pdo);
+            $lock = $pdo->prepare('SELECT firstname, lastname FROM users WHERE user_id = ? FOR UPDATE');
+            $lock->execute([$targetId]);
+            $targetUser = $lock->fetch();
+            if (!$targetUser) {
+                $refusal = 'User not found.';
+            } elseif ($newRoleName !== 'Admin' && adminChangeWouldLeaveNoAdmin($targetId)) {
+                $refusal = 'This is the only active Admin. Make another Admin active before changing this role.';
+            } else {
+                $pdo->prepare('UPDATE users SET role_id = ? WHERE user_id = ?')->execute([$newRoleId, $targetId]);
+            }
+            $refusal === null ? $pdo->commit() : $pdo->rollBack();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('Admin users: role change for user #' . $targetId . ' failed (' . get_class($e) . ' ' . $e->getCode() . ')');
+            $refusal = 'Could not change the role right now. Nothing was changed. Please try again.';
+        }
+        if ($refusal !== null) {
+            flash('error', $refusal);
             redirect(url('admin/users.php'));
         }
-        db()->prepare('UPDATE users SET role_id = ? WHERE user_id = ?')->execute([$newRoleId, $targetId]);
-        $targetLabel = $targetUser ? ($targetUser['firstname'] . ' ' . $targetUser['lastname']) : ('#' . $_POST['user_id']);
+        $targetLabel = $targetUser['firstname'] . ' ' . $targetUser['lastname'];
         logActivity($adminId, "Changed role of $targetLabel to " . roleLabel($newRoleName ?: ''), 'User Management');
         flash('success', 'User role updated.');
         redirect(url('admin/users.php'));
@@ -187,8 +276,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('error', 'Incorrect password. Deletion cancelled.');
             redirect(url('admin/users.php'));
         }
-        db()->prepare('DELETE FROM users WHERE user_id = ?')->execute([$_POST['user_id']]);
-        logActivity($adminId, "Deleted user #{$_POST['user_id']}", 'User Management');
+        // Audit B3: the account is deleted only when no parish record points at it.
+        // Everything is re-checked in one transaction with the account (and every
+        // active Admin) locked, so a record written meanwhile waits for this to
+        // finish and nothing is deleted with it, and two Admins deleting each
+        // other at once cannot both succeed.
+        $keepRecordsMessage = 'This account has existing parish records and cannot be permanently deleted. Please deactivate the account instead.';
+        $refusal = null;
+        $pdo = db();
+        try {
+            $pdo->beginTransaction();
+            lockActiveAdmins($pdo);
+            $lock = $pdo->prepare('SELECT user_id FROM users WHERE user_id = ? FOR UPDATE');
+            $lock->execute([$targetId]);
+            if ($lock->fetchColumn() === false) {
+                $refusal = 'This account no longer exists. It may have been deleted already.';
+            } elseif (adminChangeWouldLeaveNoAdmin($targetId)) {
+                $refusal = 'This is the only active Admin, so it cannot be deleted.';
+            } else {
+                $chk->execute([$targetId]);
+                $c = $chk->fetch();
+                if ($c && $c['is_placeholder']) {
+                    $refusal = 'This system placeholder account cannot be deleted because guest and walk-in records depend on it.';
+                } elseif ($c && $c['has_history']) {
+                    $refusal = 'This account has appointment or payment history and cannot be deleted. Set it to Inactive instead.';
+                } elseif (userRecordReferences($pdo, $targetId)) {
+                    $refusal = $keepRecordsMessage;
+                } else {
+                    $pdo->prepare('DELETE FROM users WHERE user_id = ?')->execute([$targetId]);
+                }
+            }
+            $refusal === null ? $pdo->commit() : $pdo->rollBack();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            $isForeignKey = $e instanceof PDOException && ($e->errorInfo[0] ?? $e->getCode()) === '23503';
+            error_log('Admin users: deleting user #' . $targetId . ' refused (' . get_class($e) . ' ' . ($e instanceof PDOException ? ($e->errorInfo[0] ?? $e->getCode()) : $e->getCode()) . ')');
+            $refusal = $isForeignKey ? $keepRecordsMessage : 'The account could not be deleted right now. Nothing was changed. Please try again, or deactivate it instead.';
+        }
+        if ($refusal !== null) {
+            flash('error', $refusal);
+            redirect(url('admin/users.php'));
+        }
+        logActivity($adminId, "Deleted user #{$targetId}", 'User Management');
         flash('success', 'User deleted.');
         redirect(url('admin/users.php'));
 
